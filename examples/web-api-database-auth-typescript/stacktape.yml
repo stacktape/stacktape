@@ -1,0 +1,55 @@
+stackConfig:
+  baseName: web-api
+  saveOutputs: true
+  outputs:
+    DbConnectionString:
+      Value: @Var().dbConnectionString
+
+variables:
+  dbUser: @File('.env').DB_USER
+  dbPassword: @File('.env').DB_PASSWORD
+  dbAddress: @GetParam('myDatabase', 'DbInstance.Endpoint.Address')
+  dbPort: @GetParam('myDatabase', 'DbInstance.Endpoint.Port')
+  dbName: @File('.env').DB_NAME
+  dbConnectionString: @CfFormat('postgres://{}:{}@{}:{}/{}?connection_limit=1', @Var().dbUser, @Var().dbPassword, @Var().dbAddress, @Var().dbPort, @Var().dbName)
+
+resources:
+  functions:
+    getPosts:
+      filePath: src/lambdas/get-posts.ts
+      events:
+        - httpApi:
+            path: /posts
+            method: GET
+      environment:
+        DB_CONNECTION_STRING: @Var().dbConnectionString
+
+    createPost:
+      filePath: src/lambdas/create-post.ts
+      events:
+        - httpApi:
+            path: /post/create
+            method: POST
+            authorizer:
+              type: cognito
+              userPoolName: myUserPool
+      environment:
+        DB_CONNECTION_STRING: @Var().dbConnectionString
+
+  userPools:
+    myUserPool:
+      userVerificationType: email-code
+      passwordPolicy:
+        minimumLength: 8
+
+  databases:
+    myDatabase:
+      masterUserName: @Var().dbUser
+      masterUserPassword: @Var().dbPassword
+      dbName: @Var().dbName
+      accessibleFromInternet: true
+      port: 5432
+      engine:
+        type: postgres
+      storageSizeGB: 20
+      dbInstanceSize: db.t3.micro

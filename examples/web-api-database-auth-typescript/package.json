@@ -1,0 +1,20 @@
+{
+  "name": "stacktape-example",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "stacktape invokeLocal --watch --workload sayHello",
+    "prisma:push": "npx prisma db push --preview-feature",
+    "prisma:migrate": "npx prisma db migrate --preview-feature",
+    "prisma:generate": "npx prisma generate"
+  },
+  "dependencies": {
+    "@aws-sdk/client-cognito-identity-provider": "^3.0.0",
+    "@prisma/client": "^2.12.1"
+  },
+  "devDependencies": {
+    "@prisma/cli": "^2.12.1",
+    "@types/aws-lambda": "^8.10.66",
+    "cross-env": "^7.0.3"
+  }
+}

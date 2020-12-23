@@ -1,0 +1,19 @@
+stackConfig:
+  baseName: my-static-web
+
+resources:
+  staticHostingBuckets:
+    myWebBucket:
+      autoUpload:
+        uploadDirectory: web-dist
+      optimizeForSinglePageApp: true
+      # routeRewrites:
+      #   - path: '*'
+      #     cachingOptions:
+      #       maxTtl: 80000000
+      #   - path: /
+      #     cachingOptions:
+      #       maxTtl: 3600
+      #   - path: '*.js'
+      #     cachingOptions:
+      #       maxTtl: 14400

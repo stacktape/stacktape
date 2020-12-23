@@ -1,0 +1,11 @@
+stackConfig:
+  baseName: simple-stack
+
+resources:
+  functions:
+    sayHello:
+      filePath: src/say-hello.ts
+      events:
+        - httpApi:
+            path: /hello
+            method: GET
