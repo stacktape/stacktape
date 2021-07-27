@@ -1,0 +1,25 @@
+{
+  "version": "2.0",
+  "routeKey": "GET /posts",
+  "rawPath": "/posts",
+  "rawQueryString": "",
+  "cookies": [],
+  "headers": {},
+  "requestContext": {
+    "accountId": "990000000000",
+    "apiId": "xxxxxxxxxx",
+    "domainName": "xxxxxxxxxx.execute-api.eu-west-1.amazonaws.com",
+    "domainPrefix": "xxxxxxxxxx",
+    "http": {
+      "method": "GET",
+      "path": "/posts",
+      "protocol": "HTTP/1.1"
+    },
+    "requestId": "xxxxxxxxxxxxxxxx",
+    "routeKey": "GET /posts",
+    "stage": "$default",
+    "time": "31/Dec/2020:22:31:07 +0000",
+    "timeEpoch": 1608071467172
+  },
+  "isBase64Encoded": false
+}

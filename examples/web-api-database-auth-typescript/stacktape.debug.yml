@@ -1,0 +1,92 @@
+stackName: lambda-api
+
+stackConfig:
+  outputs:
+    customValues:
+      - name: dbConnectionString
+        value: $Var().dbConnectionString
+
+hooks:
+  - executeFunction: scripts/prisma-push.ts:prismaPush
+    triggers: ['after:deploy']
+    environment:
+      - name: DB_CONNECTION_STRING
+        value: $Var().dbConnectionString
+
+variables:
+  dbUser: my_stacktape_master_user
+  dbPassword: my_stacktape_secret_password
+  dbName: my_stacktape_db_name
+  dbAddress: $GetParam('myDatabase', 'DbInstance::Endpoint.Address')
+  dbPort: $GetParam('myDatabase', 'DbInstance::Endpoint.Port')
+  dbConnectionString: $CfFormat('postgres://{}:{}@{}:{}/{}?connection_limit=1', $Var().dbUser, $Var().dbPassword, $Var().dbAddress, $Var().dbPort, $Var().dbName)
+
+resources:
+  myGateway:
+    Type: http-api-gateway
+  getPosts:
+    Type: function
+    Properties:
+      packageConfig:
+        filePath: src/lambdas/get-posts.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: myGateway
+            path: /posts
+            method: GET
+      environment:
+        - name: DB_CONNECTION_STRING
+          value: $Var().dbConnectionString
+    overrides:
+      LambdaFunction:
+        Timeout: 15
+  createPost:
+    Type: function
+    Properties:
+      packageConfig:
+        filePath: src/lambdas/create-post.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: myGateway
+            path: /post/create
+            method: POST
+            authorizer:
+              type: cognito
+              userPoolName: myUserPool
+      environment:
+        - name: DB_CONNECTION_STRING
+          value: $Var().dbConnectionString
+  myDatabase:
+    Type: relational-database
+    Properties:
+      credentials:
+        masterUserName: $Var().dbUser
+        masterUserPassword: $Var().dbPassword
+      engine:
+        type: postgres
+        properties:
+          version: '13.2'
+          dbName: $Var().dbName
+          instance:
+            dbInstanceSize: db.t3.micro
+          storage:
+            diskSizeGB: 20
+          port: 5432
+    overrides:
+      DbInstanceParameterGroup:
+        Description: overriden description of this parameter group
+
+  myUserPool:
+    Type: user-auth-pool
+    Properties:
+      userVerificationType: email-code
+      passwordPolicy:
+        minimumLength: 8
+
+
+
+
+
+

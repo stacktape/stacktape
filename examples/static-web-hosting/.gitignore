@@ -1,0 +1,7 @@
+.idea
+*.log
+**/.DS_Store
+node_modules
+.stacktape
+.outputs
+yarn.lock

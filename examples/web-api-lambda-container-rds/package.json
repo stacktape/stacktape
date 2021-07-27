@@ -1,0 +1,11 @@
+{
+  "name": "stacktape-example",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {},
+  "dependencies": {
+    "fastify": "^3.15.0",
+    "pg-hstore": "^2.3.3",
+    "sequelize": "^6.6.2"
+  }
+}

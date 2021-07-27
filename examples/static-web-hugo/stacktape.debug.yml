@@ -1,0 +1,10 @@
+stackName: static-web
+
+resources:
+  webHostingBucket:
+    Type: bucket
+    Properties:
+      autoUpload:
+        uploadDirectory: ./public
+      cdn:
+        enabled: true

@@ -1,0 +1,9 @@
+.idea
+*.log
+**/.DS_Store
+node_modules
+.stacktape
+.outputs
+.env
+prisma/migrations
+yarn.lock

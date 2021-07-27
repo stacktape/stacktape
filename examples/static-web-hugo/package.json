@@ -1,0 +1,13 @@
+{
+  "name": "static-web-hugo",
+  "version": "1.0.0",
+  "description": "Hugo Stacktape static website builder",
+  "license": "MIT",
+  "scripts": {
+    "build": "hugo -D",
+    "start": "hugo server"
+  },
+  "devDependencies": {
+    "hugo-extended": "^0.85.0"
+  }
+}
