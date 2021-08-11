@@ -1,0 +1,10 @@
+stackName: static-website-gatsby
+
+resources:
+  webHostingBucket:
+    Type: bucket
+    Properties:
+      autoSync:
+        syncDirectory: ./public
+      cdn:
+        enabled: true

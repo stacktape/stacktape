@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css"
+        integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.0.0/dist/tf.min.js"></script>
+    <script type="text/javascript" src="https://code.jquery.com/jquery-2.1.1.min.js"></script>
+
+    <title>Forest Fire Prediction</title>
+</head>
+
+<body>
+    <div class="container">
+        <div class="row">
+            <div class="col-md-12 text-center">
+                <h2 style="padding: 50px;">Hand-drawn Number Classification Using a CNN</h2>
+            </div>
+        </div>
+
+
+        <div class="row">
+            <div id="canvasDiv"></div>
+            <div id="predDiv" class="col-md-5 text-center">
+                <h1 style="margin-top: 200px; color: red;" id="predval"></h1>
+                <p id="status" class="alert-info"></p>
+            </div>
+            <div style="margin-left: 100px;" class="col-md-6">
+                <button class="btn btn-primary" id="predict" onclick="predict()">Predict</button>
+                <button class="btn btn-primary" id="clear-pred" onclick="clearCanvas()">Clear</button>
+
+            </div>
+            <div class="col-md-6 text-center">
+            </div>
+        </div>
+    </div>
+
+
+
+
+
+    <script src="javascripts/index.js"></script>
+    
+</body>
+
+</html>

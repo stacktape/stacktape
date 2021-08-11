@@ -1,0 +1,53 @@
+stackName: video-transcoding-batch-job
+
+resources:
+  videoBucket:
+    Type: bucket
+    Properties:
+      autoSync:
+        syncDirectory: ./bucket-data
+
+  videoTranscoder:
+    Type: batch-job
+    Properties:
+      container:
+        imageConfig:
+          buildContextPath: ./video-transcoder
+          command: ['video-transform.py']
+      resources:
+        cpu: 4
+        memory: 7900
+      accessControl:
+        allowAccessTo:
+          - videoBucket
+      events:
+        - type: s3
+          properties:
+            bucketArn: $GetParam('videoBucket', 'Bucket::Arn')
+            s3EventType: s3:ObjectCreated:*
+            filterRule:
+              prefix: raw-videos
+
+  frontendGateway:
+    Type: http-api-gateway
+
+  frontendFunction:
+    Type: function
+    Properties:
+      packageConfig:
+        filePath: ./frontend-lambda/index.tsx
+      accessControl:
+        allowAccessTo:
+          - videoTranscoder
+          - videoBucket
+      environment:
+        - name: JOB_STATE_MACHINE_ARN
+          value: $GetParam('videoTranscoder', 'JobStateMachine::Arn')
+        - name: BUCKET_NAME
+          value: $GetParam('videoBucket', 'Bucket::Name')
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: frontendGateway
+            path: /{proxy+}
+            method: GET

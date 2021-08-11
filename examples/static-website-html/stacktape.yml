@@ -1,0 +1,10 @@
+stackName: static-website-html
+
+resources:
+  webHostingBucket:
+    Type: bucket
+    Properties:
+      autoSync:
+        syncDirectory: web-dist
+      cdn:
+        enabled: true

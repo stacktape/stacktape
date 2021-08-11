@@ -1,0 +1,60 @@
+stackName: MERN-stack-container
+
+providerConfiguration:
+  mongoDbAtlas:
+    apiCredentials:
+      # You can store your private/public key as secret and retrieve them using $GetSecret('<<name-of-the-secret>>')
+      privateKey: <<atlas-mongo-provider-private-key>> # $GetSecret('mongoFullAccessPrivateKey')
+      publicKey: <<atlas-mongo-provider-public-key>> # vsnrksqa
+    organizationId: <<id-of-atlas-mongo-organization>> # 6027241119807a593cbe63dd
+
+resources:
+  mongoDatabase:
+    Type: mongo-db-atlas-cluster
+    Properties:
+      clusterTier: M2
+
+  serverAppGateway:
+    Type: http-api-gateway
+
+  serverApp:
+    Type: container-workload
+    Properties:
+      containers:
+        - name: server
+          imageConfig:
+            filePath: server/app.js
+          environment:
+            - name: PORT
+              value: 8082
+            - name: MONGODB_CONNECTION_STRING
+              value: $GetParam('mongoDatabase', 'AtlasMongoCluster::SrvConnectionString')
+          events:
+            - type: http-api-gateway
+              properties:
+                containerPort: 8082
+                httpApiGatewayName: serverAppGateway
+                path: /api/{proxy+}
+                method: '*'
+      resources:
+        cpu: 0.25
+        memory: 512
+      accessControl:
+        allowAccessTo:
+          - mongoDatabase
+
+  clientApp:
+    Type: bucket
+    Properties:
+      autoSync:
+        syncDirectory: react-client/build
+      cdn:
+        enabled: true
+        optimizeForSinglePageApp: true
+        invalidateAfterDeploy: true
+        routeRewrites:
+          - path: /api*
+            routeTo:
+              type: http-api-gateway
+              properties:
+                httpApiGatewayName: serverAppGateway

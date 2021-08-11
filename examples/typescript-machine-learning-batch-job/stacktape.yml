@@ -1,0 +1,53 @@
+stackName: machine-learning-batch-job
+
+resources:
+  webAppBucket:
+    Type: bucket
+    Properties:
+      autoSync:
+        syncDirectory: ./web-app
+      cdn:
+        enabled: true
+        routeRewrites:
+          - path: /start-training
+            routeTo:
+              type: http-api-gateway
+              properties:
+                httpApiGatewayName: functionGateway
+
+  trainingJob:
+    Type: batch-job
+    Properties:
+      container:
+        imageConfig:
+          languageSpecificConfig:
+            requiresGlibcBinaries: true
+          filePath: ./training-job/index.js
+      accessControl:
+        allowAccessTo:
+          - webAppBucket
+      resources:
+        cpu: 2
+        memory: 6100
+
+  functionGateway:
+    Type: http-api-gateway
+
+  startFunction:
+    Type: function
+    Properties:
+      packageConfig:
+        filePath: ./start-function/start-training.ts
+      timeout: 10
+      environment:
+        - name: STATE_MACHINE_ARN
+          value: $GetParam('trainingJob', 'JobStateMachine::Arn')
+      accessControl:
+        allowAccessTo:
+          - trainingJob
+      events:
+        - type: http-api-gateway
+          properties:
+            path: /start-training
+            httpApiGatewayName: functionGateway
+            method: GET

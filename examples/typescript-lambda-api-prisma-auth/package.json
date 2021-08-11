@@ -1,0 +1,33 @@
+{
+  "name": "typescript-lambda-api-prisma-auth",
+  "version": "1.0.0",
+  "private": true,
+  "bugs": {
+    "url": "https://github.com/stacktape/stacktape/issues"
+  },
+  "author": "Stacktape team <info@stacktape.com> (https://stacktape.com)",
+  "scripts": {
+    "dev": "stacktape invokeLocal --watch --workload sayHello",
+    "prisma:push": "npx prisma db push ",
+    "prisma:migrate": "npx prisma db migrate",
+    "prisma:generate": "npx prisma generate",
+    "lint": "npx eslint .",
+    "prettify": "npx prettier . --write"
+  },
+  "dependencies": {
+    "@aws-sdk/client-cognito-identity-provider": "^3.16.0",
+    "@prisma/client": "^2.23.0"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.66",
+    "execa": "^5.0.0",
+    "prisma": "^2.23.0",
+    "@typescript-eslint/eslint-plugin": "^4.29.1",
+    "@typescript-eslint/parser": "^4.29.1",
+    "eslint": "^7.32.0",
+    "eslint-config-airbnb": "^18.2.1",
+    "eslint-config-prettier": "^8.3.0",
+    "eslint-plugin-prettier": "^3.4.0",
+    "prettier": "^2.3.2"
+  }
+}

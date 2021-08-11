@@ -1,0 +1,68 @@
+stackName: nest-js-api-container
+
+variables:
+  dbUser: my_db_user
+  dbPassword: my_db_password
+  dbName: my_db_name
+  dbAddress: $GetParam('myDatabase', 'DbInstance::Endpoint.Address')
+  dbPort: $GetParam('myDatabase', 'DbInstance::Endpoint.Port')
+  dbConnectionString: $CfFormat('postgres://{}:{}@{}:{}/{}', $Var().dbUser, $Var().dbPassword, $Var().dbAddress, $Var().dbPort, $Var().dbName)
+
+resources:
+  mainGateway:
+    Type: http-api-gateway
+    Properties:
+      accessLogs:
+        enabled: true
+        format: JSON
+      cors:
+        enabled: true
+
+  nestJsApi:
+    Type: container-workload
+    Properties:
+      containers:
+        - name: api-container
+          imageConfig:
+            filePath: src/main.ts
+            languageSpecificConfig:
+              emitTsDecoratorMetadata: true
+          environment:
+            - name: DB_CONNECTION_STRING
+              value: $Var().dbConnectionString
+            - name: PORT
+              value: 3000
+          events:
+            - type: http-api-gateway
+              properties:
+                containerPort: 3000
+                httpApiGatewayName: mainGateway
+                method: GET
+                path: /{proxy+}
+      resources:
+        cpu: 1
+        memory: 2048
+      scaling:
+        minCount: 1
+        maxCount: 5
+        scalingPolicy:
+          keepAvgCpuUtilizationUnder: 80
+          keepAvgMemoryUtilizationUnder: 80
+
+  myDatabase:
+    Type: relational-database
+    Properties:
+      credentials:
+        masterUserName: $Var().dbUser
+        masterUserPassword: $Var().dbPassword
+      accessibility:
+        restrictAccess: internet
+      engine:
+        type: postgres
+        properties:
+          dbName: $Var().dbName
+          port: 5432
+          storage:
+            diskSizeGB: 20
+          instance:
+            dbInstanceSize: db.t3.micro
