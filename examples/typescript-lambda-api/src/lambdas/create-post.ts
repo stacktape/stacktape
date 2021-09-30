@@ -10,8 +10,6 @@ export const handler: APIGatewayProxyHandlerV2 = async (event, _context) => {
     isModelSynchronized = true;
   }
 
-  const igor = event.
-
   const requestData = JSON.parse(event.body);
   const createdPost = await PostModel.create({
     title: requestData.title,

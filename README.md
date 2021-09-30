@@ -40,7 +40,7 @@ Configuration can be written in multiple languages, from **YAML** & **JSON** to 
 ​
 Built-in directives help with common tasks and **custom directives can be used to build custom, reusable constructs using real languages**.\
 ​
-You can extend Stacktape templates using **AWS Cloudformation** or override any aspect of the framework using **custom plugins**.
+You can extend Stacktape templates using **AWS Cloudformation** or override any aspect of the framework using **custom plugins**..
 ​
 
 > _Example **stacktape.yml** configuration file_
