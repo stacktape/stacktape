@@ -1,0 +1,17 @@
+stackName: lambda-hello-world
+
+resources:
+  myHttpApiGateway:
+    type: http-api-gateway
+
+  helloWorldLambda:
+    type: function
+    properties:
+      packageConfig:
+        filePath: src/say-hello.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            method: GET
+            path: /hello
+            httpApiGatewayName: myHttpApiGateway

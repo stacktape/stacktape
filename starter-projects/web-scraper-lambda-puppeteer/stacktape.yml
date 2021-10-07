@@ -1,0 +1,25 @@
+stackName: web-scraper-lambda-puppeteer
+
+resources:
+  mainGateway:
+    type: http-api-gateway
+    properties:
+      accessLogs:
+        enabled: true
+        format: JSON
+      cors:
+        enabled: true
+
+  scrapeLinks:
+    type: function
+    properties:
+      packageConfig:
+        filePath: src/lambdas/scrape-links.ts:handler
+        dependenciesToIgnore:
+          - puppeteer
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: mainGateway
+            path: /scrape-links/{url}
+            method: GET

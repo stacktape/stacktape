@@ -1,0 +1,35 @@
+stackName: website-nextjs-ssr
+
+hooks:
+  - triggers: [before:deploy]
+    executeCommand: npx next build
+
+resources:
+  gateway:
+    type: http-api-gateway
+    properties:
+      cdn:
+        invalidateAfterDeploy: true
+        enabled: true
+        cachingOptions:
+          minTTL: 3600
+
+  nextJsApp:
+    type: container-workload
+    properties:
+      containers:
+        - name: next-js-server
+          imageConfig:
+            filePath: src/next-server.ts
+            includeFiles:
+              - public/**/*
+          events:
+            - type: http-api-gateway
+              properties:
+                containerPort: 3000
+                method: '*'
+                path: /{proxy+}
+                httpApiGatewayName: gateway
+      resources:
+        cpu: 0.25
+        memory: 512

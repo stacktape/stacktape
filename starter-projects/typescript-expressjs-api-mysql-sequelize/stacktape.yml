@@ -1,0 +1,60 @@
+stackName: expressjs-api-mysql-sequelize
+
+variables:
+  dbUser: my_db_user
+  dbPassword: my_db_password
+  dbName: my_db_name
+  dbAddress: $Param('myDatabase', 'DbInstance::Endpoint.Address')
+  dbPort: $Param('myDatabase', 'DbInstance::Endpoint.Port')
+  dbConnectionString: $CfFormat('mysql://{}:{}@{}:{}/{}', $Var().dbUser, $Var().dbPassword, $Var().dbAddress, $Var().dbPort, $Var().dbName)
+
+resources:
+  mainGateway:
+    type: http-api-gateway
+    properties:
+      accessLogs:
+        enabled: true
+        format: JSON
+      cors:
+        enabled: true
+
+  apiContainer:
+    type: container-workload
+    properties:
+      containers:
+        - name: expressjs-api
+          imageConfig:
+            filePath: src/index.ts
+          environment:
+            - name: DB_CONNECTION_STRING
+              value: $Var().dbConnectionString
+            - name: PORT
+              value: 3000
+          events:
+            - type: http-api-gateway
+              properties:
+                containerPort: 3000
+                httpApiGatewayName: mainGateway
+                method: '*'
+                path: /{proxy+}
+      resources:
+        cpu: 1
+        memory: 2048
+
+  myDatabase:
+    type: relational-database
+    properties:
+      credentials:
+        masterUserName: $Var().dbUser
+        masterUserPassword: $Var().dbPassword
+      accessibility:
+        restrictAccess: internet
+      engine:
+        type: mysql
+        properties:
+          dbName: $Var().dbName
+          port: 5432
+          storage:
+            diskSizeGB: 20
+          instance:
+            dbInstanceSize: db.t3.micro

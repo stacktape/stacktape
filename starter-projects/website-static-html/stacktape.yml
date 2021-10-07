@@ -1,0 +1,12 @@
+stackName: website-static-html
+
+resources:
+  webHostingBucket:
+    type: bucket
+    properties:
+      autoSync:
+        syncDirectory: web
+        deleteRemoved: true
+      cdn:
+        enabled: true
+        invalidateAfterDeploy: true

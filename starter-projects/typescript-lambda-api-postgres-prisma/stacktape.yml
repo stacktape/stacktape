@@ -1,0 +1,108 @@
+stackName: lambda-api-postgres-prisma
+
+variables:
+  dbUser: my_stacktape_master_user
+  dbPassword: my_stacktape_secret_password
+  dbName: my_stacktape_db_name
+  dbAddress: $Param('myDatabase', 'DbInstance::Endpoint.Address')
+  dbPort: $Param('myDatabase', 'DbInstance::Endpoint.Port')
+  dbConnectionString: $CfFormat('postgres://{}:{}@{}:{}/{}?connection_limit=1', $Var().dbUser, $Var().dbPassword, $Var().dbAddress, $Var().dbPort, $Var().dbName)
+
+hooks:
+  - triggers: ['before:deploy']
+    executeCommand: npx prisma generate
+  - triggers: ['after:deploy']
+    executeScript: scripts/prisma-migrate.ts
+    environment:
+      - name: DB_CONNECTION_STRING
+        value: $Var().dbConnectionString
+
+resources:
+  myGateway:
+    type: http-api-gateway
+  getPost:
+    type: function
+    properties:
+      packageConfig:
+        filePath: src/lambdas/get-post.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: myGateway
+            path: /post/{id}
+            method: GET
+      environment:
+        - name: DB_CONNECTION_STRING
+          value: $Var().dbConnectionString
+  getPosts:
+    type: function
+    properties:
+      packageConfig:
+        filePath: src/lambdas/get-posts.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: myGateway
+            path: /post
+            method: GET
+      environment:
+        - name: DB_CONNECTION_STRING
+          value: $Var().dbConnectionString
+  createPost:
+    type: function
+    properties:
+      packageConfig:
+        filePath: src/lambdas/create-post.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: myGateway
+            path: /post
+            method: POST
+      environment:
+        - name: DB_CONNECTION_STRING
+          value: $Var().dbConnectionString
+  updatePost:
+    type: function
+    properties:
+      packageConfig:
+        filePath: src/lambdas/update-post.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: myGateway
+            path: /post/{id}
+            method: PUT
+      environment:
+        - name: DB_CONNECTION_STRING
+          value: $Var().dbConnectionString
+  deletePost:
+    type: function
+    properties:
+      packageConfig:
+        filePath: src/lambdas/delete-post.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: myGateway
+            path: /post/{id}
+            method: DELETE
+      environment:
+        - name: DB_CONNECTION_STRING
+          value: $Var().dbConnectionString
+  myDatabase:
+    type: relational-database
+    properties:
+      credentials:
+        masterUserName: $Var().dbUser
+        masterUserPassword: $Var().dbPassword
+      engine:
+        type: postgres
+        properties:
+          version: '13.2'
+          dbName: $Var().dbName
+          instance:
+            dbInstanceSize: db.t3.micro
+          storage:
+            diskSizeGB: 20
+          port: 5432
