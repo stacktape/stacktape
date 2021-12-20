@@ -4,9 +4,9 @@
 
 #### Stacktape gives you the **full power of AWS** with **98% less configuration** and **developer-friendly** experience.
 
-## [Deploy your cloud application in 5 minutes](https://docs.stacktape.com/getting-started/setup-stacktape/)
+### [Deploy your cloud application in 5 minutes](https://docs.stacktape.com/getting-started/setup-stacktape/)
 
-<br />
+## Next-gen cloud development framework
 
 - **Focused on developer experience -** Easy to use, well-documented, customizable and with helpful error messages.
 - **Production grade -** Gives you scalable, reliable, observable, secure and performant infrastructure.
@@ -14,7 +14,7 @@
 - **Cost-effective -** As cost-effective as possible. No more AWS pricing loopholes.
 
 ## Contents
-- [How it works](#next-gen-cloud-development-framework)
+- [How it works](#how-it-works)
 - [Supported infrastructure components](#all-the-infrastructure-components-youll-need)
 - [Comparison](#comparison)
 	- [Serverless](#serverless)
@@ -29,7 +29,7 @@
 - [Community and Socials](#community-and-socials)
 - [Other](#other)
 
-## Next-gen cloud development framework
+## How it works
 
 ### 1. Configure your stack
 Stacktape is an  **IaC**  (Infrastructure as a code) tool.
