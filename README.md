@@ -1,283 +1,409 @@
-[![Stacktape cloud native framework](https://stacktape.com/github_title.png)](http://stacktape.com)
-[Website](https://stacktape.com) • [Get Started](https://docs.stacktape.com/getting-started) • [Docs](https://docs.stacktape.com/) • [Examples](https://github.com/stacktape/stacktape) • [Blog](https://teespring.com/stores/serverless) • [Slack](https://stacktape-community.slack.com) • [Twitter](https://twitter.com/stacktape) • [Facebook](https://www.facebook.com/stacktape) • [Linked In](https://www.linkedin.com/company/stacktape/)
-​
+[![DevOps-free cloud development](https://stacktape.com/cover-images/github-zoomed.png)](https://stacktape.com)
 
-# Stacktape is a cloud-native framework that makes full power of AWS accessible to common developers.
+# What is Stacktape?
 
-​
+[Website](https://stacktape.com) • [Docs](https://docs.stacktape.com/) •  [Slack](https://stacktape-community.slack.com) • [Twitter](https://twitter.com/stacktape) • [Facebook](https://www.facebook.com/stacktape) • [Linked In](https://www.linkedin.com/company/stacktape/)
 
-- **Made for developers -** By abstracting away all the complexity, we make cloud development accessible to every developer.
-- **Full power of AWS -** Deploy anything. From simple web apps to complicated data-processing pipelines.
-- **Production-ready from day 1 -** Reliability, scalability, security & performance. With no extra effort.
-- **Optimized for productivity -** Includes developer tooling that makes cloud-native development seamless and developers happy.
-- **Fully serverless -** Scale from 0 to 1000s of concurrent workloads automatically. Pay only for what you use.
-- **Cost-effective -** We do our best to keep your AWS bills as low as possible. Without compromising quality.
-  ​
+Stacktape gives you the **full power of AWS** with **98% less configuration** and **developer-friendly** experience.
+
+## [Deploy your cloud application in 5 minutes](https://docs.stacktape.com/getting-started/setup-stacktape/)
+
+<br />
+
+- **Focused on developer experience -** Simple, well-documented & easily customizable.
+- **Production grade -** Scalable, reliable, observable, secure and performant infrastructure by default.
+- **Fast and efficient -** Up to 90% faster deployments with parallel builds and advanced caching.
+- **Cost-effective -** As cost-effective as possible. No more AWS pricing loopholes.
 
 ## Contents
-
+- [All the infrastructure you'll ever need](#all-the-infrastructure-youll-ever-need)
 - [How it works](#how-it-works)
 - [Comparison](#comparison)
-  - [Serverless](#serverless)
-  - [Heroku](#heroku)
-  - [Firebase](#firebase)
-  - [Kubernetes](#kubernetes)
-  - [AWS SAM](#aws-sam)
-  - [CloudFormation](#cloudformation)
-  - [Terraform](#terraform)
+	- [Serverless](#serverless)
+	- [Heroku](#heroku)
+	- [Firebase](#firebase)
+	- [Kubernetes](#kubernetes)
+	- [AWS SAM](#aws-sam)
+	- [CloudFormation](#cloudformation)
+	- [Terraform](#terraform)
+	- [Vercel](#vercel)
 - [FAQ](#faq)
 - [Community and Socials](#community-and-socials)
 - [Other](#other)
-  ​
+
+## All the infrastructure you'll ever need
+One tool for all your apps. From simple websites to data processing pipelines.
+
+### Lambda functions
+Short-lived serverless functions able to quickly scale up to 1000s of parallel executions with pay-per-use pricing.
+
+### Container workloads
+Fully managed, auto-scalable and easy-to-use runtime for your Docker containers.
+
+### Batch jobs
+Fully managed, on-demand runtime for your container jobs with pay-per-use pricing. Supports GPU workloads.
+
+### SQL databases
+Fully managed relational databases (Postgres, MySQL, MariaDb, etc.) with support for clustering, failover & more.
+
+### MongoDb clusters
+Fully managed MongoDb Atlas clusters. Automatically deployed to your AWS account and managed within your stack.
+
+### DynamoDB
+Fully managed, serverless, highly-available and massively scalable key-value datastore.
+
+### Api Gateways
+Fully managed, serverless HTTP Api Gateway with pay-per-request pricing.
+
+### Load balancers
+Fully managed, Application (L7) Load balancer.
+
+### Storage buckets
+Durable and highly-available object storage with pay-per-use pricing.
+
+### Authentication
+Fully managed sign-ups, logins and authorization for your users with pay-per-use pricing.
+
+### Redis clusters
+Fully managed, redis-compatible in-memory data store with sub-millisecond latency.
+
+### CDN
+Globally distributed (edge) cache for your Buckets, Load balancers and API Gateways.
+
+### Domains & certificates
+Auto-provisined certificates and domain management for your Buckets, Load balancers and API Gateways.
+
+### Secrets
+Fully managed secret store for your credentials, API keys and other sensitive data.
 
 ## How it works
 
-### 1. Configure your infrastructure
+### 1. Configure your stack
+Stacktape is an  **IaC**  (Infrastructure as a code) tool.
 
-Every aspect of your application is configured using a **simple configuration file**.\
-​
-Configuration can be written in multiple languages, from **YAML** & **JSON** to **Typescript** & **Python**.\
-​
-Built-in directives help with common tasks and **custom directives can be used to build custom, reusable constructs using real languages**.\
-​
-You can extend Stacktape templates using **AWS Cloudformation** or override any aspect of the framework using **custom plugins**.
-​
+The configuration is simple, declarative and can be written using  **YAML**,  **JSON**,  **Javascript**,  **Typescript**  or  **Python**.
 
-> _Example **stacktape.yml** configuration file_
-
+>*Example **stacktape.yml** configuration file*
 ```yml
-stackConfig:
-  name: my-stack
+serviceName: my-application
 resources:
-  functions:
-    generateWeeklyReport:
-      sourcePath: src/reports/generate-weekly-report.ts
-      environment:
-        DB_URL: $Param('userDatabase', 'Address')
-      events:
-        - schedule:
-            rate: cron(0 7 * * 1)
-  databases:
-    userDatabase:
-      dbInstanceSize: db.t3.micro
+  mainGateway:
+    type: http-api-gateway
+  apiServer:
+    type: container-workload
+    properties:
+      resources:
+        cpu: 2
+        memory: 2048
+      scaling:
+        minInstances: 1
+        maxInstances: 5
+      containers:
+        - name: api-container
+          imageConfig:
+            filePath: src/main.ts
+          environment:
+            - name: DB_ENDPOINT
+              value: $ResourceParam('mainDatabase', 'endpoint')
+          events:
+            - type: http-api-gateway
+              properties:
+                method: GET
+                path: /{proxy+}
+                containerPort: 3000
+                httpApiGatewayName: mainGateway
+  mainDatabase:
+    type: relational-database
+    properties:
       engine:
-        type: postgres
-        version: 12.4
+        type: aurora-postgresql-serverless
+      credentials:
+        masterUserName: $Secret('dbSecret.username')
+        masterUserPassword: $Secret('dbSecret.password')
 ```
 
-### 2. Develop your application
+### 2. Deploy your application
 
-Stacktape is based on experience from many cloud-native projects, making your development process as seamless and productive as possible.\
-​
-You can **emulate cloud environment**, **interact with live cloud services**, **preview & inspect changes**, **rollback to previous versions**, **enforce policies** & much more.\
-​
-Stacktape isn’t opinionated about your development workflow, making it easy to **fit into any pipeline**.
-​
-
-> _Example **lambda function** code_
-
-```ts
-import { WebClient } from '@slack/web-api';
-import { getDbAdapter } from './db-adapter';
-const dbAdapter = getDbAdapter({ URL: process.env.DB_URL });
-const slackClient = new WebClient('MY-SLACK-TOKEN');
-
-export default async (event, context) => {
-  const activeUsers = dbAdapter.getAllActiveUsers();
-  await slackClientchat.postMessage({
-    text: activeUsers.join('\n'),
-    channel: 'CHANNEL-ID',
-  });
-
-  return { message: 'Generated user report.' };
-};
-```
-
-### 3. Deploy everything using one command
+Deployment is done using a  **single command**.
 
 Stacktape handles the rest:
-​
 
-1. **Configures infrastructure resources**
-   Figures out an optimal way to run your workloads. You don’t need to understand how networking, VPCs or ECS clusters or autoscaling groups work.
-   ​
-2. **Packages and deployes your source code:**
-   Creates perfectly optimized Lambda packages or Docker containers. Everything is done as efficently as possible, leveraging advanced caching and parallel builds.
-   ​
-   > _Console output of **stacktape deploy** command_
+-   **Packages your source code**
+-   **Scans and resolves dependencies**
+-   **Configures and provisions infrastructure resources**
+-   **Deploys your application to AWS**
 
+>*Using **CLI***
+```bash
+stacktape deploy --stage production --region eu-west-1
+[SUCCESS] Loading configuration done in 0.03 sec.
+[SUCCESS] Fetching stack data done in 0.63 sec.
+[SUCCESS] Packaging workloads
+ ↪ apiserver-apicontainer: done in 18.57 sec. Image size: 85 MB.
+[SUCCESS] Uploading deployment artifacts done in 6.53 sec.
+[SUCCESS] Validating template done in 0.42 sec.
+[INFO] Deploying stack my-application-production...
+[INFO] Deploying infrastructure resources. Finished: 9/35.
 ```
-> stacktape deploy --stage production
-[INFO] Using config file at ./stacktape.yml
-[SUCCESS] Packaging function generateWeeklyReport done in 0.15 sec. Size: 15kB. Zipped size: 4kB.
-[SUCCESS] Uploading deployment artifacts done in 0.3 sec.
-[INFO] Deploying stack to stage production…
-[████████████--------------] 45%
+
+>*Using **SDK***
+```js
+import { Stacktape } from 'stacktape';
+const stacktape = new Stacktape({
+  region: 'eu-west-1',
+  stage: 'production'
+});
+stacktape.deploy({
+  config: {
+    serviceName: 'my-application',
+    resources: [...your resources...]
+  }
+});
 ```
 
 ## Comparison
 
 ### Serverless
+<details>
+<summary>Read more</summary>
+Serverless framework is a great tool that simplifies deployment of function-based (FaaS) applications.
 
-Serverless framework makes deploying (FaaS) functions to multiple cloud providers easy.
-​
-Stacktape is focused only on AWS, which allows us to do much more.
-​
+Sadly, the simplicity disappears when your application needs more than just functions, and you're left with the resposibility for configuring, managing and integrating other infrastructure components.
 
 #### Stacktape's advantages
-
-- **More power** - Stacktape unlocks full power of AWS. Enabling you to do more and cover more use-cases.
-- **Plug-and-play** - Everything is built-in. No need to configure a plugin for everything.
-- **Perfectly optimized** - Everything from packaging to deployment happens up to 50 times faster.
-- **Streamlined development process** - No need for excessive configuration or figuring out how to solve common problems.
-  ​
+- **More power** - Besides lambda functions, Stacktape allows you to deploy container workloads, batch jobs, SQL and NoSQL databases, API Gateways, Load balancers and much more.
+- **Optimized build process** - Stacktape supports zero-config, heavily optimized parallel builds with advanced caching.
+- **Programmatic SDK** - Stacktape includes both CLI and SDK (currently supported for Javascript and Typescript). It allows you to easily build complicated deployment pipelines.
+- **Better developer experience** - Stacktape is simple, well-documented and easily customizable. Everything is properly validated. Error messages are descriptive and include hints.
+- **Editor extension** - Stacktape comes with a VS code editor extension to further improve developer experience with validation, autocompletion and built-in documentation.
+- **Development studio (coming soon)** - Stacktape development studio is a graphical user interface. It's a convenient way to manage and test your applications and infrastructure.
+- **Client SDKs (coming soon)** - Client SDKs (for web, mobile and more) can be used within your application to help with most common tasks (authenticating users, uploading files, etc.).
 
 #### Stacktape's disadvantages
-
-- **Not open-source** - Stacktape is not open-source. But we do have a generous free tier.
-- **AWS only** - Stacktape currently supports only AWS.
-  ​
+- **Not open-source** - Stacktape is a SaaS product. But it comes with a free tier.
+- **Smaller community** - Being a new product, Stacktape doesn't have a large community yet.
+- **AWS only** - Stacktape works on top of AWS. Support for MS Azure and Google Cloud is planned. Besides AWS services, Stacktape also supports 3rd party providers (such as MongoDb Atlas).
+</details>
 
 ### Heroku
+<details>
+<summary>Read more</summary>
+Heroku is an easy-to-use platform for hosting applications.
 
-Heroku is an easy to use platform for hosting applications.
-​
-With Stacktape, you retain the simplicity of Heroku, while gaining more control, power & lower bills.
-​
-
-#### Stacktape's advantages
-
-- **More power** - Stacktape unlocks full power of AWS. Enabling you to do more and cover more use-cases.
-- **Lower bills** - AWS is significantly cheaper than Heroku. And Stacktape makes it even more cost-effective.
-- **More control & scaling** - AWS gives you more control, extensibility & customizability.
-  ​
-
-#### Stacktape's disadvantages
-
-- **Less supported languages** - Zero config code builds are currently supported for less languages. But you can use any language, if you supply your own Dockerfile.
-  ​
-
-### Firebase
-
-Firebase is an easy-to-use platform for mobile and web apps.
-​
-With firebase, you trade simplicity for control & power. With Stacktape, you don't.
-​
+Sadly, it's also very costly and lacks a lot of features compared to larger cloud platforms (such as AWS).
 
 #### Stacktape's advantages
-
-- **Support for containers and long-running jobs** - Firebase supports only (FaaS) functions.
-- **SQL** - Firebase supports only key-value datastore.
-- **Lower bills** - AWS is significantly cheaper than Heroku. And Stacktape makes it even more cost-effective.
-  ​
+- **Full power of AWS** - Stacktape allows you to deploy almost any infrastructure components, including containers, batch jobs, SQL and NoSQL databases, API Gateways, Load balancers, file storage, CDN & more.
+- **Lower costs** - With Heroku, you get simplicity for a significantly higher infrastructure costs. Stacktape gives you the simplicity without the absurd infrastructure bills.
+- **Optimized build process** - Stacktape supports zero-config, heavily optimized parallel builds with advanced caching.
+- **Programmatic SDK** - Stacktape includes both CLI and SDK (currently supported for Javascript and Typescript). It allows you to easily build complicated deployment pipelines.
+- **Editor extension** - Stacktape comes with a VS code editor extension to further improve developer experience with validation, autocompletion and built-in documentation.
+- **Infrastructure as Code** - Stacktape allows you to manage infrastructure using simple and declarative configuration file. You can easily deploy as many environments (stages) as you want.
+- **Development studio (coming soon)** - Stacktape development studio is a graphical user interface. It's a convenient way to manage and test your applications and infrastructure.
+- **Client SDKs (coming soon)** - Client SDKs (for web, mobile and more) can be used within your application to help with most common tasks (authenticating users, uploading files, etc.).
 
 #### Stacktape's disadvantages
+- **Smaller community** - Being a new product, Stacktape doesn't have a large community yet.
+- **Less buildpacks** - Stacktape currently supports zero-config builds for less languages and frameworks.
+</details>
 
-- **Less pre-made features for mobile apps** - While you can do anything you want using Stacktape and AWS, it's a bit more work for mobile app use-cases.
-  ​
+### Firebase  
+<details>
+<summary>Read more</summary>
+Firebase is an easy-to-use BaaS (backend as a service) platform for mobile and web applications.
+
+Sadly, Firebase isn't sufficient for larger applications that require continuously running jobs, containers, batch jobs, SQL databases or anything else not supported by Firebase.
+
+#### Stacktape's advantages
+- **Full power of AWS** - Stacktape allows you to deploy almost any infrastructure components, including containers, batch jobs, SQL and NoSQL databases, API Gateways, Load balancers, file storage, CDN & more.
+- **Infrastructure as Code** - Stacktape allows you to manage infrastructure using simple and declarative configuration file. You can easily deploy as many environments (stages) as you want.
+- **Optimized build process** - Stacktape supports zero-config, heavily optimized parallel builds with advanced caching.
+- **Editor extension** - Stacktape comes with a VS code editor extension to further improve developer experience with validation, autocompletion and built-in documentation.
+- **Cost at scale** - Firebase can get very costly very fast when you go out of the free tier.
+
+#### Stacktape's disadvantages
+- **Smaller community** - Being a new product, Stacktape doesn't have a large community yet.
+- **Less pre-built capabilities for mobile apps** - Stacktape doesn't come with purpose-built features for mobile apps.
+</details>
 
 ### Kubernetes
+<details>
+<summary>Read more</summary>
+Kubernetes is a popular and widely adopted tool for orchestrating containers.
 
-Kubernetes is a bit over-used tool for orchestrating containers.
-​
-It comes with a great architectural, operational, configural and conceptual complexity.
-​
+However, it comes with great architectural, configuration, operational and financial overhead.
 
 #### Stacktape's advantages
-
-- **Usable by common developers** - No need for infrastructure and DevOps experts.
-- **Instant value** - You just deploy your app and it works. No need for months of configuration.
-- **Easy testing and debugging** - Includes developer tooling that makes developers productive.
-  ​
+- **Developer friendly** - Stacktape is usable by every developer. No DevOps, Cloud or infrastructure expertise is required.
+- **Fully managed** - All resources supported by Stacktape are fully managed. They remove a lot of responsibility from your shoulders.
+- **Fully featured development framework** - Stacktape handles all of the common tasks required to develop and run cloud applications, including application deployments, testing, debugging & much more.
+- **Optimized build process** - Stacktape supports zero-config, heavily optimized parallel builds with advanced caching.
+- **Programmatic SDK** - Stacktape includes both CLI and SDK (currently supported for Javascript and Typescript). It allows you to easily build complicated deployment pipelines.
+- **Better developer experience** - Stacktape is simple, well-documented and easily customizable. Everything is properly validated. Error messages are descriptive and include hints.
+- **Editor extension** - Stacktape comes with a VS code editor extension to further improve developer experience with validation, autocompletion and built-in documentation.
+- **Development studio (coming soon)** - Stacktape development studio is a graphical user interface. It's a convenient way to manage and test your applications and infrastructure.
+- **Client SDKs (coming soon)** - Client SDKs (for web, mobile and more) can be used within your application to help with most common tasks (authenticating users, uploading files, etc.).
 
 #### Stacktape's disadvantages
-
-- **AWS only** - Stacktape currently supports only AWS.
-- **Cloud only** - Not usable with on-premise infastructure.
-  ​
+- **Not open-source** - Stacktape is a SaaS product. But it comes with a free tier.
+- **Smaller community** - Being a new product, Stacktape doesn't have a large community yet.
+- **Public cloud only** - Stacktape is not usable with on-premise infastructure.
+</details>
 
 ### AWS SAM
+<details>
+<summary>Read more</summary>
+Serverless Application Model is a simple and handy framework for building lambda function-based application on AWS.
 
-AWS Serverless Application Model is a framework for building FaaS-based application on AWS.
-​
-Stacktape is designed to enable much more than just FaaS-based applications, while being easier to use.
-​
+Similarly to Serverless Framework, the simplicity disappears if you need more than just lambda functions.
 
 #### Stacktape's advantages
+- **More power** - Besides lambda functions, Stacktape allows you to deploy container workloads, batch jobs, SQL and NoSQL databases, API Gateways, Load balancers and much more.
+- **Optimized build process** - Stacktape supports zero-config, heavily optimized parallel builds with advanced caching.
+- **Programmatic SDK** - Stacktape includes both CLI and SDK (currently supported for Javascript and Typescript). It allows you to easily build complicated deployment pipelines.
+- **Better developer experience** - Stacktape is simple, well-documented and easily customizable. Everything is properly validated. Error messages are descriptive and include hints.
+- **Editor extension** - Stacktape comes with a VS code editor extension to further improve developer experience with validation, autocompletion and built-in documentation.
+- **Development studio (coming soon)** - Stacktape development studio is a graphical user interface. It's a convenient way to manage and test your applications and infrastructure.
+- **Client SDKs (coming soon)** - Client SDKs (for web, mobile and more) can be used within your application to help with most common tasks (authenticating users, uploading files, etc.).
 
-- **More power** - Stacktape unlocks full power of AWS. Enabling you to do more and cover more use-cases.
-- **Zero-config code builds** - Stacktape builds your code and creates optimized deployment packages for you.
-- **Perfectly optimized** - Parallel builds and advanced caching make your development process significantly faster.
-  ​
-
-#### Stacktape's disadvantages
-
-- **Not open-source** - Stacktape is not open-source. But we do have a generous free tier.
-  ​
+#### Stacktape's disadvantages 
+- **Not open-source** - Stacktape is a SaaS product. But it comes with a free tier.
+- **Smaller community** - Being a new product, Stacktape doesn't have a large community yet.
+</details>
 
 ### CloudFormation
+<details>
+<summary>Read more</summary>
+AWS Cloudformation is a powerful tool for provisioning and configuring AWS resources.
 
-AWS Cloudformation provisions AWS resources defined as code. Stacktape is built on top of it.
-​
-Stacktape provides a higher level abstraction. 1 Stacktape resource can consist of more than 15 Cloudformation resources.
-​
+Unfortunately, using Cloudformation is complex, time-consuming and requires a lot of Cloud and infrastructure knowledge.
 
 #### Stacktape's advantages
-
-- **Usable by common developers** - No need for infrastructure and DevOps experts.
-- **Zero-config code builds** - Stacktape builds your code and creates optimized deployment packages for you.
-- **Easy testing and debugging** - Includes developer tooling that makes developers productive.
-  ​
+- **Developer friendly** - Stacktape is usable by every developer. No DevOps, Cloud or infrastructure expertise is required.
+- **Optimized build process** - Stacktape supports zero-config, heavily optimized parallel builds with advanced caching.
+- **Programmatic SDK** - Stacktape includes both CLI and SDK (currently supported for Javascript and Typescript). It allows you to easily build complicated deployment pipelines.
+- **Better developer experience** - Stacktape is simple, well-documented and easily customizable. Everything is properly validated. Error messages are descriptive and include hints.
+- **Editor extension** - Stacktape comes with a VS code editor extension to further improve developer experience with validation, autocompletion and built-in documentation.
+- **Development studio (coming soon)** - Stacktape development studio is a graphical user interface. It's a convenient way to manage and test your applications and infrastructure.
+- **Client SDKs (coming soon)** - Client SDKs (for web, mobile and more) can be used within your application to help with most common tasks (authenticating users, uploading files, etc.).
 
 #### Stacktape's disadvantages
-
-- **None** - Stacktape can be easily extended using native AWS Cloudformation resources.
-  ​
+- **None** - Stacktape is customizable and can be easily extended using native AWS Cloudformation resources.
+</details>
 
 ### Terraform
+<details>
+<summary>Read more</summary>
+Terraform is a tool for provisioning infrastructure across multiple cloud providers.
 
-Terraform provisions resources across multiple cloud providers. It comes with it's own declarative langague.
-​
-Stacktape comes with a higher level of abstraction over cloud infrastructure and handles more tasks for the developer.
-​
+However, it requires a lot of Cloud, DevOps and infrastructure knowledge. It doesn't handle packaging, applications deployments and many other tasks required to run your applications.
 
 #### Stacktape's advantages
-
-- **Usable by common developers** - No need for infrastructure and DevOps experts.
-- **Zero-config code builds** - Stacktape builds your code and creates optimized deployment packages for you.
-- **Easy testing and debugging** - Includes developer tooling that makes developers productive.
-- **No state management** - Infrastructure state management is reliably handled for you by AWS cloudformation.
-  ​
+- **Developer friendly** - Stacktape is usable by every developer. No DevOps, Cloud or infrastructure expertise is required.
+- **Fully featured development framework** - Stacktape handles all of the common tasks required to develop and run cloud applications, including application deployments, testing, debugging & much more.
+- **Optimized build process** - Stacktape supports zero-config, heavily optimized parallel builds with advanced caching.
+- **Programmatic SDK** - Stacktape includes both CLI and SDK (currently supported for Javascript and Typescript). It allows you to easily build complicated deployment pipelines.
+- **Better developer experience** - Stacktape is simple, well-documented and easily customizable. Everything is properly validated. Error messages are descriptive and include hints.
+- **Editor extension** - Stacktape comes with a VS code editor extension to further improve developer experience with validation, autocompletion and built-in documentation.
+- **Development studio (coming soon)** - Stacktape development studio is a graphical user interface. It's a convenient way to manage and test your applications and infrastructure.
+- **Client SDKs (coming soon)** - Client SDKs (for web, mobile and more) can be used within your application to help with most common tasks (authenticating users, uploading files, etc.).
 
 #### Stacktape's disadvantages
+- **Not open-source** - Stacktape is a SaaS product. But it comes with a free tier.
+- **Smaller community** - Being a new product, Stacktape doesn't have a large community yet.
+- **AWS only** - Stacktape works on top of AWS. Support for MS Azure and Google Cloud is planned. Besides AWS services, Stacktape also supports 3rd party providers (such as MongoDb Atlas).
+</details>
 
-- **Not open-source** - Stacktape is not open-source. But we do have a generous free tier.
-- **AWS only** - Stacktape currently supports only AWS.
-  ​
+### Vercel
+<details>
+<summary>Read more</summary>
+Vercel is a platform for building and hosting application frontends.
+
+However, it has very limited support for building application backends (servers).
+
+#### Stacktape's advantages
+- **Full power of AWS** - Stacktape allows you to deploy almost any infrastructure components, including containers, batch jobs, SQL and NoSQL databases, API Gateways, Load balancers, file storage, CDN & more.
+- **Infrastructure as Code** - Stacktape allows you to manage infrastructure using simple and declarative configuration file. You can easily deploy as many environments (stages) as you want.
+- **Optimized build process** - Stacktape supports zero-config, heavily optimized parallel builds with advanced caching.
+- **Programmatic SDK** - Stacktape includes both CLI and SDK (currently supported for Javascript and Typescript). It allows you to easily build complicated deployment pipelines.
+- **Editor extension** - Stacktape comes with a VS code editor extension to further improve developer experience with validation, autocompletion and built-in documentation.
+- **Development studio (coming soon)** - Stacktape development studio is a graphical user interface. It's a convenient way to manage and test your applications and infrastructure.
+- **Client SDKs (coming soon)** - Client SDKs (for web, mobile and more) can be used within your application to help with most common tasks (authenticating users, uploading files, etc.).
+
+#### Stacktape's disadvantages
+- **Smaller community** - Being a new product, Stacktape doesn't have a large community yet.
+</details>
 
 ## FAQ
+<details>
+<summary>"Can I use Stacktape for free?"</summary>
+Yes. Stacktape is forever free for small and medium size projects.
 
-- **"I have an issue. Where can I get help?"**
-  You can get help on our community slack channel https://stacktape-community.slack.com. But we prefer if you submit an issue at https://github.com/stacktape/stacktape/issues
-  ​
-- **"Is Stacktape open-source?"**
-  No. But we do have a generous free tier. And you can participate on Stacktape's development by submitting issues and feature requests. We value your feedback.
-  ​
-- **"Why isn't Stacktape open-source?"**
-  Being able to monetize core features allows us to focus more on the product itself. We don't have to focus on premium addons or complementary services.
-  ​
-- **"Which languages are supported?"**
-  To write configuration, you can use anything, from javascript, typescript and python to JSON and YAML. Zero-config bundling (e.g. building source code, resolving dependencies, packaging lambda packages or Docker images) is supported for Javascript and Typescript, with Python and Java coming very soon. Furthermore, you can deploy containers written in any language, if you supply your own Dockerfile.
-  ​
-- **"Are you going to support more cloud providers?"**
-  Yes. We will start with MS Azure and continue with Google Cloud. You can expect first MS Azure support during second half of 2021.
-  ​
-- **"I have no previous cloud experience. Can I still use Stacktape?"**
-  Yes. Our mission is to simplify cloud computing as much as possible. If you have a basic back-end development understanding, you will be able to deploy production-ready cloud applications to AWS in no time.
-  ​
+For open-source maintainers, we also offer a premium plan for free. Feel free to [contact us](https://stacktape.com/#contact).
+</details>
+
+<details>
+<summary>"What do I need to pay for?"</summary>  
+For larger projects that require more infrastructure resources or advanced features, you can choose a  [premium plan](https://stacktape.com/#pricing).
+
+Premium plans cost only a fraction of the cost you'd pay for an alternative solution or for DevOps/Cloud specialists.
+</details>
+
+<details>
+<summary>"Is Stacktape secure?"</summary>  
+Yes.
+
+Stacktape works on the developer’s machine (or on your CI/CD server). Your deployments don't go through any Stacktape-managed infrastructure.
+
+Furthermore, Stacktape does everything it can to help you secure your applications (least privilege permissions, secret management, database access management, etc.).
+</details>
+
+<details>
+<summary>"Which cloud providers are supported?"</summary>  
+Stacktape is built around AWS. AWS is the biggest and most advanced cloud computing provider.
+
+Besides numerous AWS services, Stacktape integrates popular 3rd party service providers (such as MongoDb Atlas).
+
+Support for MS Azure is planned for late 2022.
+
+If you need anything else currently not supported by Stacktape, feel free to  [contact us](https://stacktape.com/#contact).
+</details>
+
+<details>
+<summary>"Can Stacktape really cover all of my cloud infrastructure needs?"</summary>  
+Yes. Stacktape supports all of the most commonly used infrastructure components.
+
+Furthermore, if your use-case is very specific and not natively supported by Stacktape, you can easily extend Stacktape applications with any AWS service.
+</details>
+
+<details>
+<summary>"Which programming languages are supported?"</summary>
+You can deploy applications written in any language, if you supply your own Dockerfile.
+
+Zero-config, heavily optimized builds are currently supported for Javascript and Typescript applications. Zero-config Python, Go and Java builds are coming soon.
+
+To write Stacktape configuration, you can use YAML, JSON, Javascript, Typescript or Python.
+</details>
+
+<details>
+<summary>"Do I lose control or flexibility with Stacktape?"</summary>
+No.
+
+Unlike other solutions on the market, Stacktape is designed to be easily customizable and extensible.
+</details>
+
+<details>
+<summary>"Can you help us migrate to the cloud?"</summary>
+Yes.
+
+Migrating your applications to the cloud using Stacktape is in most cases very straightforward.
+
+If you need more assistance, our team of cloud specialists can help you architect, design and run your cloud applications.
+
+Feel free to  [contact us](https://stacktape.com/#contact).
+</details>
 
 ## Community and Socials
-
 - [Email updates](https://stacktape.com/#subscribe)
 - [Facebook](https://www.facebook.com/stacktape)
 - [Twitter](https://twitter.com/stacktape)
@@ -285,9 +411,8 @@ Stacktape comes with a higher level of abstraction over cloud infrastructure and
 - [Instagram](https://www.instagram.com/stacktape_com/)
 - [Slack](https://stacktape-community.slack.com)
 - [Contact us](mailto:info@stacktape.com)
-  ​
 
 ## Other
-
 - [Terms of Use](https://stacktape.com/terms-of-use/)
 - [Privacy Policy](https://stacktape.com/privacy-policy/)
+
