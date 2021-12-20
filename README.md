@@ -1,7 +1,5 @@
 [![DevOps-free cloud development](https://stacktape.com/cover-images/github-zoomed.png)](https://stacktape.com)
 
-# What is Stacktape?
-
 [Website](https://stacktape.com) • [Docs](https://docs.stacktape.com/) •  [Slack](https://stacktape-community.slack.com) • [Twitter](https://twitter.com/stacktape) • [Facebook](https://www.facebook.com/stacktape) • [Linked In](https://www.linkedin.com/company/stacktape/)
 
 Stacktape gives you the **full power of AWS** with **98% less configuration** and **developer-friendly** experience.
