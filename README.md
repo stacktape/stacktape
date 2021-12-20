@@ -2,20 +2,20 @@
 
 [Website](https://stacktape.com) • [Docs](https://docs.stacktape.com/) •  [Slack](https://stacktape-community.slack.com) • [Twitter](https://twitter.com/stacktape) • [Facebook](https://www.facebook.com/stacktape) • [Linked In](https://www.linkedin.com/company/stacktape/)
 
-Stacktape gives you the **full power of AWS** with **98% less configuration** and **developer-friendly** experience.
+#### Stacktape gives you the **full power of AWS** with **98% less configuration** and **developer-friendly** experience.
 
 ## [Deploy your cloud application in 5 minutes](https://docs.stacktape.com/getting-started/setup-stacktape/)
 
 <br />
 
-- **Focused on developer experience -** Simple, well-documented & easily customizable.
-- **Production grade -** Scalable, reliable, observable, secure and performant infrastructure by default.
+- **Focused on developer experience -** Easy to use, well-documented, customizable and with helpful error messages.
+- **Production grade -** Gives you scalable, reliable, observable, secure and performant infrastructure.
 - **Fast and efficient -** Up to 90% faster deployments with parallel builds and advanced caching.
 - **Cost-effective -** As cost-effective as possible. No more AWS pricing loopholes.
 
 ## Contents
-- [All the infrastructure you'll ever need](#all-the-infrastructure-youll-ever-need)
-- [How it works](#how-it-works)
+- [How it works](#next-gen-cloud-development-framework)
+- [Supported infrastructure components](#all-the-infrastructure-components-youll-need)
 - [Comparison](#comparison)
 	- [Serverless](#serverless)
 	- [Heroku](#heroku)
@@ -29,52 +29,7 @@ Stacktape gives you the **full power of AWS** with **98% less configuration** an
 - [Community and Socials](#community-and-socials)
 - [Other](#other)
 
-## All the infrastructure you'll ever need
-One tool for all your apps. From simple websites to data processing pipelines.
-
-### Lambda functions
-Short-lived serverless functions able to quickly scale up to 1000s of parallel executions with pay-per-use pricing.
-
-### Container workloads
-Fully managed, auto-scalable and easy-to-use runtime for your Docker containers.
-
-### Batch jobs
-Fully managed, on-demand runtime for your container jobs with pay-per-use pricing. Supports GPU workloads.
-
-### SQL databases
-Fully managed relational databases (Postgres, MySQL, MariaDb, etc.) with support for clustering, failover & more.
-
-### MongoDb clusters
-Fully managed MongoDb Atlas clusters. Automatically deployed to your AWS account and managed within your stack.
-
-### DynamoDB
-Fully managed, serverless, highly-available and massively scalable key-value datastore.
-
-### Api Gateways
-Fully managed, serverless HTTP Api Gateway with pay-per-request pricing.
-
-### Load balancers
-Fully managed, Application (L7) Load balancer.
-
-### Storage buckets
-Durable and highly-available object storage with pay-per-use pricing.
-
-### Authentication
-Fully managed sign-ups, logins and authorization for your users with pay-per-use pricing.
-
-### Redis clusters
-Fully managed, redis-compatible in-memory data store with sub-millisecond latency.
-
-### CDN
-Globally distributed (edge) cache for your Buckets, Load balancers and API Gateways.
-
-### Domains & certificates
-Auto-provisined certificates and domain management for your Buckets, Load balancers and API Gateways.
-
-### Secrets
-Fully managed secret store for your credentials, API keys and other sensitive data.
-
-## How it works
+## Next-gen cloud development framework
 
 ### 1. Configure your stack
 Stacktape is an  **IaC**  (Infrastructure as a code) tool.
@@ -126,10 +81,10 @@ Deployment is done using a  **single command**.
 
 Stacktape handles the rest:
 
--   **Packages your source code**
--   **Scans and resolves dependencies**
--   **Configures and provisions infrastructure resources**
--   **Deploys your application to AWS**
+-   Packages your source code
+-   Scans and resolves dependencies
+-   Configures and provisions infrastructure resources
+-   Deploys your application to AWS
 
 >*Using **CLI***
 ```bash
@@ -158,6 +113,51 @@ stacktape.deploy({
   }
 });
 ```
+
+## All the infrastructure components you'll need
+One tool for all your apps. From simple websites to data processing pipelines.
+
+### Lambda functions
+Short-lived serverless functions able to quickly scale up to 1000s of parallel executions with pay-per-use pricing.
+
+### Container workloads
+Fully managed, auto-scalable and easy-to-use runtime for your Docker containers.
+
+### Batch jobs
+Fully managed, on-demand runtime for your container jobs with pay-per-use pricing. Supports GPU workloads.
+
+### SQL databases
+Fully managed relational databases (Postgres, MySQL, MariaDb, etc.) with support for clustering, failover & more.
+
+### MongoDb clusters
+Fully managed MongoDb Atlas clusters. Automatically deployed to your AWS account and managed within your stack.
+
+### DynamoDB
+Fully managed, serverless, highly-available and massively scalable key-value datastore.
+
+### Api Gateways
+Fully managed, serverless HTTP Api Gateway with pay-per-request pricing.
+
+### Load balancers
+Fully managed, Application (L7) Load balancer.
+
+### Storage buckets
+Durable and highly-available object storage with pay-per-use pricing.
+
+### Authentication
+Fully managed sign-ups, logins and authorization for your users with pay-per-use pricing.
+
+### Redis clusters
+Fully managed, redis-compatible in-memory data store with sub-millisecond latency.
+
+### CDN
+Globally distributed (edge) cache for your Buckets, Load balancers and API Gateways.
+
+### Domains & certificates
+Auto-provisined certificates and domain management for your Buckets, Load balancers and API Gateways.
+
+### Secrets
+Fully managed secret store for your credentials, API keys and other sensitive data.
 
 ## Comparison
 
@@ -402,13 +402,11 @@ Feel free to  [contact us](https://stacktape.com/#contact).
 </details>
 
 ## Community and Socials
-- [Email updates](https://stacktape.com/#subscribe)
-- [Facebook](https://www.facebook.com/stacktape)
+- [Email newsletter](https://stacktape.com/#subscribe-to-newsletter)
+- [Community Slack](https://stacktape-community.slack.com)
+- [Contact us](mailto:info@stacktape.com)
 - [Twitter](https://twitter.com/stacktape)
 - [Linked In](https://www.linkedin.com/company/stacktape/)
-- [Instagram](https://www.instagram.com/stacktape_com/)
-- [Slack](https://stacktape-community.slack.com)
-- [Contact us](mailto:info@stacktape.com)
 
 ## Other
 - [Terms of Use](https://stacktape.com/terms-of-use/)
