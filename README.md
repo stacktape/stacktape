@@ -88,7 +88,7 @@ Stacktape handles the rest:
 
 >*Using **CLI***
 ```bash
-stacktape deploy --stage production --region eu-west-1
+$ stacktape deploy --stage production --region eu-west-1
 [SUCCESS] Loading configuration done in 0.03 sec.
 [SUCCESS] Fetching stack data done in 0.63 sec.
 [SUCCESS] Packaging workloads
