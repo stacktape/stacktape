@@ -2,16 +2,16 @@
 
 [Website](https://stacktape.com) • [Docs](https://docs.stacktape.com/) •  [Slack](https://stacktape-community.slack.com) • [Twitter](https://twitter.com/stacktape) • [Facebook](https://www.facebook.com/stacktape) • [Linked In](https://www.linkedin.com/company/stacktape/)
 
-#### Stacktape gives you the **full power of AWS** with **98% less configuration** and **developer-friendly** experience.
+#### Get production grade infrastructure in minutes. <br/> With 98% less configuration and developer-friendly experience.
 
 ### [Deploy your cloud application in 5 minutes](https://docs.stacktape.com/getting-started/setup-stacktape/)
 
-## Next-gen cloud development framework
+## The fastest way to develop and deploy your applications
 
-- **Focused on developer experience -** Easy to use, well-documented, customizable and with helpful error messages.
-- **Production grade -** Gives you scalable, reliable, observable, secure and performant infrastructure.
-- **Fast and efficient -** Up to 90% faster deployments with parallel builds and advanced caching.
-- **Cost-effective -** As cost-effective as possible. No more AWS pricing loopholes.
+- **Made for developers -** Usable by junior developers, yet powerful enough for enterprise use-cases.
+- **Production-grade & fully-managed -** Auto-scalable, reliable, secure and performant infrastructure from day 1.
+- **Focused on developer productivity -** Well-documented, fast, and free from repetitive, error-prone and time-consuming tasks.
+- **Cost-effective -** Infrastructure bills as low as possible - without the pricing loopholes.
 
 ## Contents
 - [How it works](#how-it-works)
@@ -114,49 +114,77 @@ stacktape.deploy({
 });
 ```
 
+### 3. Iterate on your application
+
+Stacktape offers an easy and efficient way to develop your apps. 
+
+When developing containers, Stacktape will:
+
+- Build and run your container locally with the same permissions it has when running in the cloud
+- Resolve and inject referenced environment variables (for example database connection strings)
+- Expose configured ports
+
+```bash
+$ stacktape cw:run-local --resourceName apiServer
+[SUCCESS] Loading configuration done in 0.03 sec.
+[SUCCESS] Fetching stack data done in 0.63 sec.
+[SUCCESS] Packaging workloads
+ ↪ apiServer-apicontainer: done in 3.3 sec. Image size: 85 MB.
+[SUCCESS] Container started successfully. (type 'rs' + enter to rebuild and restart)
+[INFO] Exposed ports: http://localhost:3000
+
+Api container started successfully. Listening on PORT 3000.
+```
+
 ## All the infrastructure components you'll need
 One tool for all your apps. From simple websites to data processing pipelines.
 
-### Lambda functions
+#### Lambda functions
 Short-lived serverless functions able to quickly scale up to 1000s of parallel executions with pay-per-use pricing.
 
-### Container workloads
+#### Container workloads
 Fully managed, auto-scalable and easy-to-use runtime for your Docker containers.
 
-### Batch jobs
+#### Batch jobs
 Fully managed, on-demand runtime for your container jobs with pay-per-use pricing. Supports GPU workloads.
 
-### SQL databases
+#### SQL databases
 Fully managed relational databases (Postgres, MySQL, MariaDb, etc.) with support for clustering, failover & more.
 
-### MongoDb clusters
+#### MongoDb clusters
 Fully managed MongoDb Atlas clusters. Automatically deployed to your AWS account and managed within your stack.
 
-### DynamoDB
+#### DynamoDB
 Fully managed, serverless, highly-available and massively scalable key-value datastore.
 
-### Api Gateways
+#### Api Gateways
 Fully managed, serverless HTTP Api Gateway with pay-per-request pricing.
 
-### Load balancers
+#### Load balancers
 Fully managed, Application (L7) Load balancer.
 
-### Storage buckets
+#### Storage buckets
 Durable and highly-available object storage with pay-per-use pricing.
 
-### Authentication
+#### Authentication
 Fully managed sign-ups, logins and authorization for your users with pay-per-use pricing.
 
-### Redis clusters
+#### Redis clusters
 Fully managed, redis-compatible in-memory data store with sub-millisecond latency.
 
-### CDN
+#### Upstash Redis
+Fully managed, serverless Redis with pay-as-you-go billing.
+
+#### Upstash Kafka
+Fully managed, serverless Kafka with pay-as-you-go billing for event-streaming solutions.
+
+#### CDN
 Globally distributed (edge) cache for your Buckets, Load balancers and API Gateways.
 
-### Domains & certificates
+#### Domains & certificates
 Auto-provisined certificates and domain management for your Buckets, Load balancers and API Gateways.
 
-### Secrets
+#### Secrets
 Fully managed secret store for your credentials, API keys and other sensitive data.
 
 ## Comparison
@@ -402,8 +430,8 @@ Feel free to  [contact us](https://stacktape.com/#contact).
 </details>
 
 ## Community and Socials
+- [Slack](https://stacktape-community.slack.com)
 - [Email newsletter](https://stacktape.com/#subscribe-to-newsletter)
-- [Community Slack](https://stacktape-community.slack.com)
 - [Contact us](mailto:info@stacktape.com)
 - [Twitter](https://twitter.com/stacktape)
 - [Linked In](https://www.linkedin.com/company/stacktape/)
