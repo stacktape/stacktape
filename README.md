@@ -27,7 +27,7 @@
   - [Terraform](#terraform)
   - [Vercel](#vercel)
 - [FAQ](#faq)
-- [Community and Socials](#community-and-socials)
+- [Contact us](#contact-us)
 - [Other](#other)
 
 ## How it works
@@ -484,7 +484,7 @@ Feel free to [contact us](https://stacktape.com/#contact).
 
 </details>
 
-## Community and Socials
+## Contact us
 
 - [Slack](https://stacktape-community.slack.com)
 - [Email newsletter](https://stacktape.com/#subscribe-to-newsletter)
