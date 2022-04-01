@@ -1,0 +1,280 @@
+{
+  "metadata": {
+    "name": "posts-api-ddb-ts-config-test",
+    "createdTime": "2022-01-20T15:00:17.164Z",
+    "lastUpdatedTime": "2022-01-20T15:01:29.709Z",
+    "deploymentBucket": "stp-deployment-bucket-104981f4",
+    "budgetName": "StpPostsApiDdbTsConfigTestBudget-eu-west-1-1642690854382-Iqy5J3AqpbbP",
+    "stackConsole": "https://eu-west-1.console.aws.amazon.com/cloudformation/home?region=eu-west-1#stacks/resources?stackId=posts-api-ddb-ts-config-test",
+    "gitUser": "matuscongrady",
+    "gitCommitSha": "7ddb30d0",
+    "gitBranch": "master",
+    "imageCount": "0",
+    "functionCount": "3"
+  },
+  "customOutputs": {},
+  "resources": {
+    "getPosts": {
+      "resourceType": "function",
+      "status": "DEPLOYED",
+      "referencableParams": {
+        "logGroupArn": "arn:aws:logs:eu-west-1:977946299200:log-group:/aws/lambda/posts-api-ddb-ts-config-test-getPosts:*",
+        "arn": "arn:aws:lambda:eu-west-1:977946299200:function:posts-api-ddb-ts-config-test-getPosts"
+      },
+      "cloudformationChildResources": {
+        "StpMainApiGatewayGetPostsRoute": {
+          "cloudformationResourceType": "AWS::ApiGatewayV2::Route",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Id"
+          ]
+        },
+        "GetPostsMainApiGatewayIntegration": {
+          "cloudformationResourceType": "AWS::ApiGatewayV2::Integration",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Id"
+          ]
+        },
+        "GetPostsMainApiGatewayPermission": {
+          "cloudformationResourceType": "AWS::Lambda::Permission",
+          "status": "DEPLOYED",
+          "referenceableParams": []
+        },
+        "GetPostsRole": {
+          "cloudformationResourceType": "AWS::IAM::Role",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Name",
+            "Arn",
+            "RoleId"
+          ]
+        },
+        "GetPostsLogGroup": {
+          "cloudformationResourceType": "AWS::Logs::LogGroup",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Name",
+            "Arn"
+          ]
+        },
+        "GetPostsFunction": {
+          "cloudformationResourceType": "AWS::Lambda::Function",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Name",
+            "Arn"
+          ]
+        }
+      },
+      "links": {
+        "logs": "https://eu-west-1.console.aws.amazon.com/cloudwatch/home?region=eu-west-1#logsV2:log-groups/log-group/%2Faws%2Flambda%2Fposts-api-ddb-ts-config-test-getPosts",
+        "metrics": "https://eu-west-1.console.aws.amazon.com/lambda/home?region=eu-west-1#functions/posts-api-ddb-ts-config-test-getPosts?tab=monitoring",
+        "console": "https://eu-west-1.console.aws.amazon.com/lambda/home?region=eu-west-1#functions/posts-api-ddb-ts-config-test-getPosts?tab=testing"
+      }
+    },
+    "mainApiGateway": {
+      "resourceType": "http-api-gateway",
+      "status": "DEPLOYED",
+      "referencableParams": {
+        "domain": "xe9r5qwe1f.execute-api.eu-west-1.amazonaws.com",
+        "url": "https://xe9r5qwe1f.execute-api.eu-west-1.amazonaws.com"
+      },
+      "cloudformationChildResources": {
+        "MainApiGatewayApi": {
+          "cloudformationResourceType": "AWS::ApiGatewayV2::Api",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Id"
+          ]
+        },
+        "MainApiGatewayStage": {
+          "cloudformationResourceType": "AWS::ApiGatewayV2::Stage",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Name"
+          ]
+        },
+        "MainApiGatewayLogGroup": {
+          "cloudformationResourceType": "AWS::Logs::LogGroup",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Name",
+            "Arn"
+          ]
+        }
+      },
+      "links": {
+        "logs": "https://eu-west-1.console.aws.amazon.com/cloudwatch/home?region=eu-west-1#logsV2:log-groups/log-group/%2Faws%2Fvendedlogs%2Fposts-api-ddb-ts-config-test%2Fapi-gateway%2FmainApiGateway%2Faccess-logs"
+      }
+    },
+    "mainDynamoDbTable": {
+      "resourceType": "dynamo-db-table",
+      "status": "DEPLOYED",
+      "referencableParams": {
+        "name": "posts-api-ddb-ts-config-test-mainDynamoDbTable",
+        "arn": "arn:aws:dynamodb:eu-west-1:977946299200:table/posts-api-ddb-ts-config-test-mainDynamoDbTable"
+      },
+      "cloudformationChildResources": {
+        "MainDynamoDbTableTable": {
+          "cloudformationResourceType": "AWS::DynamoDB::Table",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Name",
+            "Arn",
+            "StreamArn"
+          ]
+        }
+      },
+      "links": {
+        "metrics": "https://eu-west-1.console.aws.amazon.com/dynamodbv2/home?region=eu-west-1#table?initialTagKey=&name=posts-api-ddb-ts-config-test-mainDynamoDbTable&tab=monitoring"
+      }
+    },
+    "savePost": {
+      "resourceType": "function",
+      "status": "DEPLOYED",
+      "referencableParams": {
+        "logGroupArn": "arn:aws:logs:eu-west-1:977946299200:log-group:/aws/lambda/posts-api-ddb-ts-config-test-savePost:*",
+        "arn": "arn:aws:lambda:eu-west-1:977946299200:function:posts-api-ddb-ts-config-test-savePost"
+      },
+      "cloudformationChildResources": {
+        "StpMainApiGatewayPostPostRoute": {
+          "cloudformationResourceType": "AWS::ApiGatewayV2::Route",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Id"
+          ]
+        },
+        "SavePostMainApiGatewayIntegration": {
+          "cloudformationResourceType": "AWS::ApiGatewayV2::Integration",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Id"
+          ]
+        },
+        "SavePostMainApiGatewayPermission": {
+          "cloudformationResourceType": "AWS::Lambda::Permission",
+          "status": "DEPLOYED",
+          "referenceableParams": []
+        },
+        "SavePostRole": {
+          "cloudformationResourceType": "AWS::IAM::Role",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Name",
+            "Arn",
+            "RoleId"
+          ]
+        },
+        "SavePostLogGroup": {
+          "cloudformationResourceType": "AWS::Logs::LogGroup",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Name",
+            "Arn"
+          ]
+        },
+        "SavePostFunction": {
+          "cloudformationResourceType": "AWS::Lambda::Function",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Name",
+            "Arn"
+          ]
+        }
+      },
+      "links": {
+        "logs": "https://eu-west-1.console.aws.amazon.com/cloudwatch/home?region=eu-west-1#logsV2:log-groups/log-group/%2Faws%2Flambda%2Fposts-api-ddb-ts-config-test-savePost",
+        "metrics": "https://eu-west-1.console.aws.amazon.com/lambda/home?region=eu-west-1#functions/posts-api-ddb-ts-config-test-savePost?tab=monitoring",
+        "console": "https://eu-west-1.console.aws.amazon.com/lambda/home?region=eu-west-1#functions/posts-api-ddb-ts-config-test-savePost?tab=testing"
+      }
+    },
+    "stacktapeServiceLambda": {
+      "resourceType": "custom-resource-definition",
+      "status": "DEPLOYED",
+      "referencableParams": {
+        "logGroupArn": "arn:aws:logs:eu-west-1:977946299200:log-group:/aws/lambda/posts-api-ddb-ts-config-test-stpService-CR:*",
+        "arn": "arn:aws:lambda:eu-west-1:977946299200:function:posts-api-ddb-ts-config-test-stpService-CR"
+      },
+      "cloudformationChildResources": {
+        "StacktapeServiceLambdaRole": {
+          "cloudformationResourceType": "AWS::IAM::Role",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Name",
+            "Arn",
+            "RoleId"
+          ]
+        },
+        "StacktapeServiceLambdaLogGroup": {
+          "cloudformationResourceType": "AWS::Logs::LogGroup",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Name",
+            "Arn"
+          ]
+        },
+        "StacktapeServiceLambdaCustomResourceFunction": {
+          "cloudformationResourceType": "AWS::Lambda::Function",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Name",
+            "Arn"
+          ]
+        }
+      },
+      "links": {
+        "logs": "https://eu-west-1.console.aws.amazon.com/cloudwatch/home?region=eu-west-1#logsV2:log-groups/log-group/%2Faws%2Flambda%2Fposts-api-ddb-ts-config-test-stpService-CR",
+        "metrics": "https://eu-west-1.console.aws.amazon.com/lambda/home?region=eu-west-1#functions/posts-api-ddb-ts-config-test-stpService-CR?tab=monitoring",
+        "console": "https://eu-west-1.console.aws.amazon.com/lambda/home?region=eu-west-1#functions/posts-api-ddb-ts-config-test-stpService-CR?tab=testing"
+      }
+    },
+    "SHARED_GLOBAL": {
+      "resourceType": "SHARED_GLOBAL",
+      "status": "DEPLOYED",
+      "referencableParams": {},
+      "cloudformationChildResources": {
+        "StpSensitiveDataCustomResource": {
+          "cloudformationResourceType": "AWS::CloudFormation::CustomResource",
+          "status": "DEPLOYED",
+          "referenceableParams": []
+        },
+        "StpDeploymentBucket": {
+          "cloudformationResourceType": "AWS::S3::Bucket",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Name",
+            "Arn",
+            "DomainName",
+            "DualStackDomainName",
+            "RegionalDomainName",
+            "WebsiteURL"
+          ]
+        },
+        "StpDeploymentBucketPolicy": {
+          "cloudformationResourceType": "AWS::S3::BucketPolicy",
+          "status": "DEPLOYED",
+          "referenceableParams": []
+        },
+        "StpContainerRepository": {
+          "cloudformationResourceType": "AWS::ECR::Repository",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Name",
+            "Arn"
+          ]
+        },
+        "StpPostsApiDdbTsConfigTestBudget": {
+          "cloudformationResourceType": "AWS::Budgets::Budget",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Name"
+          ]
+        }
+      },
+      "links": {
+        "deployment-bucket-contents": "https://console.aws.amazon.com/s3/buckets/stp-deployment-bucket-104981f4?region=eu-west-1&tab=objects"
+      }
+    }
+  }
+}

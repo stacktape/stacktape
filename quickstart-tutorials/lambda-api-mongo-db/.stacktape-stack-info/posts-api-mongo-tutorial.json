@@ -1,0 +1,405 @@
+{
+  "metadata": {
+    "name": "posts-api-mongo-tutorial",
+    "createdTime": "2022-01-18T10:34:31.902Z",
+    "lastUpdatedTime": "2022-01-18T11:09:19.691Z",
+    "deploymentBucket": "stp-deployment-bucket-74dbfbc5",
+    "mongoDbModuleMajorVersion": "V1",
+    "budgetName": "StpPostsApiMongoTutorialBudget-eu-west-1-1642502110212-j5pSac7iLH5q",
+    "stackConsole": "https://eu-west-1.console.aws.amazon.com/cloudformation/home?region=eu-west-1#stacks/resources?stackId=posts-api-mongo-tutorial",
+    "gitUser": "<<unknown>>",
+    "gitCommitSha": "<<unknown>>",
+    "gitBranch": "<<unknown>>",
+    "imageCount": "0",
+    "functionCount": "3"
+  },
+  "customOutputs": {},
+  "resources": {
+    "getPosts": {
+      "resourceType": "function",
+      "status": "DEPLOYED",
+      "referencableParams": {
+        "logGroupArn": "arn:aws:logs:eu-west-1:977946299200:log-group:/aws/lambda/posts-api-mongo-tutorial-getPosts:*",
+        "arn": "arn:aws:lambda:eu-west-1:977946299200:function:posts-api-mongo-tutorial-getPosts"
+      },
+      "cloudformationChildResources": {
+        "StpMainApiGatewayGetPostsRoute": {
+          "cloudformationResourceType": "AWS::ApiGatewayV2::Route",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Id"
+          ]
+        },
+        "GetPostsMainApiGatewayIntegration": {
+          "cloudformationResourceType": "AWS::ApiGatewayV2::Integration",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Id"
+          ]
+        },
+        "GetPostsMainApiGatewayPermission": {
+          "cloudformationResourceType": "AWS::Lambda::Permission",
+          "status": "DEPLOYED",
+          "referenceableParams": []
+        },
+        "GetPostsRole": {
+          "cloudformationResourceType": "AWS::IAM::Role",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Name",
+            "Arn",
+            "RoleId"
+          ]
+        },
+        "GetPostsAtlasMongoDatabaseUser": {
+          "cloudformationResourceType": "MongoDB::StpAtlasV1::DatabaseUser",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "UserCfnIdentifier"
+          ]
+        },
+        "GetPostsLogGroup": {
+          "cloudformationResourceType": "AWS::Logs::LogGroup",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Name",
+            "Arn"
+          ]
+        },
+        "GetPostsFunction": {
+          "cloudformationResourceType": "AWS::Lambda::Function",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Name",
+            "Arn"
+          ]
+        }
+      },
+      "links": {
+        "logs": "https://eu-west-1.console.aws.amazon.com/cloudwatch/home?region=eu-west-1#logsV2:log-groups/log-group/%2Faws%2Flambda%2Fposts-api-mongo-tutorial-getPosts",
+        "metrics": "https://eu-west-1.console.aws.amazon.com/lambda/home?region=eu-west-1#functions/posts-api-mongo-tutorial-getPosts?tab=monitoring",
+        "console": "https://eu-west-1.console.aws.amazon.com/lambda/home?region=eu-west-1#functions/posts-api-mongo-tutorial-getPosts?tab=testing"
+      }
+    },
+    "mainApiGateway": {
+      "resourceType": "http-api-gateway",
+      "status": "DEPLOYED",
+      "referencableParams": {
+        "domain": "9ay75e5c9g.execute-api.eu-west-1.amazonaws.com",
+        "url": "https://9ay75e5c9g.execute-api.eu-west-1.amazonaws.com"
+      },
+      "cloudformationChildResources": {
+        "MainApiGatewayApi": {
+          "cloudformationResourceType": "AWS::ApiGatewayV2::Api",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Id"
+          ]
+        },
+        "MainApiGatewayStage": {
+          "cloudformationResourceType": "AWS::ApiGatewayV2::Stage",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Name"
+          ]
+        },
+        "MainApiGatewayLogGroup": {
+          "cloudformationResourceType": "AWS::Logs::LogGroup",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Name",
+            "Arn"
+          ]
+        }
+      },
+      "links": {
+        "logs": "https://eu-west-1.console.aws.amazon.com/cloudwatch/home?region=eu-west-1#logsV2:log-groups/log-group/%2Faws%2Fvendedlogs%2Fposts-api-mongo-tutorial%2Fapi-gateway%2FmainApiGateway%2Faccess-logs"
+      }
+    },
+    "mongoDbCluster": {
+      "resourceType": "mongo-db-atlas-cluster",
+      "status": "DEPLOYED",
+      "referencableParams": {
+        "connectionString": "mongodb+srv://mongodbcluster.b6cg2.mongodb.net"
+      },
+      "cloudformationChildResources": {
+        "MongoDbClusterCluster": {
+          "cloudformationResourceType": "MongoDB::StpAtlasV1::Cluster",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "ClusterCfnIdentifier",
+            "ConnectionString",
+            "SrvConnectionString",
+            "StateName"
+          ]
+        }
+      },
+      "links": {
+        "metrics": "https://cloud.mongodb.com/v2/61e698285e40e537e6e043df#clusters/detail/mongodbcluster"
+      }
+    },
+    "savePost": {
+      "resourceType": "function",
+      "status": "DEPLOYED",
+      "referencableParams": {
+        "logGroupArn": "arn:aws:logs:eu-west-1:977946299200:log-group:/aws/lambda/posts-api-mongo-tutorial-savePost:*",
+        "arn": "arn:aws:lambda:eu-west-1:977946299200:function:posts-api-mongo-tutorial-savePost"
+      },
+      "cloudformationChildResources": {
+        "StpMainApiGatewayPostPostRoute": {
+          "cloudformationResourceType": "AWS::ApiGatewayV2::Route",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Id"
+          ]
+        },
+        "SavePostMainApiGatewayIntegration": {
+          "cloudformationResourceType": "AWS::ApiGatewayV2::Integration",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Id"
+          ]
+        },
+        "SavePostMainApiGatewayPermission": {
+          "cloudformationResourceType": "AWS::Lambda::Permission",
+          "status": "DEPLOYED",
+          "referenceableParams": []
+        },
+        "SavePostRole": {
+          "cloudformationResourceType": "AWS::IAM::Role",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Name",
+            "Arn",
+            "RoleId"
+          ]
+        },
+        "SavePostAtlasMongoDatabaseUser": {
+          "cloudformationResourceType": "MongoDB::StpAtlasV1::DatabaseUser",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "UserCfnIdentifier"
+          ]
+        },
+        "SavePostLogGroup": {
+          "cloudformationResourceType": "AWS::Logs::LogGroup",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Name",
+            "Arn"
+          ]
+        },
+        "SavePostFunction": {
+          "cloudformationResourceType": "AWS::Lambda::Function",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Name",
+            "Arn"
+          ]
+        }
+      },
+      "links": {
+        "logs": "https://eu-west-1.console.aws.amazon.com/cloudwatch/home?region=eu-west-1#logsV2:log-groups/log-group/%2Faws%2Flambda%2Fposts-api-mongo-tutorial-savePost",
+        "metrics": "https://eu-west-1.console.aws.amazon.com/lambda/home?region=eu-west-1#functions/posts-api-mongo-tutorial-savePost?tab=monitoring",
+        "console": "https://eu-west-1.console.aws.amazon.com/lambda/home?region=eu-west-1#functions/posts-api-mongo-tutorial-savePost?tab=testing"
+      }
+    },
+    "stacktapeServiceLambda": {
+      "resourceType": "custom-resource-definition",
+      "status": "DEPLOYED",
+      "referencableParams": {
+        "logGroupArn": "arn:aws:logs:eu-west-1:977946299200:log-group:/aws/lambda/posts-api-mongo-tutorial-stpService-CR:*",
+        "arn": "arn:aws:lambda:eu-west-1:977946299200:function:posts-api-mongo-tutorial-stpService-CR"
+      },
+      "cloudformationChildResources": {
+        "StacktapeServiceLambdaRole": {
+          "cloudformationResourceType": "AWS::IAM::Role",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Name",
+            "Arn",
+            "RoleId"
+          ]
+        },
+        "StacktapeServiceLambdaLogGroup": {
+          "cloudformationResourceType": "AWS::Logs::LogGroup",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Name",
+            "Arn"
+          ]
+        },
+        "StacktapeServiceLambdaCustomResourceFunction": {
+          "cloudformationResourceType": "AWS::Lambda::Function",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Name",
+            "Arn"
+          ]
+        }
+      },
+      "links": {
+        "logs": "https://eu-west-1.console.aws.amazon.com/cloudwatch/home?region=eu-west-1#logsV2:log-groups/log-group/%2Faws%2Flambda%2Fposts-api-mongo-tutorial-stpService-CR",
+        "metrics": "https://eu-west-1.console.aws.amazon.com/lambda/home?region=eu-west-1#functions/posts-api-mongo-tutorial-stpService-CR?tab=monitoring",
+        "console": "https://eu-west-1.console.aws.amazon.com/lambda/home?region=eu-west-1#functions/posts-api-mongo-tutorial-stpService-CR?tab=testing"
+      }
+    },
+    "SHARED_GLOBAL": {
+      "resourceType": "SHARED_GLOBAL",
+      "status": "DEPLOYED",
+      "referencableParams": {},
+      "cloudformationChildResources": {
+        "StpAcceptVpcPeeringsCustomResource": {
+          "cloudformationResourceType": "AWS::CloudFormation::CustomResource",
+          "status": "DEPLOYED",
+          "referenceableParams": []
+        },
+        "StpSensitiveDataCustomResource": {
+          "cloudformationResourceType": "AWS::CloudFormation::CustomResource",
+          "status": "DEPLOYED",
+          "referenceableParams": []
+        },
+        "StpDeploymentBucket": {
+          "cloudformationResourceType": "AWS::S3::Bucket",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Name",
+            "Arn",
+            "DomainName",
+            "DualStackDomainName",
+            "RegionalDomainName",
+            "WebsiteURL"
+          ]
+        },
+        "StpDeploymentBucketPolicy": {
+          "cloudformationResourceType": "AWS::S3::BucketPolicy",
+          "status": "DEPLOYED",
+          "referenceableParams": []
+        },
+        "StpContainerRepository": {
+          "cloudformationResourceType": "AWS::ECR::Repository",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Name",
+            "Arn"
+          ]
+        },
+        "StpVpc": {
+          "cloudformationResourceType": "AWS::EC2::VPC",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Id",
+            "CidrBlock",
+            "CidrBlockAssociations",
+            "DefaultNetworkAcl",
+            "DefaultSecurityGroup",
+            "Ipv6CidrBlocks"
+          ]
+        },
+        "StpPublicSubnet0": {
+          "cloudformationResourceType": "AWS::EC2::Subnet",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Id",
+            "AvailabilityZone",
+            "Ipv6CidrBlocks",
+            "NetworkAclAssociationId",
+            "VpcId"
+          ]
+        },
+        "StpPublicSubnet1": {
+          "cloudformationResourceType": "AWS::EC2::Subnet",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Id",
+            "AvailabilityZone",
+            "Ipv6CidrBlocks",
+            "NetworkAclAssociationId",
+            "VpcId"
+          ]
+        },
+        "StpInternetGateway": {
+          "cloudformationResourceType": "AWS::EC2::InternetGateway",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Name"
+          ]
+        },
+        "StpVpcGatewayAttachment": {
+          "cloudformationResourceType": "AWS::EC2::VPCGatewayAttachment",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Id"
+          ]
+        },
+        "StpPublicSubnetRouteTable": {
+          "cloudformationResourceType": "AWS::EC2::RouteTable",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Id"
+          ]
+        },
+        "StpInternetGatewayRoute": {
+          "cloudformationResourceType": "AWS::EC2::Route",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Id"
+          ]
+        },
+        "StpPublicSubnet0SubnetRouteTableAssociation": {
+          "cloudformationResourceType": "AWS::EC2::SubnetRouteTableAssociation",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Id"
+          ]
+        },
+        "StpPublicSubnet1SubnetRouteTableAssociation": {
+          "cloudformationResourceType": "AWS::EC2::SubnetRouteTableAssociation",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Id"
+          ]
+        },
+        "StpAtlasMongoProject": {
+          "cloudformationResourceType": "MongoDB::StpAtlasV1::Project",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Id"
+          ]
+        },
+        "StpAtlasMongoProjectIpAccessList": {
+          "cloudformationResourceType": "MongoDB::StpAtlasV1::ProjectIpAccessList",
+          "status": "DEPLOYED",
+          "referenceableParams": []
+        },
+        "StpAtlasMongoNetworkContainer": {
+          "cloudformationResourceType": "MongoDB::StpAtlasV1::NetworkContainer",
+          "status": "DEPLOYED",
+          "referenceableParams": []
+        },
+        "StpAtlasMongoNetworkPeering": {
+          "cloudformationResourceType": "MongoDB::StpAtlasV1::NetworkPeering",
+          "status": "DEPLOYED",
+          "referenceableParams": []
+        },
+        "StpAtlasMongoPublicSubnetRoute": {
+          "cloudformationResourceType": "AWS::EC2::Route",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Id"
+          ]
+        },
+        "StpPostsApiMongoTutorialBudget": {
+          "cloudformationResourceType": "AWS::Budgets::Budget",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Name"
+          ]
+        }
+      },
+      "links": {
+        "deployment-bucket-contents": "https://console.aws.amazon.com/s3/buckets/stp-deployment-bucket-74dbfbc5?region=eu-west-1&tab=objects"
+      }
+    }
+  }
+}

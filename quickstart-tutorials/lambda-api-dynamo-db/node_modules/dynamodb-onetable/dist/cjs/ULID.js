@@ -1,0 +1,68 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+/*
+    ULID.js -- Universal Unique Lexicographically Sortable Identifier
+    https://github.com/ulid/spec
+ */
+const crypto_1 = __importDefault(require("crypto"));
+//  Crockford's base 32 excluding I, L, O and U
+//  Repeat Z to make encoding faster for rand == 0xFF
+const Letters = '0123456789ABCDEFGHJKMNPQRSTVWXYZZ';
+const LettersLen = Letters.length - 1;
+const RandomLength = 16;
+const TimeLen = 10;
+class ULID {
+    constructor(when) {
+        if (when instanceof Date) {
+            this.when = new Date(when);
+        }
+        else if (typeof when == 'string' || typeof when == 'number') {
+            this.when = new Date(when);
+        }
+        else {
+            this.when = new Date();
+        }
+    }
+    toString() {
+        return this.getTime(this.when) + this.getRandom();
+    }
+    //  Decode the time portion of the ULID and return a number
+    decode(ulid) {
+        ulid = ulid.toString();
+        if (ulid.length !== (TimeLen + RandomLength)) {
+            throw new Error('Invalid ULID');
+        }
+        let letters = ulid.substr(0, TimeLen).split('').reverse();
+        return letters.reduce((accum, c, index) => {
+            let i = Letters.indexOf(c);
+            if (i < 0) {
+                throw new Error(`Invalid ULID char ${c}`);
+            }
+            accum += index * Math.pow(LettersLen, i);
+            return accum;
+        }, 0);
+    }
+    getRandom() {
+        let bytes = [];
+        let buffer = crypto_1.default.randomBytes(RandomLength);
+        for (let i = 0; i < RandomLength; i++) {
+            //  Letters is one longer than LettersLen
+            bytes[i] = Letters[Math.floor(buffer.readUInt8(i) / 0xFF * LettersLen)];
+        }
+        return bytes.join('');
+    }
+    getTime(now) {
+        now = now.getTime();
+        let bytes = [];
+        for (let i = 0; i < TimeLen; i++) {
+            let mod = now % LettersLen;
+            bytes[i] = Letters.charAt(mod);
+            now = (now - mod) / LettersLen;
+        }
+        return bytes.reverse().join('');
+    }
+}
+exports.default = ULID;

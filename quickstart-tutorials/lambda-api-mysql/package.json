@@ -1,0 +1,9 @@
+{
+  "name": "lambda-api-mysql",
+  "private": true,
+  "scripts": {},
+  "dependencies": {
+    "@prisma/client": "^3.11.1",
+    "prisma": "^3.11.1"
+  }
+}

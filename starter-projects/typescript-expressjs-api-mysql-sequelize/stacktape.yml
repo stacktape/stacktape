@@ -1,0 +1,47 @@
+serviceName: express-api-mysql
+
+resources:
+  mainGateway:
+    type: http-api-gateway
+    properties:
+      cors:
+        enabled: true
+
+  apiContainer:
+    type: container-workload
+    properties:
+      containers:
+        - name: express-api
+          packaging:
+            type: stacktape-image-buildpack
+            properties:
+              entryfilePath: src/index.ts
+              excludeDependencies:
+                - pg-hstore
+          environment:
+            - name: DB_CONNECTION_STRING
+              value: $ResourceParam('myDatabase', 'connectionString')
+            - name: PORT
+              value: 3000
+          events:
+            - type: http-api-gateway
+              properties:
+                containerPort: 3000
+                httpApiGatewayName: mainGateway
+                method: '*'
+                path: /{proxy+}
+      resources:
+        cpu: 1
+        memory: 2048
+
+  myDatabase:
+    type: relational-database
+    properties:
+      credentials:
+        masterUserName: admin
+        masterUserPassword: my_secret_password
+      engine:
+        type: mysql
+        properties:
+          primaryInstance:
+            instanceSize: db.t3.micro

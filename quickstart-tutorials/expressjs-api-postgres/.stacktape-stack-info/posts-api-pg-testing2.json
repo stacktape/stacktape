@@ -1,0 +1,439 @@
+{
+  "metadata": {
+    "name": "posts-api-pg-testing2",
+    "createdTime": "2022-02-17T16:46:18.700Z",
+    "lastUpdatedTime": "2022-02-17T16:47:49.132Z",
+    "deploymentBucket": "stp-deployment-bucket-c2b895fe",
+    "budgetName": "StpPostsApiPgTesting2Budget-eu-west-1-1645116402352-3EBTq2YlSM9Y",
+    "stackConsole": "https://eu-west-1.console.aws.amazon.com/cloudformation/home?region=eu-west-1#stacks/resources?stackId=posts-api-pg-testing2",
+    "gitUser": "matuscongrady",
+    "gitCommitSha": "affa65f3",
+    "gitBranch": "master",
+    "imageCount": 1,
+    "functionCount": 1
+  },
+  "customOutputs": {},
+  "resources": {
+    "apiServer": {
+      "resourceType": "container-workload",
+      "status": "DEPLOYED",
+      "referencableParams": {},
+      "cloudformationChildResources": {
+        "ApiServerScalableTarget": {
+          "cloudformationResourceType": "AWS::ApplicationAutoScaling::ScalableTarget",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Id"
+          ]
+        },
+        "ApiServerEcsServiceAverageCpuUtilizationScalingPolicy": {
+          "cloudformationResourceType": "AWS::ApplicationAutoScaling::ScalingPolicy",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Arn"
+          ]
+        },
+        "ApiServerEcsServiceAverageMemoryUtilizationScalingPolicy": {
+          "cloudformationResourceType": "AWS::ApplicationAutoScaling::ScalingPolicy",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Arn"
+          ]
+        },
+        "ApiServerCluster": {
+          "cloudformationResourceType": "AWS::ECS::Cluster",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Name",
+            "Arn"
+          ]
+        },
+        "ApiServerSecurityGroup": {
+          "cloudformationResourceType": "AWS::EC2::SecurityGroup",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Name",
+            "GroupId",
+            "VpcId"
+          ]
+        },
+        "ApiServerService": {
+          "cloudformationResourceType": "AWS::ECS::Service",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Arn",
+            "Name"
+          ]
+        },
+        "ApiServerApiContainerLogGroup": {
+          "cloudformationResourceType": "AWS::Logs::LogGroup",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Name",
+            "Arn"
+          ]
+        },
+        "StpMainApiGatewayAnyProxyRoute": {
+          "cloudformationResourceType": "AWS::ApiGatewayV2::Route",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Id"
+          ]
+        },
+        "ApiServerMainApiGatewayToPort3000Integration": {
+          "cloudformationResourceType": "AWS::ApiGatewayV2::Integration",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Id"
+          ]
+        },
+        "ApiServerPort3000DiscoveryService": {
+          "cloudformationResourceType": "AWS::ServiceDiscovery::Service",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Id",
+            "Arn",
+            "Id",
+            "Name"
+          ]
+        },
+        "ApiServerRole": {
+          "cloudformationResourceType": "AWS::IAM::Role",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Name",
+            "Arn",
+            "RoleId"
+          ]
+        },
+        "ApiServerTaskDefinition": {
+          "cloudformationResourceType": "AWS::ECS::TaskDefinition",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Arn"
+          ]
+        }
+      },
+      "links": {
+        "metrics": "https://eu-west-1.console.aws.amazon.com/ecs/home?region=eu-west-1#clusters/posts-api-pg-testing2-apiServer-cluster/services/posts-api-pg-testing2-ApiServerService-Bsutxw02OEYM/metrics",
+        "logs-api-container": "https://eu-west-1.console.aws.amazon.com/cloudwatch/home?region=eu-west-1#logsV2:log-groups/log-group/%2Fstp%2Fposts-api-pg-testing2%2Fecs%2FapiServer%2Fapi-container%2Fprocess-logs"
+      },
+      "outputs": {}
+    },
+    "mainApiGateway": {
+      "resourceType": "http-api-gateway",
+      "status": "DEPLOYED",
+      "referencableParams": {
+        "domain": "qir74toqh1.execute-api.eu-west-1.amazonaws.com",
+        "url": "https://qir74toqh1.execute-api.eu-west-1.amazonaws.com"
+      },
+      "cloudformationChildResources": {
+        "MainApiGatewayApi": {
+          "cloudformationResourceType": "AWS::ApiGatewayV2::Api",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Id"
+          ]
+        },
+        "MainApiGatewayStage": {
+          "cloudformationResourceType": "AWS::ApiGatewayV2::Stage",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Name"
+          ]
+        },
+        "MainApiGatewayLogGroup": {
+          "cloudformationResourceType": "AWS::Logs::LogGroup",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Name",
+            "Arn"
+          ]
+        },
+        "MainApiGatewayVpcLinkSecurityGroup": {
+          "cloudformationResourceType": "AWS::EC2::SecurityGroup",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Name",
+            "GroupId",
+            "VpcId"
+          ]
+        },
+        "MainApiGatewayVpcLink": {
+          "cloudformationResourceType": "AWS::ApiGatewayV2::VpcLink",
+          "status": "DEPLOYED",
+          "referenceableParams": []
+        }
+      },
+      "links": {
+        "logs": "https://eu-west-1.console.aws.amazon.com/cloudwatch/home?region=eu-west-1#logsV2:log-groups/log-group/%2Faws%2Fvendedlogs%2Fposts-api-pg-testing2%2Fapi-gateway%2FmainApiGateway%2Faccess-logs"
+      },
+      "outputs": {
+        "integrations": [
+          {
+            "method": "*",
+            "url": "https://qir74toqh1.execute-api.eu-west-1.amazonaws.com/{proxy+}",
+            "resourceName": "apiServer"
+          }
+        ]
+      }
+    },
+    "mainDatabase": {
+      "resourceType": "relational-database",
+      "status": "DEPLOYED",
+      "referencableParams": {
+        "host": "posts-api-pg-testing2-maindatabase.cxahzp4zemfl.eu-west-1.rds.amazonaws.com",
+        "connectionString": "<<OMITTED>>",
+        "jdbcConnectionString": "<<OMITTED>>",
+        "port": 5432,
+        "dbName": "defdb"
+      },
+      "cloudformationChildResources": {
+        "MainDatabaseDbSubnetGroup": {
+          "cloudformationResourceType": "AWS::RDS::DBSubnetGroup",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Name"
+          ]
+        },
+        "MainDatabaseSecurityGroup": {
+          "cloudformationResourceType": "AWS::EC2::SecurityGroup",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Name",
+            "GroupId",
+            "VpcId"
+          ]
+        },
+        "MainDatabaseDbInstance": {
+          "cloudformationResourceType": "AWS::RDS::DBInstance",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Name",
+            "Endpoint.Address",
+            "Endpoint.Port"
+          ]
+        },
+        "MainDatabaseInstancePostgresqlLogGroup": {
+          "cloudformationResourceType": "AWS::Logs::LogGroup",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Name",
+            "Arn"
+          ]
+        },
+        "MainDatabaseOptionGroup": {
+          "cloudformationResourceType": "AWS::RDS::OptionGroup",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Name"
+          ]
+        },
+        "MainDatabaseDbParameterGroup": {
+          "cloudformationResourceType": "AWS::RDS::DBParameterGroup",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Name"
+          ]
+        }
+      },
+      "links": {
+        "metrics": "https://eu-west-1.console.aws.amazon.com/rds/home?region=eu-west-1#database:id=posts-api-pg-testing2-maindatabase;is-cluster=false;tab=monitoring",
+        "logs-postgresql": "https://eu-west-1.console.aws.amazon.com/cloudwatch/home?region=eu-west-1#logsV2:log-groups/log-group/%2Faws%2Frds%2Finstance%2Fposts-api-pg-testing2-maindatabase%2Fpostgresql"
+      },
+      "outputs": {}
+    },
+    "stacktapeServiceLambda": {
+      "resourceType": "custom-resource-definition",
+      "status": "DEPLOYED",
+      "referencableParams": {
+        "logGroupArn": "arn:aws:logs:eu-west-1:977946299200:log-group:/aws/lambda/posts-api-pg-testing2-stpService-CR:*",
+        "arn": "arn:aws:lambda:eu-west-1:977946299200:function:posts-api-pg-testing2-stpService-CR"
+      },
+      "cloudformationChildResources": {
+        "StacktapeServiceLambdaRole": {
+          "cloudformationResourceType": "AWS::IAM::Role",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Name",
+            "Arn",
+            "RoleId"
+          ]
+        },
+        "StacktapeServiceLambdaLogGroup": {
+          "cloudformationResourceType": "AWS::Logs::LogGroup",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Name",
+            "Arn"
+          ]
+        },
+        "StacktapeServiceLambdaCustomResourceFunction": {
+          "cloudformationResourceType": "AWS::Lambda::Function",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Name",
+            "Arn"
+          ]
+        }
+      },
+      "links": {
+        "logs": "https://eu-west-1.console.aws.amazon.com/cloudwatch/home?region=eu-west-1#logsV2:log-groups/log-group/%2Faws%2Flambda%2Fposts-api-pg-testing2-stpService-CR",
+        "metrics": "https://eu-west-1.console.aws.amazon.com/lambda/home?region=eu-west-1#functions/posts-api-pg-testing2-stpService-CR?tab=monitoring",
+        "console": "https://eu-west-1.console.aws.amazon.com/lambda/home?region=eu-west-1#functions/posts-api-pg-testing2-stpService-CR?tab=testing"
+      },
+      "outputs": {}
+    },
+    "SHARED_GLOBAL": {
+      "resourceType": "SHARED_GLOBAL",
+      "status": "DEPLOYED",
+      "referencableParams": {},
+      "cloudformationChildResources": {
+        "StpSensitiveDataCustomResource": {
+          "cloudformationResourceType": "AWS::CloudFormation::CustomResource",
+          "status": "DEPLOYED",
+          "referenceableParams": []
+        },
+        "StpDeploymentBucket": {
+          "cloudformationResourceType": "AWS::S3::Bucket",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Name",
+            "Arn",
+            "DomainName",
+            "DualStackDomainName",
+            "RegionalDomainName",
+            "WebsiteURL"
+          ]
+        },
+        "StpDeploymentBucketPolicy": {
+          "cloudformationResourceType": "AWS::S3::BucketPolicy",
+          "status": "DEPLOYED",
+          "referenceableParams": []
+        },
+        "StpContainerRepository": {
+          "cloudformationResourceType": "AWS::ECR::Repository",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Name",
+            "Arn"
+          ]
+        },
+        "StpEcsExecutionRole": {
+          "cloudformationResourceType": "AWS::IAM::Role",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Name",
+            "Arn",
+            "RoleId"
+          ]
+        },
+        "StpEcsAutoScaleRole": {
+          "cloudformationResourceType": "AWS::IAM::Role",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Name",
+            "Arn",
+            "RoleId"
+          ]
+        },
+        "StpVpc": {
+          "cloudformationResourceType": "AWS::EC2::VPC",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Id",
+            "CidrBlock",
+            "CidrBlockAssociations",
+            "DefaultNetworkAcl",
+            "DefaultSecurityGroup",
+            "Ipv6CidrBlocks"
+          ]
+        },
+        "StpPublicSubnet0": {
+          "cloudformationResourceType": "AWS::EC2::Subnet",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Id",
+            "AvailabilityZone",
+            "Ipv6CidrBlocks",
+            "NetworkAclAssociationId",
+            "VpcId"
+          ]
+        },
+        "StpPublicSubnet1": {
+          "cloudformationResourceType": "AWS::EC2::Subnet",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Id",
+            "AvailabilityZone",
+            "Ipv6CidrBlocks",
+            "NetworkAclAssociationId",
+            "VpcId"
+          ]
+        },
+        "StpInternetGateway": {
+          "cloudformationResourceType": "AWS::EC2::InternetGateway",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Name"
+          ]
+        },
+        "StpVpcGatewayAttachment": {
+          "cloudformationResourceType": "AWS::EC2::VPCGatewayAttachment",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Id"
+          ]
+        },
+        "StpPublicSubnetRouteTable": {
+          "cloudformationResourceType": "AWS::EC2::RouteTable",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Id"
+          ]
+        },
+        "StpInternetGatewayRoute": {
+          "cloudformationResourceType": "AWS::EC2::Route",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Id"
+          ]
+        },
+        "StpPublicSubnet0SubnetRouteTableAssociation": {
+          "cloudformationResourceType": "AWS::EC2::SubnetRouteTableAssociation",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Id"
+          ]
+        },
+        "StpPublicSubnet1SubnetRouteTableAssociation": {
+          "cloudformationResourceType": "AWS::EC2::SubnetRouteTableAssociation",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Id"
+          ]
+        },
+        "StpDiscoveryService": {
+          "cloudformationResourceType": "AWS::ServiceDiscovery::PrivateDnsNamespace",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Id",
+            "Arn",
+            "Id"
+          ]
+        },
+        "StpPostsApiPgTesting2Budget": {
+          "cloudformationResourceType": "AWS::Budgets::Budget",
+          "status": "DEPLOYED",
+          "referenceableParams": [
+            "Name"
+          ]
+        }
+      },
+      "links": {
+        "deployment-bucket-contents": "https://console.aws.amazon.com/s3/buckets/stp-deployment-bucket-c2b895fe?region=eu-west-1&tab=objects"
+      },
+      "outputs": {}
+    }
+  }
+}

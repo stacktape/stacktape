@@ -1,0 +1,144 @@
+{
+  "name": "@prisma/client",
+  "version": "3.7.0",
+  "description": "Prisma Client is an auto-generated, type-safe and modern JavaScript/TypeScript ORM for Node.js that's tailored to your data. Supports MySQL, PostgreSQL, MariaDB, SQLite databases.",
+  "keywords": [
+    "orm",
+    "prisma2",
+    "prisma",
+    "client",
+    "query",
+    "database",
+    "sql",
+    "postgres",
+    "postgresql",
+    "mysql",
+    "sqlite",
+    "mariadb",
+    "mssql",
+    "typescript",
+    "query-builder"
+  ],
+  "main": "index.js",
+  "browser": "index-browser.js",
+  "types": "index.d.ts",
+  "license": "Apache-2.0",
+  "engines": {
+    "node": ">=12.6"
+  },
+  "homepage": "https://www.prisma.io",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/prisma/prisma.git",
+    "directory": "packages/client"
+  },
+  "author": "Tim Suchanek <suchanek@prisma.io>",
+  "maintainers": [
+    "Joël Galeran <galeran@prisma.io>",
+    "Pierre-Antoine Mills <mills@prisma.io>",
+    "Alexey Orlenko <orlenko@prisma.io>"
+  ],
+  "bugs": "https://github.com/prisma/prisma/issues",
+  "files": [
+    "README.md",
+    "runtime",
+    "scripts",
+    "generator-build",
+    "index.js",
+    "index.d.ts",
+    "index-browser.js"
+  ],
+  "devDependencies": {
+    "@microsoft/api-extractor": "7.18.19",
+    "@prisma/debug": "3.7.0",
+    "@prisma/engine-core": "3.7.0",
+    "@prisma/engines": "3.7.0-31.8746e055198f517658c08a0c426c7eec87f5a85f",
+    "@prisma/fetch-engine": "3.7.0-31.8746e055198f517658c08a0c426c7eec87f5a85f",
+    "@prisma/generator-helper": "3.7.0",
+    "@prisma/get-platform": "3.7.0-31.8746e055198f517658c08a0c426c7eec87f5a85f",
+    "@prisma/migrate": "3.7.0",
+    "@prisma/sdk": "3.7.0",
+    "@timsuchanek/copy": "1.4.5",
+    "@types/debug": "4.1.7",
+    "@types/jest": "27.0.3",
+    "@types/js-levenshtein": "1.1.0",
+    "@types/mssql": "6.0.8",
+    "@types/node": "12.20.37",
+    "@types/pg": "8.6.1",
+    "@typescript-eslint/eslint-plugin": "5.4.0",
+    "@typescript-eslint/parser": "5.4.0",
+    "arg": "5.0.1",
+    "benchmark": "2.1.4",
+    "chalk": "4.1.2",
+    "decimal.js": "10.3.1",
+    "esbuild": "0.13.14",
+    "eslint": "8.3.0",
+    "eslint-config-prettier": "8.3.0",
+    "eslint-plugin-eslint-comments": "3.2.0",
+    "eslint-plugin-jest": "25.3.0",
+    "eslint-plugin-prettier": "4.0.0",
+    "execa": "5.1.1",
+    "flat-map-polyfill": "0.3.8",
+    "fs-monkey": "1.0.3",
+    "get-own-enumerable-property-symbols": "3.0.2",
+    "indent-string": "4.0.0",
+    "is-obj": "2.0.0",
+    "is-regexp": "2.1.0",
+    "jest": "27.4.5",
+    "js-levenshtein": "1.1.6",
+    "klona": "2.0.5",
+    "lint-staged": "12.0.2",
+    "lz-string": "1.4.4",
+    "make-dir": "3.1.0",
+    "mariadb": "2.5.5",
+    "mssql": "7.2.1",
+    "pg": "8.7.1",
+    "pkg-up": "3.1.0",
+    "pluralize": "8.0.0",
+    "prettier": "2.4.1",
+    "replace-string": "3.1.0",
+    "rimraf": "3.0.2",
+    "sort-keys": "4.2.0",
+    "source-map-support": "0.5.20",
+    "sql-template-tag": "4.0.0",
+    "stacktrace-parser": "0.1.10",
+    "strip-ansi": "6.0.1",
+    "strip-indent": "3.0.0",
+    "ts-jest": "27.1.1",
+    "ts-node": "10.4.0",
+    "tsd": "0.18.0",
+    "typescript": "4.4.4"
+  },
+  "peerDependencies": {
+    "prisma": "*"
+  },
+  "peerDependenciesMeta": {
+    "prisma": {
+      "optional": true
+    }
+  },
+  "dependencies": {
+    "@prisma/engines-version": "3.7.0-31.8746e055198f517658c08a0c426c7eec87f5a85f"
+  },
+  "lint-staged": {
+    "*.ts": [
+      "eslint",
+      "prettier --write"
+    ]
+  },
+  "sideEffects": false,
+  "scripts": {
+    "dev": "DEV=true node -r esbuild-register helpers/build.ts",
+    "build": "node -r esbuild-register helpers/build.ts",
+    "depcheck": "node -r esbuild-register ../../helpers/compile/depcheck.ts",
+    "test": "jest --verbose",
+    "test-notypes": "jest --verbose --testPathIgnorePatterns src/__tests__/types/types.test.ts",
+    "format": "prettier --write .",
+    "lint": "eslint --cache --fix --ext .ts .",
+    "lint-ci": "eslint --ext .ts .",
+    "generate": "node scripts/postinstall.js",
+    "postinstall": "node scripts/postinstall.js",
+    "precommit": "lint-staged"
+  },
+  "readme": "# Prisma Client &middot; [![npm version](https://img.shields.io/npm/v/@prisma/client.svg?style=flat)](https://www.npmjs.com/package/@prisma/client) [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/prisma/prisma/blob/main/CONTRIBUTING.md) [![GitHub license](https://img.shields.io/badge/license-Apache%202-blue)](https://github.com/prisma/prisma/blob/main/LICENSE) [![Slack](https://img.shields.io/badge/chat-on%20slack-blue.svg)](https://slack.prisma.io/)\n\nPrisma Client JS is an **auto-generated query builder** that enables **type-safe** database access and **reduces boilerplate**. You can use it as an alternative to traditional ORMs such as Sequelize, TypeORM or SQL query builders like knex.js.\n\nIt is part of the [Prisma](https://www.prisma.io/) ecosystem. Prisma provides database tools for data access, declarative data modeling, schema migrations and visual data management. Learn more in the main [`prisma`](https://github.com/prisma/prisma/) repository or read the [documentation](https://www.prisma.io/docs/).\n\n## Getting started\n\nFollow one of these guides to get started with Prisma Client JS:\n\n- [Quickstart](https://www.prisma.io/docs/getting-started/quickstart) (5 min)\n- [Setup a new project with Prisma (SQL migrations)](https://www.prisma.io/docs/getting-started/setup-prisma/start-from-scratch-sql) (15 min)\n- [Setup a new project with Prisma (Prisma Migrate)](https://www.prisma.io/docs/getting-started/setup-prisma/start-from-scratch-prisma-migrate) (15 min)\n- [Add Prisma to an existing project](https://www.prisma.io/docs/getting-started/setup-prisma/add-to-existing-project) (15 min)\n\nAlternatively you can explore the ready-to-run [examples](https://github.com/prisma/prisma-examples/) (REST, GraphQL, gRPC, plain JavaScript and TypeScript demos, ...) or watch the [demo videos](https://www.youtube.com/watch?v=0RhtQgIs-TE&list=PLn2e1F9Rfr6k9PnR_figWOcSHgc_erDr5&index=1) (1-2 min per video).\n\n## Contributing\n\nRefer to our [contribution guidelines](https://github.com/prisma/prisma/blob/main/CONTRIBUTING.md) and [Code of Conduct for contributors](https://github.com/prisma/prisma/blob/main/CODE_OF_CONDUCT.md).\n\n## Build Status\n\n- Prisma Tests Status:  \n  [![Build status](https://badge.buildkite.com/590e1981074b70961362481ad8319a831b44a38c5d468d6408.svg?branch=master)](https://buildkite.com/prisma/prisma2-test)\n- E2E Tests Status:  \n  [![Actions Status](https://github.com/prisma/prisma2-e2e-tests/workflows/test/badge.svg)](https://github.com/prisma/prisma2-e2e-tests/actions)\n"
+}

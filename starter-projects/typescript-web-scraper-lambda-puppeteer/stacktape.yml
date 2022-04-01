@@ -1,0 +1,26 @@
+serviceName: web-scraper
+
+resources:
+  myGateway:
+    type: http-api-gateway
+    properties:
+      logging:
+        format: JSON
+      cors:
+        enabled: true
+
+  scrapeLinks:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/lambdas/scrape-links.ts
+          excludeDependencies:
+            - puppeteer
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: myGateway
+            path: /scrape-links/{url}
+            method: GET

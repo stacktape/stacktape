@@ -1,0 +1,47 @@
+serviceName: express-api-mongo
+
+providerConfig:
+  mongoDbAtlas:
+    privateKey: <<my-private-key>>
+    publicKey: <<my-public-key>>
+    organizationId: <<my-organization-id>>
+
+resources:
+  mongoDbDatabase:
+    type: mongo-db-atlas-cluster
+    properties:
+      clusterTier: M2
+
+  mainGateway:
+    type: http-api-gateway
+    properties:
+      cors:
+        enabled: true
+
+  apiContainer:
+    type: container-workload
+    properties:
+      containers:
+        - name: express-api
+          packaging:
+            type: stacktape-image-buildpack
+            properties:
+              entryfilePath: src/index.ts
+          environment:
+            - name: PORT
+              value: 8082
+            - name: MONGODB_CONNECTION_STRING
+              value: $ResourceParam('mongoDbDatabase', 'connectionString')
+          events:
+            - type: http-api-gateway
+              properties:
+                containerPort: 8082
+                httpApiGatewayName: mainGateway
+                path: /{proxy+}
+                method: '*'
+      resources:
+        cpu: 0.25
+        memory: 512
+      accessControl:
+        allowAccessTo:
+          - mongoDbDatabase

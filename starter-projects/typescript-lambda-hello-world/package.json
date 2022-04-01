@@ -1,0 +1,27 @@
+{
+  "name": "lambda-hello-world",
+  "version": "1.0.0",
+  "private": true,
+  "bugs": {
+    "url": "https://github.com/stacktape/stacktape/issues"
+  },
+  "author": "Stacktape team <info@stacktape.com> (https://stacktape.com)",
+  "scripts": {
+    "lint": "npx eslint .",
+    "prettify": "npx prettier . --write"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^12.0.0",
+    "@typescript-eslint/eslint-plugin": "^4.29.1",
+    "@typescript-eslint/parser": "^4.29.1",
+    "eslint": "^7.32.0",
+    "eslint-config-airbnb-base": "^14.2.1",
+    "eslint-config-prettier": "^8.3.0",
+    "eslint-plugin-import": "^2.24.2",
+    "eslint-plugin-prettier": "^3.4.0",
+    "prettier": "^2.4.1",
+    "stacktape": "latest",
+    "typescript": "^4.4.2"
+  }
+}

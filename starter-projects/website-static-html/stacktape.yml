@@ -1,0 +1,11 @@
+serviceName: web-html
+
+resources:
+  webHostingBucket:
+    type: bucket
+    properties:
+      directoryUpload:
+        directoryPath: web
+        headersPreset: static-website
+      cdn:
+        enabled: true
