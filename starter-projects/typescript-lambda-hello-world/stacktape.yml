@@ -1,0 +1,22 @@
+serviceName: hello-lambda
+
+resources:
+  myHttpApiGateway:
+    type: http-api-gateway
+    properties:
+      cors:
+        enabled: true
+
+  helloWorldLambda:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/say-hello.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            method: GET
+            path: /hello
+            httpApiGatewayName: myHttpApiGateway

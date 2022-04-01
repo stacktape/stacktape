@@ -1,0 +1,61 @@
+serviceName: posts-api-mongo
+
+providerConfig:
+  mongoDbAtlas:
+    privateKey: $Secret('mongoFullAccessPrivateKey')
+    publicKey: vsnrksqa
+    organizationId: 6027241119807a593cbe63dd
+
+resources:
+  mainApiGateway:
+    type: http-api-gateway
+    properties:
+      cors:
+        enabled: true
+
+  mongoDbCluster:
+    type: mongo-db-atlas-cluster
+    properties:
+      clusterTier: M2
+
+  savePost:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/lambdas/save-post.ts
+      memory: 512
+      environment:
+        - name: MONGODB_CONNECTION_STRING
+          value: $ResourceParam('mongoDbCluster', 'connectionString')
+      accessControl:
+        allowAccessTo:
+          - mongoDbCluster
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: mainApiGateway
+            path: /post
+            method: POST
+
+  getPosts:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/lambdas/get-posts.ts
+      memory: 512
+      environment:
+        - name: MONGODB_CONNECTION_STRING
+          value: $ResourceParam('mongoDbCluster', 'connectionString')
+      accessControl:
+        allowAccessTo:
+          - mongoDbCluster
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: mainApiGateway
+            path: /posts
+            method: GET

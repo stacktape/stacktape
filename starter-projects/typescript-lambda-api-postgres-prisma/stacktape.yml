@@ -1,0 +1,121 @@
+serviceName: lambda-api-prisma
+
+scripts:
+  generatePrismaClient:
+    executeCommand: npx prisma generate
+  migrateDb:
+    executeCommand: npx prisma db push --skip-generate
+    environment:
+      - name: DB_CONNECTION_STRING
+        value: $ResourceParam('myDatabase', 'connectionString')
+
+hooks:
+  - triggers: ['before:deploy']
+    scriptName: generatePrismaClient
+  - triggers: ['after:deploy']
+    scriptName: migrateDb
+
+resources:
+  myGateway:
+    type: http-api-gateway
+    properties:
+      cors:
+        enabled: true
+
+  getPost:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/lambdas/get-post.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: myGateway
+            path: /post/{id}
+            method: GET
+      environment:
+        - name: DB_CONNECTION_STRING
+          value: $ResourceParam('myDatabase', 'connectionString')
+  getPosts:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/lambdas/get-posts.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: myGateway
+            path: /post
+            method: GET
+      environment:
+        - name: DB_CONNECTION_STRING
+          value: $ResourceParam('myDatabase', 'connectionString')
+  createPost:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/lambdas/create-post.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: myGateway
+            path: /post
+            method: POST
+      environment:
+        - name: DB_CONNECTION_STRING
+          value: $ResourceParam('myDatabase', 'connectionString')
+  updatePost:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/lambdas/update-post.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: myGateway
+            path: /post/{id}
+            method: PUT
+      environment:
+        - name: DB_CONNECTION_STRING
+          value: $ResourceParam('myDatabase', 'connectionString')
+  deletePost:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/lambdas/delete-post.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: myGateway
+            path: /post/{id}
+            method: DELETE
+      environment:
+        - name: DB_CONNECTION_STRING
+          value: $ResourceParam('myDatabase', 'connectionString')
+
+  myDatabase:
+    type: relational-database
+    properties:
+      credentials:
+        masterUserName: my_stacktape_master_user
+        masterUserPassword: my_stacktape_secret_password
+      engine:
+        type: postgres
+        properties:
+          version: '13.3'
+          dbName: my_stacktape_db_name
+          port: 5432
+          primaryInstance:
+            instanceSize: db.t3.micro
+          storage:
+            initialSize: 20

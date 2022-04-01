@@ -1,0 +1,42 @@
+serviceName: nextjs-web
+
+scripts:
+  build:
+    executeCommand: npx next build
+
+hooks:
+  - triggers: ['before:deploy', 'before:bucket:sync']
+    scriptName: build
+
+resources:
+  mainApiGateway:
+    type: http-api-gateway
+    properties:
+      cors:
+        enabled: true
+
+  nextJsApp:
+    type: container-workload
+    properties:
+      resources:
+        cpu: 0.25
+        memory: 512
+      containers:
+        - name: next-container
+          packaging:
+            type: stacktape-image-buildpack
+            properties:
+              entryfilePath: src/next-server.ts
+              includeFiles:
+                - public/**/*
+                - .next/**/*
+          environment:
+            - name: PORT
+              value: 3000
+          events:
+            - type: http-api-gateway
+              properties:
+                containerPort: 3000
+                httpApiGatewayName: mainApiGateway
+                method: '*'
+                path: /{proxy+}
