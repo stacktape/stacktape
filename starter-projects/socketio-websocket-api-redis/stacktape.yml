@@ -1,0 +1,57 @@
+serviceName: socketio-redis
+
+scripts:
+  broadcastTest:
+    executeScript: scripts/broadcast-test.ts
+    environment:
+      - name: LOAD_BALANCER_DOMAIN
+        value: $ResourceParam('loadBalancer', 'domain')
+
+providerConfig:
+  upstash:
+    accountEmail: simon.obetko@stacktape.com
+    apiKey: $Secret('upstash-api-key')
+
+resources:
+  loadBalancer:
+    type: application-load-balancer
+    properties:
+      listeners:
+        - protocol: HTTP
+          port: 80
+
+  websocketServer:
+    type: container-workload
+    properties:
+      resources:
+        cpu: 0.25
+        memory: 512
+      containers:
+        - name: socketio
+          packaging:
+            type: stacktape-image-buildpack
+            properties:
+              entryfilePath: src/server/index.ts
+          environment:
+            - name: REDIS_URL
+              value: $ResourceParam('redis', 'redisUrl')
+            - name: PORT
+              value: 3000
+          events:
+            - type: application-load-balancer
+              properties:
+                containerPort: 3000
+                loadBalancerName: loadBalancer
+                listenerPort: 80
+                priority: 2
+                paths:
+                  - '/'
+                  - '/websockets*'
+      scaling:
+        minInstances: 2
+        maxInstances: 2
+
+  redis:
+    type: upstash-redis
+    properties:
+      enableTls: true
