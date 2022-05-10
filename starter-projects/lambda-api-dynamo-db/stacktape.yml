@@ -1,0 +1,58 @@
+serviceName: posts-api-ddb
+
+resources:
+  mainApiGateway:
+    type: http-api-gateway
+    properties:
+      cors:
+        enabled: true
+
+  mainDynamoDbTable:
+    type: dynamo-db-table
+    properties:
+      primaryKey:
+        partitionKey:
+          name: id
+          type: string
+
+  savePost:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/lambdas/save-post.ts
+      memory: 512
+      environment:
+        - name: TABLE_NAME
+          value: $ResourceParam('mainDynamoDbTable', 'name')
+      accessControl:
+        allowAccessTo:
+          - mainDynamoDbTable
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: mainApiGateway
+            path: /post
+            method: POST
+
+  getPosts:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/lambdas/get-posts.ts
+      memory: 512
+      environment:
+        - name: TABLE_NAME
+          value: $ResourceParam('mainDynamoDbTable', 'name')
+      accessControl:
+        allowAccessTo:
+          - mainDynamoDbTable
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: mainApiGateway
+            path: /posts
+            method: GET

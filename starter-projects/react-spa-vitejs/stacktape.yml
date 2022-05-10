@@ -1,0 +1,13 @@
+serviceName: react-spa-vitejs
+
+resources:
+  webBucket:
+    type: bucket
+    properties:
+      directoryUpload:
+        directoryPath: ./dist
+        headersPreset: single-page-app
+      cdn:
+        enabled: true
+        rewriteRoutesForSinglePageApp: true
+        invalidateAfterDeploy: true
