@@ -1,0 +1,25 @@
+{
+  "name": "socketio-websocket-api-redis",
+  "version": "1.0.0",
+  "private": true,
+  "bugs": {
+    "url": "https://github.com/stacktape/stacktape/issues"
+  },
+  "author": "Stacktape team <info@stacktape.com> (https://stacktape.com)",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "@socket.io/redis-adapter": "^7.1.0",
+    "@types/express": "^4.17.13",
+    "express": "^4.17.3",
+    "redis": "^4.0.6",
+    "socket.io": "^4.4.1",
+    "socket.io-client": "^4.4.1"
+  },
+  "devDependencies": {
+    "@stacktape/sdk": "^1.0.4",
+    "@types/node": "^14.14.31",
+    "typescript": "^4.6.4"
+  }
+}

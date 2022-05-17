@@ -1,0 +1,19 @@
+{
+  "name": "kafka-stream-processing",
+  "version": "1.0.0",
+  "private": true,
+  "bugs": {
+    "url": "https://github.com/stacktape/stacktape/issues"
+  },
+  "author": "Stacktape team <info@stacktape.com> (https://stacktape.com)",
+  "scripts": {},
+  "dependencies": {
+    "kafkajs": "^1.16.0"
+  },
+  "devDependencies": {
+    "@stacktape/sdk": "^1.0.4",
+    "@types/node": "^14.14.31",
+    "aws-lambda": "^1.0.7",
+    "typescript": "^4.6.4"
+  }
+}
