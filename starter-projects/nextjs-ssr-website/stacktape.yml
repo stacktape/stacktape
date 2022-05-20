@@ -1,0 +1,31 @@
+serviceName: nextjs-web
+
+resources:
+  mainApiGateway:
+    type: http-api-gateway
+    properties:
+      cors:
+        enabled: true
+
+  nextJsApp:
+    type: container-workload
+    properties:
+      resources:
+        cpu: 0.25
+        memory: 512
+      containers:
+        - name: next-container
+          packaging:
+            type: custom-dockerfile
+            properties:
+              buildContextPath: ./
+          environment:
+            - name: PORT
+              value: 3000
+          events:
+            - type: http-api-gateway
+              properties:
+                containerPort: 3000
+                httpApiGatewayName: mainApiGateway
+                method: '*'
+                path: /{proxy+}

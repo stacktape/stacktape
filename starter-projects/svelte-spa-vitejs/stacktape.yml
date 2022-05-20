@@ -1,0 +1,22 @@
+serviceName: svelte-spa-vitejs
+
+scripts:
+  build:
+    # or "yarn build"
+    executeCommand: npm run build
+
+hooks:
+  - triggers: ['before:deploy', 'before:bucket:sync']
+    scriptName: build
+
+resources:
+  webBucket:
+    type: bucket
+    properties:
+      directoryUpload:
+        directoryPath: ./dist
+        headersPreset: single-page-app
+      cdn:
+        enabled: true
+        rewriteRoutesForSinglePageApp: true
+        invalidateAfterDeploy: true

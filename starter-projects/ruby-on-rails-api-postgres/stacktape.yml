@@ -1,0 +1,60 @@
+serviceName: posts-api-ror
+
+scripts:
+  migrateDb:
+    executeCommand: rails db:migrate RAILS_ENV=production
+    environment:
+      - name: DB_CONNECTION_STRING
+        value: $ResourceParam('mainDatabase', 'connectionString')
+      # Recommended way to store secrets is to use https://docs.stacktape.com/resources/secrets/
+      - name: SECRET_KEY_BASE
+        value: <<my-secret-key-base>>
+
+hooks:
+  - triggers: ['after:deploy']
+    scriptName: migrateDb
+
+resources:
+  mainApiGateway:
+    type: http-api-gateway
+    properties:
+      cors:
+        enabled: true
+
+  mainDatabase:
+    type: relational-database
+    properties:
+      credentials:
+        masterUserName: admin_user
+        masterUserPassword: my_secret_password
+      engine:
+        type: postgres
+        properties:
+          primaryInstance:
+            instanceSize: db.t2.micro
+
+  apiServer:
+    type: container-workload
+    properties:
+      resources:
+        cpu: 0.25
+        memory: 512
+      containers:
+        - name: api-container
+          packaging:
+            type: external-buildpack
+            properties:
+              sourceDirectoryPath: ./
+              buildpack: heroku/buildpacks:20
+          environment:
+            - name: DB_CONNECTION_STRING
+              value: $ResourceParam('mainDatabase', 'connectionString')
+            - name: PORT
+              value: 3000
+          events:
+            - type: http-api-gateway
+              properties:
+                containerPort: 3000
+                httpApiGatewayName: mainApiGateway
+                method: '*'
+                path: /{proxy+}

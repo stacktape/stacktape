@@ -1,0 +1,45 @@
+serviceName: spring-boot-api
+
+resources:
+  mainApiGateway:
+    type: http-api-gateway
+    properties:
+      cors:
+        enabled: true
+
+  mainDatabase:
+    type: relational-database
+    properties:
+      credentials:
+        masterUserName: admin_user
+        masterUserPassword: my_secret_password
+      engine:
+        type: postgres
+        properties:
+          primaryInstance:
+            instanceSize: db.t2.micro
+
+  apiServer:
+    type: container-workload
+    properties:
+      resources:
+        cpu: 0.25
+        memory: 512
+      containers:
+        - name: api-container
+          packaging:
+            type: external-buildpack
+            properties:
+              sourceDirectoryPath: ./
+          environment:
+            - name: DB_CONNECTION_STRING
+              value: $ResourceParam('mainDatabase', 'jdbcConnectionString')
+            - name: PORT
+              value: 3000
+          events:
+            - type: http-api-gateway
+              properties:
+                containerPort: 3000
+                httpApiGatewayName: mainApiGateway
+                method: '*'
+                path: /{proxy+}
