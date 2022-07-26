@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "target": "es6",
+    "lib": ["esnext", "dom", "dom.iterable"],
+    "moduleResolution": "node",
+    "noEmit": true,
+    "module": "CommonJS",
+    "strict": false,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "incremental": true,
+    "isolatedModules": true,
+    "forceConsistentCasingInFileNames": true,
+    "allowSyntheticDefaultImports": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "allowJs": true,
+    "resolveJsonModule": true,
+    "jsx": "preserve"
+  },
+  "include": ["**/*.ts", "**/*.d.ts", "**/*.tsx"],
+  "exclude": ["node_modules"]
+}

@@ -1,0 +1,36 @@
+serviceName: redis-app
+
+providerConfig:
+  upstash:
+    accountEmail: <<your-upstash-account-email>>
+    # Recommended way to store credentials is to use https://docs.stacktape.com/resources/secrets/
+    apiKey: <<your-upstash-api-key>>
+
+resources:
+  mainApiGateway:
+    type: http-api-gateway
+    properties:
+      cors:
+        enabled: true
+
+  redis:
+    type: upstash-redis
+    properties:
+      enableTls: true
+
+  storeKeyValuePair:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/store-key-value-pair.ts
+      environment:
+        - name: REDIS_URL
+          value: $ResourceParam('redis', 'redisUrl')
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: mainApiGateway
+            method: GET
+            path: /save/{key}/{value}

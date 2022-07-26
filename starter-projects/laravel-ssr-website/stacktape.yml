@@ -1,0 +1,35 @@
+serviceName: laravel-web
+
+resources:
+  mainApiGateway:
+    type: http-api-gateway
+    properties:
+      cors:
+        enabled: true
+
+  laravelApp:
+    type: container-workload
+    properties:
+      resources:
+        cpu: 0.25
+        memory: 512
+      containers:
+        - name: laravel-container
+          packaging:
+            type: external-buildpack
+            properties:
+              sourceDirectoryPath: ./
+              builder: heroku/buildpacks:20
+          environment:
+            - name: PORT
+              value: 3000
+            # Recommended way to store secrets is to use https://docs.stacktape.com/resources/secrets/
+            - name: APP_KEY
+              value: base64:mKaPSaWP+f/tbA6sH/FMlvzy8NzaR6nfhW1h08btVHo=
+          events:
+            - type: http-api-gateway
+              properties:
+                containerPort: 3000
+                httpApiGatewayName: mainApiGateway
+                method: '*'
+                path: /{proxy+}

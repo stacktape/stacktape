@@ -1,0 +1,53 @@
+serviceName: nuxt-ssr-website
+
+scripts:
+  nuxtBuild:
+    executeCommand: npm run build
+
+hooks:
+  - triggers: ['before:deploy']
+    scriptName: nuxtBuild
+
+resources:
+  mainApiGateway:
+    type: http-api-gateway
+    properties:
+      cors:
+        enabled: true
+
+  nuxtApp:
+    type: container-workload
+    properties:
+      resources:
+        cpu: 0.25
+        memory: 512
+      containers:
+        - name: nuxt-container
+          packaging:
+            type: stacktape-image-buildpack
+            properties:
+              entryfilePath: ./server.ts
+          environment:
+            - name: PORT
+              value: 3000
+            - name: NUXT_APP_CDN_URL
+              value: $ResourceParam('webBucket', 'cdnUrl')
+          events:
+            - type: http-api-gateway
+              properties:
+                containerPort: 3000
+                httpApiGatewayName: mainApiGateway
+                method: '*'
+                path: /{proxy+}
+
+  webBucket:
+    type: bucket
+    properties:
+      cors:
+        enabled: true
+      directoryUpload:
+        directoryPath: ./.output/public
+        headersPreset: static-website
+      cdn:
+        enabled: true
+        invalidateAfterDeploy: true

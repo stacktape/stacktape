@@ -1,0 +1,51 @@
+serviceName: kafka-streaming
+
+providerConfig:
+  upstash:
+    accountEmail: <<your-upstash-account-email>>
+    # Recommended way to store credentials is to use https://docs.stacktape.com/resources/secrets/
+    apiKey: <<your-upstash-api-key>>
+
+resources:
+  mainApiGateway:
+    type: http-api-gateway
+
+  kafkaTopic:
+    type: upstash-kafka-topic
+
+  kafkaProducer:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/kafka-producer.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: mainApiGateway
+            path: /produce/{message}
+            method: GET
+      environment:
+        - name: KAFKA_ENDPOINT
+          value: $ResourceParam('kafkaTopic', 'tcpEndpoint')
+        - name: TOPIC_NAME
+          value: $ResourceParam('kafkaTopic', 'topicName')
+        - name: USERNAME
+          value: $ResourceParam('kafkaTopic', 'username')
+        - name: PASSWORD
+          value: $ResourceParam('kafkaTopic', 'password')
+
+  kafkaConsumer:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/kafka-consumer.ts
+      events:
+        - type: kafka-topic
+          properties:
+            upstashKafkaTopic: kafkaTopic
+            batchSize: 5
+            maxBatchWindowSeconds: 10
