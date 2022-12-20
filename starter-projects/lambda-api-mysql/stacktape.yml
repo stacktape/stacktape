@@ -1,0 +1,71 @@
+serviceName: posts-api-mysql
+
+scripts:
+  generatePrismaClient:
+    executeCommand: npx prisma generate
+  migrateDb:
+    executeCommand: npx prisma db push --skip-generate
+    environment:
+      - name: DB_CONNECTION_STRING
+        value: $ResourceParam('mainDatabase', 'connectionString')
+
+hooks:
+  - triggers: ['before:deploy']
+    scriptName: generatePrismaClient
+  - triggers: ['after:deploy']
+    scriptName: migrateDb
+
+resources:
+  mainApiGateway:
+    type: http-api-gateway
+    properties:
+      cors:
+        enabled: true
+
+  mainDatabase:
+    type: relational-database
+    properties:
+      credentials:
+        masterUserName: admin_user
+        masterUserPassword: my_secret_password
+      engine:
+        type: mysql
+        properties:
+          primaryInstance:
+            instanceSize: db.t2.micro
+
+  savePost:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/lambdas/save-post.ts
+      memory: 512
+      environment:
+        - name: DB_CONNECTION_STRING
+          value: $ResourceParam('mainDatabase', 'connectionString')
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: mainApiGateway
+            path: /posts
+            method: POST
+
+  getPosts:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/lambdas/get-posts.ts
+      memory: 512
+      environment:
+        - name: DB_CONNECTION_STRING
+          value: $ResourceParam('mainDatabase', 'connectionString')
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: mainApiGateway
+            path: /posts
+            method: GET

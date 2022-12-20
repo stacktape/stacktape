@@ -1,0 +1,35 @@
+serviceName: tf-image-classifier
+
+resources:
+  inputBucket:
+    type: bucket
+
+  outputBucket:
+    type: bucket
+
+  classifierJob:
+    type: batch-job
+    properties:
+      container:
+        packaging:
+          type: custom-dockerfile
+          properties:
+            buildContextPath: ./
+        environment:
+          - name: OUTPUT_BUCKET_NAME
+            value: $ResourceParam('outputBucket', 'name')
+      resources:
+        cpu: 2
+        memory: 14000
+      useSpotInstances: true
+      accessControl:
+        allowAccessTo:
+          - inputBucket
+          - outputBucket
+      events:
+        - type: s3
+          properties:
+            bucketArn: $ResourceParam('inputBucket', 'arn')
+            s3EventType: s3:ObjectCreated:*
+            filterRule:
+              suffix: .zip

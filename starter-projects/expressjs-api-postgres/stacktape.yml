@@ -1,0 +1,45 @@
+serviceName: posts-api-pg
+
+scripts:
+  generatePrismaClient:
+    executeCommand: npx prisma generate
+  migrateDb:
+    executeCommand: npx prisma db push --skip-generate
+    environment:
+      - name: DB_CONNECTION_STRING
+        value: $ResourceParam('mainDatabase', 'connectionString')
+
+hooks:
+  - triggers: ['before:deploy']
+    scriptName: generatePrismaClient
+  - triggers: ['after:deploy']
+    scriptName: migrateDb
+
+resources:
+  webService:
+    type: web-service
+    properties:
+      packaging:
+        type: stacktape-image-buildpack
+        properties:
+          entryfilePath: ./src/index.ts
+      resources:
+        cpu: 0.25
+        memory: 512
+      environment:
+        - name: DB_CONNECTION_STRING
+          value: $ResourceParam('mainDatabase', 'connectionString')
+      cors:
+        enabled: true
+
+  mainDatabase:
+    type: relational-database
+    properties:
+      credentials:
+        masterUserName: admin_user
+        masterUserPassword: my_secret_password
+      engine:
+        type: postgres
+        properties:
+          primaryInstance:
+            instanceSize: db.t2.micro
