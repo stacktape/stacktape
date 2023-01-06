@@ -1,0 +1,21 @@
+serviceName: web-gatsby
+
+scripts:
+  build:
+    # or "yarn build"
+    executeCommand: npm run build
+
+hooks:
+  - triggers: ['before:deploy', 'before:bucket:sync']
+    scriptName: build
+
+resources:
+  webBucket:
+    type: bucket
+    properties:
+      directoryUpload:
+        directoryPath: ./public
+        headersPreset: gatsby-static-website
+      cdn:
+        enabled: true
+        invalidateAfterDeploy: true
