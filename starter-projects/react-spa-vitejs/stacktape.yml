@@ -1,0 +1,28 @@
+serviceName: react-spa-vitejs
+
+scripts:
+  build:
+    # or "yarn build"
+    executeCommand: npm run build
+
+hooks:
+  beforeDeploy:
+    # when executing in CI environment install dependencies
+    - executeCommand: npm ci # or "yarn install --frozen-lockfile"
+      skipOnLocal: true
+    # build project before deploy
+    - executeNamedScript: build
+  beforeBucketSync:
+    - executeCommand: build
+
+resources:
+  webBucket:
+    type: bucket
+    properties:
+      directoryUpload:
+        directoryPath: ./dist
+        headersPreset: single-page-app
+      cdn:
+        enabled: true
+        rewriteRoutesForSinglePageApp: true
+        invalidateAfterDeploy: true

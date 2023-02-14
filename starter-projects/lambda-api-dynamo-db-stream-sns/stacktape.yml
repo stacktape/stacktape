@@ -1,0 +1,52 @@
+serviceName: posts-api-ddb-stream
+
+resources:
+  mainApiGateway:
+    type: http-api-gateway
+    properties:
+      cors:
+        enabled: true
+
+  mainDynamoDbTable:
+    type: dynamo-db-table
+    properties:
+      primaryKey:
+        partitionKey:
+          name: id
+          type: string
+      streamType: NEW_AND_OLD_IMAGES
+
+  mainTopic:
+    type: sns-topic
+
+  persist:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/lambdas/persist.ts
+      memory: 512
+      connectTo:
+        - mainDynamoDbTable
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: mainApiGateway
+            path: /posts
+            method: POST
+
+  fanout:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/lambdas/fanout.ts
+      memory: 512
+      connectTo:
+        - mainTopic
+      events:
+        - type: dynamo-db-stream
+          properties:
+            streamArn: $ResourceParam('mainDynamoDbTable', 'streamArn')

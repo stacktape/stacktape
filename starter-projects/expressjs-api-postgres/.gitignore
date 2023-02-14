@@ -1,0 +1,24 @@
+# Stacktape-related
+.stacktape-stack-info
+.stacktape
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# testing
+/coverage
+
+# misc
+.DS_Store
+*.pem
+.idea
+*.log
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+

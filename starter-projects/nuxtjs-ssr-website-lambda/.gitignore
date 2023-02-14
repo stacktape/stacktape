@@ -1,0 +1,11 @@
+node_modules
+*.log*
+.nuxt
+.nitro
+.cache
+.output
+.env
+
+# Stacktape-related
+.stacktape-stack-info
+.stacktape
