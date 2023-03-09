@@ -1,4 +1,4 @@
-[![DevOps-free cloud development](https://stacktape.com/cover-images/github-zoomed.png)](https://stacktape.com)
+[![DevOps-free cloud development](https://stacktape.com/new-export/og-new.png)](https://stacktape.com)
 
 [Website](https://stacktape.com) • [Docs](https://docs.stacktape.com/) • [Slack](https://stacktape-community.slack.com)
 • [Twitter](https://twitter.com/stacktape) • [Facebook](https://www.facebook.com/stacktape) •
