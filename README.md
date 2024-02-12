@@ -1,20 +1,48 @@
-[![DevOps-free cloud development](https://stacktape.com/cover-images/github-zoomed.png)](https://stacktape.com)
+[Website](https://stacktape.com) • [Docs](https://docs.stacktape.com/) • [Discord](https://discord.gg/gSvzRWe3YD)
+• [Twitter](https://twitter.com/stacktape) • [Linked In](https://www.linkedin.com/company/stacktape/)
 
-[Website](https://stacktape.com) • [Docs](https://docs.stacktape.com/) • [Slack](https://stacktape-community.slack.com)
-• [Twitter](https://twitter.com/stacktape) • [Facebook](https://www.facebook.com/stacktape) •
-[Linked In](https://www.linkedin.com/company/stacktape/)
+## Still your AWS, but 97% easier
 
-#### Get production grade infrastructure in minutes. <br/> With 98% less configuration and developer-friendly experience.
+Stacktape makes DevOps simple, allowing developers to deploy and run full-stack applications on AWS entirely on their own. <br /> Production-ready in minutes, not months.
 
-### [Start deploying now](https://docs.stacktape.com/getting-started/setup-stacktape/)
+> [!NOTE]
+> Stacktape is NOT open-source. This repository only includes helpful resources and for Stacktape users.
 
-## Full power of AWS with Heroku-like experience
+### [Sign up](https://console.stacktape.com/sign-up)
 
-- **Made for developers -** Usable by junior developers, yet powerful enough for enterprise use-cases.
-- **Production-grade & fully-managed -** Auto-scalable, reliable, secure and performant infrastructure from day 1.
-- **Focused on developer productivity -** Well-documented, fast, and free from repetitive, error-prone and
-  time-consuming tasks.
-- **Cost-effective -** Infrastructure bills as low as possible - without the pricing loopholes.
+### Before
+
+#### Option 1 - PaaS 1.0
+
+:white_check_mark: Easy to use
+
+:white_check_mark: Great Dev Experience
+
+:x: Expensive
+
+:x: Limited capabilities & flexibility
+
+#### Option 2 - In-house DevOps team
+
+:white_check_mark: Flexible
+
+:white_check_mark: Unlimited capabilities
+
+:x: Requires hiring DevOps experts
+
+:x: Long time to production
+
+### After (with Stacktape)
+
+:white_check_mark: Usable by developers
+
+:white_check_mark: Great Dev Experience
+
+:white_check_mark: Cost efficient
+
+:white_check_mark: Flexible & Powerful
+
+:white_check_mark: Up to $100,000 in free [AWS Activate credits](https://aws.amazon.com/activate/activate-landing/)
 
 ## Contents
 
@@ -549,12 +577,16 @@ Feel free to [contact us](https://stacktape.com/#contact).
 
 </details>
 
+<br/>
+
+### [Sign up now](https://console.stacktape.com/sign-up)
+
+<br/>
+
 ## Contact us
 
-- [Slack](https://join.slack.com/t/stacktape-community/shared_invite/zt-16st4nmgl-B8adf0YnZWSMEbuz9Ih6vg)
-- [Gitter](https://gitter.im/stacktape/community)
-- [Sign up](https://stacktape.com/sign-up)
-- [Contact us](mailto:info@stacktape.com)
+- [Discord](https://discord.gg/gSvzRWe3YD)
+- [Mail](mailto:info@stacktape.com)
 - [Twitter](https://twitter.com/stacktape)
 - [Linked In](https://www.linkedin.com/company/stacktape/)
 
@@ -562,3 +594,5 @@ Feel free to [contact us](https://stacktape.com/#contact).
 
 - [Terms of Use](https://stacktape.com/terms-of-use/)
 - [Privacy Policy](https://stacktape.com/privacy-policy/)
+- [Roadmap](https://github.com/orgs/stacktape/projects/1)
+- [Changelog](https://github.com/stacktape/stacktape/releases)
