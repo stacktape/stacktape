@@ -6,7 +6,7 @@
 Stacktape makes DevOps simple, allowing developers to deploy and run full-stack applications on AWS entirely on their own. <br /> Production-ready in minutes, not months.
 
 > [!NOTE]
-> Stacktape is NOT open-source. This repository only includes helpful resources and for Stacktape users.
+> Stacktape is NOT open-source. This repository only includes helpful resources for Stacktape users.
 
 ### [Sign up](https://console.stacktape.com/sign-up)
 
