@@ -1,5 +1,5 @@
 [Website](https://stacktape.com) • [Docs](https://docs.stacktape.com/) • [Discord](https://discord.gg/gSvzRWe3YD)
-• [Twitter](https://twitter.com/stacktape) • [Linked In](https://www.linkedin.com/company/stacktape/)
+• [X](https://twitter.com/stacktape) • [LinkedIn](https://www.linkedin.com/company/stacktape/)
 
 ## Still your AWS, but 97% easier
 
@@ -586,13 +586,13 @@ Feel free to [contact us](https://stacktape.com/#contact).
 ## Contact us
 
 - [Discord](https://discord.gg/gSvzRWe3YD)
-- [Mail](mailto:info@stacktape.com)
-- [Twitter](https://twitter.com/stacktape)
-- [Linked In](https://www.linkedin.com/company/stacktape/)
+- [Email](mailto:info@stacktape.com)
+- [X/Twitter](https://twitter.com/stacktape)
+- [LinkedIn](https://www.linkedin.com/company/stacktape/)
 
 ## Other
 
 - [Terms of Use](https://stacktape.com/terms-of-use/)
 - [Privacy Policy](https://stacktape.com/privacy-policy/)
-- [Roadmap](https://github.com/orgs/stacktape/projects/1)
+- [Roadmap](https://console.stacktape.com/roadmap)
 - [Changelog](https://github.com/stacktape/stacktape/releases)
