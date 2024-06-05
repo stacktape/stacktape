@@ -1,9 +1,9 @@
 [Website](https://stacktape.com) • [Docs](https://docs.stacktape.com/) • [Discord](https://discord.gg/gSvzRWe3YD)
 • [X](https://twitter.com/stacktape) • [LinkedIn](https://www.linkedin.com/company/stacktape/)
 
-## Still your AWS, but 97% easier
+## 97 % OF AWS CAPABILITIES, 3% COMPLEXITY
 
-Stacktape makes DevOps simple, allowing developers to deploy and run full-stack applications on AWS entirely on their own. <br /> Production-ready in minutes, not months.
+Stacktape transforms AWS into a developer-friendly platform, allowing you to deploy production-grade infrastructure in minutes.
 
 > [!NOTE]
 > Stacktape is NOT open-source. This repository only includes helpful resources for Stacktape users.
