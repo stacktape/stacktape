@@ -84,56 +84,6 @@ type CustomTaggingScheduledRuleInput = {
   }[];
 };
 
-// interface AccessControl {
-//   /**
-//    * #### Raw AWS IAM role statements appended to your resources's role.
-//    */
-//   iamRoleStatements?: StpIamRoleStatement[];
-//   /**
-//    * #### Names of the resources or aws services to which resource receives permissions.
-//    * ---
-//    * **Granted permissions when using with specific resource:**
-//    * - **Bucket**
-//    *   - list objects in a bucket
-//    *   - create / get / delete / tag object in a bucket
-//    * - **DynamoDb Table**
-//    *   - get / put / update / delete item in a table
-//    *   - scan / query a table
-//    *   - describe table stream
-//    * - **MongoDB Atlas Cluster**
-//    *   - Allows connection to a cluster with `accessibilityMode` set to `scoping-workloads-in-vpc`. To learn more about
-//    *     MongoDB Atlas clusters accessibility modes, refer to
-//    *     [MongoDB Atlas cluster docs](https://docs.stacktape.com/3rd-party-resources/mongo-db-atlas-clusters#accessibility).
-//    * - **Relational database**
-//    *   - Allows connection to a relational database with `accessibilityMode` set to `scoping-workloads-in-vpc`. To learn more about
-//    *     relational database accessibility modes, refer to [Relational databases docs](https://docs.stacktape.com/resources/relational-databases#accessibility).
-//    * - **Redis cluster**
-//    *   - Allows connection to a redis cluster with `accessibilityMode` set to `scoping-workloads-in-vpc`. To learn more about
-//    *     redis cluster accessibility modes, refer to [Redis clusters docs](https://docs.stacktape.com/resources/redis-clusters#accessibility).
-//    * - **Event bus**
-//    *   - publish events to the specified Event bus
-//    * - **Function**
-//    *   - invoke the specified function
-//    * - **Batch job**
-//    *   - submit batch-job instance into batch-job queue
-//    *   - list submitted job instances in a batch-job queue
-//    *   - describe / terminate a batch-job instance
-//    *   - list executions of state machine which executes the batch-job according to its strategy
-//    *   - start / terminate execution of a state machine which executes the batch-job according to its strategy
-//    * - **User auth pool**
-//    *   - full control over the user pool (`cognito-idp:*`)
-//    *   - for more information about allowed methods refer to [AWS docs](https://docs.aws.amazon.com/service-authorization/latest/reference/list_amazoncognitouserpools.html)
-//    *
-//    * <br/><br/>
-//    *
-//    * **Granted permissions when using with AWS service:**
-//    * - **aws:ses** (Simple Email Service)
-//    *   - gives full permissions to aws ses (`ses:*`).
-//    *   - for more information about allowed methods refer to [AWS docs](https://docs.aws.amazon.com/service-authorization/latest/reference/list_amazonses.html)
-//    */
-//   connectTo?: string[];
-// }
-
 interface DomainConfiguration {
   /**
    * #### Domain Name

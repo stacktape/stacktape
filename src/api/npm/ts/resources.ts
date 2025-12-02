@@ -1,3 +1,4 @@
+import { RESOURCES_CONVERTIBLE_TO_CLASSES } from './class-config';
 import { BaseResource } from './config';
 import { REFERENCEABLE_PARAMS } from './resource-metadata';
 
@@ -42,31 +43,40 @@ function createResourceClass(className: string, resourceType: string): any {
   return ResourceClass;
 }
 
-// ==================== RESOURCE CLASSES ====================
+// Create all resource classes from config
+const RESOURCE_CLASSES: Record<string, ReturnType<typeof createResourceClass>> = {};
+for (const def of RESOURCES_CONVERTIBLE_TO_CLASSES) {
+  // Use 'LambdaFunction' as the exported name for 'Function' to avoid JS reserved word issues
+  const exportName = def.className === 'Function' ? 'LambdaFunction' : def.className;
+  RESOURCE_CLASSES[exportName] = createResourceClass(def.className, def.resourceType);
+}
 
-export const RelationalDatabase = createResourceClass('RelationalDatabase', 'relational-database');
-export const WebService = createResourceClass('WebService', 'web-service');
-export const PrivateService = createResourceClass('PrivateService', 'private-service');
-export const WorkerService = createResourceClass('WorkerService', 'worker-service');
-export const MultiContainerWorkload = createResourceClass('MultiContainerWorkload', 'multi-container-workload');
-export const LambdaFunction = createResourceClass('LambdaFunction', 'function');
-export const BatchJob = createResourceClass('BatchJob', 'batch-job');
-export const Bucket = createResourceClass('Bucket', 'bucket');
-export const HostingBucket = createResourceClass('HostingBucket', 'hosting-bucket');
-export const DynamoDbTable = createResourceClass('DynamoDbTable', 'dynamo-db-table');
-export const EventBus = createResourceClass('EventBus', 'event-bus');
-export const HttpApiGateway = createResourceClass('HttpApiGateway', 'http-api-gateway');
-export const ApplicationLoadBalancer = createResourceClass('ApplicationLoadBalancer', 'application-load-balancer');
-export const NetworkLoadBalancer = createResourceClass('NetworkLoadBalancer', 'network-load-balancer');
-export const RedisCluster = createResourceClass('RedisCluster', 'redis-cluster');
-export const MongoDbAtlasCluster = createResourceClass('MongoDbAtlasCluster', 'mongo-db-atlas-cluster');
-export const StateMachine = createResourceClass('StateMachine', 'state-machine');
-export const UserAuthPool = createResourceClass('UserAuthPool', 'user-auth-pool');
-export const UpstashRedis = createResourceClass('UpstashRedis', 'upstash-redis');
-export const SqsQueue = createResourceClass('SqsQueue', 'sqs-queue');
-export const SnsTopic = createResourceClass('SnsTopic', 'sns-topic');
-export const WebAppFirewall = createResourceClass('WebAppFirewall', 'web-app-firewall');
-export const OpenSearchDomain = createResourceClass('OpenSearchDomain', 'open-search-domain');
-export const EfsFilesystem = createResourceClass('EfsFilesystem', 'efs-filesystem');
-export const NextjsWeb = createResourceClass('NextjsWeb', 'nextjs-web');
-export const Bastion = createResourceClass('Bastion', 'bastion');
+// Export all resource classes for named imports
+export const {
+  RelationalDatabase,
+  WebService,
+  PrivateService,
+  WorkerService,
+  MultiContainerWorkload,
+  LambdaFunction,
+  BatchJob,
+  Bucket,
+  HostingBucket,
+  DynamoDbTable,
+  EventBus,
+  HttpApiGateway,
+  ApplicationLoadBalancer,
+  NetworkLoadBalancer,
+  RedisCluster,
+  MongoDbAtlasCluster,
+  StateMachine,
+  UserAuthPool,
+  UpstashRedis,
+  SqsQueue,
+  SnsTopic,
+  WebAppFirewall,
+  OpenSearchDomain,
+  EfsFilesystem,
+  NextjsWeb,
+  Bastion
+} = RESOURCE_CLASSES;

@@ -1,5 +1,5 @@
 import type { JSDocComment } from './types';
-import { TYPE_PROPERTIES } from '../../src/api/npm/ts/resource-metadata';
+import { MISC_TYPES_CONVERTIBLE_TO_CLASSES } from '../../src/api/npm/ts/resource-metadata';
 import { getTypePropertiesDescription } from './jsdoc-extractor';
 
 /**
@@ -37,7 +37,7 @@ function formatConstructorJSDoc(description: JSDocComment | undefined, className
  * Generate type/properties class declarations
  */
 export function generateTypePropertiesClassDeclarations(): string {
-  return TYPE_PROPERTIES.map(({ className, typeValue, propsType }) => {
+  return MISC_TYPES_CONVERTIBLE_TO_CLASSES.map(({ className, typeValue, propsType }) => {
     const description = getTypePropertiesDescription(className);
     const constructorJsDoc = formatConstructorJSDoc(description, className);
 
@@ -55,7 +55,7 @@ ${constructorJsDoc}
  */
 export function getTypePropertiesImports(sdkPropsWithAugmentation: string[]): string[] {
   const typePropertiesAlreadyImported: string[] = [];
-  const imports = TYPE_PROPERTIES.map(({ propsType }) => {
+  const imports = MISC_TYPES_CONVERTIBLE_TO_CLASSES.map(({ propsType }) => {
     // Skip script props as they're being augmented (imported with Sdk prefix)
     if (sdkPropsWithAugmentation.includes(propsType)) {
       return null;

@@ -3,6 +3,8 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import * as ts from 'typescript';
 
+import { MISC_TYPES_CONVERTIBLE_TO_CLASSES, RESOURCES_CONVERTIBLE_TO_CLASSES } from '../../src/api/npm/ts/class-config';
+
 function extractJSDocFromNode(node: ts.Node): JSDocComment | undefined {
   const jsDocTags = ts.getJSDocTags(node);
   const jsDocComments = ts.getJSDocCommentsAndTags(node);
@@ -201,48 +203,14 @@ function findInterfaceJSDoc(interfaceName: string, sourceFile: ts.SourceFile): J
   return result;
 }
 
-/**
- * Mapping of resource class names to their interface names and source files
- */
-const RESOURCE_INTERFACE_MAP: Record<string, { interfaceName: string; file: string }> = {
-  // Compute resources
-  LambdaFunction: { interfaceName: 'LambdaFunction', file: 'functions.d.ts' },
-  WebService: { interfaceName: 'WebService', file: 'web-services.d.ts' },
-  PrivateService: { interfaceName: 'PrivateService', file: 'private-services.d.ts' },
-  WorkerService: { interfaceName: 'WorkerService', file: 'worker-services.d.ts' },
-  MultiContainerWorkload: { interfaceName: 'MultiContainerWorkload', file: 'multi-container-workloads.d.ts' },
-  BatchJob: { interfaceName: 'BatchJob', file: 'batch-jobs.d.ts' },
-
-  // Storage
-  Bucket: { interfaceName: 'Bucket', file: 'buckets.d.ts' },
-  HostingBucket: { interfaceName: 'HostingBucket', file: 'hosting-buckets.d.ts' },
-  DynamoDbTable: { interfaceName: 'DynamoDbTable', file: 'dynamo-db-tables.d.ts' },
-  EfsFilesystem: { interfaceName: 'EfsFilesystem', file: 'efs-filesystem.d.ts' },
-
-  // Databases
-  RelationalDatabase: { interfaceName: 'RelationalDatabase', file: 'relational-databases.d.ts' },
-  RedisCluster: { interfaceName: 'RedisCluster', file: 'redis-cluster.d.ts' },
-  MongoDbAtlasCluster: { interfaceName: 'MongoDbAtlasCluster', file: 'mongo-db-atlas-clusters.d.ts' },
-  UpstashRedis: { interfaceName: 'UpstashRedis', file: 'upstash-redis.d.ts' },
-  OpenSearchDomain: { interfaceName: 'OpenSearchDomain', file: 'open-search.d.ts' },
-
-  // Networking
-  HttpApiGateway: { interfaceName: 'HttpApiGateway', file: 'http-api-gateways.d.ts' },
-  ApplicationLoadBalancer: { interfaceName: 'ApplicationLoadBalancer', file: 'application-load-balancers.d.ts' },
-  NetworkLoadBalancer: { interfaceName: 'NetworkLoadBalancer', file: 'network-load-balancer.d.ts' },
-
-  // Events & Messaging
-  EventBus: { interfaceName: 'EventBus', file: 'event-buses.d.ts' },
-  SqsQueue: { interfaceName: 'SqsQueue', file: 'sqs-queues.d.ts' },
-  SnsTopic: { interfaceName: 'SnsTopic', file: 'sns-topic.d.ts' },
-
-  // Other
-  StateMachine: { interfaceName: 'StateMachine', file: 'state-machines.d.ts' },
-  UserAuthPool: { interfaceName: 'UserAuthPool', file: 'user-pools.d.ts' },
-  WebAppFirewall: { interfaceName: 'WebAppFirewall', file: 'web-app-firewall.d.ts' },
-  NextjsWeb: { interfaceName: 'NextjsWeb', file: 'nextjs-web.d.ts' },
-  Bastion: { interfaceName: 'Bastion', file: 'bastion.d.ts' }
-};
+// Build RESOURCE_INTERFACE_MAP from class-config (single source of truth)
+const RESOURCE_INTERFACE_MAP: Record<string, { interfaceName: string; file: string }> = Object.fromEntries(
+  RESOURCES_CONVERTIBLE_TO_CLASSES.map((r) => [
+    // Use LambdaFunction for Function (exported name)
+    r.className === 'Function' ? 'LambdaFunction' : r.className,
+    { interfaceName: r.interfaceName, file: r.sourceFile }
+  ])
+);
 
 /**
  * Extracts the JSDoc description for a resource class from its interface definition
@@ -265,76 +233,10 @@ export function getResourceClassDescription(className: string): JSDocComment | u
   return findInterfaceJSDoc(mapping.interfaceName, sourceFile);
 }
 
-/**
- * Mapping of type-properties class names to their interface names and source files
- */
-const TYPE_PROPERTIES_INTERFACE_MAP: Record<string, { interfaceName: string; file: string }> = {
-  // Database Engines
-  RdsEnginePostgres: { interfaceName: 'RdsEngine', file: 'relational-databases.d.ts' },
-  RdsEngineMariadb: { interfaceName: 'RdsEngine', file: 'relational-databases.d.ts' },
-  RdsEngineMysql: { interfaceName: 'RdsEngine', file: 'relational-databases.d.ts' },
-  RdsEngineOracleEE: { interfaceName: 'RdsEngine', file: 'relational-databases.d.ts' },
-  RdsEngineOracleSE2: { interfaceName: 'RdsEngine', file: 'relational-databases.d.ts' },
-  RdsEngineSqlServerEE: { interfaceName: 'RdsEngine', file: 'relational-databases.d.ts' },
-  RdsEngineSqlServerEX: { interfaceName: 'RdsEngine', file: 'relational-databases.d.ts' },
-  RdsEngineSqlServerSE: { interfaceName: 'RdsEngine', file: 'relational-databases.d.ts' },
-  RdsEngineSqlServerWeb: { interfaceName: 'RdsEngine', file: 'relational-databases.d.ts' },
-  AuroraEnginePostgresql: { interfaceName: 'AuroraEngine', file: 'relational-databases.d.ts' },
-  AuroraEngineMysql: { interfaceName: 'AuroraEngine', file: 'relational-databases.d.ts' },
-  AuroraServerlessEnginePostgresql: { interfaceName: 'AuroraServerlessEngine', file: 'relational-databases.d.ts' },
-  AuroraServerlessEngineMysql: { interfaceName: 'AuroraServerlessEngine', file: 'relational-databases.d.ts' },
-  AuroraServerlessV2EnginePostgresql: { interfaceName: 'AuroraServerlessV2Engine', file: 'relational-databases.d.ts' },
-  AuroraServerlessV2EngineMysql: { interfaceName: 'AuroraServerlessV2Engine', file: 'relational-databases.d.ts' },
-
-  // Lambda Packaging
-  StacktapeLambdaBuildpackPackaging: {
-    interfaceName: 'StpBuildpackLambdaPackaging',
-    file: 'deployment-artifacts.d.ts'
-  },
-  CustomArtifactLambdaPackaging: { interfaceName: 'CustomArtifactLambdaPackaging', file: 'deployment-artifacts.d.ts' },
-
-  // Container Packaging
-  PrebuiltImagePackaging: { interfaceName: 'PrebuiltCwImagePackaging', file: 'deployment-artifacts.d.ts' },
-  CustomDockerfilePackaging: { interfaceName: 'CustomDockerfileCwImagePackaging', file: 'deployment-artifacts.d.ts' },
-  ExternalBuildpackPackaging: { interfaceName: 'ExternalBuildpackCwImagePackaging', file: 'deployment-artifacts.d.ts' },
-  NixpacksPackaging: { interfaceName: 'NixpacksCwImagePackaging', file: 'deployment-artifacts.d.ts' },
-  StacktapeImageBuildpackPackaging: {
-    interfaceName: 'StpBuildpackCwImagePackaging',
-    file: 'deployment-artifacts.d.ts'
-  },
-
-  // Scripts
-  LocalScriptWithCommand: { interfaceName: 'LocalScript', file: '__helpers.d.ts' },
-  LocalScriptWithCommands: { interfaceName: 'LocalScript', file: '__helpers.d.ts' },
-  LocalScriptWithFileScript: { interfaceName: 'LocalScript', file: '__helpers.d.ts' },
-  LocalScriptWithFileScripts: { interfaceName: 'LocalScript', file: '__helpers.d.ts' },
-  BastionScriptWithCommand: { interfaceName: 'BastionScript', file: '__helpers.d.ts' },
-  BastionScriptWithCommands: { interfaceName: 'BastionScript', file: '__helpers.d.ts' },
-  LocalScriptWithBastionTunnelingCommand: { interfaceName: 'LocalScriptWithBastionTunneling', file: '__helpers.d.ts' },
-  LocalScriptWithBastionTunnelingCommands: { interfaceName: 'LocalScriptWithBastionTunneling', file: '__helpers.d.ts' },
-  LocalScriptWithBastionTunnelingFileScript: {
-    interfaceName: 'LocalScriptWithBastionTunneling',
-    file: '__helpers.d.ts'
-  },
-  LocalScriptWithBastionTunnelingFileScripts: {
-    interfaceName: 'LocalScriptWithBastionTunneling',
-    file: '__helpers.d.ts'
-  },
-
-  // Lambda Events/Integrations
-  HttpApiIntegration: { interfaceName: 'HttpApiIntegration', file: 'events.d.ts' },
-  S3Integration: { interfaceName: 'S3Integration', file: 'events.d.ts' },
-  ScheduleIntegration: { interfaceName: 'ScheduleIntegration', file: 'events.d.ts' },
-  SnsIntegration: { interfaceName: 'SnsIntegration', file: 'events.d.ts' },
-  SqsIntegration: { interfaceName: 'SqsIntegration', file: 'events.d.ts' },
-  KinesisIntegration: { interfaceName: 'KinesisIntegration', file: 'events.d.ts' },
-  DynamoDbIntegration: { interfaceName: 'DynamoDbIntegration', file: 'events.d.ts' },
-  CloudwatchLogIntegration: { interfaceName: 'CloudwatchLogIntegration', file: 'events.d.ts' },
-  ApplicationLoadBalancerIntegration: { interfaceName: 'ApplicationLoadBalancerIntegration', file: 'events.d.ts' },
-  EventBusIntegration: { interfaceName: 'EventBusIntegration', file: 'events.d.ts' },
-  KafkaTopicIntegration: { interfaceName: 'KafkaTopicIntegration', file: 'events.d.ts' },
-  AlarmIntegration: { interfaceName: 'AlarmIntegration', file: 'events.d.ts' }
-};
+// Build TYPE_PROPERTIES_INTERFACE_MAP from class-config (single source of truth)
+const TYPE_PROPERTIES_INTERFACE_MAP: Record<string, { interfaceName: string; file: string }> = Object.fromEntries(
+  MISC_TYPES_CONVERTIBLE_TO_CLASSES.map((t) => [t.className, { interfaceName: t.interfaceName, file: t.sourceFile }])
+);
 
 /**
  * Extracts the JSDoc description for a type-properties class from its interface definition

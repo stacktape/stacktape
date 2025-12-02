@@ -1,5 +1,5 @@
 import type { JSDocComment, ReferenceableParam, ReferenceableParamsMap } from './types';
-import { getResourcesWithAugmentedProps, RESOURCES } from '../../src/api/npm/ts/resource-metadata';
+import { getResourcesWithAugmentedProps, RESOURCES_CONVERTIBLE_TO_CLASSES } from '../../src/api/npm/ts/resource-metadata';
 import { getResourceClassDescription } from './jsdoc-extractor';
 
 /**
@@ -95,7 +95,7 @@ export function generateResourceClassDeclarations(REFERENCEABLE_PARAMS: Referenc
   const resourcesWithAugmented = getResourcesWithAugmentedProps();
   const augmentedPropsTypes = new Set(resourcesWithAugmented.map((r) => r.propsType));
 
-  const classDeclarations = RESOURCES.map(({ className, resourceType, propsType }) => {
+  const classDeclarations = RESOURCES_CONVERTIBLE_TO_CLASSES.map(({ className, resourceType, propsType }) => {
     const params = REFERENCEABLE_PARAMS[resourceType] || [];
     const hasAugmentedProps = augmentedPropsTypes.has(propsType);
     const description = getResourceClassDescription(className);

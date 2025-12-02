@@ -30,6 +30,14 @@
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["src/**/*", "types/**/*", "shared/**/*", "scripts/**/*", "helper-lambdas/**/*", "eslint.config.ts"],
+  "include": [
+    "src/**/*",
+    "types/**/*",
+    "shared/**/*",
+    "scripts/**/*",
+    "helper-lambdas/**/*",
+    "eslint.config.ts",
+    "TS-CLASS-CONFIG.ts"
+  ],
   "exclude": ["scripts/starter-projects/_script-test-api.ts"]
 }

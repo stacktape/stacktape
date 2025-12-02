@@ -1,56 +1,4 @@
-import { Bucket, defineConfig, LocalScriptWithCommand } from 'stacktape';
-
-// scripts:
-//   build:
-//     type: local-script
-//     properties:
-//       executeCommand: bun run build
-
-// hooks:
-//   beforeDeploy:
-//     - scriptName: build
-
-// directives:
-//   - name: getDomain
-//     filePath: directives.ts:getDomain
-
-// resources:
-//   webBucket:
-//     type: bucket
-//     properties:
-//       directoryUpload:
-//         directoryPath: out
-//         headersPreset: static-website
-//       cdn:
-//         enabled: true
-//         errorDocument: /404.html
-//         customDomains:
-//           - domainName: $getDomain($Stage())
-//         routeRewrites:
-//           - path: /js/script.*
-//             forwardingOptions:
-//               allowedMethods:
-//                 - GET
-//                 - HEAD
-//             routeTo:
-//               type: custom-origin
-//               properties:
-//                 domainName: plausible.io
-//           - path: /api/event
-//             forwardingOptions:
-//               originRequestPolicyId: acba4595-bd28-49b8-b9fe-13317c0390fa
-//               allowedMethods:
-//                 - GET
-//                 - HEAD
-//                 - OPTIONS
-//                 - PUT
-//                 - PATCH
-//                 - POST
-//                 - DELETE
-//             routeTo:
-//               type: custom-origin
-//               properties:
-//                 domainName: plausible.io
+import { Bucket, defineConfig, LocalScript } from '../__release-npm';
 
 export default defineConfig(({ stage }) => {
   const webBucket = new Bucket({
@@ -92,7 +40,7 @@ export default defineConfig(({ stage }) => {
     }
   });
 
-  const buildScript = new LocalScriptWithCommand({
+  const buildScript = new LocalScript({
     executeCommand: 'bun run build'
   });
 

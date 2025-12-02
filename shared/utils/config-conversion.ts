@@ -5,36 +5,13 @@
  * YAML config is the serialized format for Stacktape CLI.
  */
 
-import { RESOURCES, TYPE_PROPERTIES } from '../../src/api/npm/ts/resource-metadata';
+import {
+  ENGINE_TYPE_TO_CLASS,
+  PACKAGING_TYPE_TO_CLASS,
+  RESOURCE_TYPE_TO_CLASS,
+  SCRIPT_TYPE_TO_CLASS
+} from '../../src/api/npm/ts/class-config';
 import { parseYaml, stringifyToYaml } from './yaml';
-
-/** Build resource type → class name mapping from metadata */
-const RESOURCE_TYPE_TO_CLASS: Record<string, string> = Object.fromEntries(
-  RESOURCES.map((r) => [r.resourceType, r.className])
-);
-
-/** Build script type → class name mapping (simplified class names for YAML → TS) */
-const SCRIPT_TYPE_TO_CLASS: Record<string, string> = {
-  'local-script': 'LocalScriptWithCommand',
-  'bastion-script': 'BastionScriptWithCommand',
-  'local-script-with-bastion-tunneling': 'LocalScriptWithBastionTunnelingCommand'
-};
-
-/** Filter TYPE_PROPERTIES by category using propsType patterns */
-const isPackagingType = (propsType: string) =>
-  propsType.includes('Packaging') || propsType.includes('Image') || propsType.includes('Artifact');
-
-const isEngineType = (propsType: string) => propsType.includes('Engine');
-
-/** Build packaging type → class name mapping from metadata */
-const PACKAGING_TYPE_TO_CLASS: Record<string, string> = Object.fromEntries(
-  TYPE_PROPERTIES.filter((t) => isPackagingType(t.propsType)).map((t) => [t.typeValue, t.className])
-);
-
-/** Build engine type → class name mapping from metadata */
-const ENGINE_TYPE_TO_CLASS: Record<string, string> = Object.fromEntries(
-  TYPE_PROPERTIES.filter((t) => isEngineType(t.propsType)).map((t) => [t.typeValue, t.className])
-);
 
 /** Check if a value contains functions or other non-serializable content */
 const containsNonSerializable = (value: unknown, path = ''): string | null => {
@@ -131,9 +108,11 @@ export const configObjectToTypescriptCode = (config: Record<string, unknown>): s
         throw new Error(`Unknown resource type: ${resource.type}`);
       }
 
-      imports.add(className);
+      // Use LambdaFunction for Function class (JS reserved word)
+      const exportedClassName = className === 'Function' ? 'LambdaFunction' : className;
+      imports.add(exportedClassName);
       const propsCode = generatePropsCode(resource.properties as Record<string, unknown>, imports, 2);
-      resourceDeclarations.push(`  const ${name} = new ${className}(${propsCode});`);
+      resourceDeclarations.push(`  const ${name} = new ${exportedClassName}(${propsCode});`);
       resourceNames.push(name);
     }
   }

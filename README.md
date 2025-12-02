@@ -214,11 +214,11 @@ stacktape logs:tail --resource myFunction
 Define reusable scripts in your config:
 
 ```typescript
-import { LocalScriptWithCommand } from 'stacktape';
+import { LocalScript } from 'stacktape';
 
 export default defineConfig(() => ({
   scripts: {
-    migrate: new LocalScriptWithCommand({
+    migrate: new LocalScript({
       executeCommand: 'npm run migrate',
       connectTo: [database],
       environment: { DATABASE_URL: database.connectionString }

@@ -2,7 +2,7 @@ import type { PropertyInfo } from './types';
 import {
   getResourcesWithAugmentedProps,
   getResourcesWithOverrides,
-  RESOURCES
+  RESOURCES_CONVERTIBLE_TO_CLASSES
 } from '../../src/api/npm/ts/resource-metadata';
 import { formatJSDoc, getSDKPropertyInfo } from './jsdoc-extractor';
 
@@ -96,7 +96,7 @@ function getConnectToPropertyInfo(sdkTypeName: string, connectToType: string): P
 
   return {
     name: 'connectTo',
-    type: `Array<${connectToType}>`,
+    type: `${connectToType}[]`,
     optional: true,
     jsdoc: sdkPropertyInfo?.jsdoc || DEFAULT_CONNECT_TO_JSDOC
   };
@@ -267,7 +267,7 @@ export function generateAugmentedPropsTypes(): string {
     if (resourceType === 'Script') {
       result.push(generateConnectToType('Script', ALL_CONNECTABLE_RESOURCES));
     } else {
-      const resource = RESOURCES.find((r) => r.className === resourceType);
+      const resource = RESOURCES_CONVERTIBLE_TO_CLASSES.find((r) => r.className === resourceType);
       if (resource && resource.canConnectTo) {
         result.push(generateConnectToType(resourceType, resource.canConnectTo));
       }
@@ -333,7 +333,7 @@ export function generateAugmentedPropsTypes(): string {
 export function generateSdkPropsImports(): string {
   const sdkPropsWithAugmentation = [...getResourcesWithAugmentedProps().map((r) => r.propsType), ...SCRIPT_PROPS_TYPES];
 
-  const allResources = RESOURCES;
+  const allResources = RESOURCES_CONVERTIBLE_TO_CLASSES;
   const sdkPropsWithoutAugmentation = allResources
     .map((r) => r.propsType)
     .filter((propsType) => !sdkPropsWithAugmentation.includes(propsType));
@@ -348,7 +348,7 @@ export function generateSdkPropsImports(): string {
  * Accepts both class instances and plain objects matching the interface types
  */
 export function generateStacktapeConfigType(): string {
-  const resourceClassNames = RESOURCES.map((r) => r.className);
+  const resourceClassNames = RESOURCES_CONVERTIBLE_TO_CLASSES.map((r) => r.className);
 
   return `// Re-export StacktapeConfig with properly typed resources
 // Accepts both class instances and plain objects
@@ -369,8 +369,16 @@ export type CloudFormationTemplate = {
   Hooks?: Record<string, unknown>;
 };
 
-export type StacktapeConfig = Omit<import('./sdk').StacktapeConfig, 'resources' | 'cloudformationResources'> & {
+export type StacktapeConfig = Omit<import('./sdk').StacktapeConfig, 'resources' | 'cloudformationResources' | 'scripts'> & {
   resources: { [resourceName: string]: ${resourceClassNames.join(' | ')} | StacktapeResourceDefinition };
+  /**
+   * #### Scripts that can be executed using the \`stacktape script:run\` command.
+   *
+   * ---
+   *
+   * Scripts can be either shell commands or files written in JavaScript, TypeScript, or Python.
+   */
+  scripts?: { [scriptName: string]: LocalScript | BastionScript | LocalScriptWithBastionTunneling | import('./sdk').LocalScript | import('./sdk').BastionScript | import('./sdk').LocalScriptWithBastionTunneling };
   /**
    * #### Raw CloudFormation resources that will be deployed in this stack.
    *

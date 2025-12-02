@@ -38,3 +38,9 @@ type StacktapeJsonSchema = {
 interface ImportMeta {
   main: boolean;
 }
+
+// type Capitalize<S extends string> = S extends `${infer First}${infer Rest}` ? `${Uppercase<First>}${Rest}` : S;
+
+type KebabToPascalCase<S extends string> = S extends `${infer First}-${infer Rest}`
+  ? `${Capitalize<First>}${KebabToPascalCase<Rest>}`
+  : Capitalize<S>;
