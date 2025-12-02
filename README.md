@@ -371,7 +371,7 @@ Stacktape is released under the [MIT License](LICENSE).
 
 **Ready to simplify your AWS deployments?**
 
-[Get Started](https://docs.stacktape.com/getting-started/basics) • [Join Slack](https://join.slack.com/t/stacktape-community/shared_invite/zt-16st4nmgl-B8adf0YnZWSMEbuz9Ih6vg) • [Starter Projects](https://github.com/stacktape/stacktape/tree/master/starter-projects)
+[Get Started](https://docs.stacktape.com/getting-started/basics) • [Join Slack](https://join.slack.com/t/stacktape-community/shared_invite/zt-16st4nmgl-B8adf0YnZWSMEbuz9Ih6vg) • [Examples](https://docs.stacktape.com/starter-projects/)
 
 Made with ❤️ by the Stacktape team in EU
 
