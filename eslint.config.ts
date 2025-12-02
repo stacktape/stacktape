@@ -18,7 +18,8 @@ export default antfu(
       '__stacktape-dist/*',
       '__publish-folder/*',
       '__binary-dist/*',
-      'docs/next-env.d.ts'
+      'docs/next-env.d.ts',
+      'README.md'
     ],
     lessOpinionated: true,
     formatters: false,

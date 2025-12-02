@@ -1,4 +1,4 @@
-# Stacktape - PaaS 2.0 that deploys to your own AWS account
+## Stacktape - PaaS 2.0 that deploys to your own AWS account
 
 <div align="center">
 
@@ -23,7 +23,7 @@ Stacktape is now open source after being a closed-source product for several yea
 - **30+ AWS Resources**: SQL/NoSQL databases, load balancers, API gateways, Redis, MongoDB Atlas, and more
 - **Risk-free**: extend, override or eject anytime
 - **Infrastructure as Code**: TypeScript, YAML, or JSON. 97% shorter than writing it yourself.
-- **Built-in CI/CD**: Supports both Push-to-deploy and Preview deploymnets.
+- **Built-in CI/CD**: Supports both Push-to-deploy and Preview deployments.
 - **Development Mode**: Run services locally while connected to cloud resources
 - **Smart Builds**: Zero-config, optimized parallel builds with advanced caching
 - **Security Built-in**: Secret management, least privilege permissions, private networking
@@ -60,10 +60,10 @@ stacktape init
 ```typescript
 import {
   defineConfig,
-  LambdaFunction,
+  DynamoDbTable,
   HttpApiGateway,
   HttpApiIntegration,
-  DynamoDbTable,
+  LambdaFunction,
   StacktapeLambdaBuildpackPackaging
 } from 'stacktape';
 
@@ -75,7 +75,8 @@ export default defineConfig(({ stage }) => {
   });
 
   const api = new HttpApiGateway('api', {
-    cors: { enabled: true }
+    cors: { enabled: true },
+    customDomains: [{ domainName: stage === 'production' ? 'acme.com' : `${stage}-acme.com` }]
   });
 
   const myFunction = new LambdaFunction('myFunction', {
@@ -116,7 +117,7 @@ Stacktape supports three configuration formats:
 ### TypeScript (Recommended)
 ```typescript
 // stacktape.ts
-import { defineConfig, LambdaFunction } from 'stacktape';
+import { defineConfig } from 'stacktape';
 
 export default defineConfig(({ stage }) => ({
   resources: {
@@ -242,16 +243,37 @@ https://www.stacktape.com/videos/2-manage.mp4
 
 ### Private Networking
 
-Increase security by keeping services private:
+Increase security by keeping your database private (VPC-only):
 
 ```typescript
-const privateService = new PrivateService('privateService', {
-  // Configuration
+const mainDatabase = new RelationalDatabase({
+  engine: new RdsEnginePostgres({
+    primaryInstance: {
+      instanceSize: stage === 'production' ? 'db.t4g.medium' : 'db.t4g.micro',
+      multiAz: stage === 'production'
+    },
+    version: '18.1'
+  }),
+  credentials: {
+    masterUserName: 'master-user',
+    masterUserPassword: $Secret('my-secret-password')
+  },
+  accessibility: {
+    accessibilityMode: 'vpc',
+    forceDisablePublicIp: true
+  }
 });
+```
 
-const bastion = new Bastion('bastion', {
-  // Use bastion to access private resources
-});
+Then, add a bastion resource, so you can perform management tasks.
+
+```typescript
+const bastion = new Bastion('bastion', {})
+
+const migrationScript = new LocalScriptWithBastionTunnelingCommand({
+  executeCommand: 'prisma migrate',
+  connectTo: [mainDatabase]
+})
 ```
 
 ### Override & Extend
@@ -263,17 +285,42 @@ const myFunction = new LambdaFunction('myFunction', {
   // ... standard config
   overrides: {
     lambda: {
-      MemorySize: 4096,
-      Timeout: 900
-    },
-    lambdaLogGroup: {
-      RetentionInDays: 7
+      description: 'Overridden description'
+    }
+  },
+  transforms: {
+    lambda: (props) => {
+      return {
+        ...props,
+        MemorySize: (props.MemorySize ?? 128) * 2
+      };
     }
   }
 });
 ```
 
 Or extend with raw CloudFormation or AWS CDK constructs.
+
+```typescript
+export default defineConfig(() => {
+  const myFunction = new LambdaFunction({
+    // lambda config
+  });
+
+  return {
+    resources: { myFunction },
+    cloudformationResources: {
+      mySnsTopic: {
+        Type: 'AWS::SNS::Topic',
+        Properties: {
+          TopicName: 'my-test-topic',
+          DisplayName: 'My Test Topic'
+        }
+      }
+    }
+  };
+});
+```
 
 ## Pricing
 
@@ -294,9 +341,9 @@ Paid versions of Stacktape include:
 
 If you want to use YAML-based configuration, we recommend installing [Stacktape editor extension](https://marketplace.visualstudio.com/items?itemName=stacktape.stacktape):
 
-- ✅ Validation and error checking
-- 💡 Intelligent autocompletion
-- 📖 Inline documentation
+- Validation and error checking
+- Intelligent autocompletion
+- Inline documentation
 
 ## Contributing
 
@@ -311,11 +358,11 @@ Stacktape is released under the [MIT License](LICENSE).
 ## Testimonials
 
 > "Stacktape (the product) and Stacktape (the team) have helped us move extremely fast. They abstract away so much of the complexity of AWS, and let us focus on our application logic, instead of infrastructure configuration."
-> 
+>
 > — **Henry Garrett**, Founding Engineer, Recipts.xyz
 
 > "Stacktape has been a game-changer for Lastmyle, providing a secure and intuitive way to manage our AWS deployments. It's allowed our small team to efficiently handle environments using GitOps, all while keeping a tight rein on costs.."
-> 
+>
 > — **Rhys Williams**, CTO & Frounder, Lastmyle
 
 ---
