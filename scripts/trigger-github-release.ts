@@ -33,7 +33,7 @@ const main = async () => {
   try {
     const response = await octokit.actions.createWorkflowDispatch({
       owner: 'stacktape',
-      repo: 'core',
+      repo: 'stacktape',
       workflow_id: 'release.yml',
       ref: currentBranch,
       inputs: {
@@ -44,7 +44,7 @@ const main = async () => {
 
     if (response.status === 204) {
       logSuccess(
-        `Release workflow triggered successfully!\n\nView workflow runs at: https://github.com/stacktape/core/actions`
+        `Release workflow triggered successfully!\n\nView workflow runs at: https://github.com/stacktape/stacktape/actions`
       );
     } else {
       throw new Error(`Unexpected response status: ${response.status}`);

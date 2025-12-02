@@ -33,7 +33,7 @@ os=$(uname -s)
 arch=$(uname -m)
 version=${STACKTAPE_VERSION:="<<DEFAULT_VERSION>>"}
 
-archive_source_url=https://github.com/stacktape/core/releases/download/$version/alpine.tar.gz
+archive_source_url=https://github.com/stacktape/stacktape/releases/download/$version/alpine.tar.gz
 
 bin_dir_path="$HOME/.stacktape/bin"
 executable_file_path="$bin_dir_path/stacktape"

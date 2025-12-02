@@ -19,7 +19,7 @@ $NixpacksExecutableFilePath = "$BinDirPath\nixpacks\nixpacks.exe"
 $EsbuildRegisterFilePath = "$BinDirPath\esbuild\esbuild-register.js"
 $BridgeFilesFolderPath = "$BinDirPath\bridge-files"
 $ZipFilePath = "$BinDirPath\stacktape.zip"
-$ZipSourceUrl = "https://github.com/stacktape/core/releases/download/$Version/windows.zip"
+$ZipSourceUrl = "https://github.com/stacktape/stacktape/releases/download/$Version/windows.zip"
 
 Write-Output "Installing version $Version from $ZipSourceUrl..."
 

@@ -7,10 +7,10 @@
   "homepage": "https://stacktape.com",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/stacktape/core.git"
+    "url": "git+https://github.com/stacktape/stacktape.git"
   },
   "bugs": {
-    "url": "https://github.com/stacktape/core/issues"
+    "url": "https://github.com/stacktape/stacktape/issues"
   },
   "keywords": [
     "serverless",

@@ -13,7 +13,7 @@ const { join } = require('node:path');
 
 const PACKAGE_VERSION = require('../package.json').version;
 
-const GITHUB_REPO = 'stacktape/core';
+const GITHUB_REPO = 'stacktape/stacktape';
 
 const PLATFORM_MAP = {
   'win32-x64': { fileName: 'windows.zip', extract: extractZip },
