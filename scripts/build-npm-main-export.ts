@@ -289,7 +289,13 @@ export async function generateTypeDeclarations(): Promise<void> {
   ];
   const typePropertiesImports = getTypePropertiesImports(sdkPropsWithAugmentation);
 
-  // Generate types.d.ts - contains all type definitions
+  // Get all class names for re-export
+  const resourceClassNames = RESOURCES_CONVERTIBLE_TO_CLASSES.map((r) => r.className);
+  const typePropertiesClassNames = MISC_TYPES_CONVERTIBLE_TO_CLASSES.map((t) => t.className);
+  const allClassNames = [...resourceClassNames, ...typePropertiesClassNames];
+
+  // Generate types.d.ts - contains all types AND class declarations
+  // Classes must be here so ConnectTo types can reference them
   const typesDts = `/* eslint-disable */
 // @ts-nocheck
 // Generated file - Do not edit manually
@@ -334,6 +340,18 @@ ${overridesTypes}
 ${transformsTypes}
 
 // ==========================================
+// RESOURCE CLASS DECLARATIONS
+// ==========================================
+
+${resourceClassDeclarations}
+
+// ==========================================
+// TYPE PROPERTIES CLASS DECLARATIONS
+// ==========================================
+
+${typePropertiesClassDeclarations}
+
+// ==========================================
 // STACKTAPE CONFIG TYPE
 // ==========================================
 
@@ -360,48 +378,19 @@ ${cleanDeclarations(declarations.get('global-aws-services') || '')}
 ${cleanDeclarations(declarations.get('resource-metadata') || '')}
 `;
 
-  // Generate list of all prop types needed for class constructors
-  const resourcePropTypes = RESOURCES_CONVERTIBLE_TO_CLASSES.map((r) => {
-    const hasAugmented = resourcesWithAugmented.some((a) => a.propsType === r.propsType);
-    return hasAugmented ? r.propsType : `${r.propsType}WithOverrides`;
-  });
-  const typePropertiesPropTypes = MISC_TYPES_CONVERTIBLE_TO_CLASSES.map((t) => t.propsType);
-  const allPropTypes = [...new Set([...resourcePropTypes, ...typePropertiesPropTypes])];
-
-  // Generate index.d.ts - only exports classes, defineConfig, directives
-  // Types are imported but NOT re-exported
+  // Generate index.d.ts - re-exports only classes, defineConfig, directives
+  // Types are NOT re-exported from here
   const indexDts = `/* eslint-disable */
 // @ts-nocheck
 // Generated file - Do not edit manually
 // Main export for 'stacktape' - classes, directives, defineConfig only
 // For types, use: import type { X } from 'stacktape/types'
 
-// Import types (NOT re-exported - use 'stacktape/types' for type imports)
-import type {
-  BaseResource,
-  BaseTypeProperties,
-  GetConfigParams,
-  StacktapeConfig,
-  ${allPropTypes.join(',\n  ')}
+// Re-export classes from types (NOT re-exporting type definitions)
+export {
+  defineConfig,
+  ${allClassNames.join(',\n  ')}
 } from './types';
-
-// ==========================================
-// DEFINE CONFIG
-// ==========================================
-
-export declare const defineConfig: (configFn: (params: GetConfigParams) => StacktapeConfig) => (params: GetConfigParams) => any;
-
-// ==========================================
-// RESOURCE CLASS DECLARATIONS
-// ==========================================
-
-${resourceClassDeclarations}
-
-// ==========================================
-// TYPE PROPERTIES CLASS DECLARATIONS
-// ==========================================
-
-${typePropertiesClassDeclarations}
 
 // ==========================================
 // DIRECTIVES
