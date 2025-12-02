@@ -1,5 +1,9 @@
+import type { ResourceClassName } from '@api/npm/ts/class-config';
 import type { JSDocComment, ReferenceableParam, ReferenceableParamsMap } from './types';
-import { getResourcesWithAugmentedProps, RESOURCES_CONVERTIBLE_TO_CLASSES } from '../../src/api/npm/ts/resource-metadata';
+import {
+  getResourcesWithAugmentedProps,
+  RESOURCES_CONVERTIBLE_TO_CLASSES
+} from '../../src/api/npm/ts/resource-metadata';
 import { getResourceClassDescription } from './jsdoc-extractor';
 
 /**
@@ -64,7 +68,7 @@ function formatConstructorJSDoc(description: JSDocComment | undefined, className
  * The description is added to the constructor so it shows when hovering over `new ClassName()`
  */
 function generateResourceClass(
-  className: string,
+  className: ResourceClassName,
   propsType: string,
   resourceType: string,
   hasAugmentedProps: boolean,
@@ -73,7 +77,7 @@ function generateResourceClass(
 ): string {
   const finalPropsType = determinePropsType(propsType, hasAugmentedProps);
   const getters = generateGetters(referenceableParams);
-  const constructorJsDoc = formatConstructorJSDoc(description, className);
+  const constructorJsDoc = formatConstructorJSDoc(description, className as string);
 
   const parts = [
     '',

@@ -1,8 +1,9 @@
+import type { ResourceClassName } from '../../src/api/npm/ts/class-config';
 import type { JSDocComment, PropertyInfo } from './types';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import * as ts from 'typescript';
 
+import * as ts from 'typescript';
 import { MISC_TYPES_CONVERTIBLE_TO_CLASSES, RESOURCES_CONVERTIBLE_TO_CLASSES } from '../../src/api/npm/ts/class-config';
 
 function extractJSDocFromNode(node: ts.Node): JSDocComment | undefined {
@@ -217,8 +218,8 @@ const RESOURCE_INTERFACE_MAP: Record<string, { interfaceName: string; file: stri
  * @param className - The resource class name (e.g., 'LambdaFunction')
  * @returns The JSDoc comment or undefined if not found
  */
-export function getResourceClassDescription(className: string): JSDocComment | undefined {
-  const mapping = RESOURCE_INTERFACE_MAP[className];
+export function getResourceClassDescription(className: ResourceClassName): JSDocComment | undefined {
+  const mapping = RESOURCE_INTERFACE_MAP[className as string];
   if (!mapping) {
     return undefined;
   }

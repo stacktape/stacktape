@@ -318,7 +318,10 @@ export function generateAugmentedPropsTypes(): string {
   const resourcesWithOverrides = getResourcesWithOverrides();
   for (const resource of resourcesWithOverrides) {
     if (!augmentedPropsNames.includes(resource.propsType)) {
-      const withOverridesType = generateWithOverridesAndTransformsType(resource.propsType, resource.className);
+      const withOverridesType = generateWithOverridesAndTransformsType(
+        resource.propsType,
+        resource.className as string
+      );
       result.push(withOverridesType);
       result.push('');
     }
