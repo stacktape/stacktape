@@ -1,3 +1,4 @@
+import type { ResourceClassName } from './class-config';
 import { RESOURCES_CONVERTIBLE_TO_CLASSES } from './class-config';
 import { BaseResource } from './config';
 import { REFERENCEABLE_PARAMS } from './resource-metadata';
@@ -11,7 +12,7 @@ const getParamReferenceSymbol = Symbol.for('stacktape:getParamReference');
  * - new Resource(properties) - name derived from object key in resources
  * - new Resource(name, properties) - explicit name (backwards compatible)
  */
-function createResourceClass(className: string, resourceType: string): any {
+function createResourceClass(className: ResourceClassName, resourceType: string): any {
   // Create the class dynamically
   const ResourceClass = class extends BaseResource {
     constructor(nameOrProperties: string | any, properties?: any) {
@@ -47,8 +48,7 @@ function createResourceClass(className: string, resourceType: string): any {
 const RESOURCE_CLASSES: Record<string, ReturnType<typeof createResourceClass>> = {};
 for (const def of RESOURCES_CONVERTIBLE_TO_CLASSES) {
   // Use 'LambdaFunction' as the exported name for 'Function' to avoid JS reserved word issues
-  const exportName = def.className === 'Function' ? 'LambdaFunction' : def.className;
-  RESOURCE_CLASSES[exportName] = createResourceClass(def.className, def.resourceType);
+  RESOURCE_CLASSES[def.className as any] = createResourceClass(def.className, def.resourceType);
 }
 
 // Export all resource classes for named imports

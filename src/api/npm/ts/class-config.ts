@@ -1,5 +1,3 @@
-/* eslint prettier/prettier: ["error", { printWidth: 200 }] */
-
 /**
  * This file defines type-properties shaped definitions (e.g. Stacktape resources, packaging types etc.)
  * that can be converted to a Typescript class. These classes are then exported from stacktape/classes
@@ -7,11 +5,11 @@
  * @example import { StacktapeLambdaBuildpackPackaging } from 'stacktape/classes';
  */
 
-export type ResourceClassName = string;
+export type ResourceClassName = Omit<KebabToPascalCase<StpResourceType>, 'Function'> | 'LambdaFunction';
 
 export type ResourceDefinition = {
   /** Class name for the resource (e.g., 'LambdaFunction') */
-  className: string;
+  className: ResourceClassName;
   /** Resource type identifier used in config (e.g., 'function') */
   resourceType: string;
   /** Props type name (e.g., 'LambdaFunctionProps') */
@@ -131,7 +129,7 @@ export const RESOURCES_CONVERTIBLE_TO_CLASSES: ResourceDefinition[] = [
     ]
   },
   {
-    className: 'Function',
+    className: 'LambdaFunction',
     resourceType: 'function',
     propsType: 'LambdaFunctionProps',
     interfaceName: 'LambdaFunction',
@@ -176,11 +174,46 @@ export const RESOURCES_CONVERTIBLE_TO_CLASSES: ResourceDefinition[] = [
       'EfsFilesystem'
     ]
   },
-  { className: 'Bucket', resourceType: 'bucket', propsType: 'BucketProps', interfaceName: 'Bucket', sourceFile: 'buckets.d.ts', canConnectTo: [] },
-  { className: 'HostingBucket', resourceType: 'hosting-bucket', propsType: 'HostingBucketProps', interfaceName: 'HostingBucket', sourceFile: 'hosting-buckets.d.ts', canConnectTo: [] },
-  { className: 'DynamoDbTable', resourceType: 'dynamo-db-table', propsType: 'DynamoDbTableProps', interfaceName: 'DynamoDbTable', sourceFile: 'dynamo-db-tables.d.ts', canConnectTo: [] },
-  { className: 'EventBus', resourceType: 'event-bus', propsType: 'EventBusProps', interfaceName: 'EventBus', sourceFile: 'event-buses.d.ts', canConnectTo: [] },
-  { className: 'HttpApiGateway', resourceType: 'http-api-gateway', propsType: 'HttpApiGatewayProps', interfaceName: 'HttpApiGateway', sourceFile: 'http-api-gateways.d.ts', canConnectTo: [] },
+  {
+    className: 'Bucket',
+    resourceType: 'bucket',
+    propsType: 'BucketProps',
+    interfaceName: 'Bucket',
+    sourceFile: 'buckets.d.ts',
+    canConnectTo: []
+  },
+  {
+    className: 'HostingBucket',
+    resourceType: 'hosting-bucket',
+    propsType: 'HostingBucketProps',
+    interfaceName: 'HostingBucket',
+    sourceFile: 'hosting-buckets.d.ts',
+    canConnectTo: []
+  },
+  {
+    className: 'DynamoDbTable',
+    resourceType: 'dynamo-db-table',
+    propsType: 'DynamoDbTableProps',
+    interfaceName: 'DynamoDbTable',
+    sourceFile: 'dynamo-db-tables.d.ts',
+    canConnectTo: []
+  },
+  {
+    className: 'EventBus',
+    resourceType: 'event-bus',
+    propsType: 'EventBusProps',
+    interfaceName: 'EventBus',
+    sourceFile: 'event-buses.d.ts',
+    canConnectTo: []
+  },
+  {
+    className: 'HttpApiGateway',
+    resourceType: 'http-api-gateway',
+    propsType: 'HttpApiGatewayProps',
+    interfaceName: 'HttpApiGateway',
+    sourceFile: 'http-api-gateways.d.ts',
+    canConnectTo: []
+  },
   {
     className: 'ApplicationLoadBalancer',
     resourceType: 'application-load-balancer',
@@ -197,7 +230,14 @@ export const RESOURCES_CONVERTIBLE_TO_CLASSES: ResourceDefinition[] = [
     sourceFile: 'network-load-balancer.d.ts',
     canConnectTo: []
   },
-  { className: 'RedisCluster', resourceType: 'redis-cluster', propsType: 'RedisClusterProps', interfaceName: 'RedisCluster', sourceFile: 'redis-cluster.d.ts', canConnectTo: [] },
+  {
+    className: 'RedisCluster',
+    resourceType: 'redis-cluster',
+    propsType: 'RedisClusterProps',
+    interfaceName: 'RedisCluster',
+    sourceFile: 'redis-cluster.d.ts',
+    canConnectTo: []
+  },
   {
     className: 'MongoDbAtlasCluster',
     resourceType: 'mongo-db-atlas-cluster',
@@ -216,7 +256,14 @@ export const RESOURCES_CONVERTIBLE_TO_CLASSES: ResourceDefinition[] = [
     hasAugmentedProps: true,
     canConnectTo: ['Function', 'BatchJob']
   },
-  { className: 'UserAuthPool', resourceType: 'user-auth-pool', propsType: 'UserAuthPoolProps', interfaceName: 'UserAuthPool', sourceFile: 'user-pools.d.ts', canConnectTo: [] },
+  {
+    className: 'UserAuthPool',
+    resourceType: 'user-auth-pool',
+    propsType: 'UserAuthPoolProps',
+    interfaceName: 'UserAuthPool',
+    sourceFile: 'user-pools.d.ts',
+    canConnectTo: []
+  },
   {
     className: 'UpstashRedis',
     resourceType: 'upstash-redis',
@@ -226,13 +273,62 @@ export const RESOURCES_CONVERTIBLE_TO_CLASSES: ResourceDefinition[] = [
     supportsOverrides: false,
     canConnectTo: []
   },
-  { className: 'SqsQueue', resourceType: 'sqs-queue', propsType: 'SqsQueueProps', interfaceName: 'SqsQueue', sourceFile: 'sqs-queues.d.ts', canConnectTo: [] },
-  { className: 'SnsTopic', resourceType: 'sns-topic', propsType: 'SnsTopicProps', interfaceName: 'SnsTopic', sourceFile: 'sns-topic.d.ts', canConnectTo: [] },
-  { className: 'WebAppFirewall', resourceType: 'web-app-firewall', propsType: 'WebAppFirewallProps', interfaceName: 'WebAppFirewall', sourceFile: 'web-app-firewall.d.ts', canConnectTo: [] },
-  { className: 'OpenSearchDomain', resourceType: 'open-search-domain', propsType: 'OpenSearchDomainProps', interfaceName: 'OpenSearchDomain', sourceFile: 'open-search.d.ts', canConnectTo: [] },
-  { className: 'EfsFilesystem', resourceType: 'efs-filesystem', propsType: 'EfsFilesystemProps', interfaceName: 'EfsFilesystem', sourceFile: 'efs-filesystem.d.ts', canConnectTo: [] },
-  { className: 'NextjsWeb', resourceType: 'nextjs-web', propsType: 'NextjsWebProps', interfaceName: 'NextjsWeb', sourceFile: 'nextjs-web.d.ts', canConnectTo: [] },
-  { className: 'Bastion', resourceType: 'bastion', propsType: 'BastionProps', interfaceName: 'Bastion', sourceFile: 'bastion.d.ts', canConnectTo: [] }
+  {
+    className: 'SqsQueue',
+    resourceType: 'sqs-queue',
+    propsType: 'SqsQueueProps',
+    interfaceName: 'SqsQueue',
+    sourceFile: 'sqs-queues.d.ts',
+    canConnectTo: []
+  },
+  {
+    className: 'SnsTopic',
+    resourceType: 'sns-topic',
+    propsType: 'SnsTopicProps',
+    interfaceName: 'SnsTopic',
+    sourceFile: 'sns-topic.d.ts',
+    canConnectTo: []
+  },
+  {
+    className: 'WebAppFirewall',
+    resourceType: 'web-app-firewall',
+    propsType: 'WebAppFirewallProps',
+    interfaceName: 'WebAppFirewall',
+    sourceFile: 'web-app-firewall.d.ts',
+    canConnectTo: []
+  },
+  {
+    className: 'OpenSearchDomain',
+    resourceType: 'open-search-domain',
+    propsType: 'OpenSearchDomainProps',
+    interfaceName: 'OpenSearchDomain',
+    sourceFile: 'open-search.d.ts',
+    canConnectTo: []
+  },
+  {
+    className: 'EfsFilesystem',
+    resourceType: 'efs-filesystem',
+    propsType: 'EfsFilesystemProps',
+    interfaceName: 'EfsFilesystem',
+    sourceFile: 'efs-filesystem.d.ts',
+    canConnectTo: []
+  },
+  {
+    className: 'NextjsWeb',
+    resourceType: 'nextjs-web',
+    propsType: 'NextjsWebProps',
+    interfaceName: 'NextjsWeb',
+    sourceFile: 'nextjs-web.d.ts',
+    canConnectTo: []
+  },
+  {
+    className: 'Bastion',
+    resourceType: 'bastion',
+    propsType: 'BastionProps',
+    interfaceName: 'Bastion',
+    sourceFile: 'bastion.d.ts',
+    canConnectTo: []
+  }
 ];
 
 /**
@@ -248,17 +344,83 @@ export type TypePropertiesDefinition = {
 
 export const MISC_TYPES_CONVERTIBLE_TO_CLASSES: TypePropertiesDefinition[] = [
   // Database Engines
-  { className: 'RdsEnginePostgres', typeValue: 'postgres', propsType: 'RdsEngineProperties', interfaceName: 'RdsEngine', sourceFile: 'relational-databases.d.ts' },
-  { className: 'RdsEngineMariadb', typeValue: 'mariadb', propsType: 'RdsEngineProperties', interfaceName: 'RdsEngine', sourceFile: 'relational-databases.d.ts' },
-  { className: 'RdsEngineMysql', typeValue: 'mysql', propsType: 'RdsEngineProperties', interfaceName: 'RdsEngine', sourceFile: 'relational-databases.d.ts' },
-  { className: 'RdsEngineOracleEE', typeValue: 'oracle-ee', propsType: 'RdsEngineProperties', interfaceName: 'RdsEngine', sourceFile: 'relational-databases.d.ts' },
-  { className: 'RdsEngineOracleSE2', typeValue: 'oracle-se2', propsType: 'RdsEngineProperties', interfaceName: 'RdsEngine', sourceFile: 'relational-databases.d.ts' },
-  { className: 'RdsEngineSqlServerEE', typeValue: 'sqlserver-ee', propsType: 'RdsEngineProperties', interfaceName: 'RdsEngine', sourceFile: 'relational-databases.d.ts' },
-  { className: 'RdsEngineSqlServerEX', typeValue: 'sqlserver-ex', propsType: 'RdsEngineProperties', interfaceName: 'RdsEngine', sourceFile: 'relational-databases.d.ts' },
-  { className: 'RdsEngineSqlServerSE', typeValue: 'sqlserver-se', propsType: 'RdsEngineProperties', interfaceName: 'RdsEngine', sourceFile: 'relational-databases.d.ts' },
-  { className: 'RdsEngineSqlServerWeb', typeValue: 'sqlserver-web', propsType: 'RdsEngineProperties', interfaceName: 'RdsEngine', sourceFile: 'relational-databases.d.ts' },
-  { className: 'AuroraEnginePostgresql', typeValue: 'aurora-postgresql', propsType: 'AuroraEngineProperties', interfaceName: 'AuroraEngine', sourceFile: 'relational-databases.d.ts' },
-  { className: 'AuroraEngineMysql', typeValue: 'aurora-mysql', propsType: 'AuroraEngineProperties', interfaceName: 'AuroraEngine', sourceFile: 'relational-databases.d.ts' },
+  {
+    className: 'RdsEnginePostgres',
+    typeValue: 'postgres',
+    propsType: 'RdsEngineProperties',
+    interfaceName: 'RdsEngine',
+    sourceFile: 'relational-databases.d.ts'
+  },
+  {
+    className: 'RdsEngineMariadb',
+    typeValue: 'mariadb',
+    propsType: 'RdsEngineProperties',
+    interfaceName: 'RdsEngine',
+    sourceFile: 'relational-databases.d.ts'
+  },
+  {
+    className: 'RdsEngineMysql',
+    typeValue: 'mysql',
+    propsType: 'RdsEngineProperties',
+    interfaceName: 'RdsEngine',
+    sourceFile: 'relational-databases.d.ts'
+  },
+  {
+    className: 'RdsEngineOracleEE',
+    typeValue: 'oracle-ee',
+    propsType: 'RdsEngineProperties',
+    interfaceName: 'RdsEngine',
+    sourceFile: 'relational-databases.d.ts'
+  },
+  {
+    className: 'RdsEngineOracleSE2',
+    typeValue: 'oracle-se2',
+    propsType: 'RdsEngineProperties',
+    interfaceName: 'RdsEngine',
+    sourceFile: 'relational-databases.d.ts'
+  },
+  {
+    className: 'RdsEngineSqlServerEE',
+    typeValue: 'sqlserver-ee',
+    propsType: 'RdsEngineProperties',
+    interfaceName: 'RdsEngine',
+    sourceFile: 'relational-databases.d.ts'
+  },
+  {
+    className: 'RdsEngineSqlServerEX',
+    typeValue: 'sqlserver-ex',
+    propsType: 'RdsEngineProperties',
+    interfaceName: 'RdsEngine',
+    sourceFile: 'relational-databases.d.ts'
+  },
+  {
+    className: 'RdsEngineSqlServerSE',
+    typeValue: 'sqlserver-se',
+    propsType: 'RdsEngineProperties',
+    interfaceName: 'RdsEngine',
+    sourceFile: 'relational-databases.d.ts'
+  },
+  {
+    className: 'RdsEngineSqlServerWeb',
+    typeValue: 'sqlserver-web',
+    propsType: 'RdsEngineProperties',
+    interfaceName: 'RdsEngine',
+    sourceFile: 'relational-databases.d.ts'
+  },
+  {
+    className: 'AuroraEnginePostgresql',
+    typeValue: 'aurora-postgresql',
+    propsType: 'AuroraEngineProperties',
+    interfaceName: 'AuroraEngine',
+    sourceFile: 'relational-databases.d.ts'
+  },
+  {
+    className: 'AuroraEngineMysql',
+    typeValue: 'aurora-mysql',
+    propsType: 'AuroraEngineProperties',
+    interfaceName: 'AuroraEngine',
+    sourceFile: 'relational-databases.d.ts'
+  },
   {
     className: 'AuroraServerlessEnginePostgresql',
     typeValue: 'aurora-postgresql-serverless',
@@ -303,7 +465,13 @@ export const MISC_TYPES_CONVERTIBLE_TO_CLASSES: TypePropertiesDefinition[] = [
     sourceFile: 'deployment-artifacts.d.ts'
   },
   // Container Packaging
-  { className: 'PrebuiltImagePackaging', typeValue: 'prebuilt-image', propsType: 'PrebuiltImageCwPackagingProps', interfaceName: 'PrebuiltCwImagePackaging', sourceFile: 'deployment-artifacts.d.ts' },
+  {
+    className: 'PrebuiltImagePackaging',
+    typeValue: 'prebuilt-image',
+    propsType: 'PrebuiltImageCwPackagingProps',
+    interfaceName: 'PrebuiltCwImagePackaging',
+    sourceFile: 'deployment-artifacts.d.ts'
+  },
   {
     className: 'CustomDockerfilePackaging',
     typeValue: 'custom-dockerfile',
@@ -318,7 +486,13 @@ export const MISC_TYPES_CONVERTIBLE_TO_CLASSES: TypePropertiesDefinition[] = [
     interfaceName: 'ExternalBuildpackCwImagePackaging',
     sourceFile: 'deployment-artifacts.d.ts'
   },
-  { className: 'NixpacksPackaging', typeValue: 'nixpacks', propsType: 'NixpacksCwImagePackagingProps', interfaceName: 'NixpacksCwImagePackaging', sourceFile: 'deployment-artifacts.d.ts' },
+  {
+    className: 'NixpacksPackaging',
+    typeValue: 'nixpacks',
+    propsType: 'NixpacksCwImagePackagingProps',
+    interfaceName: 'NixpacksCwImagePackaging',
+    sourceFile: 'deployment-artifacts.d.ts'
+  },
   {
     className: 'StacktapeImageBuildpackPackaging',
     typeValue: 'stacktape-image-buildpack',
@@ -327,14 +501,62 @@ export const MISC_TYPES_CONVERTIBLE_TO_CLASSES: TypePropertiesDefinition[] = [
     sourceFile: 'deployment-artifacts.d.ts'
   },
   // Lambda Function Events/Integrations
-  { className: 'HttpApiIntegration', typeValue: 'http-api-gateway', propsType: 'HttpApiIntegrationProps', interfaceName: 'HttpApiIntegration', sourceFile: 'events.d.ts' },
-  { className: 'S3Integration', typeValue: 's3', propsType: 'S3IntegrationProps', interfaceName: 'S3Integration', sourceFile: 'events.d.ts' },
-  { className: 'ScheduleIntegration', typeValue: 'schedule', propsType: 'ScheduleIntegrationProps', interfaceName: 'ScheduleIntegration', sourceFile: 'events.d.ts' },
-  { className: 'SnsIntegration', typeValue: 'sns', propsType: 'SnsIntegrationProps', interfaceName: 'SnsIntegration', sourceFile: 'events.d.ts' },
-  { className: 'SqsIntegration', typeValue: 'sqs', propsType: 'SqsIntegrationProps', interfaceName: 'SqsIntegration', sourceFile: 'events.d.ts' },
-  { className: 'KinesisIntegration', typeValue: 'kinesis', propsType: 'KinesisIntegrationProps', interfaceName: 'KinesisIntegration', sourceFile: 'events.d.ts' },
-  { className: 'DynamoDbIntegration', typeValue: 'dynamodb', propsType: 'DynamoDbIntegrationProps', interfaceName: 'DynamoDbIntegration', sourceFile: 'events.d.ts' },
-  { className: 'CloudwatchLogIntegration', typeValue: 'cloudwatch-logs', propsType: 'CloudwatchLogIntegrationProps', interfaceName: 'CloudwatchLogIntegration', sourceFile: 'events.d.ts' },
+  {
+    className: 'HttpApiIntegration',
+    typeValue: 'http-api-gateway',
+    propsType: 'HttpApiIntegrationProps',
+    interfaceName: 'HttpApiIntegration',
+    sourceFile: 'events.d.ts'
+  },
+  {
+    className: 'S3Integration',
+    typeValue: 's3',
+    propsType: 'S3IntegrationProps',
+    interfaceName: 'S3Integration',
+    sourceFile: 'events.d.ts'
+  },
+  {
+    className: 'ScheduleIntegration',
+    typeValue: 'schedule',
+    propsType: 'ScheduleIntegrationProps',
+    interfaceName: 'ScheduleIntegration',
+    sourceFile: 'events.d.ts'
+  },
+  {
+    className: 'SnsIntegration',
+    typeValue: 'sns',
+    propsType: 'SnsIntegrationProps',
+    interfaceName: 'SnsIntegration',
+    sourceFile: 'events.d.ts'
+  },
+  {
+    className: 'SqsIntegration',
+    typeValue: 'sqs',
+    propsType: 'SqsIntegrationProps',
+    interfaceName: 'SqsIntegration',
+    sourceFile: 'events.d.ts'
+  },
+  {
+    className: 'KinesisIntegration',
+    typeValue: 'kinesis',
+    propsType: 'KinesisIntegrationProps',
+    interfaceName: 'KinesisIntegration',
+    sourceFile: 'events.d.ts'
+  },
+  {
+    className: 'DynamoDbIntegration',
+    typeValue: 'dynamodb',
+    propsType: 'DynamoDbIntegrationProps',
+    interfaceName: 'DynamoDbIntegration',
+    sourceFile: 'events.d.ts'
+  },
+  {
+    className: 'CloudwatchLogIntegration',
+    typeValue: 'cloudwatch-logs',
+    propsType: 'CloudwatchLogIntegrationProps',
+    interfaceName: 'CloudwatchLogIntegration',
+    sourceFile: 'events.d.ts'
+  },
   {
     className: 'ApplicationLoadBalancerIntegration',
     typeValue: 'application-load-balancer',
@@ -342,22 +564,100 @@ export const MISC_TYPES_CONVERTIBLE_TO_CLASSES: TypePropertiesDefinition[] = [
     interfaceName: 'ApplicationLoadBalancerIntegration',
     sourceFile: 'events.d.ts'
   },
-  { className: 'EventBusIntegration', typeValue: 'event-bus', propsType: 'EventBusIntegrationProps', interfaceName: 'EventBusIntegration', sourceFile: 'events.d.ts' },
-  { className: 'KafkaTopicIntegration', typeValue: 'kafka-topic', propsType: 'KafkaTopicIntegrationProps', interfaceName: 'KafkaTopicIntegration', sourceFile: 'events.d.ts' },
-  { className: 'AlarmIntegration', typeValue: 'alarm', propsType: 'AlarmIntegrationProps', interfaceName: 'AlarmIntegration', sourceFile: 'events.d.ts' },
-  { className: 'IotIntegration', typeValue: 'iot', propsType: 'IotIntegrationProps', interfaceName: 'IotIntegration', sourceFile: 'events.d.ts' },
+  {
+    className: 'EventBusIntegration',
+    typeValue: 'event-bus',
+    propsType: 'EventBusIntegrationProps',
+    interfaceName: 'EventBusIntegration',
+    sourceFile: 'events.d.ts'
+  },
+  {
+    className: 'KafkaTopicIntegration',
+    typeValue: 'kafka-topic',
+    propsType: 'KafkaTopicIntegrationProps',
+    interfaceName: 'KafkaTopicIntegration',
+    sourceFile: 'events.d.ts'
+  },
+  {
+    className: 'AlarmIntegration',
+    typeValue: 'alarm',
+    propsType: 'AlarmIntegrationProps',
+    interfaceName: 'AlarmIntegration',
+    sourceFile: 'events.d.ts'
+  },
+  {
+    className: 'IotIntegration',
+    typeValue: 'iot',
+    propsType: 'IotIntegrationProps',
+    interfaceName: 'IotIntegration',
+    sourceFile: 'events.d.ts'
+  },
   // CDN Routes
-  { className: 'CdnLoadBalancerRoute', typeValue: 'application-load-balancer', propsType: 'CdnLoadBalancerOrigin', interfaceName: 'CdnLoadBalancerOrigin', sourceFile: 'cdn.d.ts' },
-  { className: 'CdnHttpApiGatewayRoute', typeValue: 'http-api-gateway', propsType: 'CdnHttpApiGatewayOrigin', interfaceName: 'CdnHttpApiGatewayOrigin', sourceFile: 'cdn.d.ts' },
-  { className: 'CdnLambdaFunctionRoute', typeValue: 'function', propsType: 'CdnLambdaFunctionOrigin', interfaceName: 'CdnLambdaFunctionOrigin', sourceFile: 'cdn.d.ts' },
-  { className: 'CdnCustomDomainRoute', typeValue: 'custom-origin', propsType: 'CdnCustomOrigin', interfaceName: 'CdnCustomOrigin', sourceFile: 'cdn.d.ts' },
-  { className: 'CdnBucketRoute', typeValue: 'bucket', propsType: 'CdnBucketOrigin', interfaceName: 'CdnBucketOrigin', sourceFile: 'cdn.d.ts' },
+  {
+    className: 'CdnLoadBalancerRoute',
+    typeValue: 'application-load-balancer',
+    propsType: 'CdnLoadBalancerOrigin',
+    interfaceName: 'CdnLoadBalancerOrigin',
+    sourceFile: 'cdn.d.ts'
+  },
+  {
+    className: 'CdnHttpApiGatewayRoute',
+    typeValue: 'http-api-gateway',
+    propsType: 'CdnHttpApiGatewayOrigin',
+    interfaceName: 'CdnHttpApiGatewayOrigin',
+    sourceFile: 'cdn.d.ts'
+  },
+  {
+    className: 'CdnLambdaFunctionRoute',
+    typeValue: 'function',
+    propsType: 'CdnLambdaFunctionOrigin',
+    interfaceName: 'CdnLambdaFunctionOrigin',
+    sourceFile: 'cdn.d.ts'
+  },
+  {
+    className: 'CdnCustomDomainRoute',
+    typeValue: 'custom-origin',
+    propsType: 'CdnCustomOrigin',
+    interfaceName: 'CdnCustomOrigin',
+    sourceFile: 'cdn.d.ts'
+  },
+  {
+    className: 'CdnBucketRoute',
+    typeValue: 'bucket',
+    propsType: 'CdnBucketOrigin',
+    interfaceName: 'CdnBucketOrigin',
+    sourceFile: 'cdn.d.ts'
+  },
   // Web App Firewall Rules
-  { className: 'ManagedRuleGroup', typeValue: 'managed-rule-group', propsType: 'ManagedRuleGroupProps', interfaceName: 'ManagedRuleGroup', sourceFile: 'web-app-firewall.d.ts' },
-  { className: 'CustomRuleGroup', typeValue: 'custom-rule-group', propsType: 'CustomRuleGroupProps', interfaceName: 'CustomRuleGroup', sourceFile: 'web-app-firewall.d.ts' },
-  { className: 'RateBasedRule', typeValue: 'rate-based-rule', propsType: 'RateBasedStatementProps', interfaceName: 'RateBasedRule', sourceFile: 'web-app-firewall.d.ts' },
+  {
+    className: 'ManagedRuleGroup',
+    typeValue: 'managed-rule-group',
+    propsType: 'ManagedRuleGroupProps',
+    interfaceName: 'ManagedRuleGroup',
+    sourceFile: 'web-app-firewall.d.ts'
+  },
+  {
+    className: 'CustomRuleGroup',
+    typeValue: 'custom-rule-group',
+    propsType: 'CustomRuleGroupProps',
+    interfaceName: 'CustomRuleGroup',
+    sourceFile: 'web-app-firewall.d.ts'
+  },
+  {
+    className: 'RateBasedRule',
+    typeValue: 'rate-based-rule',
+    propsType: 'RateBasedStatementProps',
+    interfaceName: 'RateBasedRule',
+    sourceFile: 'web-app-firewall.d.ts'
+  },
   // SQS Queue Integrations
-  { className: 'SqsQueueEventBusIntegration', typeValue: 'event-bus', propsType: 'SqsQueueEventBusIntegrationProps', interfaceName: 'SqsQueueEventBusIntegration', sourceFile: 'sqs-queues.d.ts' },
+  {
+    className: 'SqsQueueEventBusIntegration',
+    typeValue: 'event-bus',
+    propsType: 'SqsQueueEventBusIntegrationProps',
+    interfaceName: 'SqsQueueEventBusIntegration',
+    sourceFile: 'sqs-queues.d.ts'
+  },
   // Multi Container Workload Integrations
   {
     className: 'MultiContainerWorkloadHttpApiIntegration',
@@ -395,8 +695,20 @@ export const MISC_TYPES_CONVERTIBLE_TO_CLASSES: TypePropertiesDefinition[] = [
     sourceFile: 'multi-container-workloads.d.ts'
   },
   // Scripts
-  { className: 'LocalScript', typeValue: 'local-script', propsType: 'LocalScriptProps', interfaceName: 'LocalScript', sourceFile: '__helpers.d.ts' },
-  { className: 'BastionScript', typeValue: 'bastion-script', propsType: 'BastionScriptProps', interfaceName: 'BastionScript', sourceFile: '__helpers.d.ts' },
+  {
+    className: 'LocalScript',
+    typeValue: 'local-script',
+    propsType: 'LocalScriptProps',
+    interfaceName: 'LocalScript',
+    sourceFile: '__helpers.d.ts'
+  },
+  {
+    className: 'BastionScript',
+    typeValue: 'bastion-script',
+    propsType: 'BastionScriptProps',
+    interfaceName: 'BastionScript',
+    sourceFile: '__helpers.d.ts'
+  },
   {
     className: 'LocalScriptWithBastionTunneling',
     typeValue: 'local-script-with-bastion-tunneling',
@@ -405,11 +717,35 @@ export const MISC_TYPES_CONVERTIBLE_TO_CLASSES: TypePropertiesDefinition[] = [
     sourceFile: '__helpers.d.ts'
   },
   // Log Forwarding
-  { className: 'HttpEndpointLogForwarding', typeValue: 'http-endpoint', propsType: 'HttpEndpointLogForwardingProps', interfaceName: 'HttpEndpointLogForwarding', sourceFile: '__helpers.d.ts' },
-  { className: 'HighlightLogForwarding', typeValue: 'highlight', propsType: 'HighlightLogForwardingProps', interfaceName: 'HighlightLogForwarding', sourceFile: '__helpers.d.ts' },
-  { className: 'DatadogLogForwarding', typeValue: 'datadog', propsType: 'DatadogLogForwardingProps', interfaceName: 'DatadogLogForwarding', sourceFile: '__helpers.d.ts' },
+  {
+    className: 'HttpEndpointLogForwarding',
+    typeValue: 'http-endpoint',
+    propsType: 'HttpEndpointLogForwardingProps',
+    interfaceName: 'HttpEndpointLogForwarding',
+    sourceFile: '__helpers.d.ts'
+  },
+  {
+    className: 'HighlightLogForwarding',
+    typeValue: 'highlight',
+    propsType: 'HighlightLogForwardingProps',
+    interfaceName: 'HighlightLogForwarding',
+    sourceFile: '__helpers.d.ts'
+  },
+  {
+    className: 'DatadogLogForwarding',
+    typeValue: 'datadog',
+    propsType: 'DatadogLogForwardingProps',
+    interfaceName: 'DatadogLogForwarding',
+    sourceFile: '__helpers.d.ts'
+  },
   // Bucket Lifecycle Rules
-  { className: 'ExpirationLifecycleRule', typeValue: 'expiration', propsType: 'ExpirationProps', interfaceName: 'ExpirationLifecycleRule', sourceFile: 'buckets.d.ts' },
+  {
+    className: 'ExpirationLifecycleRule',
+    typeValue: 'expiration',
+    propsType: 'ExpirationProps',
+    interfaceName: 'ExpirationLifecycleRule',
+    sourceFile: 'buckets.d.ts'
+  },
   {
     className: 'NonCurrentVersionExpirationLifecycleRule',
     typeValue: 'non-current-version-expiration',
@@ -418,11 +754,35 @@ export const MISC_TYPES_CONVERTIBLE_TO_CLASSES: TypePropertiesDefinition[] = [
     sourceFile: 'buckets.d.ts'
   },
   // EFS Mounts
-  { className: 'ContainerEfsMount', typeValue: 'efs', propsType: 'ContainerEfsMountProps', interfaceName: 'ContainerEfsMount', sourceFile: '__helpers.d.ts' },
-  { className: 'LambdaEfsMount', typeValue: 'efs', propsType: 'LambdaEfsMountProps', interfaceName: 'LambdaEfsMount', sourceFile: 'functions.d.ts' },
+  {
+    className: 'ContainerEfsMount',
+    typeValue: 'efs',
+    propsType: 'ContainerEfsMountProps',
+    interfaceName: 'ContainerEfsMount',
+    sourceFile: '__helpers.d.ts'
+  },
+  {
+    className: 'LambdaEfsMount',
+    typeValue: 'efs',
+    propsType: 'LambdaEfsMountProps',
+    interfaceName: 'LambdaEfsMount',
+    sourceFile: 'functions.d.ts'
+  },
   // Authorizers
-  { className: 'CognitoAuthorizer', typeValue: 'cognito', propsType: 'CognitoAuthorizerProperties', interfaceName: 'CognitoAuthorizer', sourceFile: 'user-pools.d.ts' },
-  { className: 'LambdaAuthorizer', typeValue: 'lambda', propsType: 'LambdaAuthorizerProperties', interfaceName: 'LambdaAuthorizer', sourceFile: 'user-pools.d.ts' },
+  {
+    className: 'CognitoAuthorizer',
+    typeValue: 'cognito',
+    propsType: 'CognitoAuthorizerProperties',
+    interfaceName: 'CognitoAuthorizer',
+    sourceFile: 'user-pools.d.ts'
+  },
+  {
+    className: 'LambdaAuthorizer',
+    typeValue: 'lambda',
+    propsType: 'LambdaAuthorizerProperties',
+    interfaceName: 'LambdaAuthorizer',
+    sourceFile: 'user-pools.d.ts'
+  },
   // Custom Resources
   {
     className: 'CustomResourceDefinition',
@@ -439,9 +799,21 @@ export const MISC_TYPES_CONVERTIBLE_TO_CLASSES: TypePropertiesDefinition[] = [
     sourceFile: 'custom-resources.d.ts'
   },
   // Deployment Scripts
-  { className: 'DeploymentScript', typeValue: 'deployment-script', propsType: 'DeploymentScriptProps', interfaceName: 'DeploymentScript', sourceFile: 'deployment-script.d.ts' },
+  {
+    className: 'DeploymentScript',
+    typeValue: 'deployment-script',
+    propsType: 'DeploymentScriptProps',
+    interfaceName: 'DeploymentScript',
+    sourceFile: 'deployment-script.d.ts'
+  },
   // Edge Lambda Functions
-  { className: 'EdgeLambdaFunction', typeValue: 'edge-lambda-function', propsType: 'EdgeLambdaFunctionProps', interfaceName: 'EdgeLambdaFunction', sourceFile: 'edge-lambda-functions.d.ts' }
+  {
+    className: 'EdgeLambdaFunction',
+    typeValue: 'edge-lambda-function',
+    propsType: 'EdgeLambdaFunctionProps',
+    interfaceName: 'EdgeLambdaFunction',
+    sourceFile: 'edge-lambda-functions.d.ts'
+  }
 ];
 
 // ==================== HELPER FUNCTIONS ====================
@@ -473,17 +845,26 @@ export function getTypePropertiesByTypeValue(typeValue: string): TypePropertiesD
 // ==================== DERIVED MAPPINGS ====================
 
 /** Resource type → class name mapping */
-export const RESOURCE_TYPE_TO_CLASS: Record<string, string> = Object.fromEntries(RESOURCES_CONVERTIBLE_TO_CLASSES.map((r) => [r.resourceType, r.className]));
+export const RESOURCE_TYPE_TO_CLASS: Record<string, ResourceClassName> = Object.fromEntries(
+  RESOURCES_CONVERTIBLE_TO_CLASSES.map((r) => [r.resourceType, r.className])
+);
 
 /** Script type → class name mapping */
 export const SCRIPT_TYPE_TO_CLASS: Record<string, string> = Object.fromEntries(
-  MISC_TYPES_CONVERTIBLE_TO_CLASSES.filter((t) => t.sourceFile === '__helpers.d.ts' && t.propsType.includes('Script')).map((t) => [t.typeValue, t.className])
+  MISC_TYPES_CONVERTIBLE_TO_CLASSES.filter(
+    (t) => t.sourceFile === '__helpers.d.ts' && t.propsType.includes('Script')
+  ).map((t) => [t.typeValue, t.className])
 );
 
 /** Packaging type → class name mapping */
 export const PACKAGING_TYPE_TO_CLASS: Record<string, string> = Object.fromEntries(
-  MISC_TYPES_CONVERTIBLE_TO_CLASSES.filter((t) => t.sourceFile === 'deployment-artifacts.d.ts').map((t) => [t.typeValue, t.className])
+  MISC_TYPES_CONVERTIBLE_TO_CLASSES.filter((t) => t.sourceFile === 'deployment-artifacts.d.ts').map((t) => [
+    t.typeValue,
+    t.className
+  ])
 );
 
 /** Engine type → class name mapping */
-export const ENGINE_TYPE_TO_CLASS: Record<string, string> = Object.fromEntries(MISC_TYPES_CONVERTIBLE_TO_CLASSES.filter((t) => t.propsType.includes('Engine')).map((t) => [t.typeValue, t.className]));
+export const ENGINE_TYPE_TO_CLASS: Record<string, string> = Object.fromEntries(
+  MISC_TYPES_CONVERTIBLE_TO_CLASSES.filter((t) => t.propsType.includes('Engine')).map((t) => [t.typeValue, t.className])
+);
