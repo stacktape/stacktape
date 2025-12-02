@@ -1,3 +1,4 @@
+import type { ResourceClassName } from '@api/npm/ts/class-config';
 import type { PropertyInfo } from './types';
 import {
   getResourcesWithAugmentedProps,
@@ -158,7 +159,7 @@ function generateConnectToType(resourceType: string, canConnectTo: readonly stri
 function generateAugmentedPropsType(
   propsType: string,
   originalPropsType: string,
-  resourceType: string,
+  resourceType: ResourceClassName,
   connectToType: string,
   includeOverridesAndTransforms: boolean
 ): string {
@@ -255,7 +256,7 @@ export function generateAugmentedPropsTypes(): string {
 
   // Process main resources
   for (const resource of resourcesWithAugmented) {
-    connectToTypeNeeded.add(resource.className);
+    connectToTypeNeeded.add(resource.className as string);
   }
 
   // Add Script type for script props
@@ -267,7 +268,7 @@ export function generateAugmentedPropsTypes(): string {
     if (resourceType === 'Script') {
       result.push(generateConnectToType('Script', ALL_CONNECTABLE_RESOURCES));
     } else {
-      const resource = RESOURCES_CONVERTIBLE_TO_CLASSES.find((r) => r.className === resourceType);
+      const resource = RESOURCES_CONVERTIBLE_TO_CLASSES.find((r) => r.className === (resourceType as any));
       if (resource && resource.canConnectTo) {
         result.push(generateConnectToType(resourceType, resource.canConnectTo));
       }
@@ -287,7 +288,7 @@ export function generateAugmentedPropsTypes(): string {
     const augmentedType = generateAugmentedPropsType(
       resource.propsType,
       `Sdk${resource.propsType}`,
-      resource.className,
+      resource.className as string,
       `${resource.className}ConnectTo`,
       true // includeOverridesAndTransforms
     );
