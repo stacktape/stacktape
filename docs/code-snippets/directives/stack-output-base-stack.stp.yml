@@ -1,0 +1,10 @@
+stackConfig:
+  # {start-highlight}
+  outputs:
+    - name: bucketName
+      value: $ResourceParam('baseBucket', 'arn')
+  # {stop-highlight}
+
+resources:
+  baseBucket:
+    type: bucket

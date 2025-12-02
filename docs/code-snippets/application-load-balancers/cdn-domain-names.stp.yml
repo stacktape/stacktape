@@ -1,0 +1,10 @@
+resources:
+  myLoadBalancer:
+    type: 'application-load-balancer'
+    properties:
+      cdn:
+        enabled: true
+        # {start-highlight}
+        customDomains:
+          - domainName: something.mydomain.com
+        # {stop-highlight}

@@ -1,0 +1,20 @@
+resources:
+  myEventBus:
+    type: event-bus
+
+  myLambda:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: path/to/my-lambda.ts
+      # {start-highlight}
+      events:
+        - type: event-bus
+          properties:
+            eventBusName: myEventBus
+            eventPattern:
+              source:
+                - 'mycustomsource'
+      # {stop-highlight}

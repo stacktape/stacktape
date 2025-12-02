@@ -1,0 +1,32 @@
+import Channel_ from './channel';
+import EncoderConfiguration_ from './encoderConfiguration';
+import IngestConfiguration_ from './ingestConfiguration';
+import PlaybackKeyPair_ from './playbackKeyPair';
+import PlaybackRestrictionPolicy_ from './playbackRestrictionPolicy';
+import PublicKey_ from './publicKey';
+import RecordingConfiguration_ from './recordingConfiguration';
+import Stage_ from './stage';
+import StorageConfiguration_ from './storageConfiguration';
+import StreamKey_ from './streamKey';
+export namespace IVS {
+  export const Channel = Channel_;
+  export const EncoderConfiguration = EncoderConfiguration_;
+  export const IngestConfiguration = IngestConfiguration_;
+  export const PlaybackKeyPair = PlaybackKeyPair_;
+  export const PlaybackRestrictionPolicy = PlaybackRestrictionPolicy_;
+  export const PublicKey = PublicKey_;
+  export const RecordingConfiguration = RecordingConfiguration_;
+  export const Stage = Stage_;
+  export const StorageConfiguration = StorageConfiguration_;
+  export const StreamKey = StreamKey_;
+  export type Channel = Channel_;
+  export type EncoderConfiguration = EncoderConfiguration_;
+  export type IngestConfiguration = IngestConfiguration_;
+  export type PlaybackKeyPair = PlaybackKeyPair_;
+  export type PlaybackRestrictionPolicy = PlaybackRestrictionPolicy_;
+  export type PublicKey = PublicKey_;
+  export type RecordingConfiguration = RecordingConfiguration_;
+  export type Stage = Stage_;
+  export type StorageConfiguration = StorageConfiguration_;
+  export type StreamKey = StreamKey_;
+}

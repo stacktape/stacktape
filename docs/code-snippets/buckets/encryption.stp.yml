@@ -1,0 +1,7 @@
+resources:
+  myBucket:
+    type: bucket
+    properties:
+      # {start-highlight}
+      encryption: true
+      # {stop-highlight}

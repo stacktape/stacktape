@@ -1,0 +1,103 @@
+---
+title: "Deployment Scripts"
+order: 300
+---
+
+<br />
+<br />
+
+Deployment scripts allow you to execute custom logic as part of your deployment process. You can pass information about your infrastructure to the script and grant it permissions to interact with other resources in your stack.
+
+Under the hood, a deployment script is packaged as an [AWS Lambda function](https://aws.amazon.com/lambda/) and triggered during the `deployment` or `delete` process. Deployment scripts are not executed during hot-swap deployments.
+
+# When to use them
+
+Deployment scripts are useful for tasks that need to run as part of your infrastructure provisioning, such as:
+
+-   Seeding a database with initial data.
+-   Running database migrations.
+-   Running smoke tests to ensure that your application is running correctly after a deployment.
+
+<Divider />
+
+# Basic usage
+
+This example uses a deployment script to test a public API endpoint after a deployment.
+
+<PropertiesTable
+  definitionName="DeploymentScript"
+  rewriteLinksForReferencedCompositeTypes={{
+    StpBuildpackLambdaPackaging: "#packaging",
+    CustomArtifactLambdaPackaging: "#packaging"
+  }}
+/>
+
+`embed:deployment-scripts/basic-usage.ts`
+
+> A deployment script in TypeScript (`test-url.ts`).
+
+`embed:deployment-scripts/basic-usage.stp.yml`
+
+> The Stacktape configuration for the deployment script.
+
+# Trigger
+
+The `trigger` property determines when the script is executed.
+
+<PropDescription definitionName="DeploymentScriptProps" propertyName="trigger" descType="ld" />
+
+`embed:deployment-scripts/trigger.stp.yml`
+
+<Warning>
+
+Scripts that are triggered before a stack is deleted `before:delete` must have been present during the last deployment to be executed.
+
+</Warning>
+
+# Packaging
+
+Deployment scripts are packaged and executed as Lambda functions. For more information, see the documentation on [packaging Lambda functions](/configuration/packaging#packaging-lambda-functions).
+
+# Parameters
+
+You can pass parameters to your deployment script.
+
+<PropDescription definitionName="DeploymentScriptProps" propertyName="parameters" descType="ld" />
+
+`embed:deployment-scripts/parameters.stp.yml`
+
+# Environment variables
+
+<PropDescription definitionName="DeploymentScriptProps" propertyName="environment" descType="ld" />
+
+<PropertiesTable definitionName="EnvironmentVar" searchForReferencesInDefinition="DeploymentScriptProps" />
+
+`embed:deployment-scripts/environment.stp.yml`
+
+# Accessing other resources
+
+By default, AWS resources cannot communicate with each other. Access must be granted using _IAM_ permissions.
+
+Stacktape automatically handles the necessary permissions for the services it manages. For example, it allows a deployment script to write logs to CloudWatch.
+
+However, if your script needs to access other resources, you must grant permissions manually. You can do this in two ways:
+
+## Using connectTo
+
+The `connectTo` property lets you grant access to other Stacktape-managed resources by simply listing their names. Stacktape automatically configures the required _IAM_ permissions and injects connection details as environment variables into your script.
+
+`embed:deployment-scripts/allow-access-to.stp.yml`
+
+<br />
+
+<PropDescription definitionName="LambdaFunctionProps" propertyName="connectTo" descType="ld" />
+
+## Using iamRoleStatements
+
+For more granular control, you can provide a list of raw _IAM_ role statements. These statements are added to the script's _IAM_ role, allowing you to define precise permissions for any AWS resource.
+
+`embed:deployment-scripts/iam-statement.stp.yml`
+
+# API reference
+
+<PropertiesTable definitionName="StpIamRoleStatement" searchForReferencesInDefinition="DeploymentScriptProps" />

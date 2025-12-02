@@ -1,0 +1,20 @@
+resources:
+  myLambdaFunction:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: 'lambdas/js-lambda.js'
+      # {start-highlight}
+      alarms:
+        - trigger:
+            type: lambda-error-rate
+            properties:
+              thresholdPercent: 5
+          notificationTargets:
+            - type: slack
+              properties:
+                conversationId: C038XXXXXX
+                accessToken: $Secret('slack-access-token')
+      # {stop-highlight}

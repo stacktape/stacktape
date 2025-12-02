@@ -1,0 +1,13 @@
+# {start-highlight}
+directives:
+  - name: GetMongoTier
+    filePath: my-directive.py:get_cluster_tier
+# {stop-highlight}
+
+resources:
+  myMongoCluster:
+    type: mongo-db-atlas-cluster
+    properties:
+      # ${start-highlight}
+      clusterTier: $GetMongoTier($Stage())
+      # ${stop-highlight}

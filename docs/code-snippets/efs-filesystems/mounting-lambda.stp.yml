@@ -1,0 +1,20 @@
+resources:
+  myEfsFilesystem:
+    type: efs-filesystem
+
+  myFunction:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: lambdas/read-write-efs.ts
+      joinDefaultVpc: true
+      volumeMounts:
+        - type: efs
+          properties:
+            efsFilesystemName: myEfsFilesystem
+            mountPath: /mnt/my-mounted-system
+            # {start-highlight}
+            rootDirectory: /my/root/directory
+            # {stop-highlight}

@@ -1,0 +1,37 @@
+scripts:
+  nuxtBuild:
+    type: local-script
+    properties:
+      executeCommand: npm run build
+
+hooks:
+  beforeDeploy:
+    - scriptName: nuxtBuild
+
+resources:
+  webService:
+    type: web-service
+    properties:
+      packaging:
+        type: stacktape-image-buildpack
+        properties:
+          entryfilePath: ./server.ts
+      environment:
+        - name: NUXT_APP_CDN_URL
+          value: $ResourceParam('webBucket', 'cdnUrl')
+      resources:
+        cpu: 0.25
+        memory: 512
+      cors:
+        enabled: true
+
+  webBucket:
+    type: bucket
+    properties:
+      cors:
+        enabled: true
+      directoryUpload:
+        directoryPath: ./.output/public
+        headersPreset: static-website
+      cdn:
+        enabled: true

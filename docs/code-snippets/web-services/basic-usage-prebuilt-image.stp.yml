@@ -1,0 +1,13 @@
+resources:
+  webService:
+    type: web-service
+    properties:
+      # {start-highlight}
+      packaging:
+        type: prebuilt-image
+        properties:
+          image: httpd:latest
+      # {stop-highlight}
+      resources:
+        cpu: 2
+        memory: 2048

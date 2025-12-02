@@ -1,0 +1,58 @@
+---
+title: "Deploying with Stacktape CI"
+order: 6
+---
+
+<br />
+<br />
+
+Stacktape offers two GitOps deployment strategies that allow you to automate your deployments based on Git events:
+
+- **Push-to-branch deployments:** Automatically deploy or update a stage when you push to a specific branch.
+- **Preview deployments:** Automatically deploy a new stage for every pull request, and tear it down when the pull
+  request is closed or merged.
+
+## Prerequisites
+
+Before you can set up GitOps, you need to create a Stacktape project and connect it to your Git repository. You can
+learn how to do that in the [Deploying with the Console](/getting-started/deploying-using-console) guide.
+
+## Setting up GitOps
+
+1.  In the Stacktape console, navigate to your project page.
+2.  Click the **Actions** button and select **View Git configuration**.
+
+    ![Navigate to Git configurations](../static/under-the-hood/view-git-configurations.png)
+
+### Push-to-Branch Deployments
+
+This strategy is ideal for long-lived environments like `staging` and `production`.
+
+1.  Click **Set up Push-To-Branch deployments**.
+2.  Configure the stage details:
+    - **Branch:** The Git branch that will trigger deployments.
+    - **Stage:** The name of the stage to deploy to (e.g., `production`).
+    - **AWS Account:** The AWS account to deploy to.
+3.  Click **Save**.
+
+Now, every time you push to the configured branch, Stacktape will automatically deploy or update the stage.
+
+### Preview Deployments
+
+This strategy is perfect for testing changes in isolation before merging them into your main branch.
+
+1.  Click **Set up PR deployments**.
+2.  Configure the stage details that will be used for all preview deployments.
+3.  Click **Save**.
+
+Now, every time a new pull request is opened, Stacktape will:
+
+- Deploy a new preview stage.
+- Add a comment to the pull request with a link to the deployed application.
+- Update the preview stage on every new push to the pull request branch.
+- (Optionally) Tear down the preview stage when the pull request is closed or merged.
+
+<PreviousNext
+  left={{ url: "/getting-started/deploying-using-CLI/", title: "Deploying with the CLI" }}
+  right={{ url: "/getting-started/deploying-using-3rd-party-CI/", title: "Deploying with an external CI" }}
+/>

@@ -1,0 +1,15 @@
+resources:
+  myDatabase:
+    type: relational-database
+    properties:
+      credentials:
+        masterUserPassword: $Secret('dbPassword')
+      engine:
+        type: postgres
+        properties:
+          version: '16.2'
+          port: 5432
+          primaryInstance:
+            # {start-highlight}
+            instanceSize: db.t3.micro
+          # {stop-highlight}

@@ -1,0 +1,20 @@
+generator client {
+  provider     = "prisma-client" // or `prisma-client-js`
+  output       = "./generated/prisma"
+  engineType   = "client" // enable Prisma ORM without Rust
+  runtime      = "nodejs"
+  moduleFormat = "esm"
+}
+
+datasource db {
+  provider = "postgres"
+}
+
+model Post {
+  id          Int      @id @default(autoincrement())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  title       String   @unique
+  content     String
+  authorEmail String
+}

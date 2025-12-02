@@ -1,0 +1,17 @@
+resources:
+  myDynamoDbTable:
+    type: dynamo-db-table
+    properties:
+      primaryKey:
+        partitionKey:
+          name: this_attribute_will_be_id
+          type: string
+      provisionedThroughput:
+        readUnits: 4
+        writeUnits: 4
+        # {start-highlight}
+        readScaling:
+          minUnits: 4
+          maxUnits: 10
+          keepUtilizationUnder: 80
+        # {stop-highlight}

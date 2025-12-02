@@ -1,0 +1,3 @@
+resources:
+  myHttpApi:
+    type: 'http-api-gateway'

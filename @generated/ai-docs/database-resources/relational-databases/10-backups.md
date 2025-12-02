@@ -1,0 +1,19 @@
+# Backups
+
+```yaml
+resources:
+  myDatabase:
+    type: relational-database
+    properties:
+      credentials:
+        masterUserPassword: my_secret_password
+      engine:
+        type: postgres
+        properties:
+          version: '16.2'
+          primaryInstance:
+            instanceSize: db.t3.micro
+      # {start-highlight}
+      automatedBackupRetentionDays: 5
+      # {stop-highlight}
+```

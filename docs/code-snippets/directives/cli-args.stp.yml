@@ -1,0 +1,29 @@
+scripts:
+  build:
+    type: local-script
+    properties:
+      # {start-highlight}
+      executeCommand: $Format('npm run build --stage {}', $CliArgs('stage'))
+      # {stop-highlight}
+
+resources:
+  webService:
+    type: web-service
+    properties:
+      packaging:
+        type: stacktape-image-buildpack
+        properties:
+          entryfilePath: src/main.ts
+
+      environment:
+        - name: STAGE
+          # {start-highlight}
+          value: $CliArgs('stage')
+          # {stop-highlight}
+        - name: CUSTOM_ARG
+          # {start-highlight}
+          value: $CliArgs('myCustomArg', 'myDefaultValue')
+          # {stop-highlight}
+      resources:
+        cpu: 2
+        memory: 2048

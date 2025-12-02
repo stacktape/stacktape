@@ -1,0 +1,17 @@
+resources:
+  myDatabase:
+    type: relational-database
+    properties:
+      credentials:
+        masterUserPassword: $Secret('dbPassword')
+      engine:
+        type: postgres
+        properties:
+          version: '16.2'
+          port: 5432
+          primaryInstance:
+            instanceSize: db.t2.micro
+          # {start-highlight}
+          databaseParameters:
+            timeout: 10min
+          # {stop-highlight}

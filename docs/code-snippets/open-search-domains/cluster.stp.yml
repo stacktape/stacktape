@@ -1,0 +1,9 @@
+resources:
+  myOpenSearch:
+    type: open-search-domain
+    properties:
+      clusterConfig:
+        instanceType: m6g.8xlarge.search
+        instanceCount: 5
+        dedicatedMasterType: m6g.large.search # OPTIONAL
+        dedicatedMasterCount: 3 # OPTIONAL

@@ -1,0 +1,1 @@
+myProperty: $MyDirective1($MyDirective2())

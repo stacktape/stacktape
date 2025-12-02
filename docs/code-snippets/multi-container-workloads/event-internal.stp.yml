@@ -1,0 +1,45 @@
+resources:
+  myApiGateway:
+    type: http-api-gateway
+
+  myApp:
+    type: multi-container-workload
+    properties:
+      containers:
+        - name: frontend
+          packaging:
+            type: stacktape-image-buildpack
+            properties:
+              entryfilePath: src/frontend/index.ts
+          dependsOn:
+            - containerName: backend
+              condition: START
+          environment:
+            - name: PORT
+              value: 80
+            - name: BACKEND_PORT
+              value: 3000
+          events:
+            - type: http-api-gateway
+              properties:
+                httpApiGatewayName: myApiGateway
+                containerPort: 80
+                path: /my-path
+                method: GET
+        - name: backend
+          packaging:
+            type: stacktape-image-buildpack
+            properties:
+              entryfilePath: src/backend/index.ts
+          environment:
+            - name: PORT
+              value: 3000
+          # {start-highlight}
+          events:
+            - type: workload-internal
+              properties:
+                containerPort: 3000
+          # {stop-highlight}
+      resources:
+        cpu: 2
+        memory: 2048

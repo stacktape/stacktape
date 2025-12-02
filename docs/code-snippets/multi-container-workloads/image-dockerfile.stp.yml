@@ -1,0 +1,16 @@
+resources:
+  myContainerWorkload:
+    type: multi-container-workload
+    properties:
+      containers:
+        - name: api-container
+          # {start-highlight}
+          packaging:
+            type: custom-dockerfile
+            properties:
+              dockerfilePath: src/Dockerfile
+              buildContextPath: src
+          # {stop-highlight}
+      resources:
+        cpu: 2
+        memory: 2048

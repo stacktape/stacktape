@@ -1,0 +1,71 @@
+---
+title: "Event Buses"
+order: 270
+---
+
+<br />
+<br />
+
+An event bus allows you to build scalable, event-driven applications. It's a serverless service that automatically scales based on the number of events ingested, and you only pay for the events you publish. Events can be published from your own applications or from third-party SaaS applications.
+
+Under the hood, Stacktape uses [Amazon EventBridge](https://aws.amazon.com/eventbridge/).
+
+# When to use them
+
+Stacktape offers three managed resources for messaging and communication:
+
+1.  [SNS topics](/other-resources/sns-topics/)
+2.  [SQS queues](/other-resources/sqs-queues/)
+3.  Event buses
+
+**Use an SNS topic when:**
+
+-   You need to publish messages to many different subscribers with a single action.
+-   You require high throughput and reliability.
+
+**Use an SQS queue when:**
+
+-   You need reliable, one-to-one, asynchronous communication to decouple your applications.
+-   You want to control the rate at which messages are consumed.
+
+**Use an event bus when:**
+
+-   You want to publish messages to many subscribers and use the event data itself to filter which messages are delivered to which subscribers.
+-   You need to integrate with third-party SaaS providers like Shopify, Datadog, or PagerDuty.
+
+# Basic usage
+
+<PropertiesTable definitionName="EventBus" />
+
+You don't need to specify any properties to create a basic event bus.
+
+`embed:event-buses/basic.stp.yml`
+
+<Divider />
+
+# Integrating with compute resources
+
+Events published to an event bus can trigger a [batch job](/compute-resources/batch-jobs#event-bus-event) or a [function](/compute-resources/functions#event-bus-event). Events can be published from any compute resource with the necessary permissions.
+
+This example shows:
+
+-   An event bus that acts as a bridge between a publisher function and a consumer batch job.
+-   An HTTP API Gateway that triggers the publisher function.
+-   A publisher function that receives requests from the API Gateway and publishes a `BUDGET_ANALYSIS` event to the event bus.
+-   A consumer batch job that is triggered by the `BUDGET_ANALYSIS` event.
+
+`embed:event-buses/integration.stp.yml`
+
+<Divider />
+
+# Archiving
+
+Event buses support event archiving. You can replay an archive at any time, which is useful for recovering from errors or for testing.
+
+`embed:event-buses/archivation.stp.yml`
+
+<PropertiesTable definitionName="EventBusArchivation" searchForReferencesInDefinition="EventBusProps" />
+
+# Referenceable parameters
+
+<ReferenceableParams resource="event-bus" />

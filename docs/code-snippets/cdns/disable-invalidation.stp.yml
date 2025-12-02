@@ -1,0 +1,9 @@
+resources:
+  myApiGateway:
+    type: http-api-gateway
+    properties:
+      cdn:
+        enabled: true
+        # {start-highlight}
+        invalidateAfterDeploy: false
+        # {stop-highlight}

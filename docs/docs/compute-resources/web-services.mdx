@@ -1,0 +1,429 @@
+---
+title: "Web Services"
+order: 110
+---
+
+<br />
+<br />
+
+A web service is a continuously running container with a public endpoint, making it ideal for hosting public APIs and websites.
+
+Key features include:
+
+- **Automatic scaling:** Scales based on CPU or memory usage.
+- **Zero-downtime deployments:** Supports various deployment strategies, including blue/green, to ensure your service is always available.
+- **Flexible container images:** Supports multiple ways to provide a container image, including automatic packaging for popular languages.
+- **Easy domain management:** Simplifies using custom domains with SSL/TLS certificates.
+- **CDN integration:** Can be fronted by a _CDN_ to cache content and improve performance.
+- **Fully managed:** No need to manage servers, operating systems, or virtual machines.
+- **Seamless connectivity:** Easily connects to other resources in your stack.
+
+# Example
+
+Here's an example of a simple web service that listens for HTTP requests.
+
+`embed:web-services/basic-usage.ts`
+
+> Example server code in TypeScript.
+
+<Info>
+
+Stacktape automatically injects a `PORT` environment variable into your container. Your application must bind to this port to receive traffic.
+
+</Info>
+
+And here's the corresponding configuration:
+
+`embed:web-services/basic-usage.stp.yml`
+
+> Example web service configuration.
+
+<PropertiesTable definitionName="WebService" />
+
+# How it works
+
+Stacktape uses AWS Elastic Container Service (ECS) to run your containers on either _Fargate_ or _EC2 instances_.
+
+- **_Fargate_** is a _serverless_ compute engine that runs containers without requiring you to manage the underlying servers.
+- **_EC2 instances_** are virtual servers that give you more control over the computing environment.
+
+ECS services are self-healing, automatically replacing any container that fails. They also scale automatically based on the rules you define.
+
+Traffic is routed to your containers using one of the following, depending on your configuration:
+
+- **HTTP API Gateway (default):** A lightweight, cost-effective solution for HTTP APIs.
+- **Application Load Balancer (ALB):** A more powerful load balancer that supports features like WebSockets and sticky sessions.
+- **Network Load Balancer (NLB):** A high-performance load balancer that can handle millions of requests per second and supports protocols other than HTTP/S.
+
+Stacktape automatically provisions and configures the chosen entry point for you.
+
+# When to use it
+
+This table helps you choose the right container-based resource for your needs:
+
+| **Resource type**                                                         | **Description**                                                                      | **Use-cases**                                  |
+| ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ | ---------------------------------------------- |
+| [web-service](/compute-resources/web-services/)                           | A container with a **public endpoint and URL**.                                      | Public APIs, websites                          |
+| [private-service](/compute-resources/private-services/)                   | A container with a **private endpoint**, accessible only within your stack.          | Private APIs, internal services                |
+| [worker-service](/compute-resources/worker-services/)                     | A container that runs continuously but is **not directly accessible**.               | Background processing, message queue consumers |
+| [multi-container-workload](/compute-resources/multi-container-workloads/) | A customizable workload with multiple containers, where you define the accessibility of each one. | Complex, multi-component services              |
+| [batch-job](/compute-resources/batch-jobs/)                               | A container that runs a single job and then terminates.                              | One-off or scheduled data processing tasks     |
+
+## Advantages
+
+- **Control over the environment:** Runs any Docker image or an image built from a Dockerfile.
+- **Cost-effective for predictable loads:** Cheaper than Lambda functions for services with steady traffic.
+- **Load-balanced and scalable:** Automatically scales horizontally based on CPU and memory usage.
+- **Highly available:** Runs across multiple _Availability Zones_ to ensure resilience.
+- **Secure by default:** The underlying environment is managed and secured by AWS.
+
+## Disadvantages
+
+- **Slower scaling:** Adding new container instances can take several seconds to a few minutes, which is slower than the nearly-instant scaling of Lambda functions.
+- **Not fully serverless:** Cannot scale down to zero. You pay for at least one running instance (starting at ~$8/month), even if it's idle.
+
+# Image
+
+A web service runs a Docker image. You can provide this image in four ways:
+
+- **[stacktape-image-buildpack](/configuration/packaging#stacktape-image-buildpack-web-service):** Automatically packages your code without needing a Dockerfile.
+- **[external-buildpack](/configuration/packaging#external-buildpack-web-service):** Uses external buildpacks to create an image.
+- **[custom-dockerfile](/configuration/packaging#custom-dockerfile-web-service):** Builds an image from your own Dockerfile.
+- **[prebuilt-images](/configuration/packaging#prebuilt-image-web-service):** Uses an existing image from a container registry.
+
+# Environment variables
+
+<PropDescription definitionName="LocalScriptProps" propertyName="environment" descType="ld" />
+
+`embed:web-services/env.stp.yml`
+
+<PropertiesTable definitionName="EnvironmentVar" searchForReferencesInDefinition="WebServiceProps" />
+
+<Divider />
+
+# Health check
+
+Health checks monitor your container to ensure it's running correctly. If a container fails its health check, it's automatically terminated and replaced with a new one.
+
+<PropertiesTable definitionName="ContainerHealthCheck" searchForReferencesInDefinition="WebServiceProps" />
+
+<br />
+
+For example, this health check uses `curl` to send a request to the service every 20 seconds. If the request fails or takes longer than 5 seconds, the check is considered failed.
+
+`embed:web-services/healthcheck.stp.yml`
+
+# Shutdown
+
+When a service instance is shut down (for example, during a deployment or when the stack is deleted), all of its containers receive a `SIGTERM` signal. This gives your application a chance to shut down gracefully.
+
+By default, the application has 2 seconds to clean up before it's forcefully stopped with a `SIGKILL` signal. You can change this with the `stopTimeout` property (from 2 to 120 seconds).
+
+`embed:multi-container-workloads/shutdown.ts`
+
+> Example of a cleanup function that runs before the container shuts down.
+
+# Logging
+
+Anything your application writes to `stdout` or `stderr` is captured and stored in AWS CloudWatch.
+
+You can view logs in a few ways:
+
+- **Stacktape Console:** Find a direct link to the logs in the [Stacktape Console](https://console.stacktape.com/).
+- **Stacktape CLI:** Use the [`stacktape logs`](/cli/commands/logs) command to stream logs to your terminal.
+- **AWS Console:** Browse logs directly in the AWS CloudWatch console. The `stacktape stack-info` command can provide a link.
+
+Log storage can be expensive. To manage costs, you can configure `retentionDays` to automatically delete logs after a certain period.
+
+<PropertiesTable definitionName="ContainerWorkloadContainerLogging" searchForReferencesInDefinition="WebServiceProps" />
+
+## Forwarding logs
+
+You can forward logs to third-party services. See [Forwarding Logs](/configuration/log-forwarding/) for more information.
+
+<Divider />
+
+# Compute resources
+
+In the `resources` section, you configure the CPU, memory, and instance types for your service. You can run your containers using either _Fargate_ or _EC2 instances_.
+
+- **_Fargate_** is a _serverless_ option that lets you run containers without managing servers. You only need to specify the `cpu` and `memory` your service requires. It's a good choice for applications that need to meet high security standards like PCI DSS Level 1 and SOC 2.
+- **_EC2 instances_** are virtual servers that give you more control. You choose the instance types that best fit your needs, and ECS places your containers on them.
+
+<Info>
+
+Regardless of whether you use _Fargate_ or _EC2 instances_, your containers run securely within a _VPC_.
+
+</Info>
+
+<PropDescription definitionName="WebServiceProps" propertyName="resources" descType="ld" />
+
+<PropertiesTable definitionName="ContainerWorkloadResourcesConfig" searchForReferencesInDefinition="WebServiceProps" />
+
+## Using Fargate
+
+To use _Fargate_, specify `cpu` and `memory` in the `resources` section without including `instanceTypes`.
+
+`embed:web-services/resources.stp.yml`
+
+> Example of a service running on _Fargate_.
+
+## Using EC2 instances
+
+To use _EC2 instances_, specify a list of `instanceTypes` in the `resources` section.
+
+<PropDescription definitionName="ContainerWorkloadResourcesConfig" propertyName="instanceTypes" descType="ld" />
+
+`embed:web-services/resources-ec2.stp.yml`
+
+> Example of a service running on _EC2 instances_.
+
+### Container placement on EC2
+
+Stacktape tries to use your EC2 instances as efficiently as possible.
+
+- If you specify `instanceTypes` without `cpu` and `memory`, Stacktape configures each service instance to use the full resources of one EC2 instance. When the service scales out, a new EC2 instance is added for each new service instance.
+- If you specify `cpu` and `memory`, AWS will place multiple service instances on a single EC2 instance if there's enough capacity, maximizing utilization.
+
+### Default CPU and memory for EC2
+
+- If `cpu` is not specified, containers on an EC2 instance share its CPU capacity.
+- If `memory` is not specified, Stacktape sets the memory to the maximum amount available on the smallest instance type in your `instanceTypes` list.
+
+### Using a warm pool
+
+A warm pool keeps pre-initialized EC2 instances in a stopped state, allowing your service to scale out much faster. This is useful for handling sudden traffic spikes. You only pay for the storage of stopped instances, not for compute time.
+
+To enable it, set `enableWarmPool` to `true`. This feature is only available when you specify exactly one instance type.
+
+For more details, see the [AWS Auto Scaling warm pools documentation](https://docs.aws.amazon.com/autoscaling/ec2/userguide/ec2-auto-scaling-warm-pools.html).
+
+`embed:web-services/warm-pool.stp.yml`
+
+> Example of using a warm pool with _EC2 instances_.
+
+# Scaling
+
+The `scaling` section lets you control how your service scales. You can set the minimum and maximum number of running instances and define a policy that triggers scaling actions.
+
+<PropertiesTable definitionName="ContainerWorkloadScaling" searchForReferencesInDefinition="WebServiceProps" />
+
+## Scaling policy
+
+A scaling policy defines the CPU and memory thresholds that trigger scaling.
+
+- **Scaling out (adding instances):** The service scales out if either the average CPU or memory utilization exceeds the target you set.
+- **Scaling in (removing instances):** The service scales in only when both CPU and memory utilization are below their target values.
+
+The scaling process is more aggressive when adding capacity than when removing it. This helps ensure your application can handle sudden increases in load, while scaling in more cautiously to prevent flapping (scaling in and out too frequently).
+
+<PropertiesTable definitionName="ContainerWorkloadScalingPolicy" searchForReferencesInDefinition="WebServiceProps" />
+
+`embed:web-services/scaling.stp.yml`
+
+> Example of a scaling configuration.
+
+# Storage
+
+Each service instance has its own temporary, or _ephemeral storage_, with a fixed size of 20GB. This storage is deleted when the instance is removed. Different instances of the same service do not share their storage.
+
+For persistent data storage, use [Buckets](/other-resources/buckets).
+
+# Accessing other resources
+
+By default, AWS resources cannot communicate with each other. Access must be granted using _IAM_ permissions.
+
+Stacktape automatically configures the necessary permissions for the services it manages. For example, it allows a web service to write logs to CloudWatch.
+
+However, if your application needs to access other resources, you must grant permissions manually. You can do this in two ways:
+
+## Using connectTo
+
+The `connectTo` property lets you grant access to other Stacktape-managed resources by simply listing their names. Stacktape automatically configures the required _IAM_ permissions and injects connection details as environment variables into your service.
+
+`embed:web-services/allow-access-to.stp.yml`
+
+<br />
+
+<PropDescription definitionName="LambdaFunctionProps" propertyName="connectTo" descType="ld" />
+
+## Using iamRoleStatements
+
+For more granular control, you can provide a list of raw _IAM_ role statements. These statements are added to the service's _IAM_ role, allowing you to define precise permissions for any AWS resource.
+
+`embed:web-services/iam-role-statements.stp.yml`
+
+<PropertiesTable definitionName="StpIamRoleStatement" searchForReferencesInDefinition="WebServiceProps" />
+
+# Load balancing
+
+The `loadBalancing` property configures how traffic is distributed to your containers.
+
+<PropDescription definitionName="WebServiceProps" propertyName="loadBalancing" descType="ld" />
+
+## Application Load Balancer
+
+An Application Load Balancer (ALB) is a good choice when you need features like WebSocket support or sticky sessions, or if you expect high traffic volumes, as it can be more cost-effective than an HTTP API Gateway at scale.
+
+<PropertiesTable definitionName="WebServiceAlbLoadBalancing" searchForReferencesInDefinition="WebServiceProps" />
+
+`embed:web-services/load-balancing.stp.yml`
+
+## Network Load Balancer
+
+A Network Load Balancer (NLB) is ideal for applications that require extreme performance, need to expose multiple ports, or use protocols other than HTTP/S.
+
+<PropertiesTable definitionName="WebServiceNlbLoadBalancing" searchForReferencesInDefinition="WebServiceProps" />
+
+`embed:web-services/load-balancing-nlb.stp.yml`
+
+# Deployment strategies
+
+By default, Stacktape uses a rolling update strategy to deploy new versions of your service. You can use the `deployment` property to choose a different strategy, such as blue/green.
+
+<PropDescription definitionName="WebServiceProps" propertyName="deployment" descType="ld" />
+
+<PropertiesTable definitionName="ContainerWorkloadDeploymentConfig" searchForReferencesInDefinition="WebServiceProps" />
+
+`embed:web-services/deployment.stp.yml`
+
+## Hook functions
+
+You can use hook functions to run checks before, during, or after a deployment.
+
+`embed:web-services/deployment-with-hook.stp.yml`
+
+`embed:web-services/validate-deployment.ts`
+
+> Code for the `validateDeployment` function.
+
+### Test traffic listener
+
+When using the `beforeAllowTraffic` hook, you can use a test listener to send traffic to the new version of your service before it receives production traffic. By default, the test listener is created on port `8080`.
+
+`embed:web-services/deployment-with-before-hook.stp.yml`
+
+`embed:web-services/test-deployment.ts`
+
+> Code for the `testDeployment` function.
+
+# Default VPC connection
+
+Some AWS services, like relational databases, must be deployed within a _VPC_. If your stack includes such resources, Stacktape automatically creates a default _VPC_ and connects them to it.
+
+Web services are connected to this default _VPC_ by default, allowing them to communicate with other VPC-based resources without extra configuration.
+
+To learn more, see the documentation on [_VPCs_](/user-guides/vpcs) and resource accessibility.
+
+# CORS
+
+[Cross-Origin Resource Sharing (CORS)](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS) is a security feature that controls how web browsers handle requests to a different domain than the one the user is currently on.
+
+If your frontend and backend are on different domains (e.g., `mydomain.com` and `api.mydomain.com`), you'll need to configure CORS.
+
+<Warning>
+
+If you are already handling CORS in your application code, you don't need to enable it in your Stacktape configuration. Also, the `cors` property cannot be used when the `loadBalancing` type is `application-load-balancer`.
+
+</Warning>
+
+You can enable CORS with a single line:
+
+`embed:web-services/cors.stp.yml`
+
+> A web service with CORS enabled.
+
+You can also customize the CORS headers:
+
+<PropDescription definitionName="HttpApiCorsConfig" propertyName="enabled" descType="ld" />
+
+<PropertiesTable definitionName="HttpApiCorsConfig" searchForReferencesInDefinition="WebServiceProps" />
+
+<Divider />
+
+# Custom domain names
+
+You can use a custom domain for your web service. If you don't have one, you can [register one](/other-resources/domains-and-certificates/#registering-domain) through Stacktape.
+
+If you already have a domain, you can either let [Stacktape manage it](#using-stacktape-to-manage-domains-and-certs) (if you use AWS Route 53 for DNS) or [use a third-party DNS provider](#using-a-3rd-party-dns).
+
+For more details, see the [Domains and Certificates](/other-resources/domains-and-certificates/) page.
+
+## Using Stacktape to manage domains and certs
+
+<PropDescription definitionName="WebServiceProps" propertyName="customDomains" descType="ld" />
+
+<PropertiesTable
+  definitionName="DomainConfiguration"
+  searchForReferencesInDefinition="WebService"
+  rewriteLinksForReferencedCompositeTypes={{
+    CdnConfiguration: "#cdn"
+  }}
+/>
+
+`embed:web-services/domain-names.stp.yml`
+
+## Using a 3rd-party DNS
+
+To use a domain from a provider like GoDaddy or Cloudflare:
+
+1.  Create or import a TLS certificate for your domain in the [AWS Certificate Manager console](https://console.aws.amazon.com/acm/home#/certificates/list) and copy its _ARN_.
+2.  Add the `customDomains` configuration to your service, using the certificate _ARN_ and disabling DNS record creation.
+
+```yml
+resources:
+  apiService:
+    type: web-service
+    properties:
+      # ...
+      # {start-highlight}
+      customDomains:
+        - domainName: mydomain.com
+          disableDnsRecordCreation: true
+          customCertificateArn: <<ARN_OF_YOUR_CERTIFICATE>>
+      # {stop-highlight}
+```
+
+3.  After deploying, find the service's domain name in the [Stacktape Console](https://console.stacktape.com/projects).
+4.  In your DNS provider's dashboard, create a `CNAME` or `ALIAS` record pointing to the service's domain name.
+
+# CDN
+
+You can place an AWS CloudFront _CDN_ in front of your web service to cache content and reduce latency.
+
+<PropDescription definitionName="WebServiceProps" propertyName="cdn" descType="ld" />
+
+For more information, see the [_CDN_ documentation](/other-resources/cdns).
+
+`embed:web-services/cdn.stp.yml`
+
+# Firewall
+
+You can protect your web service with a web application firewall (WAF).
+
+<PropDescription definitionName="WebServiceProps" propertyName="useFirewall" descType="ld" />
+
+To learn more, see the [Web Application Firewall](/security-resources/web-app-firewalls/) documentation.
+
+`embed:web-services/firewall.stp.yml`
+
+# Referenceable parameters
+
+<ReferenceableParams resource="web-service" />
+
+# Pricing
+
+When using _Fargate_, you are charged for:
+
+- **vCPU per hour:** ~$0.04 - $0.07, depending on the region.
+- **Memory (GB) per hour:** ~$0.004 - $0.008, depending on the region.
+
+Usage is billed by the second, with a one-minute minimum. For more details, see [AWS Fargate pricing](https://aws.amazon.com/fargate/pricing/).
+
+# API reference
+
+<PropertiesTable definitionName="ContainerLanguageSpecificConfig" searchForReferencesInDefinition="WebServiceProps" />
+
+<PropertiesTable definitionName="StpIamRoleStatement" searchForReferencesInDefinition="WebServiceProps" />
+
+<PropertiesTable definitionName="WebServiceNlbLoadBalancingPort" searchForReferencesInDefinition="WebServiceProps" />

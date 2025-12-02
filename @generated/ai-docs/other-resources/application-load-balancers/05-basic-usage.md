@@ -1,0 +1,26 @@
+# Basic usage
+
+```yaml
+resources:
+  # {start-highlight}
+  myLoadBalancer:
+    type: 'application-load-balancer'
+  # {stop-highlight}
+
+  basicLambda:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: 'lambdas/js-lambda.js'
+      events:
+        - type: application-load-balancer
+          properties:
+            loadBalancerName: myLoadBalancer
+            priority: 5
+            paths:
+              - '*'
+```
+
+> An Application Load Balancer with a Lambda function integration.

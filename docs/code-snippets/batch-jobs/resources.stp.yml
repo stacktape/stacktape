@@ -1,0 +1,18 @@
+resources:
+  myBatchJob:
+    type: batch-job
+    properties:
+      container:
+        packaging:
+          type: stacktape-image-buildpack
+          properties:
+            entryfilePath: batch-jobs/js-batch-job.js
+      # {start-highlight}
+      resources:
+        cpu: 2
+        memory: 1800
+      # {stop-highlight}
+      events:
+        - type: schedule
+          properties:
+            scheduleRate: 'cron(0 14 * * ? *)' # every day at 14:00 UTC

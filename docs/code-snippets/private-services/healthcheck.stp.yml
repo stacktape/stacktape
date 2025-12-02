@@ -1,0 +1,19 @@
+resources:
+  myPrivateService:
+    type: private-service
+    properties:
+      packaging:
+        type: stacktape-image-buildpack
+        properties:
+          entryfilePath: src/index.ts
+      # {start-highlight}
+      internalHealthCheck:
+        healthCheckCommand: ['CMD-SHELL', 'curl -f http://localhost/ || exit 1']
+        intervalSeconds: 20
+        timeoutSeconds: 5
+        startPeriodSeconds: 150
+        retries: 2
+      # {stop-highlight}
+      resources:
+        cpu: 2
+        memory: 2048

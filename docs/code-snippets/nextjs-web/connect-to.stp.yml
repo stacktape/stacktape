@@ -1,0 +1,16 @@
+resources:
+  web:
+    type: nextjs-web
+    properties:
+      appDirectory: ./
+      connectTo:
+        - myDatabase
+
+  myDatabase:
+    type: relational-database
+    properties:
+      engine:
+        type: aurora-postgresql
+        properties:
+          instances:
+            - instanceSize: db.t4g.medium

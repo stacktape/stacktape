@@ -1,0 +1,30 @@
+resources:
+  internalService:
+    type: multi-container-workload
+    properties:
+      containers:
+        - name: api
+          packaging:
+            type: stacktape-image-buildpack
+            properties:
+              entryfilePath: src/private/index.ts
+          events:
+            - type: service-connect
+              properties:
+                containerPort: 3000
+      resources:
+        cpu: 2
+        memory: 2048
+
+  publicService:
+    type: multi-container-workload
+    properties:
+      containers:
+        - name: api
+          packaging:
+            type: stacktape-image-buildpack
+            properties:
+              entryfilePath: src/public/index.ts
+      resources:
+        cpu: 2
+        memory: 2048

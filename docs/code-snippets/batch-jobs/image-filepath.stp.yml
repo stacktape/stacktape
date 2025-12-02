@@ -1,0 +1,14 @@
+resources:
+  mybatchJob:
+    type: batch-job
+    properties:
+      container:
+        # {start-highlight}
+        packaging:
+          type: stacktape-image-buildpack
+          properties:
+            entryfilePath: path/to/my/batch-job.ts
+        # {stop-highlight}
+      resources:
+        cpu: 2
+        memory: 1800

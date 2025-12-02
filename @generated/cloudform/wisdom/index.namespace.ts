@@ -1,0 +1,38 @@
+import AIAgent_ from './aiAgent';
+import AIAgentVersion_ from './aiAgentVersion';
+import AIGuardrail_ from './aiGuardrail';
+import AIGuardrailVersion_ from './aiGuardrailVersion';
+import AIPrompt_ from './aiPrompt';
+import AIPromptVersion_ from './aiPromptVersion';
+import Assistant_ from './assistant';
+import AssistantAssociation_ from './assistantAssociation';
+import KnowledgeBase_ from './knowledgeBase';
+import MessageTemplate_ from './messageTemplate';
+import MessageTemplateVersion_ from './messageTemplateVersion';
+import QuickResponse_ from './quickResponse';
+export namespace Wisdom {
+  export const AIAgent = AIAgent_;
+  export const AIAgentVersion = AIAgentVersion_;
+  export const AIGuardrail = AIGuardrail_;
+  export const AIGuardrailVersion = AIGuardrailVersion_;
+  export const AIPrompt = AIPrompt_;
+  export const AIPromptVersion = AIPromptVersion_;
+  export const Assistant = Assistant_;
+  export const AssistantAssociation = AssistantAssociation_;
+  export const KnowledgeBase = KnowledgeBase_;
+  export const MessageTemplate = MessageTemplate_;
+  export const MessageTemplateVersion = MessageTemplateVersion_;
+  export const QuickResponse = QuickResponse_;
+  export type AIAgent = AIAgent_;
+  export type AIAgentVersion = AIAgentVersion_;
+  export type AIGuardrail = AIGuardrail_;
+  export type AIGuardrailVersion = AIGuardrailVersion_;
+  export type AIPrompt = AIPrompt_;
+  export type AIPromptVersion = AIPromptVersion_;
+  export type Assistant = Assistant_;
+  export type AssistantAssociation = AssistantAssociation_;
+  export type KnowledgeBase = KnowledgeBase_;
+  export type MessageTemplate = MessageTemplate_;
+  export type MessageTemplateVersion = MessageTemplateVersion_;
+  export type QuickResponse = QuickResponse_;
+}

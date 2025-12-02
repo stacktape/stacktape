@@ -1,0 +1,8 @@
+name: Django API with Postgres
+tags:
+  - Python
+  - Postgres
+  - Django
+  - REST API
+icon: python.svg
+priority: 1

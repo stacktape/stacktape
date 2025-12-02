@@ -1,0 +1,29 @@
+---
+title: "Overrides"
+order: 2
+---
+
+<br />
+<br />
+
+Stacktape uses _Cloudformation_ to deploy your infrastructure to AWS. Each Stacktape resource you define in the `resources` section of your `stacktape.yml` file is translated into one or more underlying _Cloudformation_ resources. Overrides allow you to modify the properties of these generated _Cloudformation_ resources.
+
+<Info>
+
+You can view the _Cloudformation_ resources that a Stacktape resource translates into in the config editor or on the overview page of your deployed stack.
+
+</Info>
+
+## How to use overrides
+
+Imagine you want to override the timeout of an AWS Lambda function that is part of the `myFunction` Stacktape resource in the following configuration:
+
+`embed:overriding/before-overriding.stp.yml`
+
+In the interactive config editor, you can inspect the translated _Cloudformation_ template for this configuration. You will see that the `myFunction` resource contains two _Cloudformation_ resources: `MyFunctionFunction` (of type `AWS::Lambda::Function`) and `MyFunctionLogGroup` (of type `AWS::Logs::LogGroup`).
+
+![Tree view of compiled Cloudformation template](../static/overrides-tree-view.png)
+
+To override the timeout, you would add an override for the `MyFunctionFunction` resource:
+
+`embed:overriding/after-overriding.stp.yml`

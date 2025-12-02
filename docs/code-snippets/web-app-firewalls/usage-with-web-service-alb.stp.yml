@@ -1,0 +1,22 @@
+resources:
+  # {start-highlight}
+  myFirewall:
+    type: web-app-firewall
+    properties:
+      scope: regional
+  # {stop-highlight}
+  webService:
+    type: web-service
+    properties:
+      loadBalancing:
+        type: application-load-balancer
+      # {start-highlight}
+      useFirewall: myFirewall
+      # {stop-highlight}
+      packaging:
+        type: stacktape-image-buildpack
+        properties:
+          entryfilePath: ./src/index.ts
+      resources:
+        cpu: 0.25
+        memory: 512

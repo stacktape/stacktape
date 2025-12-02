@@ -1,0 +1,16 @@
+resources:
+  myBucket:
+    type: bucket
+    properties:
+      cdn:
+        enabled: true
+        # {start-highlight}
+        cachingOptions:
+          defaultTTL: 604800
+        # {stop-highlight}
+        routeRewrites:
+          - path: '*.jpg'
+            # {start-highlight}
+            cachingOptions:
+              defaultTTL: 2592000
+            # {stop-highlight}

@@ -1,0 +1,305 @@
+[
+  {
+    "name": "Next.js website",
+    "description": "Next js website",
+    "resourceType": "nextjs-web",
+    "category": "compute-resource",
+    "referenceableParams": { "url": "Website URL" }
+  },
+  {
+    "name": "Lambda Function",
+    "description": "Short-lived serverless functions able to quickly scale up to 1000s of parallel executions with pay-per-use pricing.",
+    "resourceType": "function",
+    "category": "compute-resource",
+    "referenceableParams": {
+      "arn": "Arn of the function",
+      "logGroupArn": "Arn of the log group aggregating logs from the function"
+    }
+  },
+  {
+    "name": "Web Service",
+    "description": null,
+    "resourceType": "web-service",
+    "category": "compute-resource",
+    "referenceableParams": {
+      "domain": "Web service default domain name",
+      "url": "Web service default URL",
+      "customDomains": "Comma-separated list of custom domain names assigned to the Web Service (only available if you use [custom domain names](#custom-domain-names))",
+      "customDomainUrls": "Comma-separated list of custom domain name URLs (only available if you use [custom domain names](#custom-domain-names))",
+      "cdnDomain": "Default domain of the [CDN distribution](#cdn) (only available if you DO NOT configure custom domain names for the CDN).\n",
+      "cdnUrl": "Default url of the [CDN distribution](#cdn) (only available if you DO NOT configure custom domain names for the CDN).\n",
+      "cdnCustomDomains": "Comma-separated list of custom domain names assigned to the [CDN](#cdn)\n(only available if you configure custom domain names for the CDN).\n",
+      "cdnCustomDomainUrls": "Comma-separated list of custom domain name URLs of the [CDN](#cdn)\n(only available if you configure custom domain names for the CDN).\n"
+    }
+  },
+  {
+    "name": "Container Workload",
+    "description": "Fully managed, auto-scalable and easy-to-use runtime for your Docker containers.",
+    "resourceType": "multi-container-workload",
+    "category": "compute-resource",
+    "referenceableParams": {}
+  },
+  {
+    "name": "Batch Job",
+    "description": "Fully managed, on-demand runtime for your container jobs with pay-per-use pricing.<br />Supports GPU compute resources.",
+    "resourceType": "batch-job",
+    "category": "compute-resource",
+    "referenceableParams": {
+      "jobDefinitionArn": "Arn of the job definition resource",
+      "stateMachineArn": "Arn of the state machine controlling the execution flow of the batch job",
+      "logGroupArn": "Arn of the log group aggregating logs from the batch job"
+    }
+  },
+  {
+    "name": "Private Service",
+    "description": null,
+    "resourceType": "private-service",
+    "category": "compute-resource",
+    "referenceableParams": {
+      "address": "service `host:port` pair accessible only to other resources of stack([web-services](/compute-resources/web-services/), [multi-container-workloads](/compute-resources/multi-container-workloads/))"
+    }
+  },
+  {
+    "name": "Worker Service",
+    "description": null,
+    "resourceType": "worker-service",
+    "category": "compute-resource",
+    "referenceableParams": {}
+  },
+  {
+    "name": "Edge Lambda Function",
+    "description": "Short-lived serverless functions able to quickly scale up to 1000s of parallel executions with pay-per-use pricing.",
+    "resourceType": "edge-lambda-function",
+    "category": "compute-resource",
+    "referenceableParams": {}
+  },
+  {
+    "name": "Hosting Bucket",
+    "description": null,
+    "resourceType": "hosting-bucket",
+    "category": "other-resource",
+    "referenceableParams": {
+      "name": "AWS (physical) name of the bucket",
+      "arn": "Arn of the bucket",
+      "cdnDomain": "Default domain of the [CDN distribution](#cdn) (only available if you DO NOT configure custom domain names for the CDN).\n",
+      "cdnUrl": "Default url of the [CDN distribution](#cdn) (only available if you DO NOT configure custom domain names for the CDN).\n",
+      "cdnCustomDomains": "Comma-separated list of custom domain names assigned to the [CDN](#cdn)\n(only available if you configure custom domain names for the CDN).\n",
+      "cdnCustomDomainUrls": "Comma-separated list of custom domain name URLs of the [CDN](#cdn)\n(only available if you configure custom domain names for the CDN).\n"
+    }
+  },
+  {
+    "name": "SQL database (RDS & Aurora)",
+    "description": "Fully managed relational databases (Postgres, MySQL, MariaDb, etc.) with support for clustering, failover & more.",
+    "resourceType": "relational-database",
+    "category": "database-resource",
+    "referenceableParams": {
+      "connectionString": "Fully-formed connection string that can be used to access the primary instance.\nFor aurora databases, this is connectionString to cluster endpoint, which can be used for both reads and writes.\nIncludes **host**, **port**, **username**, **password** and **dbName**.\n",
+      "jdbcConnectionString": "Fully-formed connection string in JDBC form that can be used to access the primary instance.\nIncludes **host**, **port**, **username**, **password** and **dbName**.\n",
+      "host": "Hostname (address) of the primary instance that can be used for both reads and writes.\nFor aurora databases, this is hostname of a cluster endpoint, which can be used for both reads and writes.\n",
+      "port": "Port of the database.",
+      "dbName": "Name of the automatically created database (can be configured using the `dbName` property).",
+      "readerHost": "Hostname (address) used for reads only. (only available for `aurora-postgresql` and `aurora-mysql` engines).\nIf you have multiple instances, it is advised to use readerHost for reads to offload the primary (read/write) host.\nReaderHost automatically balances requests between available instances. Connections are auto-balanced among available reader hosts.\n",
+      "readerConnectionString": "Same as **connectionString** but targets readerHosts (only available for `aurora-postgresql` and `aurora-mysql` engines). Connections are auto-balanced among available reader hosts.\n",
+      "readerJdbcConnectionString": "Same as **readerConnectionString** but in JDBC format (only available for `aurora-postgresql` and `aurora-mysql` engines).\n",
+      "readReplicaHosts": "Comma-separated list of read replica hostnames (only available if read replicas are configured).\nRead replicas can only be used for read operations.\n",
+      "readReplicaConnectionStrings": "Comma-separated list of connection strings (URLs) used to connect to read replicas\n(only available when read replicas are configured). Read replicas can only be used for read operations.\n",
+      "readReplicaJdbcConnectionStrings": "Same as **readReplicaConnectionStrings** but in JDBC format (only available when read replicas are configured).\n"
+    }
+  },
+  {
+    "name": "DynamoDb Table",
+    "description": "Fully managed, serverless, highly-available and massively scalable key-value datastore.",
+    "resourceType": "dynamo-db-table",
+    "category": "database-resource",
+    "referenceableParams": {
+      "name": "AWS (physical) name of the table",
+      "arn": "Arn of the table",
+      "streamArn": "Arn of [DynamoDb stream](/resources/dynamo-db-tables/#item-change-streaming) (available only if `streamType` is configured)"
+    }
+  },
+  {
+    "name": "MongoDb Atlas Cluster",
+    "description": "Fully managed MongoDb Atlas cluster.<br />Automatically deployed to your AWS account and managed within your stack.",
+    "resourceType": "mongo-db-atlas-cluster",
+    "category": "3rd-party-resource",
+    "referenceableParams": { "connectionString": "Connection string (URL) that allows connecting to the cluster." }
+  },
+  {
+    "name": "Redis Cluster",
+    "description": "Fully managed, redis-compatible in-memory data store with sub-millisecond latency.",
+    "resourceType": "redis-cluster",
+    "category": "database-resource",
+    "referenceableParams": {
+      "host": "In case of NON-sharded cluster(default), this is a hostname of the primary instance that can be used for both reads and writes.\nIn case of sharded cluster, this is cluster's configuration endpoint that can be used for all operations.\n",
+      "readerHost": "Hostname (address) that can be used for reads only. (only available for NON-sharded clusters).\nIf you use multiple replicas, it is advised to use readerHost for read operations to offload the primary host.\nReaderHost automatically balances requests between available read replicas.\n",
+      "port": "Port of the cluster.",
+      "sharding": "Indicates whether cluster is sharded. Available values: `enabled` or `disabled`.\n"
+    }
+  },
+  {
+    "name": "Application Load Balancer",
+    "description": "Fully managed, Application (L7) Load balancer.<br />Routes HTTP requests to other resources.",
+    "resourceType": "application-load-balancer",
+    "category": "other-resource",
+    "referenceableParams": {
+      "domain": "default domain name of load balancer\n",
+      "customDomains": "Comma-separated list of custom domain names assigned to the Load balancer (only available if you use [custom domain names](#custom-domain-names))\n",
+      "cdnDomain": "Default domain of the [CDN distribution](#cdn) (only available if you DO NOT configure custom domain names for the CDN).\n",
+      "cdnUrl": "Default url of the [CDN distribution](#cdn) (only available if you DO NOT configure custom domain names for the CDN).\n",
+      "cdnCustomDomains": "Comma-separated list of custom domain names assigned to the [CDN](#cdn)\n(only available if you configure custom domain names for the CDN).\n",
+      "cdnCustomDomainUrls": "Comma-separated list of custom domain name URLs of the [CDN](#cdn)\n(only available if you configure custom domain names for the CDN).\n"
+    }
+  },
+  {
+    "name": "Network Load Balancer",
+    "description": "Fully managed, Network (L4) Load balancer.<br />Routes TCP/TLS traffic to other resources.",
+    "resourceType": "network-load-balancer",
+    "category": "other-resource",
+    "referenceableParams": {
+      "domain": "default domain name of load balancer\n",
+      "customDomains": "Comma-separated list of custom domain names assigned to the Load balancer (only available if you use [custom domain names](#custom-domain-names))\n"
+    }
+  },
+  {
+    "name": "Http Api Gateway",
+    "description": "Fully managed, serverless HTTP Api Gateway with pay-per-request pricing.",
+    "resourceType": "http-api-gateway",
+    "category": "other-resource",
+    "referenceableParams": {
+      "domain": "Default domain name",
+      "url": "Default URL",
+      "customDomains": "Comma-separated list of custom domain names assigned to the HTTP Api Gateway (only available if you use [custom domain names](#custom-domain-names))",
+      "customDomainUrls": "Comma-separated list of custom domain name URLs (only available if you use [custom domain names](#custom-domain-names))",
+      "customDomainUrl": "URL of the first custom domain name connected to this resource (only available if you use [custom domain names](#custom-domain-names))",
+      "cdnDomain": "Default domain of the [CDN distribution](#cdn) (only available if you DO NOT configure custom domain names for the CDN).\n",
+      "cdnUrl": "Default url of the [CDN distribution](#cdn) (only available if you DO NOT configure custom domain names for the CDN).\n",
+      "cdnCustomDomains": "Comma-separated list of custom domain names assigned to the [CDN](#cdn)\n(only available if you configure custom domain names for the CDN).\n",
+      "cdnCustomDomainUrls": "Comma-separated list of custom domain name URLs of the [CDN](#cdn)\n(only available if you configure custom domain names for the CDN).\n"
+    }
+  },
+  {
+    "name": "Bucket",
+    "description": "Durable and highly-available object storage with pay-per-use pricing.",
+    "resourceType": "bucket",
+    "category": "other-resource",
+    "referenceableParams": {
+      "name": "AWS (physical) name of the bucket",
+      "arn": "Arn of the bucket",
+      "cdnDomain": "Default domain of the [CDN distribution](#cdn) (only available if you DO NOT configure custom domain names for the CDN).\n",
+      "cdnUrl": "Default url of the [CDN distribution](#cdn) (only available if you DO NOT configure custom domain names for the CDN).\n",
+      "cdnCustomDomains": "Comma-separated list of custom domain names assigned to the [CDN](#cdn)\n(only available if you configure custom domain names for the CDN).\n",
+      "cdnCustomDomainUrls": "Comma-separated list of custom domain name URLs of the [CDN](#cdn)\n(only available if you configure custom domain names for the CDN).\n"
+    }
+  },
+  {
+    "name": "User Auth Pool",
+    "description": "Fully managed sign-ups, logins and authorization for your users with pay-per-use pricing.",
+    "resourceType": "user-auth-pool",
+    "category": "security-resource",
+    "referenceableParams": {
+      "id": "Id of the userpool",
+      "clientId": "Id of the userpool",
+      "domain": "Domain of the userpool"
+    }
+  },
+  {
+    "name": "Event Bus (EventBridge)",
+    "description": "Bus for your application events.<br />Other compute resources can subscribe to events published to the bus.",
+    "resourceType": "event-bus",
+    "category": "other-resource",
+    "referenceableParams": {
+      "arn": "Arn of the event bus",
+      "archiveArn": "Arn of the event bus archive (available only if the archivation is enabled)"
+    }
+  },
+  {
+    "name": "Bastion (Jump Host)",
+    "description": null,
+    "resourceType": "bastion",
+    "category": "security-resource",
+    "referenceableParams": {}
+  },
+  {
+    "name": "State Machine (StepFunction)",
+    "description": "State machines allow you to orchestrate your compute resources.",
+    "resourceType": "state-machine",
+    "category": "other-resource",
+    "referenceableParams": { "arn": "Arn of the state machine.", "name": "AWS (physical) name of the state machine." }
+  },
+  {
+    "name": "Custom Resource Instance",
+    "description": "Create custom logic.<br />Can be used to create resources inside your stack that are not natively supported by AWS Cloudformation,\n or to provision services from other providers.",
+    "resourceType": "custom-resource-instance",
+    "category": "other-resource",
+    "referenceableParams": {}
+  },
+  {
+    "name": "Custom Resource Definition",
+    "description": "Allows you to define your custom resource provisioning logic.<br />Can be used to create resources inside your stack that are not natively supported by AWS Cloudformation,\n or to provision services from other providers.",
+    "resourceType": "custom-resource-definition",
+    "category": "other-resource",
+    "referenceableParams": {}
+  },
+  {
+    "name": "Upstash Redis",
+    "description": "Serverless redis database designed for the edge",
+    "resourceType": "upstash-redis",
+    "category": "3rd-party-resource",
+    "referenceableParams": {
+      "host": "Hostname (address) of the Upstash Redis database.",
+      "port": "Port of the Upstash Redis database.",
+      "password": "Autogenerated password that can be used to authenticate towards the database.",
+      "restToken": "Rest token which can be used when reading/writing from/to the database using the REST API",
+      "readOnlyRestToken": "Rest token which can be used only for reading from the database using the REST API",
+      "restUrl": "Rest URL which can be used when communicating with the database using the REST API",
+      "redisUrl": "Standard redis url (including password) which can be used for connecting using cli."
+    }
+  },
+  {
+    "name": "Deployment Script",
+    "description": "Executes script as a part of the deployment process<br />The script is executed as a lambda function during deploy/delete operation",
+    "resourceType": "deployment-script",
+    "category": "other-resource",
+    "referenceableParams": {}
+  },
+  {
+    "name": "AWS CDK Construct",
+    "description": null,
+    "resourceType": "aws-cdk-construct",
+    "referenceableParams": {}
+  },
+  {
+    "name": "SQS Queue",
+    "description": null,
+    "resourceType": "sqs-queue",
+    "category": "other-resource",
+    "referenceableParams": {}
+  },
+  {
+    "name": "SNS Topic",
+    "description": null,
+    "resourceType": "sns-topic",
+    "category": "other-resource",
+    "referenceableParams": {}
+  },
+  {
+    "name": "Web App Firewall",
+    "description": "You can use firewall to protect your resources from common web exploits that could affect application availability, compromise security, or consume excessive resources.",
+    "resourceType": "web-app-firewall",
+    "category": "security-resource",
+    "referenceableParams": {
+      "arn": "Arn of the `web-app-firewall`.",
+      "scope": "Scope of the `web-app-firewall` (`regional` or `cdn`)."
+    }
+  },
+  {
+    "name": "OpenSearch (Elastic)",
+    "description": "You can use firewall to protect your resources from common web exploits that could affect application availability, compromise security, or consume excessive resources.",
+    "resourceType": "open-search-domain",
+    "category": "database-resource",
+    "referenceableParams": {
+      "domainEndpoint": "Endpoint used for communicating with your opensearch-domain",
+      "arn": "Arn of the domain"
+    }
+  }
+]

@@ -1,0 +1,10 @@
+name: Remix website container
+tags:
+  - website
+  - Server side rendered website
+  - Typescript
+  - Remix
+  - React
+icon: remix.svg
+priority: 1
+hasOwnTsConfig: true

@@ -1,0 +1,22 @@
+directives:
+  - name: GetFileName
+    filePath: my-directive.ts:getFileNameFromStage
+
+variables:
+  # {start-highlight}
+  envFileName: $GetFileName($Stage())
+  # {stop-highlight}
+
+resources:
+  myLambda:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: 'path/to/my-lambda.ts'
+      environment:
+        - name: MY_DIRECTIVE_VARIABLE
+          # {start-highlight}
+          value: $File($Var().envFileName).myvar1
+          # {stop-highlight}

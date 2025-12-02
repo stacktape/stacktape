@@ -1,0 +1,13 @@
+resources:
+  myFunction:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: path/to/my-lambda.ts
+      environment:
+        - name: MY_KEY
+          # {start-highlight}
+          value: $FileRaw('my-key.txt')
+          # {stop-highlight}

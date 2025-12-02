@@ -1,0 +1,46 @@
+# {start-highlight}
+cloudformationResources:
+  MySnsTopic:
+    Type: AWS::SNS::Topic
+# {stop-highlight}
+
+resources:
+  processData:
+    type: 'function'
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: lambdas/process.ts
+      # {start-highlight}
+      destinations:
+        onFailure: $CfResourceParam('MySnsTopic', 'Arn')
+      # {stop-highlight}
+
+  analyzeError:
+    type: 'function'
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: lambdas/analysis.ts
+      # {start-highlight}
+      events:
+        - type: sns
+          properties:
+            topicArn: $CfResourceParam('MySnsTopic', 'Arn')
+      # {stop-highlight}
+
+  slackNotify:
+    type: 'function'
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: lambdas/notify.ts
+      # {start-highlight}
+      events:
+        - type: sns
+          properties:
+            topicArn: $CfResourceParam('MySnsTopic', 'Arn')
+      # {stop-highlight}

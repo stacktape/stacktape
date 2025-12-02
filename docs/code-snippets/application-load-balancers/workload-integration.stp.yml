@@ -1,0 +1,46 @@
+resources:
+  myLoadBalancer:
+    type: 'application-load-balancer'
+
+  mySingleContainer:
+    type: 'multi-container-workload'
+    properties:
+      containers:
+        - name: myCont
+          packaging:
+            type: stacktape-image-buildpack
+            properties:
+              entryfilePath: containers/ts-container.ts
+          environment:
+            - name: PORT
+              value: '80'
+          # {start-highlight}
+          events:
+            - type: application-load-balancer
+              properties:
+                loadBalancerName: myLoadBalancer
+                containerPort: 80
+                priority: 3
+                paths:
+                  - '*'
+          # {stop-highlight}
+      resources:
+        cpu: 0.25
+        memory: 512
+
+  myFunction:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: my-lambda.js
+      # {start-highlight}
+      events:
+        - type: application-load-balancer
+          properties:
+            loadBalancerName: myLoadBalancer
+            priority: 2
+            paths:
+              - '/lambda-service/*'
+      # {stop-highlight}

@@ -1,0 +1,35 @@
+import Certificate_ from './certificate';
+import DataMigration_ from './dataMigration';
+import DataProvider_ from './dataProvider';
+import Endpoint_ from './endpoint';
+import EventSubscription_ from './eventSubscription';
+import InstanceProfile_ from './instanceProfile';
+import MigrationProject_ from './migrationProject';
+import ReplicationConfig_ from './replicationConfig';
+import ReplicationInstance_ from './replicationInstance';
+import ReplicationSubnetGroup_ from './replicationSubnetGroup';
+import ReplicationTask_ from './replicationTask';
+export namespace DMS {
+  export const Certificate = Certificate_;
+  export const DataMigration = DataMigration_;
+  export const DataProvider = DataProvider_;
+  export const Endpoint = Endpoint_;
+  export const EventSubscription = EventSubscription_;
+  export const InstanceProfile = InstanceProfile_;
+  export const MigrationProject = MigrationProject_;
+  export const ReplicationConfig = ReplicationConfig_;
+  export const ReplicationInstance = ReplicationInstance_;
+  export const ReplicationSubnetGroup = ReplicationSubnetGroup_;
+  export const ReplicationTask = ReplicationTask_;
+  export type Certificate = Certificate_;
+  export type DataMigration = DataMigration_;
+  export type DataProvider = DataProvider_;
+  export type Endpoint = Endpoint_;
+  export type EventSubscription = EventSubscription_;
+  export type InstanceProfile = InstanceProfile_;
+  export type MigrationProject = MigrationProject_;
+  export type ReplicationConfig = ReplicationConfig_;
+  export type ReplicationInstance = ReplicationInstance_;
+  export type ReplicationSubnetGroup = ReplicationSubnetGroup_;
+  export type ReplicationTask = ReplicationTask_;
+}

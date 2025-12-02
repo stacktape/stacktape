@@ -1,0 +1,16 @@
+# Deployment strategies
+
+```yaml
+resources:
+  myLambda:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: path/to/my-lambda.ts
+      # {start-highlight}
+      deployment:
+        strategy: Linear10PercentEvery1Minute
+      # {stop-highlight}
+```

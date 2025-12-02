@@ -1,0 +1,21 @@
+resources:
+  myLambda:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: path/to/my-lambda.ts
+      # {start-highlight}
+      deployment:
+        strategy: Linear10PercentEvery1Minute
+        beforeAllowTrafficFunction: validateDeployment
+      # {stop-highlight}
+
+  validateDeployment:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: validate.ts

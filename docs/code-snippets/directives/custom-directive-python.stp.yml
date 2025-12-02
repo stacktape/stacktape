@@ -1,0 +1,21 @@
+# {start-highlight}
+directives:
+  - name: get_db_instance_size
+    filePath: my-directive.py:get_db_instance_size
+# {stop-highlight}
+
+resources:
+  myDatabase:
+    type: relational-database
+    properties:
+      credentials:
+        masterUserPassword: $Secret('database.password')
+      engine:
+        type: postgres
+        properties:
+          version: '16.2'
+          port: 5432
+          primaryInstance:
+            # {start-highlight}
+            instanceSize: $get_db_instance_size($Stage())
+          # {stop-highlight}

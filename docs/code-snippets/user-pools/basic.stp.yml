@@ -1,0 +1,25 @@
+resources:
+  createPost:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/index.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: myGateway
+            path: /post/create
+            method: POST
+            authorizer:
+              type: cognito
+              properties:
+                userPoolName: myUserPool
+
+  myUserPool:
+    type: user-auth-pool
+    properties:
+      userVerificationType: email-code
+      passwordPolicy:
+        minimumLength: 8

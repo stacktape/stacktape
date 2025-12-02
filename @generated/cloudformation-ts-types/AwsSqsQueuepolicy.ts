@@ -1,0 +1,25 @@
+// This file is auto-generated. Do not edit manually.
+// Source: aws-sqs-queuepolicy.json
+
+/**
+ * The ``AWS::SQS::QueuePolicy`` type applies a policy to SQS queues. For an example snippet, see
+ * [Declaring an
+ * policy](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/quickref-iam.html#scenario-sqs-policy)
+ * in the *User Guide*.
+ */
+export type AwsSqsQueuepolicy = {
+  Id?: string;
+  /**
+   * A policy document that contains the permissions for the specified SQS queues. For more information
+   * about SQS policies, see [Using custom policies with the access policy
+   * language](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-creating-custom-policies.html)
+   * in the *Developer Guide*.
+   */
+  PolicyDocument: Record<string, unknown> | string;
+  /**
+   * The URLs of the queues to which you want to add the policy. You can use the ``Ref`` function to
+   * specify an ``AWS::SQS::Queue`` resource.
+   * @uniqueItems false
+   */
+  Queues: string[];
+};

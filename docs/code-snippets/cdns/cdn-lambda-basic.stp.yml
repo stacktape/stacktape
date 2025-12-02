@@ -1,0 +1,20 @@
+resources:
+  # {start-highlight}
+  authFunction:
+    type: edge-lambda-function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: auth-function.ts
+  # {stop-highlight}
+
+  myBucket:
+    type: bucket
+    properties:
+      cdn:
+        enabled: true
+        # {start-highlight}
+        edgeFunctions:
+          onRequest: authFunction
+        # {stop-highlight}

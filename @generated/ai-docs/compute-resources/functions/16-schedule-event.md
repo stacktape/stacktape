@@ -1,0 +1,25 @@
+# Schedule event
+
+Triggers the function on a fixed rate or cron schedule.
+
+```yaml
+resources:
+  myLambda:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: path/to/my-lambda.ts
+      # {start-highlight}
+      events:
+        # invoke function every two hours
+        - type: schedule
+          properties:
+            scheduleRate: rate(2 hours)
+        # invoke function at 10:00 UTC every day
+        - type: schedule
+          properties:
+            scheduleRate: cron(0 10 * * ? *)
+      # {stop-highlight}
+```

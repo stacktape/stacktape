@@ -1,0 +1,28 @@
+---
+alwaysApply: true
+---
+
+## Writing rules
+
+Be extremely concise. Sacrifice grammar for the sake of concision.
+
+# Code rules
+
+- To interact with file system, always use `fs-extra` package
+- To import packages, always use import only part of the package, e.g. `import { readFile } from 'fs-extra'`
+- Prefer using inline types to type functions, e.g. `const myFunc = ({ property }:{ property: string }) => { ... }`
+- To write helper functions, prefer arrow functions, e.g. `const myFunc = () => {}`
+- Only use classes when necessary. Prefer writhing procedural/functional code. E.g. just write 3 arrow functions, instead of a class with 3 methods.
+- Prefer typescript types over interfaces.
+
+# Terminal rules
+
+- Always use `bun` to run scripts. Not `node`, not `npm`, not `yarn`.
+- To run scripts in `package.json` always use `bun run <<script:name>>`.
+- To run scripts not in `package.json` use `bun run <<script-name.ts>>`.
+- Always run scripts from root project directory
+- If you want to install or remove a package, always use `bun`, not `npm`
+
+# Stacktape Configuration
+
+When editing `stacktape.yml`, `stacktape.ts` or any file, which defines Stacktape configuration, always look into Stacktape docs to learn how Stacktape works. Never write without consulting the docs first. The documentation

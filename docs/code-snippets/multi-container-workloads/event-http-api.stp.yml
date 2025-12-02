@@ -1,0 +1,25 @@
+resources:
+  myApiGateway:
+    type: http-api-gateway
+
+  myApp:
+    type: multi-container-workload
+    properties:
+      containers:
+        - name: api-container
+          packaging:
+            type: stacktape-image-buildpack
+            properties:
+              entryfilePath: src/index.ts
+          # {start-highlight}
+          events:
+            - type: http-api-gateway
+              properties:
+                httpApiGatewayName: myApiGateway
+                containerPort: 80
+                path: '/my-path'
+                method: GET
+          # {stop-highlight}
+      resources:
+        cpu: 2
+        memory: 2048

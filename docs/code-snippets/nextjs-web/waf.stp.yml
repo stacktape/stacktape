@@ -1,0 +1,11 @@
+resources:
+  web:
+    type: nextjs-web
+    properties:
+      appDirectory: ./
+      useFirewall: waf
+
+  waf:
+    type: web-app-firewall
+    properties:
+      scope: cdn

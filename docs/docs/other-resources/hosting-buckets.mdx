@@ -1,0 +1,86 @@
+---
+title: "Hosting Buckets"
+order: 221
+---
+
+<br />
+<br />
+
+Hosting buckets are designed for serving static content, such as single-page applications or static websites. They distribute your content through a _CDN_ with over 300 points of presence (PoPs) worldwide, ensuring low latency for your users. Hosting buckets are also secure by default, with automatic TLS.
+
+If you need more control over the bucket's configuration, consider using a standard [bucket](/other-resources/buckets) instead.
+
+Under the hood, a hosting bucket uses two main components:
+
+-   An S3 bucket to store your assets.
+-   A CloudFront _CDN_ distribution to cache and serve your assets.
+
+# Basic usage
+
+You can configure a hosting bucket by simply providing the path to the directory you want to upload.
+
+<PropDescription definitionName="HostingBucketProps" propertyName="uploadDirectoryPath" descType="ld" />
+
+`embed:hosting-buckets/basic.stp.yml`
+
+<PropertiesTable definitionName="HostingBucket" />
+
+# Hosting content type
+
+You can specify the type of content you are hosting. Based on this, Stacktape will configure the HTTP headers of the uploaded files and the _CDN_ behavior.
+
+<PropDescription definitionName="HostingBucketProps" propertyName="hostingContentType" descType="ld" />
+
+`embed:hosting-buckets/spa.stp.yml`
+
+# Custom domains
+
+You can use a custom domain for your hosting bucket. If you don't have one, you can [register one](/other-resources/domains-and-certificates/#registering-a-domain) through Stacktape.
+
+If you already have a domain, you can either let [Stacktape manage it](/other-resources/domains-and-certificates/#managing-domains-with-stacktape) (if you use AWS Route 53 for DNS) or [use a third-party DNS provider](/other-resources/domains-and-certificates/#using-a-3rd-party-dns).
+
+For more details, see the [Domains and Certificates](/other-resources/domains-and-certificates/) page.
+
+## Using Stacktape to manage domains and certs
+
+<PropDescription definitionName="HostingBucketProps" propertyName="customDomains" descType="ld" />
+
+`embed:hosting-buckets/domain.stp.yml`
+
+## Using a 3rd-party DNS
+
+To use a domain from a provider like GoDaddy or Cloudflare:
+
+1.  Create or import a TLS certificate for your domain in the [AWS Certificate Manager console](https://console.aws.amazon.com/acm/home#/certificates/list) and copy its _ARN_.
+2.  Add the `customDomains` configuration to your hosting bucket, using the certificate _ARN_ and disabling DNS record creation.
+
+```yml
+resources:
+  myWebsite:
+    type: hosting-bucket
+    properties:
+      uploadDirectoryPath: ./dist
+      # {start-highlight}
+      customDomains:
+        - domainName: mydomain.com
+          disableDnsRecordCreation: true
+          customCertificateArn: <<ARN_OF_YOUR_CERTIFICATE>>
+      # {stop-highlight}
+```
+
+3.  After deploying, find the hosting bucket's domain name in the [Stacktape Console](https://console.stacktape.com/projects).
+4.  In your DNS provider's dashboard, create a `CNAME` or `ALIAS` record pointing to the hosting bucket's domain name.
+
+# Edge Lambda functions
+
+You can run Lambda functions at the edge to customize the content that the _CDN_ delivers. For more information, see the [Edge Lambda Functions](/compute-resources/edge-lambda-functions) page.
+
+<PropDescription definitionName="HostingBucketProps" propertyName="edgeFunctions" descType="ld" />
+
+<PropertiesTable definitionName="EdgeFunctionsConfig" searchForReferencesInDefinition="HostingBucketProps" />
+
+`embed:hosting-buckets/cdn-lambda-basic.stp.yml`
+
+# Referenceable parameters
+
+<ReferenceableParams resource="hosting-bucket" />

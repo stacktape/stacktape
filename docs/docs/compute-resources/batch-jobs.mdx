@@ -1,0 +1,376 @@
+---
+title: ""
+order: 140
+---
+
+<br />
+<br />
+
+A batch job is a compute resource designed to run a containerized task until it completes. The execution is triggered by an event, such as an HTTP request, a message in a queue, or an object uploaded to a bucket.
+
+A key feature of batch jobs is the ability to use _spot instances_, which can reduce compute costs by up to 90%.
+
+Like other Stacktape compute resources, batch jobs are _serverless_, meaning you don't need to manage the underlying infrastructure. Stacktape handles server provisioning, scaling, and security for you. You can also equip your batch job's environment with a GPU in addition to CPU and RAM.
+
+# Under the hood
+
+Stacktape uses a combination of AWS services to provide a seamless experience for running containerized jobs:
+
+- **_AWS Batch_**: Provisions the virtual machines where your job runs and manages the execution.
+- **_AWS Step Functions_**: Manages the job's lifecycle, including retries and timeouts, using a serverless state machine.
+- **_AWS Lambda_**: A trigger function that connects the event source to the batch job and starts its execution.
+
+The execution flow is as follows:
+
+1.  An event from an integration (like an API Gateway) invokes the trigger function.
+2.  The trigger function starts the **batch job state machine**.
+3.  The state machine queues the job in _AWS Batch_.
+4.  _AWS Batch_ provisions the necessary resources (like a VM) and runs your containerized job.
+
+# When to use
+
+Batch jobs are ideal for long-running, resource-intensive tasks like data processing, ETL pipelines, or machine learning model training.
+
+If you're unsure which compute resource to use, this table provides a comparison of container-based resources in Stacktape:
+
+| **Resource type**                                                         | **Description**                                                                      | **Use-cases**                                  |
+| ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ | ---------------------------------------------- |
+| [web-service](./web-services.mdx)                           | continuously running container with **public endpoint and URL**                      | public APIs, websites                          |
+| [private-service](./private-services.mdx)                   | continuously running container with **private endpoint**                             | private APIs, services                         |
+| [worker-service](./worker-services.mdx)                     | continuously running container **not accessible from outside**                       | continuous processing                          |
+| [multi-container-workload](./multi-container-workloads.mdx) | custom multi container workload - you can customize accessibility for each container | more complex use-cases requiring customization |
+| [batch-job](./batch-jobs.mdx)                               | simple container **job** - container is destroyed after job is done                  | one-off/scheduled processing jobs              |
+
+## Advantages
+
+- **Pay-per-use**: You only pay for the compute time your job consumes.
+- **Resource flexibility**: The environment automatically scales to provide the CPU, memory, and GPU your job needs.
+- **Time flexibility**: Batch jobs can run for as long as needed.
+- **Secure by default**: The underlying environment is securely managed by AWS.
+- **Easy integration**: Can be triggered by a wide variety of event sources.
+
+## Disadvantages
+
+- **Slow start time**: After a job is triggered, it's placed in a queue and can take anywhere from a few seconds to a few minutes to start.
+
+# Basic usage
+
+`embed:batch-jobs/basic-usage.stp.yml`
+
+`embed:batch-jobs/basic-usage.ts`
+
+# Container
+
+Your code for a batch job runs inside a Docker container. You can configure its properties:
+
+<PropertiesTable
+  definitionName="BatchJobContainer"
+  searchForReferencesInDefinition="BatchJobProps"
+  rewriteLinksForReferencedCompositeTypes={{
+    StpBuildpackBjImagePackaging: "#image",
+    ExternalBuildpackBjImagePackaging: "#image",
+    PrebuiltBjImagePackaging: "#image",
+    CustomDockerfileBjImagePackaging: "#image"
+  }}
+/>
+
+<Divider />
+
+## Image
+
+A Docker container is a running instance of a Docker image. You can provide an image in four ways:
+
+-   Images built using [stacktape-image-buildpack](../../configuration/packaging#stacktape-image-buildpack-batch-job)
+-   Images built using [external-buildpack](../../configuration/packaging#external-buildpack-batch-job)
+-   Images built from a [custom-dockerfile](../../configuration/packaging#custom-dockerfile-batch-job)
+-   [prebuilt-images](../../configuration/packaging#prebuilt-image-batch-job)
+
+## Environment variables
+
+<PropDescription definitionName="LocalScriptProps" propertyName="environment" descType="ld" />
+
+`embed:_common/environment.yml`
+
+<br />
+
+**Pre-set environment variables**
+
+Stacktape pre-sets the following environment variables for your job:
+
+| Name                   | Value                                                                                                               |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| STP_TRIGGER_EVENT_DATA | Contains JSON stringified event from an <a href="#trigger-events">event integration</a> that triggered this batch job. |
+| STP_MAXIMUM_ATTEMPTS   | The total number of attempts for this job before it is marked as failed.                                    |
+| STP_CURRENT_ATTEMPT    | The current attempt number.                                                                                       |
+
+# Logging
+
+Any output from your code to `stdout` or `stderr` is captured and stored in an AWS CloudWatch log group.
+
+You can view logs in two ways:
+- **AWS CloudWatch Console**: Get a direct link from the [Stacktape Console](https://console.stacktape.com/) or by using the `stacktape stack-info` command.
+- **Stacktape CLI**: Use the [`stacktape logs` command](../../cli/commands/logs.mdx) to stream logs directly in your terminal.
+
+Log storage can incur costs, so you can configure `retentionDays` to automatically delete old logs.
+
+<PropertiesTable definitionName="BatchJobLogging" searchForReferencesInDefinition="BatchJobProps" />
+
+## Forwarding logs
+
+You can forward logs to third-party services. See [Log Forwarding](../../configuration/log-forwarding.mdx) for more details.
+
+# Computing resources
+
+You can specify the amount of CPU, memory, and GPU for your batch job. AWS Batch selects the most cost-effective instance type that fits your job's requirements. To learn more about GPU instances, refer to the [AWS Docs](https://docs.aws.amazon.com/batch/latest/userguide/gpu-jobs.html).
+
+<PropDescription definitionName="BatchJobResources" propertyName="memory" descType="ld" />
+
+<PropDescription definitionName="BatchJobResources" propertyName="gpu" descType="ld" />
+
+<PropertiesTable definitionName="BatchJobResources" searchForReferencesInDefinition="BatchJobProps" />
+
+`embed:batch-jobs/resources.stp.yml`
+
+# Spot instances
+
+<PropDescription definitionName="BatchJobProps" propertyName="useSpotInstances" descType="ld" />
+
+`embed:batch-jobs/spot-instances.stp.yml`
+
+# Retries
+
+<PropDescription definitionName="BatchJobProps" propertyName="retryConfig" descType="ld" />
+
+<PropertiesTable definitionName="BatchJobRetryConfiguration" searchForReferencesInDefinition="BatchJobProps" />
+
+# Timeout
+
+<PropDescription definitionName="BatchJobProps" propertyName="timeout" descType="ld" />
+
+`embed:batch-jobs/timeout.stp.yml`
+
+# Storage
+
+Each batch job has its own _ephemeral storage_ with a fixed size of **20GB**. This storage is temporary and is deleted after the job completes or fails. To store data permanently, use [Buckets](../../other-resources/buckets.mdx).
+
+# Trigger events
+
+Batch jobs are invoked in response to events from various integrations. A single job can have multiple triggers. The data payload from the trigger is available in the `STP_TRIGGER_EVENT_DATA` environment variable as a JSON string.
+
+<Warning>
+
+Be cautious when configuring event integrations. A high volume of events can trigger a large number of batch jobs, leading to unexpected costs. For example, 1000 HTTP requests to a connected API Gateway will result in 1000 job invocations.
+
+</Warning>
+
+<br />
+
+## HTTP Api event
+
+Triggers the job in response to a request to a specified HTTP API Gateway. Routes are matched based on the most specific path. For more details, see the [AWS Docs](https://docs.aws.amazon.com/apigateway/latest/developerguide/http-api-develop-routes.html#http-api-develop-routes.evaluation).
+
+`embed:batch-jobs/event-http-api.stp.yml`
+
+> Lambda function connected to an HTTP API Gateway "myHttpApi"
+
+<PropertiesTable definitionName="HttpApiIntegration" searchForReferencesInDefinition="BatchJob" />
+
+### Cognito authorizer
+
+Restricts access to users authenticated with a [User Pool](../../security-resources/user-auth-pools.mdx). The request must include an `access token`. If authorized, the job receives user claims in its payload.
+
+`embed:batch-jobs/cognito-authorizer.stp.yml`
+
+> Example cognito authorizer
+
+`embed:batch-jobs/cognito-auth.ts`
+
+> Example lambda batch job that fetches user data from Cognito
+
+<PropertiesTable definitionName="CognitoAuthorizer" searchForReferencesInDefinition="BatchJobProps" />
+
+<br />
+
+### Lambda authorizer
+
+Uses a dedicated Lambda function to decide if a request is authorized. The authorizer function returns a policy document or a simple boolean response. You can configure `identitySources` to specify which parts of the request are used for authorization. To learn more, see the [AWS Docs](https://docs.aws.amazon.com/apigateway/latest/developerguide/http-api-lambda-authorizer.html).
+
+<PropertiesTable definitionName="LambdaAuthorizer" searchForReferencesInDefinition="BatchJobProps" />
+
+<Divider />
+
+## Schedule event
+
+Triggers the job on a defined schedule using either a fixed rate (e.g., every 5 minutes) or a cron expression.
+
+-   [Learn more about rate expressions](https://docs.aws.amazon.com/AmazonCloudWatch/latest/events/ScheduledEvents.html#RateExpressions)
+-   [Learn more about Cron expressions](https://docs.aws.amazon.com/AmazonCloudWatch/latest/events/ScheduledEvents.html#CronExpressions)
+
+`embed:batch-jobs/event-schedule.stp.yml`
+
+<PropertiesTable definitionName="ScheduleIntegration" searchForReferencesInDefinition="BatchJob" />
+
+<Divider />
+
+## Event Bus event
+
+Triggers the job when a matching event is received by a specified event bus. You can use the default AWS event bus or a [custom event bus](../../other-resources/event-buses.mdx).
+
+`embed:batch-jobs/event-default-event-bus.stp.yml`
+
+> Batch job connected to the default event bus
+
+`embed:batch-jobs/event-custom-event-bus.stp.yml`
+
+> Batch job connected to a custom event bus
+
+<PropertiesTable definitionName="EventBusIntegration" searchForReferencesInDefinition="BatchJob" />
+
+<Divider />
+
+## SNS event
+
+Triggers the job when a message is published to an [SNS topic](../../other-resources/sns-topics.mdx).
+
+`embed:batch-jobs/event-sns.stp.yml`
+
+<PropertiesTable definitionName="SnsIntegration" searchForReferencesInDefinition="BatchJob" />
+
+<Divider />
+
+## SQS event
+
+Triggers the job when messages are available in an [SQS queue](../../other-resources/sqs-queues.mdx). Messages are processed in batches. If the job fails to start, messages return to the queue after the visibility timeout. If the job starts but then fails, the messages are considered processed.
+
+A single queue should be consumed by a single compute resource. If you need a fan-out pattern, consider using an SNS or EventBus integration.
+
+`embed:batch-jobs/event-sqs.stp.yml`
+
+<PropertiesTable definitionName="SqsIntegration" searchForReferencesInDefinition="BatchJob" />
+
+<Divider />
+
+## Kinesis event
+
+Triggers the job when records are available in a Kinesis Data Stream. It's similar to SQS but designed for real-time data streaming. You can add a Kinesis stream using [CloudFormation resources](../../extending/aws-cloudformation-resources.mdx).
+
+`embed:batch-jobs/event-kinesis.stp.yml`
+
+<PropertiesTable definitionName="KinesisIntegration" searchForReferencesInDefinition="BatchJob" />
+
+<Divider />
+
+## DynamoDB event
+
+Triggers the job in response to item-level changes in a [DynamoDB table](../../database-resources/dynamo-db-tables.mdx). You must enable DynamoDB Streams on your table.
+
+`embed:batch-jobs/event-dynamo-db.stp.yml`
+
+<PropertiesTable definitionName="DynamoDbIntegration" searchForReferencesInDefinition="BatchJob" />
+
+<Divider />
+
+## S3 event
+
+Triggers the job when a specific event (like `object created`) occurs in an S3 bucket.
+
+`embed:batch-jobs/event-s3.stp.yml`
+
+<PropertiesTable definitionName="S3Integration" searchForReferencesInDefinition="BatchJob" />
+
+<PropertiesTable definitionName="S3FilterRule" searchForReferencesInDefinition="BatchJobProps" />
+
+<Divider />
+
+## Cloudwatch Log event
+
+Triggers the job when a log record is added to a specified CloudWatch log group. The event payload is BASE64 encoded and GZIP compressed.
+
+`embed:batch-jobs/event-cloudwatch-log.stp.yml`
+
+<PropertiesTable definitionName="CloudwatchLogIntegration" searchForReferencesInDefinition="BatchJob" />
+
+<Divider />
+
+## Application Load Balancer event
+
+Triggers the job when an Application Load Balancer receives an HTTP request matching specified conditions (e.g., path, headers, method).
+
+`embed:batch-jobs/event-application-load-balancer.stp.yml`
+
+<PropertiesTable definitionName="ApplicationLoadBalancerIntegration" searchForReferencesInDefinition="BatchJob" />
+
+<Divider />
+
+# Accessing other resources
+
+By default, AWS resources cannot communicate with each other. Access must be granted explicitly using _IAM_ permissions. Stacktape handles most of this automatically, but for resource-to-resource communication, you need to configure permissions.
+
+[Relational Databases](../../database-resources/relational-databases.mdx) are an exception, as they use their own connection-string-based access control.
+
+There are two ways to grant permissions:
+
+## Using connectTo
+
+The `connectTo` property is a simplified way to grant basic access to other Stacktape-managed resources. It automatically configures the necessary _IAM_ permissions and injects environment variables with connection details into your batch job.
+
+`embed:batch-jobs/allow-access-to.stp.yml`
+
+<br />
+
+<PropDescription definitionName="LambdaFunctionProps" propertyName="connectTo" descType="ld" />
+
+## Using iamRoleStatements
+
+For fine-grained control, you can provide raw _IAM_ role statements. This allows you to define custom permissions to any AWS resource.
+
+`embed:batch-jobs/iam-role-statements.stp.yml`
+
+# Default VPC connection
+
+Certain resources, like [Relational Databases](../../database-resources/relational-databases.mdx), must be placed within a _VPC_. If your stack contains such resources, Stacktape automatically creates a default _VPC_ and connects them to it.
+
+Batch jobs are connected to this _VPC_ by default, allowing them to communicate with other VPC-enabled resources without extra configuration. To learn more, see our guide on [_VPCs_](../../user-guides/vpcs.mdx).
+
+# Referenceable parameters
+
+<ReferenceableParams resource="batch-job" />
+
+# Pricing
+
+You are charged for:
+
+-   The compute instances running your batch jobs.
+-   A negligible amount for the Lambda functions and Step Functions that manage the job's execution.
+
+Pricing depends on the instance type and region. You can significantly reduce costs (by up to 90%) by using [_spot instances_](#spot-instances).
+
+# API reference
+
+<PropertiesTable definitionName="BatchJob" />
+
+<PropertiesTable definitionName="CognitoAuthorizer" searchForReferencesInDefinition="BatchJobProps" />
+
+<PropertiesTable definitionName="LambdaAuthorizer" searchForReferencesInDefinition="BatchJobProps" />
+
+<PropertiesTable definitionName="EventInputTransformer" searchForReferencesInDefinition="BatchJobProps" />
+
+<PropertiesTable definitionName="EventBusIntegrationPattern" searchForReferencesInDefinition="BatchJobProps" />
+
+<PropertiesTable definitionName="SnsOnDeliveryFailure" searchForReferencesInDefinition="BatchJobProps" />
+
+<PropertiesTable definitionName="DestinationOnFailure" searchForReferencesInDefinition="BatchJobProps" />
+
+<PropertiesTable definitionName="S3FilterRule" searchForReferencesInDefinition="BatchJobProps" />
+
+<PropertiesTable definitionName="LbHeaderCondition" searchForReferencesInDefinition="BatchJobProps" />
+
+<PropertiesTable definitionName="LbQueryParamCondition" searchForReferencesInDefinition="BatchJobProps" />
+
+<PropertiesTable definitionName="ContainerLanguageSpecificConfig" searchForReferencesInDefinition="BatchJobProps" />
+
+<PropertiesTable definitionName="KinesisIntegration" searchForReferencesInDefinition="BatchJobProps" />
+
+<PropertiesTable definitionName="EnvironmentVar" searchForReferencesInDefinition="BatchJobProps" />
+
+<PropertiesTable definitionName="StpIamRoleStatement" searchForReferencesInDefinition="BatchJobProps" />

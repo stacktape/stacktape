@@ -1,0 +1,13 @@
+resources:
+  myFunction:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: path/to/my-lambda.ts
+      environment:
+        - name: MY_DIRECTIVE_VARIABLE
+          # {start-highlight}
+          value: $File('file.json').myvar1
+          # {stop-highlight}

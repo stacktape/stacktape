@@ -1,0 +1,1 @@
+- Example Docker container deployed as a [web service](https://docs.stacktape.com/compute-resources/web-services/).

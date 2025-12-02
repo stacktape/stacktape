@@ -1,0 +1,22 @@
+resources:
+  myDatabase:
+    type: relational-database
+    properties:
+      engine:
+        type: aurora-mysql-serverless
+      credentials:
+        masterUserPassword: my-master-password
+
+  myFunction:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: 'lambdas/cleanup-function.js'
+      # {start-highlight}
+      events:
+        - type: cloudwatch-alarm
+          properties:
+            alarmName: myDatabase.alarms.CpuUtilization
+      # {stop-highlight}

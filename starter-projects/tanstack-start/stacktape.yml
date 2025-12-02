@@ -1,0 +1,17 @@
+scripts:
+  build:
+    type: local-script
+    properties:
+      # or "yarn build", "bun run build", etc.
+      executeCommand: npm run build
+hooks:
+  beforeDeploy:
+    - scriptName: build
+
+resources:
+  webBucket:
+    type: hosting-bucket
+    properties:
+      # ./dist is the default output directory for Tanstack Start when using Vite.js
+      uploadDirectoryPath: ./dist
+      hostingContentType: single-page-app

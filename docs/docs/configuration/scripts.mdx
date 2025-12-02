@@ -1,0 +1,257 @@
+---
+title: "Scripts"
+order: 1
+---
+
+<br />
+<br />
+
+Scripts allow you to define custom commands that can be executed as part of your workflow. They can be used to perform a variety of tasks, such as building your application, running database migrations, or sending notifications.
+
+<PropDescription definitionName="ConfigRoot" propertyName="scripts" descType="ld" />
+
+```yml
+scripts:
+  # {start-highlight}
+  buildWeb:
+    type: local-script
+    properties:
+      executeCommand: npx gatsby build
+  # {stop-highlight}
+
+hooks:
+  beforeDeploy:
+    - scriptName: buildWeb
+```
+
+## Local script
+
+A local script is executed on the same machine where the Stacktape command is run.
+
+*   The script must define one of the following properties: `executeCommand`, `executeScript`, `executeCommands`, or `executeScripts`.
+*   You can use the `connectTo` property to list the resources that your script needs to access. Stacktape will automatically inject the necessary environment variables for connecting to those resources. For more information, see [Connecting to resources](#connecting-to-resources).
+
+### executeCommand
+
+<PropDescription definitionName="LocalScriptProps" propertyName="executeCommand" descType="ld" />
+
+```yml
+scripts:
+  # {start-highlight}
+  buildWeb:
+    type: local-script
+    properties:
+      executeCommand: npx gatsby build
+  # {stop-highlight}
+```
+
+### executeScript
+
+<PropDescription definitionName="LocalScriptProps" propertyName="executeScript" descType="ld" />
+
+```yml
+scripts:
+  # {start-highlight}
+  sendSlackNotification:
+    type: local-script
+    properties:
+      executeScript: scripts/send-slack-notification.ts
+  # {stop-highlight}
+```
+
+```ts
+import { WebClient } from "@slack/web-api";
+
+const token = "my-access-token";
+const conversationId = "my-conversation-id";
+const slackClient = new WebClient(token);
+const errorData = JSON.parse(process.env.STP_ERROR);
+
+(async () => {
+  await slackClient.chat.postMessage({
+    channel: conversationId,
+    text: errorData.message
+  });
+})();
+```
+
+### executeCommands
+
+<PropDescription definitionName="LocalScriptProps" propertyName="executeCommands" descType="ld" />
+
+```yml
+scripts:
+  # {start-highlight}
+  buildWeb:
+    type: local-script
+    properties:
+      executeCommands:
+        - poetry run python manage.py makemigrations
+        - poetry run python manage.py migrate
+  # {stop-highlight}
+```
+
+### executeScripts
+
+<PropDescription definitionName="LocalScriptProps" propertyName="executeScripts" descType="ld" />
+
+```yml
+scripts:
+  # {start-highlight}
+  sendSlackNotification:
+    type: local-script
+    properties:
+      executeScripts:
+        - scripts/run-migration.ts
+        - scripts/send-slack-notification.ts
+  # {stop-highlight}
+```
+
+## Local script with bastion tunneling
+
+A local script with bastion tunneling is executed in the same way as a regular local script, but connections to the resources listed in the `connectTo` property are tunneled through a _bastion_ server.
+
+*   This provides a secure, encrypted connection to your resources.
+*   It allows you to connect to resources that do not have a public endpoint and are only accessible within the stack's [default VPC](/user-guides/vpcs#default-vpc), such as a private `relational-database` or `redis-cluster`.
+*   The environment variables injected by the `connectTo` property are automatically adjusted to use the tunneled endpoints.
+
+<Info>
+
+Your stack must have a [_bastion_](/security-resources/bastions) resource to use this type of script.
+
+</Info>
+
+`embed:bastion-servers/bastion-tunnel-db.stp.yml`
+
+`embed:bastion-servers/bastion-tunnel-db.ts`
+
+![Graphical overview of tunneling](../static/bastion/tunneled-connection.png)
+
+<Info>
+
+Bastion tunneling is supported for the following resource types:
+
+*   `relational-database`
+*   `redis-cluster`
+*   `application-load-balancer`
+*   `private-service` (with `loadBalancing.type` set to `application-load-balancer`)
+
+</Info>
+
+## Bastion script
+
+A bastion script is executed remotely on a _bastion_ server.
+
+*   Logs from the script's execution are streamed in real-time to your local machine.
+*   This provides a unified way to execute a set of commands from anywhere.
+*   You can use the `connectTo` property to list the resources that your script needs to access. Stacktape will automatically inject the necessary environment variables for connecting to those resources. For more information, see [Connecting to resources](#connecting-to-resources).
+
+`embed:bastion-servers/bastion-script.stp.yml`
+
+## Connecting to resources
+
+<PropDescription definitionName="LocalScriptProps" propertyName="connectTo" descType="ld" />
+
+```yml
+scripts:
+  dbScript:
+    type: local-script
+    properties:
+      # The $STP_MY_DATABASE_CONNECTION_STRING environment variable is injected by connectTo
+      executeCommands:
+        - psql $STP_MY_DATABASE_CONNECTION_STRING -c "SELECT * FROM users"
+      # {start-highlight}
+      connectTo:
+        - myDatabase
+      # {stop-highlight}
+
+resources:
+  myDatabase:
+    type: relational-database
+    properties:
+      engine:
+        type: postgres
+        properties:
+          primaryInstance:
+            instanceSize: db.t3.micro
+```
+
+<Info>
+
+If you are using a `local-script-with-bastion-tunneling` script, connections to the resources listed in the `connectTo` property are tunneled through a _bastion_ host. This allows you to access resources that are only accessible from within the VPC and increases the security of the connection. For more information, see [Local script with bastion tunneling](#local-script-with-bastion-tunneling).
+
+</Info>
+
+## How to execute a script
+
+A script can be executed in two ways:
+
+*   Using the [`script:run`](/cli/commands/script-run) command:
+
+    ```bash
+    stacktape script:run --scriptName <<scriptName>> --stage <<stage>>
+    ```
+
+*   Inside a [hook](/configuration/hooks).
+
+## Environment variables
+
+<PropDescription definitionName="LocalScriptProps" propertyName="environment" descType="ld" />
+
+```yml
+scripts:
+  migrateDb:
+    executeScript: scripts/migrate-db.ts
+    environment:
+      # {start-highlight}
+      - name: DB_CONNECTION_STRING
+        value: $ResourceParam('mainDatabase', 'connectionString')
+      # {stop-highlight}
+
+resources:
+  mainDatabase:
+    type: relational-database
+    properties:
+      credentials:
+        masterUserPassword: my_secret_password
+      engine:
+        type: mysql
+        properties:
+          primaryInstance:
+            instanceSize: db.t2.micro
+```
+
+## Permissions
+
+You can use the `assumeRoleOfResource` property to grant a script the same AWS permissions as a specific resource.
+
+<PropDescription definitionName="LocalScriptProps" propertyName="assumeRoleOfResource" descType="ld" />
+
+```yml
+scripts:
+  seedDb:
+    executeScript: scripts/seed-db.ts
+    # {start-highlight}
+    assumeRoleOfResource: myFunction
+    # {stop-highlight}
+    environment:
+      - name: TABLE_NAME
+        value: $ResourceParam('dynamoTable', 'name')
+
+resources:
+  dynamoTable:
+    type: dynamo-db-table
+
+  myFunction:
+    type: function
+    properties:
+      allowAccessTo:
+        - dynamoTable
+```
+
+## API reference
+
+<PropertiesTable definitionName="LocalScript" />
+<PropertiesTable definitionName="LocalScriptWithBastionTunneling" />
+<PropertiesTable definitionName="BastionScript" />
+<PropertiesTable definitionName="EnvironmentVar" searchForReferencesInDefinition="LocalScriptProps" />

@@ -1,0 +1,9 @@
+{
+  "name": "@my-organization/lambda",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {},
+  "dependencies": {
+    "@my-organization/utils": "^0.1.0"
+  }
+}

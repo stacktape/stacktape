@@ -1,0 +1,10 @@
+resources:
+  myBucket:
+    type: bucket
+    properties:
+      cdn:
+        enabled: true
+        # {start-highlight}
+        customDomains:
+          - domainName: mydomain.com
+        # {stop-highlight}

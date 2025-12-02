@@ -1,0 +1,9 @@
+name: Spring Boot API with Postgres
+tags:
+  - REST API
+  - Hibernate ORM
+  - Spring Boot
+  - Postgres
+  - Java
+icon: java.svg
+priority: 1

@@ -1,0 +1,30 @@
+resources:
+  webService:
+    type: web-service
+    properties:
+      packaging:
+        type: stacktape-image-buildpack
+        properties:
+          entryfilePath: ./src/main/java/com/example/postsapi/PostsApi.java
+      environment:
+        - name: DB_CONNECTION_STRING
+          value: $ResourceParam('mainDatabase', 'jdbcConnectionString')
+      connectTo:
+        - mainDatabase
+      resources:
+        cpu: 0.25
+        memory: 512
+      cors:
+        enabled: true
+
+  mainDatabase:
+    type: relational-database
+    properties:
+      credentials:
+        masterUserPassword: my_secret_password
+      engine:
+        type: postgres
+        properties:
+          version: '16.4'
+          primaryInstance:
+            instanceSize: db.t3.micro

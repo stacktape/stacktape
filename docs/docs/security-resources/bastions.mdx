@@ -1,0 +1,106 @@
+---
+title: "Bastion Servers (Jump Hosts)"
+order: 311
+---
+
+<br />
+<br />
+
+A bastion server, or jump host, is a virtual machine that provides secure access to resources that are isolated within a private network (_VPC_). This is useful for managing resources like databases or Redis clusters that don't have a public endpoint.
+
+Connections to the bastion server are established using [SSM Session Manager](#ssm-sessions), which leverages your _IAM_ permissions for authentication. This eliminates the need to expose any ports, providing a highly secure way to access your private resources.
+
+# Basic usage
+
+`embed:bastion-servers/basic.stp.yml`
+
+> Example of a bastion server configuration.
+
+# Connecting to a bastion server
+
+You can start an interactive shell session on a bastion server using the [`bastion:session`](/cli/commands/bastion-session/) command:
+
+```bash
+stacktape bastion:session --stage <<stage>> --region <<region>> --bastionResource <<bastionResourceName>>
+```
+
+# Creating a bastion tunnel
+
+For resources that don't have a public endpoint, like a database, you can use a bastion tunnel to access them from your local machine. The [`bastion:tunnel`](/cli/commands/bastion-tunnel/) command creates a secure pathway from a port on your local machine to the port of the target resource, using the bastion server as an intermediary.
+
+```bash
+stacktape bastion:tunnel --stage <<stage>> --region <<region>> --bastionResource <<bastionResourceName>> --resourceName <<nameOfTargetResource>>
+```
+
+Once the tunnel is established, Stacktape will print the local endpoint that you can use to connect to the resource.
+
+## Tunnel example
+
+![A diagram showing a bastion tunnel to a database](../static/bastion/bastion-tunnel-manual.png)
+
+`embed:bastion-servers/bastion-tunnel-db-manual.stp.yml`
+
+> A bastion server with a database that is only accessible within the _VPC_.
+
+To create a tunnel to the database, you would run:
+
+```bash
+stacktape bastion:tunnel --stage <<stage>> --bastionResource myBastion --resourceName myDatabase
+```
+
+![The terminal output after starting a tunnel](../static/bastion/tunnel-terminal.png)
+
+<Info>
+
+Bastion tunneling is supported for the following resource types:
+
+- `relational-database`
+- `redis-cluster`
+- `application-load-balancer`
+- `private-service` (when using an application load balancer)
+
+</Info>
+
+# Using a bastion with scripts
+
+You can also use bastion servers with scripts. For more information, see the documentation on [bastion scripts](/configuration/scripts/#bastion-script) and [local scripts with bastion tunneling](/configuration/scripts/#local-script-with-bastion-tunneling).
+
+`embed:bastion-servers/bastion-tunnel-db.stp.yml`
+
+> A Stacktape configuration that uses a bastion tunnel for a migration script.
+
+# Instance size
+
+By default, bastion servers use a `t3.micro` instance, which is eligible for the AWS Free Tier. You can specify a different instance size using the `instanceSize` property. For a full list of available instance types, see the [AWS documentation](https://aws.amazon.com/ec2/instance-types/).
+
+`embed:bastion-servers/instance-size.stp.yml`
+
+# Custom commands on launch
+
+You can run a custom set of commands when the bastion server is launched using the `runCommandsAtLaunch` property. This is useful for installing dependencies or performing other setup tasks.
+
+<PropDescription definitionName="BastionProps" propertyName="runCommandsAtLaunch" descType="ld" />
+
+`embed:bastion-servers/install-commands.stp.yml`
+
+<Info>
+
+All bastion hosts use the latest [Amazon Linux 2023](https://aws.amazon.com/linux/amazon-linux-2023/) operating system.
+
+</Info>
+
+# SSM sessions
+
+Stacktape uses [SSM Session Manager](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager.html) to provide secure access to bastion servers. This eliminates the need to manage SSH keys or open additional network ports, making it more secure than traditional SSH access.
+
+# Pricing
+
+The price of a bastion server depends on its instance size. The default `t3.micro` instance is free for the first 12 months as part of the AWS Free Tier. After that, it costs approximately $7.50 per month.
+
+# API reference
+
+<PropertiesTable definitionName="Bastion" />
+
+<PropertiesTable definitionName="BastionLoggingConfig" searchForReferencesInDefinition="Bastion" />
+
+<PropertiesTable definitionName="BastionLogging" searchForReferencesInDefinition="Bastion" />

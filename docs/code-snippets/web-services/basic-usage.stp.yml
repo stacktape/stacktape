@@ -1,0 +1,11 @@
+resources:
+  webService:
+    type: web-service
+    properties:
+      packaging:
+        type: stacktape-image-buildpack
+        properties:
+          entryfilePath: src/main.ts
+      resources:
+        cpu: 2
+        memory: 2048

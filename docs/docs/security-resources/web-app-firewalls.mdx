@@ -1,0 +1,149 @@
+---
+title: "Web App Firewalls"
+order: 235
+---
+
+<br />
+<br />
+
+A web application firewall (WAF) protects your internet-facing applications from common web exploits that could affect their availability, compromise their security, or consume excessive resources. It works by filtering and monitoring HTTP traffic based on a set of rules.
+
+You can use a WAF to:
+
+-   Block malicious traffic using managed rule groups that are curated by security experts.
+-   Create your own custom rules to address specific threats.
+-   Implement rate-based rules to prevent your resources from being overloaded by excessive requests.
+
+You can use a WAF with the following Stacktape resources:
+
+-   [Application Load Balancers](/other-resources/application-load-balancers/#using-a-firewall)
+-   [Web Services](/compute-resources/web-services/#firewall)
+-   [User Pools](/security-resources/user-auth-pools/#firewall)
+-   [Content Delivery Networks (CDNs)](/other-resources/cdns/#using-a-firewall)
+
+# Usage
+
+## With a web service (ALB)
+
+`embed:web-app-firewalls/usage-with-web-service-alb.stp.yml`
+
+> An example of a firewall configuration used with a web service.
+
+## With a web service (API GW + CDN)
+
+`embed:web-app-firewalls/usage-with-web-service-api-gw-cdn.stp.yml`
+
+> An example of a firewall configuration used with a web service.
+
+## With an application load balancer
+
+`embed:web-app-firewalls/usage-with-alb.stp.yml`
+
+> An example of a firewall configuration used with an application load balancer.
+
+## With a user pool
+
+`embed:web-app-firewalls/usage-with-userpool.stp.yml`
+
+> An example of a firewall configuration used with a user pool.
+
+## With a Lambda (Lambda URL +CDN)
+
+`embed:web-app-firewalls/usage-with-lambda-url-cdn.stp.yml`
+
+> An example of a firewall configuration used with a Lambda URL.
+
+# Scope
+
+The scope determines whether the WAF is used with regional resources or with a _CDN_.
+
+<PropDescription definitionName="WebAppFirewallProps" propertyName="scope" descType="ld" />
+
+<Warning>
+  The scope cannot be changed after the firewall is created. If you need to change it, you must delete the old firewall and create a new one.
+</Warning>
+
+# Rules
+
+All requests to resources protected by the WAF are evaluated against a set of rules.
+
+<PropDescription definitionName="WebAppFirewallProps" propertyName="rules" descType="ld" />
+
+## Default rules
+
+If you don't specify any rules, Stacktape applies a default set of managed rules from AWS that protect against common attacks, including those listed in the [OWASP Top 10](https://owasp.org/www-project-top-ten/). These rules protect against vulnerabilities like SQL injection and cross-site scripting (XSS).
+
+Specifically, it uses the following rule groups:
+
+-   **Common rule set (AWSManagedRulesCommonRuleSet):** Protects against a wide range of common vulnerabilities.
+-   **Known bad inputs (AWSManagedRulesKnownBadInputsRuleSet):** Blocks request patterns that are known to be malicious.
+
+You can find more information about these rule groups in the [AWS documentation](https://docs.aws.amazon.com/waf/latest/developerguide/aws-managed-rule-groups-baseline.html).
+
+## Managed rule groups
+
+Managed rule groups are sets of rules maintained by AWS or third-party vendors. They are regularly updated to protect against the latest threats.
+
+While rule groups managed by AWS are typically free, some third-party vendors may charge for their rule groups.
+
+`embed:web-app-firewalls/rules-managed.stp.yml`
+
+> An example of a reference to a managed rule group.
+
+<PropertiesTable definitionName="ManagedRuleGroupProps" searchForReferencesInDefinition="WebAppFirewallProps" />
+
+## Custom rule groups
+
+You can create your own custom rule groups to use across multiple applications. To use an existing custom rule group, you just need to provide its _ARN_.
+
+`embed:web-app-firewalls/rules-custom.stp.yml`
+
+> An example of a reference to a custom rule group.
+
+<PropertiesTable definitionName="CustomRuleGroupProps" searchForReferencesInDefinition="WebAppFirewallProps" />
+
+## Rate-based rules
+
+Rate-based rules track the number of requests from each originating IP address and trigger an action if the rate exceeds a specified limit within a five-minute period. This is useful for temporarily blocking IP addresses that are sending excessive requests.
+
+You can aggregate requests based on the client's IP address or a forwarded IP address from a proxy or load balancer.
+
+<PropDescription definitionName="RateBasedStatementProps" propertyName="aggregateBasedOn" descType="ld" />
+
+`embed:web-app-firewalls/rules-rate.stp.yml`
+
+> An example of a rate-based rule.
+
+<PropertiesTable definitionName="RateBasedStatementProps" searchForReferencesInDefinition="WebAppFirewallProps" />
+
+# Monitoring
+
+You can monitor your firewall and its rules using Amazon CloudWatch and the AWS WAF console. By default, metrics and sampled requests are enabled for the firewall as a whole but disabled for individual rules. You can change this behavior using the `metricsEnabled` and `sampledRequestsEnabled` properties.
+
+Stacktape will automatically create links to the AWS WAF console and the CloudWatch metrics dashboard in the Stacktape Console.
+
+For more details, see the AWS documentation on [metrics](https://docs.aws.amazon.com/waf/latest/developerguide/web-acl-testing-view-metrics.html) and [sampled requests](https://docs.aws.amazon.com/waf/latest/developerguide/web-acl-testing-view-sample.html).
+
+# Pricing
+
+You are charged for:
+
+- **Firewall (WebACL):** $5.00 per month.
+- **Rules:** $1.00 per rule per month.
+- **Requests:** $0.60 per million requests.
+
+Additional costs may apply for paid managed rule groups from third-party vendors.
+
+For example, a firewall with the default rules will cost $7.00 per month ($5.00 for the firewall and $2.00 for the two default rule groups), plus $0.60 for every million requests.
+
+To learn more, see the [AWS WAF pricing page](https://aws.amazon.com/waf/pricing/).
+
+# Referenceable parameters
+
+<ReferenceableParams resource="web-app-firewall" />
+
+# API reference
+
+<PropertiesTable definitionName="WebAppFirewallProps" />
+
+<PropertiesTable definitionName="ForwardedIPConfig" searchForReferencesInDefinition="WebAppFirewallProps" />

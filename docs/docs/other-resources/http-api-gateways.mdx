@@ -1,0 +1,166 @@
+---
+title: "HTTP API Gateways"
+order: 200
+---
+
+<br />
+<br />
+
+An HTTP API Gateway serves as an entry point for your application, routing HTTP traffic to your compute resources. It can be integrated with [functions](/compute-resources/functions/#http-api-event), [batch jobs](/compute-resources/batch-jobs/#http-api-event), and [multi-container workloads](/compute-resources/multi-container-workloads/#http-api-event).
+
+Each API gateway is secured with TLS by default. You can also configure a custom domain name, enable CORS, or place a _CDN_ in front of your gateway.
+
+# When to use them
+
+HTTP API Gateways are a good fit for any modern web application, from a simple "front door" for a lightweight service to a powerful backend API with authorization and monitoring.
+
+<NegativeMargin />
+
+## Advantages
+
+- **Pay-per-use:** You are only charged for the number of requests your gateway processes (from $0.90 to $1.00 per million requests).
+- **Scalability:** The gateway scales automatically to handle thousands of requests per second.
+- **Security:** Each gateway is secured with TLS by default.
+- **High availability:** API Gateway has a 99.95% monthly uptime SLA.
+- **Ease of use:** You can integrate a gateway with your compute resources with just a few lines of configuration.
+
+## Disadvantages
+
+- **Limited routing:** HTTP API Gateways only support path-based routing. If you need to route requests based on query parameters, IP addresses, or HTTP headers, consider using an [Application Load Balancer](/other-resources/application-load-balancers) instead.
+
+<Divider />
+
+# Basic usage
+
+<PropertiesTable
+  definitionName="HttpApiGateway"
+  rewriteLinksForReferencedCompositeTypes={{
+    CdnConfiguration: "#cdn"
+  }}
+/>
+
+You don't need to specify any properties to create a basic HTTP API Gateway.
+
+`embed:http-api-gateways/simple.stp.yml`
+
+<Divider />
+
+# Integrating with compute resources
+
+You can forward requests from an API gateway to your compute resources by creating an event integration on a **multi-container workload**, **function**, or **batch job**.
+
+Each integration must specify:
+
+- **`httpApiGatewayName`**: The name of the API gateway.
+- **`path`**: A path pattern that the request must match.
+- **`method`**: The HTTP method that the request must match.
+
+If multiple integrations match a request, the most specific one is chosen.
+
+This example shows two integrations:
+
+-   The first forwards all requests (`/{proxy+}`) to a multi-container workload.
+-   The second, which is more specific, forwards `GET` requests for `/invoke-my-function` to a Lambda function.
+
+`embed:http-api-gateways/integrations.stp.yml`
+
+> An HTTP API Gateway with integrations for both a function and a multi-container workload.
+
+For more information, see the documentation on integrating API gateways with [functions](/compute-resources/functions/#http-api-event) and [multi-container workloads](/compute-resources/multi-container-workloads#http-api-event).
+
+<Divider />
+
+# CORS
+
+[Cross-Origin Resource Sharing (CORS)](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS) is a security feature that controls how web browsers handle requests to a different domain than the one the user is currently on. If your frontend and backend are on different domains (e.g., `mydomain.com` and `api.mydomain.com`), you'll need to configure CORS.
+
+<Warning>
+
+If you are already handling CORS in your application code, you don't need to enable it in your Stacktape configuration.
+
+</Warning>
+
+You can enable CORS with a single line:
+
+`embed:http-api-gateways/cors.stp.yml`
+
+You can also customize the CORS headers:
+
+<PropDescription definitionName="HttpApiCorsConfig" propertyName="enabled" descType="ld" />
+
+<PropertiesTable definitionName="HttpApiCorsConfig" searchForReferencesInDefinition="HttpApiGatewayProps" />
+
+<Divider />
+
+# Custom domain names
+
+You can use a custom domain for your API gateway. If you don't have one, you can [register one](/other-resources/domains-and-certificates/#registering-a-domain) through Stacktape.
+
+If you already have a domain, you can either let [Stacktape manage it](/other-resources/domains-and-certificates/#managing-domains-with-stacktape) (if you use AWS Route 53 for DNS) or [use a third-party DNS provider](/other-resources/domains-and-certificates/#using-a-3rd-party-dns).
+
+For more details, see the [Domains and Certificates](/other-resources/domains-and-certificates/) page.
+
+## Using Stacktape to manage domains and certs
+
+<PropDescription definitionName="HttpApiGatewayProps" propertyName="customDomains" descType="ld" />
+
+<PropertiesTable
+  definitionName="DomainConfiguration"
+  searchForReferencesInDefinition="HttpApiGateway"
+  rewriteLinksForReferencedCompositeTypes={{
+    CdnConfiguration: "#cdn"
+  }}
+/>
+
+`embed:http-api-gateways/domain-names.stp.yml`
+
+## Using a 3rd-party DNS
+
+To use a domain from a provider like GoDaddy or Cloudflare:
+
+1.  Create or import a TLS certificate for your domain in the [AWS Certificate Manager console](https://console.aws.amazon.com/acm/home#/certificates/list) and copy its _ARN_.
+2.  Add the `customDomains` configuration to your API gateway, using the certificate _ARN_ and disabling DNS record creation.
+
+```yml
+resources:
+  myWebsite:
+    type: http-api-gateway
+    properties:
+      # {start-highlight}
+      customDomains:
+        - domainName: mydomain.com
+          disableDnsRecordCreation: true
+          customCertificateArn: <<ARN_OF_YOUR_CERTIFICATE>>
+      # {stop-highlight}
+```
+
+3.  After deploying, find the API gateway's domain name in the [Stacktape Console](https://console.stacktape.com/projects).
+4.  In your DNS provider's dashboard, create a `CNAME` or `ALIAS` record pointing to the API gateway's domain name.
+
+<Divider />
+
+# Access logs
+
+Access logs contain basic information about requests to your API gateway, which can be useful for auditing and compliance. Stacktape enables access logging by default, with a retention period of 30 days.
+
+<PropDescription definitionName="HttpApiGatewayProps" propertyName="logging" descType="ld" />
+
+<PropertiesTable definitionName="HttpApiAccessLogsConfig" searchForReferencesInDefinition="HttpApiGatewayProps" />
+
+`embed:http-api-gateways/access-logs.stp.yml`
+
+<Divider />
+
+# CDN
+
+You can place an AWS CloudFront _CDN_ in front of your API gateway to cache responses and reduce latency.
+
+<PropDescription definitionName="HttpApiGatewayProps" propertyName="cdn" descType="ld" />
+
+For more information, see the [_CDN_ documentation](/other-resources/cdns).
+
+<Divider />
+
+# Referenceable parameters
+
+<ReferenceableParams resource="http-api-gateway" />

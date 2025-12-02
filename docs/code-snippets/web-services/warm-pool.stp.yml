@@ -1,0 +1,14 @@
+resources:
+  myWebService:
+    type: web-service
+    properties:
+      packaging:
+        type: stacktape-image-buildpack
+        properties:
+          entryfilePath: src/index.ts
+      resources:
+        instanceTypes:
+          - c5.large
+        # {start-highlight}
+        enableWarmPool: true
+      # {stop-highlight}

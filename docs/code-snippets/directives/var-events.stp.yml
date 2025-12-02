@@ -1,0 +1,41 @@
+# {start-highlight}
+variables:
+  eventName: myCustomEventName
+# {stop-highlight}
+
+resources:
+  myEventBus:
+    type: 'event-bus'
+  # publishes events with EventName set to $Var().eventName into myEventBus
+  myPublisherFunction:
+    type: 'function'
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: 'lambdas/event-bus-publisher.ts'
+      environment:
+        - name: EVENT_NAME
+          # {start-highlight}
+          value: $Var().eventName
+          # {stop-highlight}
+      connectTo:
+        - myEventBus
+  # listens for events with EventName set to $Var().eventName published into myEventBus
+  myConsumerFunction:
+    type: 'function'
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: 'lambdas/consumer.ts'
+      events:
+        - type: event-bus
+          properties:
+            eventBusName: myEventBus
+            eventPattern:
+              detail:
+                EventName:
+                  # {start-highlight}
+                  - $Var().eventName
+                  # {stop-highlight}

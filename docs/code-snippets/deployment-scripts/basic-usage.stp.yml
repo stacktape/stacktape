@@ -1,0 +1,16 @@
+resources:
+  myHttpApi:
+    type: http-api-gateway
+
+  # {start-highlight}
+  testApiMethods:
+    type: deployment-script
+    properties:
+      trigger: after:deploy
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: test-url.ts
+      parameters:
+        apiURL: $ResourceParam('myHttpApi', 'url')
+  # {stop-highlight}

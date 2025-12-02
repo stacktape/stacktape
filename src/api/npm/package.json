@@ -1,0 +1,45 @@
+{
+  "name": "stacktape",
+  "version": "3.0.0-rc.10",
+  "description": "PaaS 2.0 that deploys to your own AWS account.",
+  "author": "Stacktape team <support@stacktape.com>",
+  "license": "MIT",
+  "homepage": "https://stacktape.com",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/stacktape/core.git"
+  },
+  "bugs": {
+    "url": "https://github.com/stacktape/core/issues"
+  },
+  "keywords": [
+    "serverless",
+    "lambda",
+    "aws",
+    "containers",
+    "cloudformation",
+    "cloud",
+    "devops",
+    "database"
+  ],
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.js"
+    },
+    "./sdk": {
+      "types": "./sdk.d.ts",
+      "default": "./sdk.js"
+    }
+  },
+  "main": "./index.js",
+  "types": "./index.d.ts",
+  "bin": {
+    "stacktape": "bin/stacktape.js",
+    "stp": "bin/stacktape.js"
+  },
+  "dependencies": {
+    "adm-zip": "^0.5.16",
+    "tar": "^7.4.3"
+  }
+}

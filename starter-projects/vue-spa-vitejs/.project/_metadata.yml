@@ -1,0 +1,11 @@
+name: Vue SPA with Vite.js
+tags:
+  - website
+  - SPA website
+  - Typescript
+  - Vite.js
+  - Vue
+disableLintingOption: true
+hasOwnTsConfig: true
+icon: vue.svg
+

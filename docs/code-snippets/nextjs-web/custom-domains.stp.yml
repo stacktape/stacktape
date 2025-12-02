@@ -1,0 +1,7 @@
+resources:
+  web:
+    type: nextjs-web
+    properties:
+      appDirectory: ./
+      customDomains:
+        - domainName: mydomain.com

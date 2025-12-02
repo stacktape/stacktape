@@ -1,0 +1,8 @@
+resources:
+  myWebsite:
+    type: hosting-bucket
+    properties:
+      uploadDirectoryPath: ./dist
+      # {start-highlight}
+      hostingContentType: single-page-app
+      # {stop-highlight}

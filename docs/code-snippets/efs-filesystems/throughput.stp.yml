@@ -1,0 +1,8 @@
+resources:
+  myFileSystem:
+    type: efs-filesystem
+    properties:
+      # {start-highlight}
+      throughputMode: provisioned
+      provisionedThroughputInMibps: 1000 # when setting throughput mode to 'provisioned', you must also set a throughput value
+      # {stop-highlight}

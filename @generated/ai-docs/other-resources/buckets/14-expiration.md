@@ -1,0 +1,20 @@
+# Expiration
+
+You can configure objects to be automatically deleted after a specified number of days.
+
+```yaml
+resources:
+  myBucket:
+    type: bucket
+    properties:
+      lifecycleRules:
+        - type: class-transition
+          properties:
+            daysAfterUpload: 90
+            storageClass: 'GLACIER'
+        # {start-highlight}
+        - type: expiration
+          properties:
+            daysAfterUpload: 365
+        # {stop-highlight}
+```

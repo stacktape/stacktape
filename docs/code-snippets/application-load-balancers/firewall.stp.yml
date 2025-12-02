@@ -1,0 +1,13 @@
+resources:
+  # {start-highlight}
+  myFirewall:
+    type: web-app-firewall
+    properties:
+      scope: regional
+  # {stop-highlight}
+  myLoadBalancer:
+    type: 'application-load-balancer'
+    properties:
+      # {start-highlight}
+      useFirewall: myFirewall
+      # {stop-highlight}

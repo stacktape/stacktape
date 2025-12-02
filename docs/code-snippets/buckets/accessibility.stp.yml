@@ -1,0 +1,14 @@
+resources:
+  myBucket:
+    type: bucket
+    properties:
+      # {start-highlight}
+      accessibility:
+        accessibilityMode: private
+        accessPolicyStatements:
+          - Resource:
+              - $ResourceParam('myBucket', 'arn')
+            Action:
+              - 's3:ListBucket'
+            Principal: '*'
+      # {stop-highlight}

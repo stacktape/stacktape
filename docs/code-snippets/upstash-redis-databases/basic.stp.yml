@@ -1,0 +1,23 @@
+providerConfig:
+  upstash:
+    accountEmail: xxxxx.yyyy@example.com
+    apiKey: $Secret('upstash-api-key')
+
+resources:
+  # {start-highlight}
+  myUpstash:
+    type: upstash-redis
+  # {stop-highlight}
+
+  myFunction:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: lambdas/upstash.ts
+      environment:
+        - name: UPSTASH_REDIS_REST_URL
+          value: $ResourceParam('myUpstash', 'restUrl')
+        - name: UPSTASH_REDIS_REST_TOKEN
+          value: $ResourceParam('myUpstash', 'restToken')

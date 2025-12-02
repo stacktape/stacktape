@@ -1,0 +1,13 @@
+import { ResourceBase } from '../resource';
+import { Value, List } from '../dataTypes';
+
+export interface CertificateProperties {
+  CertificateIdentifier?: Value<string>;
+  CertificatePem?: Value<string>;
+  CertificateWallet?: Value<string>;
+}
+export default class Certificate extends ResourceBase<CertificateProperties> {
+  constructor(properties?: CertificateProperties) {
+    super('AWS::DMS::Certificate', properties || {});
+  }
+}

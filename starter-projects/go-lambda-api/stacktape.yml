@@ -1,0 +1,48 @@
+resources:
+  mainApiGateway:
+    type: http-api-gateway
+    properties:
+      cors:
+        enabled: true
+
+  mainDynamoDbTable:
+    type: dynamo-db-table
+    properties:
+      primaryKey:
+        partitionKey:
+          name: id
+          type: string
+
+  savePost:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/save-post/main.go
+      memory: 512
+      connectTo:
+        - mainDynamoDbTable
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: mainApiGateway
+            path: /posts
+            method: POST
+
+  getPosts:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/get-posts/main.go
+      memory: 512
+      connectTo:
+        - mainDynamoDbTable
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: mainApiGateway
+            path: /posts
+            method: GET

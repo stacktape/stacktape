@@ -1,0 +1,10 @@
+name: Svelte SPA with Vite.js
+tags:
+  - website
+  - SPA website
+  - Typescript
+  - Vite.js
+  - Svelte
+disableLintingOption: true
+hasOwnTsConfig: true
+icon: svelte.svg

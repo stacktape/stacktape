@@ -1,0 +1,6 @@
+resources:
+  web:
+    type: nextjs-web
+    properties:
+      appDirectory: ./
+      useEdgeLambda: true

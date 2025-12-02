@@ -1,0 +1,35 @@
+{
+  "compilerOptions": {
+    "target": "ES6",
+    "lib": ["es2021"],
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "baseUrl": "./",
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "paths": {
+      "@utils/*": ["./src/utils/*"],
+      "@cloudform/*": ["./@generated/cloudform/*"],
+      "@schemas/*": ["./@generated/schemas/*"],
+      "@domain-services/*": ["./src/domain/*"],
+      "@application-services/*": ["./src/app/*"],
+      "@config": ["./src/config/random.ts"],
+      "@cli-config": ["./src/config/cli.ts"],
+      "@errors": ["./src/config/error-messages.ts"],
+      "@api/*": ["./src/api/*"],
+      "@helper-lambdas/*": ["./helper-lambdas/*"],
+      "@shared/*": ["./shared/*"]
+    },
+    "resolveJsonModule": true,
+    "types": ["bun-types"],
+    "allowJs": true,
+    "noImplicitThis": true,
+    "declaration": true,
+    "noEmit": true,
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["src/**/*", "types/**/*", "shared/**/*", "scripts/**/*", "helper-lambdas/**/*", "eslint.config.ts"],
+  "exclude": ["scripts/starter-projects/_script-test-api.ts"]
+}

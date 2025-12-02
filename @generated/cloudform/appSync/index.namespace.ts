@@ -1,0 +1,38 @@
+import Api_ from './api';
+import ApiCache_ from './apiCache';
+import ApiKey_ from './apiKey';
+import ChannelNamespace_ from './channelNamespace';
+import DataSource_ from './dataSource';
+import DomainName_ from './domainName';
+import DomainNameApiAssociation_ from './domainNameApiAssociation';
+import FunctionConfiguration_ from './functionConfiguration';
+import GraphQLApi_ from './graphQlApi';
+import GraphQLSchema_ from './graphQlSchema';
+import Resolver_ from './resolver';
+import SourceApiAssociation_ from './sourceApiAssociation';
+export namespace AppSync {
+  export const Api = Api_;
+  export const ApiCache = ApiCache_;
+  export const ApiKey = ApiKey_;
+  export const ChannelNamespace = ChannelNamespace_;
+  export const DataSource = DataSource_;
+  export const DomainName = DomainName_;
+  export const DomainNameApiAssociation = DomainNameApiAssociation_;
+  export const FunctionConfiguration = FunctionConfiguration_;
+  export const GraphQLApi = GraphQLApi_;
+  export const GraphQLSchema = GraphQLSchema_;
+  export const Resolver = Resolver_;
+  export const SourceApiAssociation = SourceApiAssociation_;
+  export type Api = Api_;
+  export type ApiCache = ApiCache_;
+  export type ApiKey = ApiKey_;
+  export type ChannelNamespace = ChannelNamespace_;
+  export type DataSource = DataSource_;
+  export type DomainName = DomainName_;
+  export type DomainNameApiAssociation = DomainNameApiAssociation_;
+  export type FunctionConfiguration = FunctionConfiguration_;
+  export type GraphQLApi = GraphQLApi_;
+  export type GraphQLSchema = GraphQLSchema_;
+  export type Resolver = Resolver_;
+  export type SourceApiAssociation = SourceApiAssociation_;
+}

@@ -1,0 +1,70 @@
+---
+title: "Upstash Serverless Redis"
+order: 190
+---
+
+<br />
+<br />
+
+Upstash provides a serverless Redis service, which allows you to use the fast, in-memory NoSQL data store without having to manage your own servers. With its per-request pricing and low latency, Upstash is a great choice for serverless applications.
+
+<NegativeMargin />
+
+## Advantages
+
+- **REST API:** You can access your database using a [simple REST API](https://docs.upstash.com/redis/features/restapi).
+- **Secure:** You can enable TLS with a single click.
+- **Highly available:** You can enable multi-zone replication to ensure that your data is always available.
+- **Pay-per-request:** You only pay for what you use. See the [Upstash pricing](https://docs.upstash.com/redis/overall/pricing) for more details.
+- **Scalable:** Upstash automatically scales to meet your needs.
+
+## Disadvantages
+
+- **Separate billing:** Although Stacktape integrates with Upstash, you will still need to manage your billing separately.
+
+# Provider configuration
+
+To use Upstash with Stacktape, you will need to:
+
+1.  Create an [Upstash account](https://console.upstash.com/login).
+2.  Get your API key from the [Upstash console](https://console.upstash.com/account/api).
+3.  Store your credentials (the email address for your Upstash account and your API key) in a [secret](/security-resources/secrets/).
+
+`embed:upstash-redis-databases/provider.stp.yml`
+
+<PropertiesTable definitionName="UpstashProviderConfig" />
+
+# Basic usage
+
+`embed:upstash-redis-databases/basic.stp.yml`
+
+`embed:upstash-redis-databases/basic.ts`
+
+> The code for the `myFunction` function.
+
+<PropertiesTable definitionName="UpstashRedis" />
+
+# Deployment region
+
+Upstash Redis is currently available in the following regions:
+
+-   us-east-1
+-   us-west-1
+-   us-west-2
+-   eu-west-1
+-   eu-central-1
+-   ap-southeast-1
+-   ap-southeast-2
+-   sa-east-1
+
+If you deploy your stack in a different region, Stacktape will automatically deploy the database in the region that is geographically closest to your stack's region.
+
+# Enable eviction
+
+<PropDescription definitionName="UpstashRedisProps" propertyName="enableEviction" descType="ld" />
+
+`embed:upstash-redis-databases/eviction.stp.yml`
+
+# Referenceable parameters
+
+<ReferenceableParams resource="upstash-redis" />

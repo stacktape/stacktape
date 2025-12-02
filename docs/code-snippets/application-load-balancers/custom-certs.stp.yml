@@ -1,0 +1,18 @@
+resources:
+  myLoadBalancer:
+    type: 'application-load-balancer'
+    properties:
+      listeners:
+        - port: 443
+          protocol: HTTPS
+          # {start-highlight}
+          customCertificateArns:
+            - arn:aws:acm:eu-west-1:999999999999:certificate/8ab817b5-c4fa-4b1d-8b72-d6082cb40351
+          # {stop-highlight}
+        - port: 80
+          protocol: HTTP
+          defaultAction:
+            type: redirect
+            properties:
+              statusCode: HTTP_301
+              protocol: HTTPS

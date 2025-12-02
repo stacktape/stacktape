@@ -1,0 +1,9 @@
+resources:
+  myBucket:
+    type: bucket
+    properties:
+      directoryUpload:
+        directoryPath: my-web/build
+        headersPreset: static-website
+      cdn:
+        enabled: true

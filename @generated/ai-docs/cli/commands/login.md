@@ -1,0 +1,94 @@
+# login
+
+# Overview and basic usage
+
+### login
+
+Configures your Stacktape API key for the current system.
+
+All subsequent operations will be associated with the user and organization linked to this API key. You can get your API
+key from the [Stacktape console](https://console.stacktape.com/api-keys). You can provide the key with the `--apiKey`
+option or enter it interactively.
+
+{/* WRITE ONLY BELOW THIS LINE */}
+
+{/* WRITE ONLY ABOVE THIS LINE */}
+
+```bash
+stacktape login
+```
+
+# API reference
+
+<CliCommandsApiReference
+  command="login"
+  sortedArgs={[
+    {
+      description:
+        "#### API Key\n\n---\n\nYour Stacktape API key. You can get your key from the [Stacktape console](https://console.stacktape.com/api-keys). If you don't provide a key, you will be prompted to enter it. Note that providing the key directly in the command line is insecure, as it will be saved in your terminal history.",
+      allowedTypes: ["string"],
+      alias: "ak",
+      required: false,
+      name: "apiKey",
+      shortDescription: "<p> API Key</p>\n",
+      longDescription:
+        '<p>Your Stacktape API key. You can get your key from the <a href="https://console.stacktape.com/api-keys" style="font-weight: bold;" target="_blank" rel="noreferrer" onclick="event.stopPropagation();">Stacktape console</a>. If you don&#39;t provide a key, you will be prompted to enter it. Note that providing the key directly in the command line is insecure, as it will be saved in your terminal history.</p>\n'
+    },
+    {
+      description:
+        "#### AWS Account\n\n---\n\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape console](https://console.stacktape.com/aws-accounts).",
+      allowedTypes: ["string"],
+      alias: "aa",
+      required: false,
+      name: "awsAccount",
+      shortDescription: "<p> AWS Account</p>\n",
+      longDescription:
+        '<p>The name of the AWS account to use for the operation. The account must first be connected in the <a href="https://console.stacktape.com/aws-accounts" style="font-weight: bold;" target="_blank" rel="noreferrer" onclick="event.stopPropagation();">Stacktape console</a>.</p>\n'
+    },
+    {
+      description:
+        "#### Show Help\n\n---\n\nIf provided, the command will not execute and will instead print help information.",
+      allowedTypes: ["string"],
+      alias: "h",
+      required: false,
+      name: "help",
+      shortDescription: "<p> Show Help</p>\n",
+      longDescription: "<p>If provided, the command will not execute and will instead print help information.</p>\n"
+    },
+    {
+      description:
+        "#### Log Format\n\n---\n\nThe format of logs printed to the console.\n\n- `fancy`: Colorized and dynamically re-rendered logs.\n- `normal`: Colorized but not dynamically re-rendered logs.\n- `basic`: Simple text only.\n- `json`: Logs printed as JSON objects.",
+      allowedTypes: ["string"],
+      allowedValues: ["basic", "fancy", "json", "normal"],
+      alias: "lf",
+      required: false,
+      name: "logFormat",
+      shortDescription: "<p> Log Format</p>\n",
+      longDescription:
+        "<p>The format of logs printed to the console.</p>\n<ul>\n<li><code>fancy</code>: Colorized and dynamically re-rendered logs.</li>\n<li><code>normal</code>: Colorized but not dynamically re-rendered logs.</li>\n<li><code>basic</code>: Simple text only.</li>\n<li><code>json</code>: Logs printed as JSON objects.</li>\n</ul>\n"
+    },
+    {
+      description:
+        "#### Log Level\n\n---\n\nThe level of logs to print to the console.\n\n- `info`: Basic information about the operation.\n- `error`: Only errors.\n- `debug`: Detailed information for debugging.",
+      allowedTypes: ["string"],
+      allowedValues: ["debug", "error", "info"],
+      alias: "ll",
+      required: false,
+      name: "logLevel",
+      shortDescription: "<p> Log Level</p>\n",
+      longDescription:
+        "<p>The level of logs to print to the console.</p>\n<ul>\n<li><code>info</code>: Basic information about the operation.</li>\n<li><code>error</code>: Only errors.</li>\n<li><code>debug</code>: Detailed information for debugging.</li>\n</ul>\n"
+    },
+    {
+      description:
+        "#### AWS Profile\n\n---\n\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`.",
+      allowedTypes: ["string"],
+      alias: "p",
+      required: false,
+      name: "profile",
+      shortDescription: "<p> AWS Profile</p>\n",
+      longDescription:
+        "<p>The AWS profile to use for the command. You can manage profiles using the <code>aws-profile:*</code> commands and set a default profile with <code>defaults:configure</code>.</p>\n"
+    }
+  ]}
+/>

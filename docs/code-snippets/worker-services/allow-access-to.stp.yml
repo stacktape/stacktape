@@ -1,0 +1,21 @@
+resources:
+  photosBucket:
+    type: bucket
+
+  myWorkerService:
+    type: worker-service
+    properties:
+      packaging:
+        type: stacktape-image-buildpack
+        properties:
+          entryfilePath: src/index.ts
+      # {start-highlight}
+      connectTo:
+        # access to the bucket
+        - photosBucket
+        # access to AWS SES
+        - aws:ses
+      # {stop-highlight}
+      resources:
+        cpu: 0.25
+        memory: 512

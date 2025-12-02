@@ -1,0 +1,12 @@
+# {start-highlight}
+# {stop-highlight}
+
+resources:
+  myHttpApi:
+    type: 'http-api-gateway'
+    properties:
+      customDomains:
+        # {start-highlight}
+        # we are interpolating serviceName using This directive
+        - domainName: $Format('{}-{}', $This().serviceName, 'mydomain.com')
+        # {stop-highlight}

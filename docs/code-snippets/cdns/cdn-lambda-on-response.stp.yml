@@ -1,0 +1,20 @@
+resources:
+  # {start-highlight}
+  cookieFunction:
+    type: edge-lambda-function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: set-cookie.ts
+  # {stop-highlight}
+
+  myBucket:
+    type: bucket
+    properties:
+      cdn:
+        enabled: true
+        # {start-highlight}
+        edgeFunctions:
+          onResponse: cookieFunction
+        # {stop-highlight}

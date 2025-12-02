@@ -1,0 +1,133 @@
+---
+title: "Edge lambda functions"
+order: 250
+---
+
+<br />
+<br />
+
+An Edge Lambda Function is a compute resource that runs your code at _CDN_ edge locations, bringing it closer to your users to reduce latency and improve performance. These functions are globally distributed, ensuring that requests are handled by the nearest location.
+
+Edge Lambdas are _serverless_, which means Stacktape manages the infrastructure, security, and scaling for you. They support Node.js and Python runtimes and follow a **pay-per-use** model, so you only pay for the execution time you consume.
+
+Common use cases include user authentication, request validation, and cookie manipulation.
+
+# Under the hood
+
+Stacktape uses _Lambda@Edge_ to power Edge Lambda Functions. These functions are associated with a _CDN_ and are triggered by _CDN_ events—either when a request is made to the _CDN_ (`onRequest`) or when the _CDN_ is about to send a response back to the user (`onResponse`).
+
+# When to use
+
+## Advantages
+
+-   **Low latency**: By executing code closer to the end-user, you can significantly improve your application's performance.
+-   **Scalability**: Edge Lambdas automatically scale with the number of incoming requests.
+-   **Pay-per-use**: You are billed only for the compute time you use, measured in milliseconds.
+
+## Disadvantages
+
+-   **Limited execution environment**: Edge lambdas triggered by `onRequest` or `onResponse` events are limited to 128MB of memory and a 5-second maximum execution time.
+
+# Basic usage
+
+<PropDescription definitionName="CdnConfiguration" propertyName="edgeFunctions" descType="ld" />
+
+<br />
+
+In the following example, an Edge Lambda Function validates the `Authorization` header of each incoming request. If the header is missing or invalid, the user is redirected to a login page.
+
+`embed:cdns/cdn-lambda-basic.stp.yml`
+
+`embed:cdns/auth-function.ts`
+
+> Code of the `authFunction` authorizer.
+
+<PropertiesTable
+  definitionName="EdgeLambdaFunction"
+  rewriteLinksForReferencedCompositeTypes={{
+    StpBuildpackLambdaPackaging: "#packaging",
+    CustomArtifactLambdaPackaging: "#packaging"
+  }}
+/>
+
+# Event structure
+
+The event payload delivered to your function depends on the trigger:
+
+-   [`onRequest` event structure](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/lambda-event-structure.html#example-viewer-request)
+-   [`onResponse` event structure](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/lambda-event-structure.html#lambda-event-structure-response-viewer)
+
+# On request trigger
+
+When a function is triggered by an `onRequest` event, you can either:
+
+1.  **Return a response directly from the function**: This bypasses the origin and serves the response immediately to the client.
+2.  **Modify the request and forward it to the origin**: You can alter the request (e.g., add headers) before it continues to the origin.
+
+The following example demonstrates both:
+
+`embed:cdns/auth-function.ts`
+
+> If the user is authorized, the request is forwarded to the origin. Otherwise, a redirect response is returned.
+
+`embed:cdns/cdn-lambda-basic.stp.yml`
+
+> Example configuration for the authorizer function.
+
+# On response trigger
+
+A function triggered by an `onResponse` event can modify the response from the origin before it's sent to the client. In this example, the function adds a `Set-Cookie` header to the response:
+
+`embed:cdns/set-cookie.ts`
+
+> Code for the function that sets a cookie.
+
+`embed:cdns/cdn-lambda-on-response.stp.yml`
+
+> Example configuration for the `onResponse` trigger.
+
+# Packaging
+
+Packaging for Edge Lambda Functions follows the same process as for regular Lambda functions. For more details, see the [packaging documentation](../../configuration/packaging.mdx#packaging-lambda-functions).
+
+<Warning>
+
+For functions triggered by `onRequest` or `onResponse`, the zipped package size cannot exceed 1MB.
+
+</Warning>
+
+# Logging
+
+<PropDescription definitionName="EdgeLambdaFunctionProps" propertyName="logging" descType="ld" />
+
+<PropertiesTable definitionName="LambdaFunctionLogging" searchForReferencesInDefinition="EdgeLambdaFunction" />
+
+# Accessing other resources
+
+By default, Edge Lambda Functions cannot access other AWS resources. Permissions must be granted explicitly using _IAM_. Stacktape automatically handles permissions for essential services like logging.
+
+You can grant additional permissions in two ways:
+
+## Using connectTo
+
+The `connectTo` property simplifies granting access to other Stacktape-managed resources. It automatically configures the necessary _IAM_ permissions and injects environment variables with connection details.
+
+`embed:cdns/cdn-lambda-allow-access-to.stp.yml`
+
+<br />
+
+<PropDescription definitionName="EdgeLambdaFunctionProps" propertyName="connectTo" descType="ld" />
+
+## Using iamRoleStatements
+
+For more granular control, you can provide raw _IAM_ role statements to define custom permissions.
+
+<Warning>
+
+Be mindful of latency when accessing other resources. While your stack is deployed in a specific region, your Edge Lambda may execute in a different edge location across the globe, which can increase the time it takes to communicate with your other resources.
+
+</Warning>
+
+# API reference
+
+<PropertiesTable definitionName="StpIamRoleStatement" searchForReferencesInDefinition="EdgeLambdaFunction" />

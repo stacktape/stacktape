@@ -1,0 +1,46 @@
+---
+title: "(ts) Lambda API Postgres Prisma"
+order: 2
+---
+
+## Description
+
+Simple HTTP CRUD API implemented in typescript. Every API operation runs in separate lambda functions and is accessed
+using HTTP API Gateway. Data is stored in a Postgres database and accessed using Prisma.
+
+<br />
+
+LONG DESCRIPTION LONG DESCRIPTION LONG DESCRIPTION LONG DESCRIPTION LONG DESCRIPTION LONG DESCRIPTION LONG DESCRIPTION
+LONG DESCRIPTION LONG DESCRIPTION LONG DESCRIPTION LONG DESCRIPTION LONG DESCRIPTION LONG DESCRIPTION
+
+[Github](https://github.com/stacktape/stacktape/tree/master/starter-projects/typescript-lambda-api-postgres-prisma)
+
+## Used resources
+
+- `http-api-gateway` - routes requests to the container workload
+- `getPost lambda-function` - used to get a single post
+- `getPosts lambda-function` - used to get multiple post
+- `createPost lambda-function` - used to create a post
+- `updatePost lambda-function` - used to updated a post
+- `deletePost lambda-function` - used to delete a post
+- `relational-database` - stores the data
+
+## Initialize
+
+The following command will initialize the starter project in a selected directory.
+
+```bash
+stacktape init --project-id typescript-lambda-api-postgres-prisma
+```
+
+## Deploy
+
+You can deploy your application using a single command.
+
+```bash
+stacktape deploy --stage test --region your-region
+```
+
+<!-- WRITE ONLY BELOW THIS LINE -->
+
+<!-- WRITE ONLY ABOVE THIS LINE -->

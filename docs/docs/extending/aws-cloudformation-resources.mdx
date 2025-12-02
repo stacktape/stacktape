@@ -1,0 +1,20 @@
+---
+title: "AWS CloudFormation Resources"
+order: 1
+---
+
+<br />
+<br />
+
+You can use the `cloudformationResources` section of your `stacktape.yml` file to extend your Stacktape template with native _Cloudformation_ resources. This allows you to configure, manage, and interconnect _Cloudformation_ resources with other resources in your stack, giving you the full power of AWS in a single configuration file.
+
+## Example
+
+The following example shows a Stacktape template that includes a _Cloudformation_ SNS topic. The infrastructure includes:
+
+*   **MySnsTopic**: An SNS topic that acts as a communicator between functions (a _Cloudformation_ resource).
+*   **processData**: A function that processes data. If it fails, a message is sent to `MySnsTopic`.
+*   **analyzeError**: A function that is invoked when `MySnsTopic` receives a failure message from `processData`.
+*   **slackNotify**: A function that is invoked when `MySnsTopic` receives a failure message from `processData` and sends a notification to Slack.
+
+`embed:cloudformation-resources/sns-topic-extended.stp.yml`

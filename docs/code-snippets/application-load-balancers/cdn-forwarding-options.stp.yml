@@ -1,0 +1,12 @@
+resources:
+  myLoadBalancer:
+    type: 'application-load-balancer'
+    properties:
+      cdn:
+        enabled: true
+        # {start-highlight}
+        forwardingOptions:
+          allowedMethods:
+            - 'GET'
+            - 'POST'
+        # {stop-highlight}

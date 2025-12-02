@@ -1,0 +1,21 @@
+# {start-highlight}
+directives:
+  - name: getDbInstanceSize
+    filePath: my-directive.ts:getDbInstanceSize
+# {stop-highlight}
+
+resources:
+  myDatabase:
+    type: relational-database
+    properties:
+      credentials:
+        masterUserPassword: $Secret('database.password')
+      engine:
+        type: postgres
+        properties:
+          version: '16.2'
+          port: 5432
+          primaryInstance:
+            # {start-highlight}
+            instanceSize: $getDbInstanceSize($Stage())
+          # {stop-highlight}

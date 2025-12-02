@@ -1,0 +1,7 @@
+resources:
+  myFileSystem:
+    type: efs-filesystem
+    properties:
+      # {start-highlight}
+      backupEnabled: true
+      # {stop-highlight}

@@ -1,0 +1,19 @@
+resources:
+  myRedisCluster:
+    type: redis-cluster
+    properties:
+      instanceSize: cache.t3.micro
+      defaultUserPassword: $Secret('redis.password')
+
+  myFunction:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: path/to/my/lambda.ts
+      joinDefaultVpc: true
+      # {start-highlight}
+      connectTo:
+        - myRedisCluster
+      # {stop-highlight}

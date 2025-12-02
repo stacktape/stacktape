@@ -1,0 +1,32 @@
+resources:
+  myGateway:
+    type: http-api-gateway
+
+  myUserPool:
+    type: user-auth-pool
+    properties:
+      userVerificationType: email-code
+
+  myBatchJob:
+    type: batch-job
+    properties:
+      container:
+        packaging:
+          type: stacktape-image-buildpack
+          properties:
+            entryfilePath: path/to/my/batch-job.ts
+      resources:
+        cpu: 2
+        memory: 1800
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: myGateway
+            path: /some-path
+            method: '*'
+            # {start-highlight}
+            authorizer:
+              type: cognito
+              properties:
+                userPoolName: myUserPool
+            # {stop-highlight}

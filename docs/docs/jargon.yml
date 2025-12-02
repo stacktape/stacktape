@@ -1,0 +1,68 @@
+---
+ARN:
+  longName: Amazon Resource Name
+  description: ARNs uniquely identify AWS resources. For more information, refer to <a target="_blank" href="https://docs.aws.amazon.com/IAM/latest/UserGuide/reference-arns.html">AWS docs</a>.
+IAM:
+  longName: Identity and Access Management
+  description: IAM is a service that allows you to securely control access to your AWS resources and services. Stacktape handles most IAM roles required for your infrastructure components to communicate with each other automatically
+Cloudformation:
+  longName: AWS Cloudformation
+  description: AWS CloudFormation is a service that helps you model and set up your AWS resources so that you can spend less time managing those resources. Stacktape uses Cloudformation under the hood to provision your AWS infrastructure.
+stack:
+  description: A deployed instance of your application and its infrastructure resources. Each stack is isolated and independent from other stacks.
+VPC:
+  longName: Virtual Private Cloud
+  description: A virtual private cloud is a private network that you can use to deploy your application. It's a logical isolation of your application from the rest of the internet.
+Fargate:
+  longName: AWS Fargate
+  description: A serverless compute engine for containers that allows you to run containers without managing servers or clusters.
+"EC2 instances":
+  longName: Amazon Elastic Compute Cloud instances
+  description: Virtual servers in the AWS cloud that provide scalable computing capacity.
+ISR:
+  longName: Incremental Static Regeneration
+  description: A Next.js feature that allows you to update static pages after they have been built, without needing to rebuild the entire site.
+"NoSQL":
+  description: A type of database that provides a mechanism for storage and retrieval of data that is modeled in means other than the tabular relations used in relational databases.
+Security group:
+  description: A security group is a virtual firewall that controls the traffic for your application. It's a collection of rules that determine what traffic is allowed to flow in and out of your application.
+Subnet:
+  description: A subnet is a logical partition of your VPC. It's a collection of IP addresses that are used to deploy your application.
+Route table:
+  description: A route table is a collection of rules that determine where traffic is routed. It's a collection of rules that determine where traffic is routed.
+stage:
+  description: An isolated environment for your application. Common stages include `development`, `staging`, and `production`. It is sometimes also referred to as an "environment".
+"AWS region":
+  description: A specific geographic location where AWS services are hosted. For a list of available regions, refer to the <a href="https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Concepts.RegionsAndAvailabilityZones.html#Concepts.RegionsAndAvailabilityZones.Regions">AWS documentation</a>.
+"infrastructure resources":
+  description: The cloud components that your application needs to run. This includes everything from databases and caches to networking and security groups.
+"Lambda function":
+  description: A serverless compute service that lets you run code without provisioning or managing servers.
+"S3 bucket":
+  description: A scalable object storage service provided by AWS. It is commonly used to store and retrieve any amount of data, at any time, from anywhere on the web.
+"ECR repository":
+  description: A fully-managed Docker container registry that makes it easy for developers to store, manage, and deploy Docker container images.
+CodeBuild:
+  longName: AWS CodeBuild
+  description: A fully managed continuous integration service that compiles source code, runs tests, and produces software packages that are ready to deploy.
+"hot-swap":
+  description: A deployment strategy that updates only the application code, without redeploying the entire stack. This significantly reduces deployment time.
+"spot instances":
+  description: A cost-saving option that allows you to use spare computing capacity at a lower price than On-Demand rates. However, these instances can be reclaimed by AWS with a two-minute warning.
+"ephemeral storage":
+  description: Temporary storage that is tied to the lifecycle of a resource. For a batch job, this storage is created when the job starts and destroyed when it finishes.
+"AWS Batch":
+  description: A service that enables developers to easily and efficiently run hundreds of thousands of batch computing jobs on AWS.
+"AWS Step Functions":
+  description: A serverless function orchestrator that makes it easy to sequence AWS Lambda functions and multiple AWS services into business-critical applications.
+"CDN":
+  longName: Content Delivery Network
+  description: A network of servers distributed geographically that work together to provide fast delivery of Internet content. Edge lambda functions are deployed to CDN locations.
+"Lambda@Edge":
+  description: A feature of Amazon CloudFront that lets you run code closer to users of your application, which improves performance and reduces latency.
+"cold starts":
+  description: The first time a serverless function is invoked after a period of inactivity, it can experience a delay as the cloud provider provisions a container to run the code. This delay is known as a cold start.
+"Availability Zones":
+  description: Distinct locations within an AWS Region that are engineered to be isolated from failures in other Availability Zones. They provide inexpensive, low-latency network connectivity to other Availability Zones in the same AWS Region.
+serverless:
+  description: A cloud computing model where the cloud provider manages the infrastructure, and you only need to provide your code. This means you don't have to worry about administration tasks such as provisioning and managing servers, scaling, VM security, or OS security.

@@ -1,0 +1,26 @@
+resources:
+  publicService:
+    type: web-service
+    properties:
+      packaging:
+        type: stacktape-image-buildpack
+        properties:
+          entryfilePath: src/main.ts
+      resources:
+        cpu: 1
+        memory: 1024
+      environment:
+        # injecting privateApi address
+        - name: PRIVATE_ADDRESS
+          value: $ResourceParam('privateApi', 'address')
+
+  privateApi:
+    type: private-service
+    properties:
+      packaging:
+        type: stacktape-image-buildpack
+        properties:
+          entryfilePath: src/private-api/main.ts
+      resources:
+        cpu: 1
+        memory: 1024

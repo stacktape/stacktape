@@ -1,0 +1,288 @@
+---
+title: "Relational (SQL) Databases"
+order: 150
+---
+
+<br />
+<br />
+
+Stacktape allows you to deploy a fully managed relational (SQL) database, with support for **PostgreSQL**, **MySQL**, **MariaDB**, **Oracle**, and **SQL Server**. The service handles capacity scaling, hardware provisioning, database setup, patching, logging, and backups, so you can focus on your application.
+
+Under the hood, Stacktape uses [Amazon RDS](https://aws.amazon.com/rds/). It supports three engine categories with different topologies and scaling behaviors:
+
+- **Basic RDS engines:** A single-node database that is the most cost-effective option. It supports optional read replicas for higher performance and a Multi-AZ standby instance for resilience.
+- **Aurora engine:** A multi-node, highly available cluster with increased durability and fault tolerance. It automatically balances read requests across nodes for better performance.
+- **Aurora Serverless engine:** Similar to the Aurora engine, but with automatic, usage-based scaling. It can scale down to zero when inactive, saving costs.
+
+Databases are always deployed in a private network within your stack's _VPC_. You can configure [accessibility](#accessibility) to control whether the database is accessible from the internet or only from other resources in the _VPC_.
+
+# Basic usage
+
+To connect to a relational database, you typically use a connection string. Stacktape can automatically inject the necessary credentials and connection details into your application's environment when you use the `connectTo` property.
+
+`embed:relational-databases/basic-usage.stp.yml`
+
+> A single-node PostgreSQL database.
+
+`embed:relational-databases/basic-usage.ts`
+
+> A container workload connecting to the database.
+
+# Database credentials
+
+You can configure the credentials for the database's master user. It's recommended to use a [secret](/security-resources/secrets) to manage these credentials securely.
+
+`embed:relational-databases/credentials.stp.yml`
+
+<PropertiesTable
+  definitionName="RelationalDatabaseCredentials"
+  searchForReferencesInDefinition="RelationalDatabaseProps"
+/>
+
+# Engine
+
+The database engine determines the database type, performance, availability, and pricing.
+
+Depending on the properties they provide, we group engine types into following groups:
+
+- [RDS Engine](#rds-engine) group - single node fully managed databases.
+  - Supported engines:
+    - **postgres**
+    - **mysql**
+    - **mariadb**
+    - **oracle-ee**
+    - **oracle-se2**
+    - **sqlserver-ee**
+    - **sqlserver-ex**
+    - **sqlserver-se**
+    - **sqlserver-web**
+- [Aurora Engine](#aurora-engine) group - multi node highly available cluster with replicated storage.
+  - Supported engines:
+    - **aurora-postgresql**
+    - **aurora-mysql**
+- [Aurora Serverless V2 Engine](#aurora-serverless-v2-engine) - serverless engine with replicated storage. Compute
+  resources scale based on actual demand.
+  - Supported engines:
+    - **aurora-postgresql-serverless-v2**
+    - **aurora-mysql-serverless-v2**
+
+## Engine version
+
+You must choose a version that is compatible with your chosen engine.
+
+`embed:relational-databases/rds-engine-version.stp.yml`
+
+### Available versions
+
+<EngineVersionsList resourceType="rds" />
+
+## RDS engine
+
+The RDS engine is the default, single-node, and most cost-effective option. While it's not highly available by default, you can configure a standby instance in a different _Availability Zone_ or add read replicas to improve performance and resilience.
+
+<PropertiesTable definitionName="RdsEngine" searchForReferencesInDefinition="RelationalDatabaseProps" />
+
+### Instance size
+
+You can configure the instance size for both the primary instance and its read replicas.
+
+<PropDescription definitionName="RdsEnginePrimaryInstance" propertyName="instanceSize" descType="ld" />
+
+`embed:relational-databases/rds-engine-primary-instance.stp.yml`
+
+### Multi-AZ mode
+
+You can enable Multi-AZ mode for both primary instances and read replicas.
+
+<PropDescription definitionName="RdsEnginePrimaryInstance" propertyName="multiAz" descType="ld" />
+
+`embed:relational-databases/rds-engine-multi-az.stp.yml`
+
+<PropertiesTable definitionName="RdsEnginePrimaryInstance" searchForReferencesInDefinition="RelationalDatabaseProps" />
+
+### Read replicas
+
+<PropDescription definitionName="RdsEngineProperties" propertyName="readReplicas" descType="ld" />
+
+`embed:relational-databases/rds-engine-read-replicas.stp.yml`
+
+<PropertiesTable definitionName="RdsEngineReadReplica" searchForReferencesInDefinition="RelationalDatabaseProps" />
+
+### Storage
+
+<PropDescription definitionName="RdsEngineProperties" propertyName="storage" descType="ld" />
+
+`embed:relational-databases/rds-engine-storage.stp.yml`
+
+<PropertiesTable definitionName="RdsEngineStorage" searchForReferencesInDefinition="RelationalDatabaseProps" />
+
+<Divider />
+
+## Aurora engine
+
+The Aurora engine is a fully managed, AWS-developed database engine that offers clustering, high availability, and increased performance. It replicates storage six ways across three _Availability Zones_ and automatically load-balances read operations between nodes. If a primary instance fails, a read replica is automatically promoted to take its place.
+
+`embed:relational-databases/engine-aurora.stp.yml`
+
+<PropertiesTable definitionName="AuroraEngine" searchForReferencesInDefinition="RelationalDatabaseProps" />
+
+<PropertiesTable definitionName="AuroraEngineInstance" searchForReferencesInDefinition="RelationalDatabaseProps" />
+
+<Divider />
+
+## Aurora Serverless V2 engine
+
+The Aurora Serverless V2 engine is similar to the standard Aurora engine but adds automatic, usage-based scaling. It's more responsive and less disruptive when scaling than the V1 engine. The database can scale down to zero, so you don't pay for compute capacity when it's not in use.
+
+Scaling is measured in Aurora Capacity Units (ACUs), where each ACU provides approximately 2GB of RAM and one virtual CPU.
+
+<PropertiesTable definitionName="AuroraServerlessV2Engine" searchForReferencesInDefinition="RelationalDatabaseProps" />
+
+`embed:relational-databases/engine-aurora-serverless-v2.stp.yml`
+
+# Backups
+
+<PropDescription definitionName="RelationalDatabaseProps" propertyName="automatedBackupRetentionDays" descType="ld" />
+
+`embed:relational-databases/backup.stp.yml`
+
+# Logging
+
+<PropDescription definitionName="RelationalDatabaseProps" propertyName="logging" descType="ld" />
+
+<PropertiesTable definitionName="RelationalDatabaseLogging" searchForReferencesInDefinition="RelationalDatabaseProps" />
+
+`embed:relational-databases/logging.stp.yml`
+
+## Forwarding logs
+
+You can forward logs to third-party services. See [Forwarding Logs](/configuration/log-forwarding/) for more information.
+
+# Closing zombie connections
+
+Connections from resources that are no longer running (like stopped containers) can become "zombie" connections. In modern, ephemeral architectures, it's important to have a strategy for handling them.
+
+## From container workloads
+
+When connecting from a container, you should close the connection before the container exits. You can do this by listening for the `SIGTERM` signal.
+
+`embed:relational-databases/closing-connection-multi-container-workload.ts`
+
+## From batch jobs
+
+Similarly, for batch jobs, you should close the connection before the job finishes.
+
+`embed:relational-databases/closing-connection-batch-job.ts`
+
+## From Lambda functions
+
+For Lambda functions, you have two options:
+
+**1. Initialize and close the connection inside the handler.**
+
+This prevents zombie connections but can be slow, as creating a new connection for each invocation can add significant latency.
+
+`embed:relational-databases/lambda-connection-inside.ts`
+
+**2. Initialize the connection outside the handler.**
+
+This reuses the connection across invocations, which is more performant. However, it can lead to zombie connections because you can't hook into the Lambda container's shutdown process. To mitigate this, you should:
+
+- Lower your database's connection timeout settings.
+- Add logic to your application to re-establish the connection if it's been closed by the database.
+
+`embed:relational-databases/lambda-connection-outside-recreate.ts`
+
+# Accessibility
+
+You can control which resources can access your database. In addition to requiring user credentials, you can restrict access based on the network.
+
+<PropertiesTable definitionName="DatabaseAccessibility" searchForReferencesInDefinition="RelationalDatabaseProps" />
+
+## Internet mode
+
+This is the default and least restrictive mode. The database can be accessed from anywhere on the internet.
+
+## VPC mode
+
+The database can only be accessed from resources within the default _VPC_, such as functions, batch jobs, and container workloads. You can also whitelist specific IP addresses to allow access from the internet.
+
+`embed:relational-databases/accessibility-vpc.stp.yml`
+
+## Scoping workloads in VPC mode
+
+This mode is similar to VPC mode but more restrictive. In addition to being in the same _VPC_, a resource must explicitly list the database in its `connectTo` property to gain access.
+
+`embed:relational-databases/accessibility-scoping-vpc.stp.yml`
+
+## Whitelisted IPs only mode
+
+The database can only be accessed from the IP addresses and CIDR blocks in the `whitelistedIps` list.
+
+`embed:relational-databases/accessibility-whitelisted-ips-only.stp.yml`
+
+# Maintenance window
+
+<PropDescription definitionName="RelationalDatabaseProps" propertyName="preferredMaintenanceWindow" descType="ld" />
+
+`embed:relational-databases/maintenance.stp.yml`
+
+# Referenceable parameters
+
+<ReferenceableParams resource="relational-database" />
+
+# Pricing
+
+Pricing depends heavily on the engine you choose.
+
+**RDS engines:**
+
+- **Instances:** Prices vary by instance size and region. See the AWS pricing pages for [PostgreSQL](https://aws.amazon.com/rds/postgresql/pricing/), [MySQL](https://aws.amazon.com/rds/mysql/pricing/), [MariaDB](https://aws.amazon.com/rds/mariadb/pricing/), [Oracle](https://aws.amazon.com/rds/oracle/pricing/), and [SQL Server](https://aws.amazon.com/rds/sqlserver/pricing/).
+- **Storage:** $0.115 - $0.238 per GB per month.
+- **Backups:** Free for automated backups that don't exceed your total database storage. Additional backup storage is $0.095 per GB per month.
+
+**Aurora engines:**
+
+- **Instances:** Prices start at $0.073 per hour. See the [Aurora pricing page](https://aws.amazon.com/rds/aurora/pricing/) for details.
+- **Storage:** $0.10 - $0.19 per GB per month.
+- **I/O Rate:** $0.20 - $0.28 per million read/write operations.
+- **Backups:** Free for automated backups that don't exceed your total database storage. Additional backup storage is $0.021 - $0.037 per GB per month.
+
+**Aurora Serverless:**
+
+- **ACUs (Aurora Capacity Units):** Each ACU costs $0.06 - $0.10 per hour.
+- **Storage, I/O, and Backups:** Same as the standard Aurora engine.
+
+<br />
+
+**Data transfer charges** (all engines):
+
+- **Inbound:** Free.
+- **Outbound (same AZ):** Free.
+- **Outbound (different AZ):** $0.01 per GB.
+- **Outbound (internet):** First 1GB is free, then $0.09 - $0.15 per GB.
+
+<br />
+
+**Free Tier** (first 12 months):
+
+- 750 hours of `db.t2.micro` usage per month.
+- 20GB of SSD storage.
+- 20GB of backup storage.
+
+# API reference
+
+<PropertiesTable definitionName="RelationalDatabase" />
+
+<PropertiesTable definitionName="RdsEngineProperties" searchForReferencesInDefinition="RelationalDatabaseProps" />
+
+<PropertiesTable definitionName="AuroraEngineProperties" searchForReferencesInDefinition="RelationalDatabaseProps" />
+
+<PropertiesTable
+  definitionName="AuroraServerlessEngineProperties"
+  searchForReferencesInDefinition="RelationalDatabaseProps"
+/>
+
+<PropertiesTable definitionName="PostgresLoggingOptions" searchForReferencesInDefinition="RelationalDatabaseProps" />
+
+<PropertiesTable definitionName="MysqlLoggingOptions" searchForReferencesInDefinition="RelationalDatabaseProps" />

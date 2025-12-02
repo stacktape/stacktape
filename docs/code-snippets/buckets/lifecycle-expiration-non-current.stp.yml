@@ -1,0 +1,11 @@
+resources:
+  myBucket:
+    type: bucket
+    properties:
+      versioning: true
+      # {start-highlight}
+      lifecycleRules:
+        - type: non-current-version-expiration
+          properties:
+            daysAfterVersioned: 10
+      # {stop-highlight}

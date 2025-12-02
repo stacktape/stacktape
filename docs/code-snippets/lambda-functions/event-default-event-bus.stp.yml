@@ -1,0 +1,19 @@
+resources:
+  myLambda:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: path/to/my-lambda.ts
+      events:
+        # {start-highlight}
+        - type: event-bus
+          properties:
+            useDefaultBus: true
+            eventPattern:
+              source:
+                - 'aws.autoscaling'
+              region:
+                - 'us-west-2'
+      # {stop-highlight}

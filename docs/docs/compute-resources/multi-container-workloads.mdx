@@ -1,0 +1,345 @@
+---
+title: "Multi-Container workloads"
+order: 130
+---
+
+<br />
+<br />
+
+A multi-container workload is a compute resource that runs one or more containers continuously. Unlike functions and batch jobs, which are event-driven, container workloads are designed for long-running applications and scale based on CPU and memory usage.
+
+Like other Stacktape compute resources, container workloads are _serverless_, meaning you don't need to manage the underlying infrastructure. You can provide your container image by building it from source code, using a Dockerfile, or pulling a pre-built image.
+
+Workloads run securely within a _VPC_, and you can expose container ports to the internet using integrations with HTTP API Gateways and Load Balancers.
+
+# Under the hood
+
+Stacktape uses AWS Elastic Container Service (ECS) to orchestrate containers. You can run your containers using two launch types:
+
+-   **_Fargate_**: A _serverless_ compute engine that runs containers without requiring you to manage servers.
+-   **_EC2 instances_**: Virtual machines that give you more control over the operating environment.
+
+ECS services are self-healing, automatically replacing any unhealthy container instances. They also provide auto-scaling out of the box.
+
+# When to use
+
+If you're unsure which compute resource to use, this table provides a comparison of container-based resources in Stacktape:
+
+| **Resource type**                                                         | **Description**                                                                      | **Use-cases**                                  |
+| ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ | ---------------------------------------------- |
+| [web-service](./web-services.mdx)                           | continuously running container with **public endpoint and URL**                      | public APIs, websites                          |
+| [private-service](./private-services.mdx)                   | continuously running container with **private endpoint**                             | private APIs, services                         |
+| [worker-service](./worker-services.mdx)                     | continuously running container **not accessible from outside**                       | continuous processing                          |
+| [multi-container-workload](./multi-container-workloads.mdx) | custom multi container workload - you can customize accessibility for each container | more complex use-cases requiring customization |
+| [batch-job](./batch-jobs.mdx)                               | simple container **job** - container is destroyed after job is done                  | one-off/scheduled processing jobs              |
+
+## Advantages
+
+-   **Control over environment**: You can run any Docker image or build from your own Dockerfile.
+-   **Cost-effective for predictable loads**: More economical than functions for applications with consistent traffic.
+-   **Load-balanced and auto-scalable**: Automatically scales horizontally based on CPU and memory utilization.
+-   **High availability**: Runs in multiple _Availability Zones_ for resilience.
+-   **Secure by default**: The underlying environment is securely managed by AWS.
+
+## Disadvantages
+
+-   **Slower scaling**: Adding new container instances takes longer than scaling functions.
+-   **Not fully serverless**: Cannot scale to zero, meaning you will always pay for at least one running instance.
+
+# Basic usage
+
+`embed:multi-container-workloads/basic-usage.ts`
+
+> Example server container written in Typescript
+
+`embed:multi-container-workloads/basic-usage.stp.yml`
+
+> Container connected to HTTP API Gateway
+
+# Containers
+
+Every workload consists of one or more containers. You can configure the following properties for each container:
+
+<PropertiesTable
+  definitionName="ContainerWorkloadContainer"
+  searchForReferencesInDefinition="ContainerWorkloadProps"
+  rewriteLinksForReferencedCompositeTypes={{
+    StpBuildpackCwImagePackaging: "#image",
+    ExternalBuildpackCwImagePackaging: "#image",
+    PrebuiltCwImagePackaging: "#image",
+    CustomDockerfileCwImagePackaging: "#image"
+  }}
+/>
+
+## Image
+
+You can provide a container image in four ways:
+
+-   [stacktape-image-buildpack](../../configuration/packaging.mdx#stacktape-image-buildpack-multi-container-workload)
+-   [external-buildpack](../../configuration/packaging.mdx#external-buildpack-multi-container-workload)
+-   [custom-dockerfile](../../configuration/packaging.mdx#custom-dockerfile-multi-container-workload)
+-   [prebuilt-images](../../configuration/packaging.mdx#prebuilt-image-multi-container-workload)
+
+## Environment variables
+
+<PropDescription definitionName="LocalScriptProps" propertyName="environment" descType="ld" />
+
+`embed:_common/environment.yml`
+
+<PropertiesTable definitionName="EnvironmentVar" searchForReferencesInDefinition="ContainerWorkloadProps" />
+
+## Dependencies between containers
+
+You can define dependencies between containers to control their startup order.
+
+<PropertiesTable definitionName="ContainerDependency" searchForReferencesInDefinition="ContainerWorkloadProps" />
+
+<br />
+
+For example, the **frontend** container will only start after the **backend** container is running successfully.
+
+`embed:multi-container-workloads/dependencies.stp.yml`
+
+<Divider />
+
+## Healthcheck
+
+A health check monitors the container from within. If an essential container becomes unhealthy, the entire instance is automatically replaced.
+
+<PropertiesTable definitionName="ContainerHealthCheck" searchForReferencesInDefinition="ContainerWorkloadProps" />
+
+<br />
+
+`embed:multi-container-workloads/healthcheck.stp.yml`
+
+> This example uses a shell command to send a `curl` request every 20 seconds. If the request fails or times out, the health check fails.
+
+## Shutdown
+
+When a container instance is shut down, all containers receive a `SIGTERM` signal, giving them a chance to clean up gracefully. By default, they have 2 seconds before a `SIGKILL` signal is sent. You can adjust this with the `stopTimeout` property.
+
+`embed:multi-container-workloads/shutdown.ts`
+
+> Example of cleaning up before container shutdown.
+
+## Logging
+
+Any output to `stdout` or `stderr` is captured and stored in a CloudWatch log group. You can view logs through the [Stacktape Console](https://console.stacktape.com/), the `stacktape stack-info` command, or by streaming them with the `stacktape logs` command.
+
+### Forwarding logs
+
+You can forward logs to third-party services. See the [Log Forwarding documentation](../../configuration/log-forwarding.mdx) for more details.
+
+<Divider />
+
+## Events
+
+Events route traffic from an integration to a specified port on your container.
+
+### HTTP API event
+
+Forwards requests from an [HTTP API Gateway](../../other-resources/http-api-gateways.mdx).
+
+<PropertiesTable
+  definitionName="ContainerWorkloadHttpApiIntegration"
+  searchForReferencesInDefinition="ContainerWorkloadProps"
+/>
+
+<br />
+
+`embed:multi-container-workloads/event-http-api.stp.yml`
+
+> Incoming `GET` requests to `/my-path` on `myApiGateway` are routed to port `80` of the `api-container`.
+
+<Divider />
+
+### Application Load Balancer event
+
+Forwards requests from an [Application Load Balancer](../../other-resources/application-load-balancers.mdx). This allows for advanced routing based on path, query parameters, headers, and more.
+
+<PropertiesTable
+  definitionName="ContainerWorkloadLoadBalancerIntegration"
+  searchForReferencesInDefinition="ContainerWorkloadProps"
+/>
+<PropertiesTable definitionName="LbHeaderCondition" searchForReferencesInDefinition="ContainerWorkloadProps" />
+<PropertiesTable definitionName="LbQueryParamCondition" searchForReferencesInDefinition="ContainerWorkloadProps" />
+
+`embed:multi-container-workloads/event-application-load-balancer.stp.yml`
+
+<Divider />
+
+### Network Load Balancer event
+
+Forwards traffic from a [Network Load Balancer](../../other-resources/network-load-balancers.mdx).
+
+<PropertiesTable
+  definitionName="ContainerWorkloadLoadNetworkBalancerIntegration"
+  searchForReferencesInDefinition="ContainerWorkloadProps"
+/>
+
+`embed:network-load-balancers/workload-integration.stp.yml`
+
+<Divider />
+
+### Internal port (workload-internal)
+
+Opens a port for communication with other containers within the same workload.
+
+<PropertiesTable
+  definitionName="ContainerWorkloadInternalIntegration"
+  searchForReferencesInDefinition="ContainerWorkloadProps"
+/>
+
+`embed:multi-container-workloads/event-internal.stp.yml`
+
+<Divider />
+
+### Private port (service-connect)
+
+Opens a port for communication with other workloads in the same stack.
+
+<PropDescription definitionName="ContainerWorkloadServiceConnectIntegrationProps" propertyName="alias" descType="ld" />
+
+<PropertiesTable
+  definitionName="ContainerWorkloadServiceConnectIntegration"
+  searchForReferencesInDefinition="ContainerWorkloadProps"
+/>
+
+`embed:multi-container-workloads/event-service-connect.stp.yml`
+
+<Divider />
+
+# Resources
+
+You can specify the CPU, memory, and _EC2 instance_ types for your workload.
+
+<PropDescription definitionName="ContainerWorkloadProps" propertyName="resources" descType="ld" />
+
+<Info>
+
+If your workload has multiple containers, the assigned resources are shared between them.
+
+</Info>
+
+<PropertiesTable
+  definitionName="ContainerWorkloadResourcesConfig"
+  searchForReferencesInDefinition="ContainerWorkloadProps"
+/>
+
+## Using Fargate
+
+If you omit the `instanceTypes` property, your workload will run on _Fargate_.
+
+`embed:multi-container-workloads/resources.stp.yml`
+
+## Using EC2 instances
+
+If you specify `instanceTypes`, your workload will run on _EC2 instances_.
+
+<PropDescription definitionName="ContainerWorkloadResourcesConfig" propertyName="instanceTypes" descType="ld" />
+
+`embed:multi-container-workloads/resources-ec2.stp.yml`
+
+### Placing containers on EC2
+
+Stacktape optimizes for 100% utilization of your _EC2 instances_. If you specify `cpu` and `memory`, AWS uses a `binpack` strategy to place as many workload instances as possible onto the available _EC2 instances_.
+
+### Using warm pool
+
+Enable a warm pool to keep pre-initialized _EC2 instances_ in a stopped state, ready for faster scaling. This is only supported for workloads with a single instance type.
+
+`embed:web-services/warm-pool.stp.yml`
+
+# Scaling
+
+Configure the minimum and maximum number of concurrent workload instances and define a scaling policy based on CPU and memory utilization.
+
+<PropertiesTable definitionName="ContainerWorkloadScaling" searchForReferencesInDefinition="ContainerWorkloadProps" />
+
+## Scaling policy
+
+A scaling policy triggers scaling actions when CPU or memory thresholds are crossed. The workload scales out aggressively when metrics are high and scales in more cautiously when they are low.
+
+<PropertiesTable
+  definitionName="ContainerWorkloadScalingPolicy"
+  searchForReferencesInDefinition="ContainerWorkloadProps"
+/>
+
+`embed:multi-container-workloads/scaling.stp.yml`
+
+# Storage
+
+Each workload instance has 20GB of _ephemeral storage_, which is shared among all containers within that instance. This storage is deleted when the instance is removed. For persistent storage, use [Buckets](../../other-resources/buckets.mdx).
+
+# Accessing other resources
+
+By default, workloads cannot access other AWS resources. You must grant permissions using _IAM_.
+
+## Using connectTo
+
+The `connectTo` property is a simplified way to grant access to other Stacktape-managed resources.
+
+`embed:multi-container-workloads/allow-access-to.stp.yml`
+
+<PropDescription definitionName="LambdaFunctionProps" propertyName="connectTo" descType="ld" />
+
+## Using iamRoleStatements
+
+For fine-grained control, you can provide raw _IAM_ role statements.
+
+`embed:multi-container-workloads/iam-role-statements.stp.yml`
+
+<PropertiesTable definitionName="StpIamRoleStatement" searchForReferencesInDefinition="ContainerWorkloadProps" />
+
+# Deployment strategies
+
+By default, Stacktape uses a rolling update strategy. You can choose a different strategy using the `deployment` property.
+
+<PropDescription definitionName="ContainerWorkloadProps" propertyName="deployment" descType="ld" />
+
+<PropertiesTable
+  definitionName="ContainerWorkloadDeploymentConfig"
+  searchForReferencesInDefinition="ContainerWorkloadProps"
+/>
+
+`embed:multi-container-workloads/deployment.stp.yml`
+
+## Hook functions
+
+You can use hook functions to perform checks during deployment, including sending test traffic to a new version before it receives production traffic.
+
+`embed:multi-container-workloads/deployment-with-hook.stp.yml`
+
+`embed:multi-container-workloads/validate-deployment.ts`
+
+# Default VPC connection
+
+Container workloads are connected to the default _VPC_ of your stack by default. This allows them to communicate with other VPC-enabled resources without extra configuration.
+
+# Referenceable parameters
+
+Currently, no parameters can be referenced.
+
+# Pricing
+
+You are charged for:
+
+-   **Virtual CPU per hour**
+-   **Memory per hour**
+
+Pricing is rounded to the nearest second with a one-minute minimum. For details, see the [_Fargate_ pricing page](https://aws.amazon.com/fargate/pricing/).
+
+# API reference
+
+<PropertiesTable definitionName="ContainerWorkload" searchForReferencesInDefinition="ContainerWorkloadProps" />
+
+<PropertiesTable
+  definitionName="ContainerLanguageSpecificConfig"
+  searchForReferencesInDefinition="ContainerWorkloadProps"
+/>
+
+<PropertiesTable definitionName="CognitoAuthorizer" searchForReferencesInDefinition="ContainerWorkloadProps" />
+
+<PropertiesTable definitionName="LambdaAuthorizer" searchForReferencesInDefinition="ContainerWorkloadProps" />
+
+<PropertiesTable definitionName="StpIamRoleStatement" searchForReferencesInDefinition="ContainerWorkloadProps" />

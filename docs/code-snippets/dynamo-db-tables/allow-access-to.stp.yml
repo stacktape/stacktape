@@ -1,0 +1,23 @@
+resources:
+  myDynamoDbTable:
+    type: dynamo-db-table
+    properties:
+      primaryKey:
+        partitionKey:
+          name: id
+          type: string
+
+  myFunction:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: path/to/my/lambda.ts
+      environment:
+        - name: TABLE_NAME
+          value: $ResourceParam('myDynamoDbTable', 'name')
+      # {start-highlight}
+      connectTo:
+        - myDynamoDbTable
+      # {stop-highlight}

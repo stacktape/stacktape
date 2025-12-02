@@ -1,0 +1,28 @@
+import { ResourceBase } from '../resource';
+import { Value, List } from '../dataTypes';
+export class JWTConfiguration {
+  Issuer?: Value<string>;
+  Audience?: List<Value<string>>;
+  constructor(properties: JWTConfiguration) {
+    Object.assign(this, properties);
+  }
+}
+export interface AuthorizerProperties {
+  IdentityValidationExpression?: Value<string>;
+  AuthorizerUri?: Value<string>;
+  AuthorizerCredentialsArn?: Value<string>;
+  AuthorizerType: Value<string>;
+  JwtConfiguration?: JWTConfiguration;
+  AuthorizerResultTtlInSeconds?: Value<number>;
+  IdentitySource?: List<Value<string>>;
+  AuthorizerPayloadFormatVersion?: Value<string>;
+  EnableSimpleResponses?: Value<boolean>;
+  ApiId: Value<string>;
+  Name: Value<string>;
+}
+export default class Authorizer extends ResourceBase<AuthorizerProperties> {
+  static JWTConfiguration = JWTConfiguration;
+  constructor(properties: AuthorizerProperties) {
+    super('AWS::ApiGatewayV2::Authorizer', properties);
+  }
+}

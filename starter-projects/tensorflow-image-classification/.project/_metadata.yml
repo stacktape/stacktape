@@ -1,0 +1,6 @@
+name: Tensorflow image classification
+tags:
+  - Machine learning
+  - Tensorflow
+  - Python
+icon: tensorflow.svg

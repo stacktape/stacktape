@@ -1,0 +1,35 @@
+import ByteMatchSet_ from './byteMatchSet';
+import GeoMatchSet_ from './geoMatchSet';
+import IPSet_ from './ipSet';
+import RateBasedRule_ from './rateBasedRule';
+import RegexPatternSet_ from './regexPatternSet';
+import Rule_ from './rule';
+import SizeConstraintSet_ from './sizeConstraintSet';
+import SqlInjectionMatchSet_ from './sqlInjectionMatchSet';
+import WebACL_ from './webAcl';
+import WebACLAssociation_ from './webAclAssociation';
+import XssMatchSet_ from './xssMatchSet';
+export namespace WAFRegional {
+  export const ByteMatchSet = ByteMatchSet_;
+  export const GeoMatchSet = GeoMatchSet_;
+  export const IPSet = IPSet_;
+  export const RateBasedRule = RateBasedRule_;
+  export const RegexPatternSet = RegexPatternSet_;
+  export const Rule = Rule_;
+  export const SizeConstraintSet = SizeConstraintSet_;
+  export const SqlInjectionMatchSet = SqlInjectionMatchSet_;
+  export const WebACL = WebACL_;
+  export const WebACLAssociation = WebACLAssociation_;
+  export const XssMatchSet = XssMatchSet_;
+  export type ByteMatchSet = ByteMatchSet_;
+  export type GeoMatchSet = GeoMatchSet_;
+  export type IPSet = IPSet_;
+  export type RateBasedRule = RateBasedRule_;
+  export type RegexPatternSet = RegexPatternSet_;
+  export type Rule = Rule_;
+  export type SizeConstraintSet = SizeConstraintSet_;
+  export type SqlInjectionMatchSet = SqlInjectionMatchSet_;
+  export type WebACL = WebACL_;
+  export type WebACLAssociation = WebACLAssociation_;
+  export type XssMatchSet = XssMatchSet_;
+}

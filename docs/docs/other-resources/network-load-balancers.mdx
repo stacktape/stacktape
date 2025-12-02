@@ -1,0 +1,108 @@
+---
+title: "Network Load Balancers"
+order: 211
+---
+
+<br />
+<br />
+
+A Network Load Balancer (NLB) serves as a single point of contact for clients and distributes incoming traffic across multiple targets. It operates at the transport layer (layer 4) and is ideal for load balancing TCP traffic where extreme performance is required.
+
+NLBs can be integrated with [multi-container workloads](/compute-resources/multi-container-workloads#network-load-balancer-event), offload SSL/TLS termination, and be configured with custom domain names.
+
+Under the hood, Stacktape uses [AWS Network Load Balancer](https://docs.aws.amazon.com/elasticloadbalancing/latest/network/introduction.html).
+
+# When to use them
+
+NLBs are a good choice for applications that use TCP protocols other than HTTP/S. If your application uses HTTP or HTTPS, an [Application Load Balancer](/other-resources/application-load-balancers) is a better choice.
+
+<NegativeMargin />
+
+## Advantages
+
+- **Predictable pricing:** NLBs have a predictable pricing model, which can be more cost-effective than HTTP API Gateways for high-traffic applications.
+- **Scalability:** NLBs can handle millions of requests per second and scale automatically as traffic grows.
+- **Health checks:** When used with container workloads, an NLB periodically checks the health of each container and only routes traffic to healthy ones.
+- **Ease of use:** You can integrate an NLB with your compute resources with just a few lines of configuration.
+- **Security:** You can offload SSL/TLS termination to the load balancer, encrypting traffic between the client and the NLB.
+
+## Disadvantages
+
+- **Fixed cost:** NLBs have a fixed monthly cost (around $20/month), even if they are idle.
+- **Limited integrations:** NLBs can only be integrated with multi-container workloads.
+
+<Divider />
+
+# Basic usage
+
+<PropertiesTable definitionName="NetworkLoadBalancer" />
+
+`embed:network-load-balancers/basic.stp.yml`
+
+> A Network Load Balancer with a multi-container workload integration.
+
+<Divider />
+
+# Integrating with compute resources
+
+You can forward traffic from an NLB to a [multi-container workload](/compute-resources/multi-container-workloads#network-load-balancer-event). Each integration must specify the load balancer, the listener port, and the container port.
+
+`embed:network-load-balancers/workload-integration.stp.yml`
+
+For more information, see the documentation on integrating NLBs with [multi-container workloads](/compute-resources/multi-container-workloads#network-load-balancer-event).
+
+<Divider />
+
+# Custom domain names
+
+You can use a custom domain for your NLB. If you don't have one, you can [register one](/other-resources/domains-and-certificates/#registering-a-domain) through Stacktape.
+
+If you already have a domain, you can either let [Stacktape manage it](/other-resources/domains-and-certificates/#managing-domains-with-stacktape) (if you use AWS Route 53 for DNS) or [use a third-party DNS provider](/other-resources/domains-and-certificates/#using-a-3rd-party-dns).
+
+For more details, see the [Domains and Certificates](/other-resources/domains-and-certificates/) page.
+
+## Using Stacktape to manage domains and certs
+
+<PropDescription definitionName="NetworkLoadBalancerProps" propertyName="customDomains" descType="ld" />
+
+`embed:network-load-balancers/domain-names.stp.yml`
+
+## Using a 3rd-party DNS
+
+To use a domain from a provider like GoDaddy or Cloudflare:
+
+1.  Create or import a TLS certificate for your domain in the [AWS Certificate Manager console](https://console.aws.amazon.com/acm/home#/certificates/list) and copy its _ARN_.
+2.  Configure a listener on your load balancer to use the custom certificate.
+3.  After deploying, find the NLB's domain name in the [Stacktape Console](https://console.stacktape.com/projects).
+4.  In your DNS provider's dashboard, create a `CNAME` or `ALIAS` record pointing to the NLB's domain name.
+
+`embed:network-load-balancers/custom-certs.stp.yml`
+
+<Divider />
+
+# Listeners
+
+Listeners check for connection requests from clients, using the protocol and port that you configure.
+
+<PropDescription definitionName="NetworkLoadBalancerProps" propertyName="listeners" descType="ld" />
+
+<PropertiesTable
+  definitionName="NetworkLoadBalancerListener"
+  searchForReferencesInDefinition="NetworkLoadBalancerProps"
+/>
+
+`embed:network-load-balancers/listeners.stp.yml`
+
+> A Network Load Balancer with three listeners.
+
+## Custom TLS certificates
+
+You can configure a listener to use a custom TLS certificate.
+
+`embed:network-load-balancers/custom-certs.stp.yml`
+
+<Divider />
+
+# Referenceable parameters
+
+<ReferenceableParams resource="network-load-balancer" />

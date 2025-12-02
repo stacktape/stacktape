@@ -1,0 +1,25 @@
+resources:
+  myLoadBalancer:
+    type: application-load-balancer
+
+  myApp:
+    type: multi-container-workload
+    properties:
+      containers:
+        - name: api-container
+          packaging:
+            type: stacktape-image-buildpack
+            properties:
+              entryfilePath: src/index.ts
+          # {start-highlight}
+          events:
+            - type: application-load-balancer
+              properties:
+                loadBalancerName: myLoadBalancer
+                containerPort: 80
+                priority: 1
+                paths: ['*']
+          # {stop-highlight}
+      resources:
+        cpu: 2
+        memory: 2048

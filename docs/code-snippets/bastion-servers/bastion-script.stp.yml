@@ -1,0 +1,36 @@
+scripts:
+  # {start-highlight}
+  dbScript:
+    type: bastion-script
+    properties:
+      executeCommands:
+        - psql $STP_MY_DATABASE_CONNECTION_STRING -c "SELECT 1 where 1=1"
+      connectTo:
+        - myDatabase
+  # {stop-highlight}
+
+hooks:
+  afterDeploy:
+    - scriptName: dbScript
+
+resources:
+  myBastion:
+    type: bastion
+    properties:
+      runCommandsAtLaunch:
+        - yum update
+        - yum install postgresql.x86_64 -y
+
+  myDatabase:
+    type: relational-database
+    properties:
+      accessibility:
+        accessibilityMode: vpc
+      engine:
+        type: postgres
+        properties:
+          version: '16.2'
+          primaryInstance:
+            instanceSize: db.t3.micro
+      credentials:
+        masterUserPassword: my_secret_pass

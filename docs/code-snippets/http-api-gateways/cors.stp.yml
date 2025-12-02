@@ -1,0 +1,8 @@
+resources:
+  myHttpApi:
+    type: 'http-api-gateway'
+    properties:
+      # {start-highlight}
+      cors:
+        enabled: true
+      # {stop-highlight}

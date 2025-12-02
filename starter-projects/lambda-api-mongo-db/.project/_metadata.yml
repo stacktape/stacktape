@@ -1,0 +1,8 @@
+name: Lambda API with MongoDb
+tags:
+  - Typescript
+  - MongoDb
+  - REST API
+  - Lambda
+icon: typescript.svg
+priority: 1

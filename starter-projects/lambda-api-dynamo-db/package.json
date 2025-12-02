@@ -1,0 +1,10 @@
+{
+  "name": "lambda-api-dynamo-db",
+  "private": true,
+  "scripts": {},
+  "dependencies": {
+    "@types/node": "^17.0.9",
+    "dynamodb-onetable": "^2.5.1",
+    "aws-sdk": "2.1233.0"
+  }
+}

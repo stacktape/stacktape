@@ -1,0 +1,22 @@
+resources:
+  myDatabase:
+    type: relational-database
+    properties:
+      credentials:
+        masterUserPassword: $Secret('my-database-password')
+      engine:
+        type: aurora-postgresql-serverless
+
+  testDatabase:
+    type: deployment-script
+    properties:
+      trigger: after:deploy
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: test-url.ts
+      # {start-highlight}
+      environment:
+        - name: DATABASE_URL
+          value: $ResourceParam('myDatabase', 'connectionString')
+      # {stop-highlight}

@@ -1,0 +1,16 @@
+resources:
+  myHttpApi:
+    type: 'http-api-gateway'
+    properties:
+      cdn:
+        enabled: true
+        # {start-highlight}
+        cachingOptions:
+          defaultTTL: 60
+        # {stop-highlight}
+        routeRewrites:
+          - path: /static/*
+            # {start-highlight}
+            cachingOptions:
+              defaultTTL: 604800
+            # {stop-highlight}

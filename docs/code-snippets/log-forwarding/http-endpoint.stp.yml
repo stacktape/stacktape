@@ -1,0 +1,15 @@
+resources:
+  myFunction:
+    type: function
+    properties:
+      # {start-highlight}
+      logging:
+        logForwarding:
+          type: http-endpoint
+          properties:
+            endpointUrl: https://my-endpoint.com
+      # {stop-highlight}
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: lambdas/js-lambda.js

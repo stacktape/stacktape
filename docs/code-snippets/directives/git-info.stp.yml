@@ -1,0 +1,13 @@
+resources:
+  myLambda:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: 'path/to/my-lambda.ts'
+      environment:
+        - name: COMMIT
+          # {start-highlight}
+          value: $GitInfo('commit')
+          # {stop-highlight}

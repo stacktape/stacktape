@@ -1,0 +1,38 @@
+---
+title: "State Machines"
+order: 290
+---
+
+<br />
+<br />
+
+A state machine allows you to design and automate business processes and data pipelines by composing compute resources (like [functions](/compute-resources/functions) and [batch jobs](/compute-resources/batch-jobs)) and other AWS services into a workflow. State machines manage failures, retries, parallelization, and observability, so you can focus on your business logic.
+
+# When to use them
+
+- **ETL processes:** State machines can ensure that long-running, multi-step ETL jobs execute in order and complete successfully.
+- **Microservice orchestration:** You can use state machines to combine multiple functions into a responsive, serverless application.
+
+<Divider />
+
+# Defining states
+
+You define state machines using the [Amazon States Language](https://docs.aws.amazon.com/step-functions/latest/dg/concepts-amazon-states-language.html). This example shows a simple order payment flow composed of Lambda functions:
+
+`embed:state-machines/definition.stp.yml`
+
+<Divider />
+
+## Retry example
+
+This example shows a state machine that ties together a batch job and a function. The state machine is configured to retry only the upload step if it fails, since regenerating the report would be costly and unnecessary.
+
+-   **`generateReport`**: A batch job that generates a report.
+-   **`uploadReport`**: A function that uploads the report.
+-   **`reportStateMachine`**: The state machine that orchestrates the workflow.
+
+`embed:state-machines/batch.stp.yml`
+
+# Referenceable parameters
+
+<ReferenceableParams resource="state-machine" />

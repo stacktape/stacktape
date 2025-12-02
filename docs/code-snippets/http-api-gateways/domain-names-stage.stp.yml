@@ -1,0 +1,8 @@
+resources:
+  myHttpApi:
+    type: 'http-api-gateway'
+    properties:
+      # {start-highlight}
+      customDomains:
+        - domainName: $Format('{}.mydomain.com', $Stage())
+      # {stop-highlight}

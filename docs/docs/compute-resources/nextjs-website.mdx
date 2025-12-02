@@ -1,0 +1,237 @@
+---
+title: "Next.js Website"
+order: 315
+---
+
+<br />
+<br />
+
+The `nextjs-website` resource is designed to deploy [Next.js](https://nextjs.org/) applications to AWS. It leverages _serverless_ technologies like AWS Lambda and _Lambda@Edge_ to run your application efficiently. Stacktape automatically provisions and configures all the necessary AWS resources, so you can focus on writing your application code.
+
+`embed:nextjs-web/basic.stp.yml`
+
+> Basic use of `nextjs-web` resource
+
+# How it Works
+
+Stacktape uses the open-source project [OpenNEXT](https://open-next.js.org/) to build your Next.js application, making it compatible with AWS Lambda. Behind the scenes, Stacktape provisions a set of AWS resources to host your app:
+
+| **Component** | **Type** | **Description** |
+| --- | --- | --- |
+| Server function | `Lambda` or `Lambda@Edge` | Runs your Next.js server logic. |
+| Asset Bucket | `S3 bucket` | Stores static assets (like images, CSS) and cached assets. |
+| Image optimization function | `Lambda` | Handles on-the-fly image optimization for the Next.js `<Image>` component. |
+| CloudFront distribution | `CDN` | A _CDN_ that caches and distributes your website content globally for low latency. |
+| Revalidation function | `Lambda` | Handles content revalidation when using Incremental Static Regeneration (_ISR_). |
+| Revalidation queue | `SQS Queue` | A message queue used by the server function to trigger the revalidation function. |
+| Revalidation table | `DynamoDB table` | A _NoSQL_ database that supports Next.js `revalidateTag` for on-demand revalidation. |
+| Revalidation inserter | `Lambda` | Populates the revalidation table during deployment. |
+| Warmer function (Optional) | `Lambda` | Keeps the server function warm to prevent _cold starts_ (not available for _Lambda@Edge_). |
+
+For more information refer to [OpenNext docs](https://open-next.js.org/inner_workings).
+
+![Architecture overview (credit: OpenNext)](../static/open-next/architecture.png)
+
+# Edge Deployments
+
+To deploy your Next.js application to the edge for lower latency, you can use _Lambda@Edge_ by setting the `useEdgeLambda` property to `true`. This deploys your server function to _CDN_ locations around the world.
+
+<PropDescription definitionName="NextjsWebProps" propertyName="useEdgeLambda" descType="ld" />
+
+`embed:nextjs-web/edge.stp.yml`
+
+# Performance Optimization
+
+## Mitigating Cold Starts
+
+To mitigate _cold starts_ and ensure your server function responds quickly, you can enable a warmer. This keeps a specified number of function instances active. By default, the warmer is disabled. This feature is not available when using `useEdgeLambda`.
+
+<PropDescription definitionName="NextjsWebProps" propertyName="warmServerInstances" descType="ld" />
+
+`embed:nextjs-web/warm.stp.yml`
+
+# Security
+
+## Web Application Firewall
+
+You can protect your Next.js application from common web exploits by attaching a [web-app-firewall](../../security-resources/web-app-firewalls.mdx). This can help prevent attacks that could affect your application's availability, compromise security, or consume excessive resources.
+
+`embed:nextjs-web/waf.stp.yml`
+
+# Environment variables
+
+You can inject environment variables into the server function. These variables are available at build time and runtime.
+
+<PropDescription definitionName="LocalScriptProps" propertyName="environment" descType="ld" />
+
+`embed:nextjs-web/env.stp.yml`
+
+# Custom Domain Names
+
+You can configure custom domains for your Next.js application. Stacktape will automatically provision an SSL certificate and configure DNS routing.
+
+<PropDescription definitionName="CdnConfiguration" propertyName="customDomains" descType="ld" />
+
+<PropertiesTable definitionName="DomainConfiguration" searchForReferencesInDefinition="NextjsWeb" />
+
+`embed:nextjs-web/custom-domains.stp.yml`
+
+# Accessing Other Resources
+
+By default, most AWS resources are not allowed to communicate with each other. This is a security measure to ensure resource isolation. To allow your Next.js application to access other resources, you need to grant permissions explicitly.
+
+- **IAM Permissions**: Access to most AWS services is controlled by _IAM_ (Identity and Access Management). Stacktape automatically manages the necessary permissions for the resources it creates.
+- **Relational Databases**: [Relational Databases](../../database-resources/relational-databases.mdx) use their own access control (a connection string with a username and password) and are not managed by _IAM_. They are accessible by default unless you configure more restrictive [access controls](../../database-resources/relational-databases.mdx#accessibility).
+
+If your Next.js application needs to communicate with other resources in your stack, you can grant permissions in two ways:
+
+## Using connectTo
+
+The `connectTo` property is a simplified way to grant access to other Stacktape-managed resources. Stacktape will automatically configure the required _IAM_ permissions and inject connection details as environment variables into your function.
+
+`embed:nextjs-web/connect-to.stp.yml`
+
+<br />
+
+<PropDescription definitionName="LambdaFunctionProps" propertyName="connectTo" descType="ld" />
+
+## Using iamRoleStatements
+
+For more granular control, you can provide raw _IAM_ role statements. This allows you to define precise permissions for accessing any AWS resource, including those not managed by Stacktape.
+
+`embed:nextjs-web/iam-role-statements.stp.yml`
+
+# Known Issues
+
+Here are some known issues and workarounds when deploying Next.js applications with Stacktape.
+
+## Bundle Size
+
+Next.js can sometimes include development dependencies in the production bundle, which significantly increases its size. To prevent this, add the following configuration to your `next.config.js` file:
+
+```js
+// next.config.js
+module.exports = {
+  outputFileTracingExcludes: {
+    '*': [
+      '@swc/core',
+      'esbuild',
+      'uglify-js',
+      'watchpack',
+      'webassemblyjs',
+      'sharp'
+    ],
+  },
+}
+```
+
+## Fetch Behavior for ISR
+
+**Applies only to Next.js v13.5.1 and later.**
+
+A bug in Next.js can cause inconsistent revalidation behavior when using _ISR_. It may use the lowest `revalidate` value from all `fetch` calls on a page, ignoring their individual settings. To fix this, add the following snippet to your root layout component:
+
+```tsx
+// app/layout.tsx
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const asyncStorage = require("next/dist/client/components/static-generation-async-storage.external");
+  //@ts-ignore
+  const staticStore = (fetch as any).__nextGetStaticStore?.() || asyncStorage.staticGenerationAsyncStorage;
+  const store = staticStore.getStore();
+  if (store) {
+    store.isOnDemandRevalidate = store.isOnDemandRevalidate && !(process.env.OPEN_NEXT_ISR === "true");
+  }
+  return <>{children}</>;
+}
+```
+
+# Pricing
+
+All resources provisioned for your Next.js application are pay-per-use. This means you pay nothing for idle resources and only for what you use. As your traffic grows, your costs will increase, but they are generally much lower than managed hosting providers like Vercel.
+
+## Cost Breakdown
+
+### CloudFront CDN
+
+CloudFront serves as a _CDN_, caching your content in edge locations close to your users.
+
+- **Data Transfer**: ~$0.085 per GB (first 1 TB/month is free)
+- **HTTPS Requests**: ~$0.0085 per 10,000 requests (first 10,000,000/month are free)
+
+For current pricing, see the [AWS CloudFront Pricing](https://aws.amazon.com/cloudfront/pricing/) page.
+
+### AWS Lambda
+
+Costs depend on whether you use regional Lambda or _Lambda@Edge_.
+
+#### Regional AWS Lambda
+
+- **Execution Duration**: ~$0.0000000167 per millisecond (with 1024MB memory)
+- **Requests**: $0.20 per 1 million requests
+
+#### Lambda@Edge
+
+- **Execution Duration**: ~$0.00000005001 per millisecond (with 1024MB memory)
+- **Requests**: $0.60 per 1 million requests
+
+For current pricing, see the [AWS Lambda Pricing](https://aws.amazon.com/lambda/pricing/) page.
+
+### S3 for Caching
+
+A _S3 bucket_ is used to store the cache for _ISR_ and `fetch` requests.
+
+- **`GetObject`**: ~$0.0004 per 1,000 requests (reading from cache)
+- **`PutObject`**: ~$0.005 per 1,000 requests (writing to cache)
+
+For current pricing, see the [AWS S3 Pricing](https://aws.amazon.com/s3/pricing/) page.
+
+### DynamoDB for Cache Tags
+
+A DynamoDB table stores cache tags for on-demand revalidation.
+
+- **Read Requests**: ~$0.25 per 1 million read units
+- **Write Requests**: ~$1.25 per 1 million write units
+
+For current pricing, see the [AWS DynamoDB Pricing](https://aws.amazon.com/dynamodb/pricing/on-demand/) page.
+
+## Example Pricing
+
+<Warning>
+
+The following example is a rough estimate for a website with 300,000 monthly visitors. Actual costs can vary significantly based on your application's caching strategy, dynamic content, and API usage.
+
+</Warning>
+
+### Assumptions
+
+- **Monthly Visitors**: 300,000
+- **Page Views per Visitor**: 3
+- **Cache Hit Rate**: 50% of page views are served from the _CDN_ cache.
+- **API Calls per Page**: 2 API calls for each page view that hits the server.
+
+This results in:
+
+- **Total Page Views**: 900,000
+- **Server Page Views**: 450,000
+- **Total Server Requests**: 1,350,000 (450,000 page views + 900,000 API calls)
+
+### Monthly Cost Estimate
+
+| Service | Calculation | Estimated Cost |
+| --- | --- | --- |
+| **CloudFront** | Within free tier limits | **$0** |
+| **AWS Lambda** | 675,000 requests, 100ms duration each | **$1.26** |
+| **S3 Storage** | 675,000 reads and writes | **$3.65** |
+| **DynamoDB** | 675,000 reads and writes | **$1.01** |
+| **Total** | | **~$5.92 per month** |
+
+# API reference
+
+<PropertiesTable definitionName="NextjsWeb" />
+<PropertiesTable definitionName="NextjsServerLambdaProperties" searchForReferencesInDefinition="NextjsWeb" />
+
+<PropertiesTable definitionName="LambdaFunctionLogging" searchForReferencesInDefinition="NextjsWeb" />
+
+<PropertiesTable definitionName="EnvironmentVar" searchForReferencesInDefinition="NextjsWeb" />
+
+<PropertiesTable definitionName="DirectoryUploadFilter" searchForReferencesInDefinition="NextjsWeb" />

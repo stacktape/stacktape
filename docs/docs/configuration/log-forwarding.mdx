@@ -1,0 +1,37 @@
+---
+title: "Log Forwarding"
+order: 4
+---
+
+<br />
+<br />
+
+Log forwarding is the process of sending log data from your applications and services to a centralized location or a third-party log management provider. While _CloudWatch_ is the primary log management service in AWS, many users choose to forward logs to third-party providers for advanced features like real-time analysis, machine learning insights, and customizable dashboards, or to meet specific compliance requirements.
+
+Stacktape makes it easy to forward logs to the endpoint of your choice.
+
+<PropDescription definitionName="LambdaFunctionLogging" propertyName="logForwarding" descType="ld" />
+
+## HTTP endpoint forwarding
+
+You can forward logs to any HTTP endpoint that complies with the [Firehose request and response specifications](https://docs.aws.amazon.com/firehose/latest/dev/httpdeliveryrequestresponse.html). Many third-party vendors are compliant with these specifications out of the box.
+
+`embed:log-forwarding/http-endpoint.stp.yml`
+
+<PropertiesTable definitionName="HttpEndpointLogForwarding" />
+
+## Datadog forwarding
+
+Forwards logs to your Datadog account.
+
+`embed:log-forwarding/datadog.stp.yml`
+
+<PropertiesTable definitionName="DatadogLogForwarding" />
+
+## Highlight forwarding
+
+Forwards logs to your Highlight project.
+
+`embed:log-forwarding/highlight.stp.yml`
+
+<PropertiesTable definitionName="HighlightLogForwarding" />

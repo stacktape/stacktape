@@ -1,0 +1,35 @@
+import Destination_ from './destination';
+import DeviceProfile_ from './deviceProfile';
+import FuotaTask_ from './fuotaTask';
+import MulticastGroup_ from './multicastGroup';
+import NetworkAnalyzerConfiguration_ from './networkAnalyzerConfiguration';
+import ServiceProfile_ from './serviceProfile';
+import TaskDefinition_ from './taskDefinition';
+import WirelessDevice_ from './wirelessDevice';
+import WirelessGateway_ from './wirelessGateway';
+import PartnerAccount_ from './partnerAccount';
+import WirelessDeviceImportTask_ from './wirelessDeviceImportTask';
+export namespace IoTWireless {
+  export const Destination = Destination_;
+  export const DeviceProfile = DeviceProfile_;
+  export const FuotaTask = FuotaTask_;
+  export const MulticastGroup = MulticastGroup_;
+  export const NetworkAnalyzerConfiguration = NetworkAnalyzerConfiguration_;
+  export const ServiceProfile = ServiceProfile_;
+  export const TaskDefinition = TaskDefinition_;
+  export const WirelessDevice = WirelessDevice_;
+  export const WirelessGateway = WirelessGateway_;
+  export const PartnerAccount = PartnerAccount_;
+  export const WirelessDeviceImportTask = WirelessDeviceImportTask_;
+  export type Destination = Destination_;
+  export type DeviceProfile = DeviceProfile_;
+  export type FuotaTask = FuotaTask_;
+  export type MulticastGroup = MulticastGroup_;
+  export type NetworkAnalyzerConfiguration = NetworkAnalyzerConfiguration_;
+  export type ServiceProfile = ServiceProfile_;
+  export type TaskDefinition = TaskDefinition_;
+  export type WirelessDevice = WirelessDevice_;
+  export type WirelessGateway = WirelessGateway_;
+  export type PartnerAccount = PartnerAccount_;
+  export type WirelessDeviceImportTask = WirelessDeviceImportTask_;
+}

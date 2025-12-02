@@ -1,0 +1,167 @@
+---
+title: "MongoDB Atlas Clusters"
+order: 170
+---
+
+<br />
+<br />
+
+A MongoDB Atlas cluster is a schema-less, NoSQL database that is fully managed by MongoDB. Although it is not an AWS-native service, Stacktape seamlessly integrates it into your stacks.
+
+MongoDB Atlas clusters are secure, scalable, and highly available. They have built-in replication and support backups and point-in-time recovery. Each stack that includes a MongoDB Atlas cluster will also create a new [MongoDB Atlas project](https://docs.atlas.mongodb.com/tutorial/manage-projects/), which ensures isolation between stacks.
+
+<NegativeMargin />
+
+## Advantages
+
+- **Secure:** Your data is protected by multiple layers of security.
+- **Scalable:** You can scale your cluster up or down as your needs change.
+- **Performant:** MongoDB Atlas is designed for high performance.
+- **Backups and point-in-time recovery:** You can restore your data to a previous state in case of an accident.
+- **High availability:** Your data is replicated across multiple servers to ensure that it is always available.
+- **ACID transactions:** MongoDB supports multi-document ACID transactions.
+
+## Disadvantages
+
+- **Separate billing:** Although Stacktape integrates with MongoDB Atlas, you will still need to manage your billing separately.
+
+# Provider configuration
+
+To use MongoDB Atlas with Stacktape, you will need to:
+
+1.  Create a [MongoDB Atlas account](https://account.mongodb.com/account/register).
+2.  Follow our [step-by-step guide](/user-guides/mongo-db-atlas-credentials/) to get your `organizationId`, `publicKey`, and `privateKey`.
+3.  Store your credentials in a [secret](/security-resources/secrets/).
+
+`embed:mongo-db-atlas-clusters/provider-config.stp.yml`
+
+<PropertiesTable definitionName="MongoDbAtlasProvider" />
+
+# Basic usage
+
+`embed:mongo-db-atlas-clusters/basic-usage.stp.yml`
+
+`embed:mongo-db-atlas-clusters/basic-usage.ts`
+
+# Cluster tier
+
+The cluster tier determines the resources (memory, storage, IOPS) for each data-bearing node in your cluster. To learn more, see the [MongoDB Atlas documentation](https://docs.atlas.mongodb.com/cluster-tier/).
+
+`embed:mongo-db-atlas-clusters/cluster-tier.stp.yml`
+
+# Disk size
+
+Each cluster tier comes with a default amount of storage. All M10+ clusters automatically scale their storage, but you can disable this behavior. You can also customize the storage capacity for all M10+ clusters.
+
+`embed:mongo-db-atlas-clusters/set-disk-size.stp.yml`
+
+# Auto-scaling
+
+<PropDescription definitionName="MongoDbAtlasClusterProps" propertyName="autoScaling" descType="ld" />
+
+`embed:mongo-db-atlas-clusters/autoscaling.stp.yml`
+
+<PropertiesTable definitionName="MongoDbAutoScaling" searchForReferencesInDefinition="MongoDbAtlasClusterProps" />
+
+# Sharding
+
+<PropDescription definitionName="MongoDbAtlasClusterProps" propertyName="numShards" descType="ld" />
+
+`embed:mongo-db-atlas-clusters/sharding.stp.yml`
+
+# Backups
+
+<PropDescription definitionName="MongoDbAtlasClusterProps" propertyName="enableBackups" descType="ld" />
+
+There are different types of snapshots with different retention periods and frequencies:
+
+- **Hourly:** Every 6 hours, retained for 2 days.
+- **Daily:** Every day, retained for 7 days.
+- **Weekly:** Every Saturday, retained for 4 weeks.
+- **Monthly:** Last day of the month, retained for 12 months.
+
+`embed:mongo-db-atlas-clusters/backups.stp.yml`
+
+# Point-in-time recovery
+
+<PropDescription definitionName="MongoDbAtlasClusterProps" propertyName="enablePointInTimeRecovery" descType="ld" />
+
+`embed:mongo-db-atlas-clusters/point-in-time-recovery.stp.yml`
+
+# Accessing clusters from workloads
+
+You can grant a compute resource permission to access a cluster by listing it in the resource's `connectTo` property. This will inject the necessary credentials into the resource.
+
+`embed:mongo-db-atlas-clusters/accessing-cluster.stp.yml`
+
+# Accessibility
+
+You can restrict access to your cluster to specific resources or IP addresses. Unlike other database resources, accessibility is set globally in the provider configuration, not on the resource itself. This means that all clusters in a given stack will have the same accessibility mode.
+
+<Warning>
+
+Shared cluster tiers (M2 and M5) only support `internet` accessibility mode.
+
+</Warning>
+
+<PropertiesTable definitionName="MongoDbAtlasAccessibility" searchForReferencesInDefinition="MongoDbAtlasProvider" />
+
+## Internet mode
+
+This is the default and least restrictive mode. The cluster can be accessed from anywhere on the internet. However, your cluster is still protected by _IAM_ permissions.
+
+## VPC mode
+
+In addition to _IAM_ permissions, the cluster is also protected at the network level. This means that only resources within your stack's default VPC can access the cluster. Any IP addresses in the `whitelistedIps` list can also access the cluster. Traffic between your stack's resources and the cluster never leaves the AWS network, which is more secure and can be cheaper.
+
+`embed:mongo-db-atlas-clusters/accessibility-vpc.stp.yml`
+
+## Scoped VPC mode
+
+This mode is similar to VPC mode, but even more restrictive. In this mode, the `connectTo` property not only grants _IAM_ permissions, but also grants access at the network level.
+
+`embed:mongo-db-atlas-clusters/accessibility-scoping-vpc.stp.yml`
+
+## Whitelisted IPs only mode
+
+The cluster can only be accessed from the IP addresses and CIDR blocks in the `whitelistedIps` list.
+
+`embed:mongo-db-atlas-clusters/accessibility-whitelisted-ips-only.stp.yml`
+
+# Admin user
+
+<PropDescription definitionName="MongoDbAtlasClusterProps" propertyName="adminUserCredentials" descType="ld" />
+
+<PropertiesTable
+  definitionName="MongoDbAdminUserCredentials"
+  searchForReferencesInDefinition="MongoDbAtlasClusterProps"
+/>
+
+`embed:mongo-db-atlas-clusters/master-user.stp.yml`
+
+# Business Intelligence Connector for SQL
+
+The MongoDB Connector for BI allows you to use SQL to query your MongoDB data with tools like Tableau, Power BI, and Excel.
+
+<PropertiesTable definitionName="MongoDbBiConnector" searchForReferencesInDefinition="MongoDbAtlasClusterProps" />
+
+`embed:mongo-db-atlas-clusters/bi-connector.stp.yml`
+
+# Referenceable parameters
+
+<ReferenceableParams resource="mongo-db-atlas-cluster" />
+
+# Pricing
+
+You are charged for:
+
+- **Cluster tier:** Starting at $8.60/month for an M2 shared cluster.
+- **Data transfer:** For most customers, data transfer fees are less than 10% of their bill. There are no data transfer fees for M0, M2, and M5 clusters.
+
+For a more detailed overview, see the [MongoDB documentation](https://docs.atlas.mongodb.com/billing/data-transfer-costs/).
+
+# API reference
+
+<PropertiesTable definitionName="MongoDbReplication" searchForReferencesInDefinition="MongoDbAtlasClusterProps" />
+
+<PropertiesTable definitionName="MongoDbAtlasCluster" />

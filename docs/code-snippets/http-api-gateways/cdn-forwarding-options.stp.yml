@@ -1,0 +1,12 @@
+resources:
+  myHttpApi:
+    type: 'http-api-gateway'
+    properties:
+      cdn:
+        enabled: true
+        # {start-highlight}
+        forwardingOptions:
+          allowedMethods:
+            - 'GET'
+            - 'POST'
+        # {stop-highlight}

@@ -1,0 +1,7 @@
+name: Java lambda with DynamoDB
+tags:
+  - Java
+  - DynamoDB
+  - REST API
+  - Lambda
+icon: java.svg

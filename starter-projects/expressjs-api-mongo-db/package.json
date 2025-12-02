@@ -1,0 +1,14 @@
+{
+  "name": "expressjs-api-mongo-db",
+  "private": true,
+  "scripts": {},
+  "dependencies": {
+    "body-parser": "^1.20.2",
+    "express": "^4.19.2",
+    "mongoose": "^8.4.4",
+    "aws4": "^1.13.0"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21"
+  }
+}

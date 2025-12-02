@@ -1,0 +1,88 @@
+---
+title: "Custom Resources"
+order: 3
+---
+
+<br />
+<br />
+
+Custom resources allow you to create resources with custom provisioning logic. This enables you to define the logic for creating, updating, and deleting resources, giving you the ability to provision any type of resource that is not natively supported by Stacktape or _Cloudformation_. This way, you can manage all your related resources in a single stack.
+
+A common use case for custom resources is provisioning non-AWS resources. While AWS offers a vast array of services, a third-party solution may better fit your needs (e.g., using Auth0 instead of Cognito, or Algolia instead of OpenSearch).
+
+<Info>
+
+If you are not provisioning a custom resource but are looking for a way to execute custom logic during the deployment process, see the [deployment scripts documentation](/other-resources/deployment-scripts).
+
+</Info>
+
+## How to use custom resources
+
+In Stacktape, a custom resource consists of two parts:
+
+1.  **Definition**: A special type of Lambda function that contains the custom logic for creating, updating, and deleting the resource.
+2.  **Instance**: An instantiation of a custom resource definition.
+
+The following example shows a custom resource that seeds a MongoDB cluster.
+
+`embed:custom-resources/mongo-example.stp.yml`
+
+## Custom resource definition
+
+A custom resource definition is similar to a [function](/compute-resources/functions) definition, as it uses a Lambda function to execute the custom logic.
+
+<PropertiesTable
+  definitionName="CustomResourceDefinition"
+  rewriteLinksForReferencedCompositeTypes={{
+    StpBuildpackLambdaPackaging: "#code-of-custom-resource",
+    CustomArtifactLambdaPackaging: "#code-of-custom-resource"
+  }}
+/>
+
+`embed:custom-resources/mongo-example-definition.stp.yml`
+
+### Code of custom resource
+
+The `packaging` property allows you to specify the path to your code and other packaging-related properties. The code is packaged and executed as a Lambda function. For more information, see the [packaging documentation](/configuration/packaging#packaging-lambda-functions).
+
+`embed:custom-resources/mongo-example-package-config.stp.yml`
+
+#### Code example
+
+The following example shows the code for the MongoDB seeding custom resource. For more information on the types of requests (events) a custom resource receives and the response objects you should return, see the [AWS documentation](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/crpg-ref.html).
+
+`embed:custom-resources/seed-the-mongo-cluster.ts`
+
+### Accessing other resources
+
+By default, resource-to-resource communication is not allowed in AWS. Access must be explicitly granted using _IAM_ permissions. Stacktape automatically handles IAM permissions for the underlying AWS services it creates.
+
+If your custom resource needs to communicate with other infrastructure components, you must grant the necessary permissions manually. You can do this in two ways:
+
+#### connectTo
+
+The `connectTo` property is a list of resource names or AWS services that the custom resource will be able to access. Stacktape will automatically grant the basic IAM permissions required for communication. This is useful if you do not want to manage IAM permissions yourself.
+
+When you use the `connectTo` property, Stacktape also automatically injects information about the connected resource as environment variables into your custom resource's runtime.
+
+<PropDescription definitionName="LambdaFunctionProps" propertyName="connectTo" descType="ld" />
+
+In this example, we grant access to a MongoDB cluster. This will [inject the necessary credentials](/3rd-party-resources/mongo-db-atlas-clusters#accessing-clusters-from-workloads) into the custom resource's runtime, which are then used in the [code example](#code-example).
+
+`embed:custom-resources/mongo-example-access.stp.yml`
+
+<PropertiesTable definitionName="StpIamRoleStatement" searchForReferencesInDefinition="CustomResourceDefinitionProps" />
+
+#### Environment variables
+
+You can use environment variables to inject information that the resource needs during execution.
+
+<PropertiesTable definitionName="EnvironmentVar" searchForReferencesInDefinition="CustomResourceDefinitionProps" />
+
+## Custom resource instance
+
+A custom resource instance creates an instance of a specified custom resource definition. Depending on the action being performed on the stack (create, update, or delete), the instance receives an event and executes the corresponding logic in the custom resource definition.
+
+`embed:custom-resources/mongo-example-instance.stp.yml`
+
+<PropertiesTable definitionName="CustomResourceInstance" />

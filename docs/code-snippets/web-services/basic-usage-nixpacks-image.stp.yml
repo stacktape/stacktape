@@ -1,0 +1,13 @@
+resources:
+  webService:
+    type: web-service
+    properties:
+      # {start-highlight}
+      packaging:
+        type: nixpacks
+        properties:
+          sourceDirectoryPath: ./src
+      # {stop-highlight}
+      resources:
+        cpu: 2
+        memory: 2048

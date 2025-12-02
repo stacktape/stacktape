@@ -1,0 +1,23 @@
+resources:
+  myPrivateService:
+    type: private-service
+    properties:
+      packaging:
+        type: stacktape-image-buildpack
+        properties:
+          entryfilePath: server/index.ts
+      # {start-highlight}
+      iamRoleStatements:
+        - Resource:
+            - $CfResourceParam('NotificationTopic', 'Arn')
+          Effect: 'Allow'
+          Action:
+            - 'sns:Publish'
+      # {stop-highlight}
+      resources:
+        cpu: 2
+        memory: 2048
+
+cloudformationResources:
+  NotificationTopic:
+    Type: 'AWS::SNS::Topic'

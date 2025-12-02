@@ -1,0 +1,1710 @@
+{
+  "gcr.io/buildpacks/builder:google-22": [
+    { "id": "google.config.entrypoint", "name": "Config - Entrypoint", "version": "0.9.0" },
+    { "id": "google.config.flex", "name": "Config - Flex", "version": "0.9.1" },
+    { "id": "google.dart.compile", "name": "Dart - Compile", "version": "1.0.0" },
+    { "id": "google.dart.pub", "name": "Dart - Pub", "version": "0.1.0" },
+    { "id": "google.dart.sdk", "name": "Dart - Sdk", "version": "1.0.0" },
+    { "id": "google.dotnet.functions-framework", "name": ".NET - Functions Framework", "version": "0.0.1" },
+    { "id": "google.dotnet.publish", "name": ".NET - Publish", "version": "0.9.0" },
+    { "id": "google.dotnet.runtime", "name": ".NET - Runtime", "version": "0.9.1" },
+    { "id": "google.dotnet.sdk", "name": ".NET - Sdk", "version": "0.9.1" },
+    { "id": "google.go.build", "name": "Go - Build", "version": "0.9.0" },
+    { "id": "google.go.clear-source", "name": "Go - Clear Source", "version": "0.9.0" },
+    { "id": "google.go.functions-framework", "name": "Go - Functions Framework", "version": "0.9.4" },
+    { "id": "google.go.gomod", "name": "Go - Gomod", "version": "0.9.0" },
+    { "id": "google.go.gopath", "name": "Go - Gopath", "version": "0.9.0" },
+    { "id": "google.go.runtime", "name": "Go - Runtime", "version": "0.9.1" },
+    { "id": "google.java.clear-source", "name": "Java - Clear Source", "version": "0.9.0" },
+    { "id": "google.java.entrypoint", "name": "Java - Entrypoint", "version": "0.9.0" },
+    { "id": "google.java.exploded-jar", "name": "Java - Exploded Jar", "version": "0.9.0" },
+    { "id": "google.java.functions-framework", "name": "Java - Functions Framework", "version": "1.1.0" },
+    { "id": "google.java.graalvm", "name": "Java - Graalvm", "version": "0.1.0" },
+    { "id": "google.java.gradle", "name": "Java - Gradle", "version": "0.10.0" },
+    { "id": "google.java.maven", "name": "Java - Maven", "version": "0.9.0" },
+    { "id": "google.java.native-image", "name": "Java - Native Image", "version": "0.1.0" },
+    { "id": "google.java.runtime", "name": "Java - Runtime", "version": "0.9.2" },
+    { "id": "google.nodejs.functions-framework", "name": "Node.js - Functions Framework", "version": "0.9.4" },
+    { "id": "google.nodejs.npm", "name": "Node.js - Npm", "version": "1.1.0" },
+    { "id": "google.nodejs.pnpm", "name": "Node.js - Pnpm", "version": "0.1.0" },
+    { "id": "google.nodejs.runtime", "name": "Node.js - Runtime", "version": "1.0.0" },
+    { "id": "google.nodejs.yarn", "name": "Node.js - Yarn", "version": "2.1.0" },
+    { "id": "google.php.composer", "name": "PHP - Composer", "version": "0.9.1" },
+    { "id": "google.php.composer-gcp-build", "name": "PHP - Composer Gcp Build", "version": "0.9.1" },
+    { "id": "google.php.composer-install", "name": "PHP - Composer Install", "version": "0.0.1" },
+    { "id": "google.php.runtime", "name": "PHP - Runtime", "version": "0.0.2" },
+    { "id": "google.php.webconfig", "name": "PHP - Webconfig", "version": "0.0.1" },
+    { "id": "google.python.functions-framework", "name": "Python - Functions Framework", "version": "0.9.6" },
+    { "id": "google.python.missing-entrypoint", "name": "Python - Missing Entrypoint", "version": "0.9.0" },
+    { "id": "google.python.pip", "name": "Python - Pip", "version": "0.9.2" },
+    { "id": "google.python.runtime", "name": "Python - Runtime", "version": "0.9.1" },
+    { "id": "google.python.webserver", "name": "Python - Webserver", "version": "0.9.1" },
+    { "id": "google.ruby.bundle", "name": "Ruby - Bundle", "version": "0.9.0" },
+    { "id": "google.ruby.functions-framework", "name": "Ruby - Functions Framework", "version": "0.9.1" },
+    { "id": "google.ruby.missing-entrypoint", "name": "Ruby - Missing Entrypoint", "version": "0.0.1" },
+    { "id": "google.ruby.rails", "name": "Ruby - Rails", "version": "0.9.0" },
+    { "id": "google.ruby.rubygems", "name": "Ruby - Rubygems", "version": "0.9.0" },
+    { "id": "google.ruby.runtime", "name": "Ruby - Runtime", "version": "0.0.1" },
+    { "id": "google.utils.archive-source", "name": "Utils - Archive Source", "version": "0.0.1" },
+    { "id": "google.utils.label-image", "name": "Utils - Label Image", "version": "0.0.2" },
+    { "id": "google.utils.nginx", "name": "Utils - Nginx", "version": "0.0.1" }
+  ],
+  "heroku/builder:20": [
+    {
+      "id": "heroku/eol-warning",
+      "name": "heroku/builder:20 End-of-Life Warning",
+      "version": "1.0.0",
+      "homepage": "https://github.com/heroku/cnb-builder-images",
+      "licenses": [{ "Type": "BSD-3-Clause", "URI": "" }]
+    },
+    {
+      "id": "heroku/go",
+      "name": "Heroku Go",
+      "version": "0.5.1",
+      "homepage": "https://github.com/heroku/buildpacks-go"
+    },
+    {
+      "id": "heroku/gradle",
+      "name": "Heroku Gradle",
+      "version": "6.0.4",
+      "homepage": "https://github.com/heroku/buildpacks-jvm"
+    },
+    {
+      "id": "heroku/java",
+      "name": "Heroku Java",
+      "version": "6.0.4",
+      "homepage": "https://github.com/heroku/buildpacks-jvm"
+    },
+    {
+      "id": "heroku/jvm",
+      "name": "Heroku OpenJDK",
+      "version": "6.0.4",
+      "homepage": "https://github.com/heroku/buildpacks-jvm"
+    },
+    {
+      "id": "heroku/maven",
+      "name": "Heroku Maven",
+      "version": "6.0.4",
+      "homepage": "https://github.com/heroku/buildpacks-jvm"
+    },
+    {
+      "id": "heroku/nodejs",
+      "name": "Heroku Node.js",
+      "version": "3.4.3",
+      "homepage": "https://github.com/heroku/buildpacks-nodejs"
+    },
+    {
+      "id": "heroku/nodejs-corepack",
+      "name": "Heroku Node.js Corepack",
+      "version": "3.4.3",
+      "homepage": "https://github.com/heroku/buildpacks-nodejs"
+    },
+    {
+      "id": "heroku/nodejs-engine",
+      "name": "Heroku Node.js Engine",
+      "version": "3.4.3",
+      "homepage": "https://github.com/heroku/buildpacks-nodejs"
+    },
+    {
+      "id": "heroku/nodejs-npm-engine",
+      "name": "Heroku Node.js npm Engine",
+      "version": "3.4.3",
+      "homepage": "https://github.com/heroku/buildpacks-nodejs"
+    },
+    {
+      "id": "heroku/nodejs-npm-install",
+      "name": "Heroku Node.js npm Install",
+      "version": "3.4.3",
+      "homepage": "https://github.com/heroku/buildpacks-nodejs"
+    },
+    {
+      "id": "heroku/nodejs-pnpm-engine",
+      "name": "Heroku Node.js pnpm Engine",
+      "version": "3.4.3",
+      "homepage": "https://github.com/heroku/buildpacks-nodejs"
+    },
+    {
+      "id": "heroku/nodejs-pnpm-install",
+      "name": "Heroku Node.js pnpm install",
+      "version": "3.4.3",
+      "homepage": "https://github.com/heroku/buildpacks-nodejs"
+    },
+    {
+      "id": "heroku/nodejs-yarn",
+      "name": "Heroku Node.js Yarn",
+      "version": "3.4.3",
+      "homepage": "https://github.com/heroku/buildpacks-nodejs"
+    },
+    {
+      "id": "heroku/php",
+      "name": "Heroku PHP",
+      "version": "0.2.0",
+      "homepage": "https://github.com/heroku/buildpacks-php"
+    },
+    {
+      "id": "heroku/procfile",
+      "name": "Heroku Procfile",
+      "version": "3.2.0",
+      "homepage": "https://github.com/heroku/buildpacks-procfile"
+    },
+    {
+      "id": "heroku/python",
+      "name": "Heroku Python",
+      "version": "0.22.0",
+      "homepage": "https://github.com/heroku/buildpacks-python"
+    },
+    {
+      "id": "heroku/ruby",
+      "name": "Heroku Ruby",
+      "version": "5.0.0",
+      "homepage": "https://github.com/heroku/buildpacks-ruby"
+    },
+    {
+      "id": "heroku/sbt",
+      "name": "Heroku sbt",
+      "version": "6.0.4",
+      "homepage": "https://github.com/heroku/buildpacks-jvm"
+    },
+    {
+      "id": "heroku/scala",
+      "name": "Heroku Scala",
+      "version": "6.0.4",
+      "homepage": "https://github.com/heroku/buildpacks-jvm"
+    }
+  ],
+  "heroku/builder:22": [
+    {
+      "id": "heroku/deb-packages",
+      "name": "Heroku .deb Packages",
+      "version": "0.0.3",
+      "homepage": "https://github.com/heroku/buildpacks-deb-packages"
+    },
+    {
+      "id": "heroku/dotnet",
+      "name": "Heroku .NET",
+      "version": "0.1.9",
+      "homepage": "https://github.com/heroku/buildpacks-dotnet"
+    },
+    {
+      "id": "heroku/go",
+      "name": "Heroku Go",
+      "version": "0.5.1",
+      "homepage": "https://github.com/heroku/buildpacks-go"
+    },
+    {
+      "id": "heroku/gradle",
+      "name": "Heroku Gradle",
+      "version": "6.0.4",
+      "homepage": "https://github.com/heroku/buildpacks-jvm"
+    },
+    {
+      "id": "heroku/java",
+      "name": "Heroku Java",
+      "version": "6.0.4",
+      "homepage": "https://github.com/heroku/buildpacks-jvm"
+    },
+    {
+      "id": "heroku/jvm",
+      "name": "Heroku OpenJDK",
+      "version": "6.0.4",
+      "homepage": "https://github.com/heroku/buildpacks-jvm"
+    },
+    {
+      "id": "heroku/maven",
+      "name": "Heroku Maven",
+      "version": "6.0.4",
+      "homepage": "https://github.com/heroku/buildpacks-jvm"
+    },
+    {
+      "id": "heroku/nodejs",
+      "name": "Heroku Node.js",
+      "version": "3.4.3",
+      "homepage": "https://github.com/heroku/buildpacks-nodejs"
+    },
+    {
+      "id": "heroku/nodejs-corepack",
+      "name": "Heroku Node.js Corepack",
+      "version": "3.4.3",
+      "homepage": "https://github.com/heroku/buildpacks-nodejs"
+    },
+    {
+      "id": "heroku/nodejs-engine",
+      "name": "Heroku Node.js Engine",
+      "version": "3.4.3",
+      "homepage": "https://github.com/heroku/buildpacks-nodejs"
+    },
+    {
+      "id": "heroku/nodejs-npm-engine",
+      "name": "Heroku Node.js npm Engine",
+      "version": "3.4.3",
+      "homepage": "https://github.com/heroku/buildpacks-nodejs"
+    },
+    {
+      "id": "heroku/nodejs-npm-install",
+      "name": "Heroku Node.js npm Install",
+      "version": "3.4.3",
+      "homepage": "https://github.com/heroku/buildpacks-nodejs"
+    },
+    {
+      "id": "heroku/nodejs-pnpm-engine",
+      "name": "Heroku Node.js pnpm Engine",
+      "version": "3.4.3",
+      "homepage": "https://github.com/heroku/buildpacks-nodejs"
+    },
+    {
+      "id": "heroku/nodejs-pnpm-install",
+      "name": "Heroku Node.js pnpm install",
+      "version": "3.4.3",
+      "homepage": "https://github.com/heroku/buildpacks-nodejs"
+    },
+    {
+      "id": "heroku/nodejs-yarn",
+      "name": "Heroku Node.js Yarn",
+      "version": "3.4.3",
+      "homepage": "https://github.com/heroku/buildpacks-nodejs"
+    },
+    {
+      "id": "heroku/php",
+      "name": "Heroku PHP",
+      "version": "0.2.0",
+      "homepage": "https://github.com/heroku/buildpacks-php"
+    },
+    {
+      "id": "heroku/procfile",
+      "name": "Heroku Procfile",
+      "version": "3.2.0",
+      "homepage": "https://github.com/heroku/buildpacks-procfile"
+    },
+    {
+      "id": "heroku/python",
+      "name": "Heroku Python",
+      "version": "0.22.0",
+      "homepage": "https://github.com/heroku/buildpacks-python"
+    },
+    {
+      "id": "heroku/ruby",
+      "name": "Heroku Ruby",
+      "version": "5.0.0",
+      "homepage": "https://github.com/heroku/buildpacks-ruby"
+    },
+    {
+      "id": "heroku/sbt",
+      "name": "Heroku sbt",
+      "version": "6.0.4",
+      "homepage": "https://github.com/heroku/buildpacks-jvm"
+    },
+    {
+      "id": "heroku/scala",
+      "name": "Heroku Scala",
+      "version": "6.0.4",
+      "homepage": "https://github.com/heroku/buildpacks-jvm"
+    }
+  ],
+  "heroku/builder:24": [
+    {
+      "id": "heroku/deb-packages",
+      "name": "Heroku .deb Packages",
+      "version": "0.0.3",
+      "homepage": "https://github.com/heroku/buildpacks-deb-packages"
+    },
+    {
+      "id": "heroku/dotnet",
+      "name": "Heroku .NET",
+      "version": "0.1.9",
+      "homepage": "https://github.com/heroku/buildpacks-dotnet"
+    },
+    {
+      "id": "heroku/go",
+      "name": "Heroku Go",
+      "version": "0.5.1",
+      "homepage": "https://github.com/heroku/buildpacks-go"
+    },
+    {
+      "id": "heroku/gradle",
+      "name": "Heroku Gradle",
+      "version": "6.0.4",
+      "homepage": "https://github.com/heroku/buildpacks-jvm"
+    },
+    {
+      "id": "heroku/java",
+      "name": "Heroku Java",
+      "version": "6.0.4",
+      "homepage": "https://github.com/heroku/buildpacks-jvm"
+    },
+    {
+      "id": "heroku/jvm",
+      "name": "Heroku OpenJDK",
+      "version": "6.0.4",
+      "homepage": "https://github.com/heroku/buildpacks-jvm"
+    },
+    {
+      "id": "heroku/maven",
+      "name": "Heroku Maven",
+      "version": "6.0.4",
+      "homepage": "https://github.com/heroku/buildpacks-jvm"
+    },
+    {
+      "id": "heroku/nodejs",
+      "name": "Heroku Node.js",
+      "version": "3.4.3",
+      "homepage": "https://github.com/heroku/buildpacks-nodejs"
+    },
+    {
+      "id": "heroku/nodejs-corepack",
+      "name": "Heroku Node.js Corepack",
+      "version": "3.4.3",
+      "homepage": "https://github.com/heroku/buildpacks-nodejs"
+    },
+    {
+      "id": "heroku/nodejs-engine",
+      "name": "Heroku Node.js Engine",
+      "version": "3.4.3",
+      "homepage": "https://github.com/heroku/buildpacks-nodejs"
+    },
+    {
+      "id": "heroku/nodejs-npm-engine",
+      "name": "Heroku Node.js npm Engine",
+      "version": "3.4.3",
+      "homepage": "https://github.com/heroku/buildpacks-nodejs"
+    },
+    {
+      "id": "heroku/nodejs-npm-install",
+      "name": "Heroku Node.js npm Install",
+      "version": "3.4.3",
+      "homepage": "https://github.com/heroku/buildpacks-nodejs"
+    },
+    {
+      "id": "heroku/nodejs-pnpm-engine",
+      "name": "Heroku Node.js pnpm Engine",
+      "version": "3.4.3",
+      "homepage": "https://github.com/heroku/buildpacks-nodejs"
+    },
+    {
+      "id": "heroku/nodejs-pnpm-install",
+      "name": "Heroku Node.js pnpm install",
+      "version": "3.4.3",
+      "homepage": "https://github.com/heroku/buildpacks-nodejs"
+    },
+    {
+      "id": "heroku/nodejs-yarn",
+      "name": "Heroku Node.js Yarn",
+      "version": "3.4.3",
+      "homepage": "https://github.com/heroku/buildpacks-nodejs"
+    },
+    {
+      "id": "heroku/php",
+      "name": "Heroku PHP",
+      "version": "0.2.0",
+      "homepage": "https://github.com/heroku/buildpacks-php"
+    },
+    {
+      "id": "heroku/procfile",
+      "name": "Heroku Procfile",
+      "version": "3.2.0",
+      "homepage": "https://github.com/heroku/buildpacks-procfile"
+    },
+    {
+      "id": "heroku/python",
+      "name": "Heroku Python",
+      "version": "0.22.0",
+      "homepage": "https://github.com/heroku/buildpacks-python"
+    },
+    {
+      "id": "heroku/ruby",
+      "name": "Heroku Ruby",
+      "version": "5.0.0",
+      "homepage": "https://github.com/heroku/buildpacks-ruby"
+    },
+    {
+      "id": "heroku/sbt",
+      "name": "Heroku sbt",
+      "version": "6.0.4",
+      "homepage": "https://github.com/heroku/buildpacks-jvm"
+    },
+    {
+      "id": "heroku/scala",
+      "name": "Heroku Scala",
+      "version": "6.0.4",
+      "homepage": "https://github.com/heroku/buildpacks-jvm"
+    }
+  ],
+  "paketobuildpacks/builder-jammy-base": [
+    {
+      "id": "paketo-buildpacks/apache-tomcat",
+      "name": "Paketo Buildpack for Apache Tomcat",
+      "version": "8.4.1",
+      "homepage": "https://github.com/paketo-buildpacks/apache-tomcat"
+    },
+    {
+      "id": "paketo-buildpacks/apache-tomee",
+      "name": "Paketo Buildpack for Apache Tomee",
+      "version": "1.11.0",
+      "homepage": "https://github.com/paketo-buildpacks/apache-tomee"
+    },
+    {
+      "id": "paketo-buildpacks/azure-application-insights",
+      "name": "Paketo Buildpack for Azure Application Insights",
+      "version": "5.23.0",
+      "homepage": "https://github.com/paketo-buildpacks/azure-application-insights"
+    },
+    {
+      "id": "paketo-buildpacks/bellsoft-liberica",
+      "name": "Paketo Buildpack for BellSoft Liberica",
+      "version": "11.0.1",
+      "homepage": "https://github.com/paketo-buildpacks/bellsoft-liberica"
+    },
+    {
+      "id": "paketo-buildpacks/bundle-install",
+      "name": "Paketo Buildpack for Bundle Install",
+      "version": "0.8.14",
+      "homepage": "https://github.com/paketo-buildpacks/bundle-install"
+    },
+    {
+      "id": "paketo-buildpacks/bundler",
+      "name": "Paketo Buildpack for Bundler",
+      "version": "0.8.25",
+      "homepage": "https://github.com/paketo-buildpacks/bundler"
+    },
+    {
+      "id": "paketo-buildpacks/ca-certificates",
+      "name": "Paketo Buildpack for CA Certificates",
+      "version": "3.8.5",
+      "homepage": "https://github.com/paketo-buildpacks/ca-certificates"
+    },
+    {
+      "id": "paketo-buildpacks/ca-certificates",
+      "name": "Paketo Buildpack for CA Certificates",
+      "version": "3.9.0",
+      "homepage": "https://github.com/paketo-buildpacks/ca-certificates"
+    },
+    {
+      "id": "paketo-buildpacks/clojure-tools",
+      "name": "Paketo Buildpack for Clojure Tools",
+      "version": "2.14.1",
+      "homepage": "https://github.com/paketo-buildpacks/clojure-tools"
+    },
+    {
+      "id": "paketo-buildpacks/conda-env-update",
+      "name": "Paketo Buildpack for Conda Env Update",
+      "version": "0.7.14",
+      "homepage": "https://github.com/paketo-buildpacks/conda-env-update"
+    },
+    { "id": "paketo-buildpacks/cpython", "name": "Paketo Buildpack for CPython", "version": "1.13.21" },
+    {
+      "id": "paketo-buildpacks/datadog",
+      "name": "Paketo Buildpack for Datadog",
+      "version": "5.27.1",
+      "homepage": "https://github.com/paketo-buildpacks/datadog"
+    },
+    {
+      "id": "paketo-buildpacks/dist-zip",
+      "name": "Paketo Buildpack for DistZip",
+      "version": "5.9.0",
+      "homepage": "https://github.com/paketo-buildpacks/dist-zip"
+    },
+    {
+      "id": "paketo-buildpacks/dotnet-core",
+      "name": "Paketo Buildpack for .NET Core",
+      "version": "1.2.3",
+      "homepage": "https://github.com/paketo-buildpacks/dotnet-core"
+    },
+    {
+      "id": "paketo-buildpacks/dotnet-core-aspnet-runtime",
+      "name": "Paketo Buildpack for ASP.NET Core Runtime",
+      "version": "1.0.5",
+      "homepage": "https://github.com/paketo-buildpacks/dotnet-core-aspnet-runtime"
+    },
+    {
+      "id": "paketo-buildpacks/dotnet-core-sdk",
+      "name": "Paketo Buildpack for .NET Core SDK",
+      "version": "1.0.5",
+      "homepage": "https://github.com/paketo-buildpacks/dotnet-core-sdk"
+    },
+    {
+      "id": "paketo-buildpacks/dotnet-execute",
+      "name": "Paketo Buildpack for .NET Execute",
+      "version": "1.0.5",
+      "homepage": "https://github.com/paketo-buildpacks/dotnet-execute"
+    },
+    {
+      "id": "paketo-buildpacks/dotnet-publish",
+      "name": "Paketo Buildpack for .NET Publish",
+      "version": "1.0.3",
+      "homepage": "https://github.com/paketo-buildpacks/dotnet-publish"
+    },
+    {
+      "id": "paketo-buildpacks/encrypt-at-rest",
+      "name": "Paketo Buildpack for Encrypt-at-Rest",
+      "version": "4.8.4",
+      "homepage": "https://github.com/paketo-buildpacks/encrypt-at-rest"
+    },
+    {
+      "id": "paketo-buildpacks/environment-variables",
+      "name": "Paketo Buildpack for Environment Variables",
+      "version": "4.7.2",
+      "homepage": "https://github.com/paketo-buildpacks/environment-variables"
+    },
+    {
+      "id": "paketo-buildpacks/environment-variables",
+      "name": "Paketo Buildpack for Environment Variables",
+      "version": "4.8.0",
+      "homepage": "https://github.com/paketo-buildpacks/environment-variables"
+    },
+    {
+      "id": "paketo-buildpacks/executable-jar",
+      "name": "Paketo Buildpack for Executable JAR",
+      "version": "6.12.0",
+      "homepage": "https://github.com/paketo-buildpacks/executable-jar"
+    },
+    {
+      "id": "paketo-buildpacks/git",
+      "name": "Paketo Buildpack for Git",
+      "version": "1.0.32",
+      "homepage": "https://github.com/paketo-buildpacks/git"
+    },
+    {
+      "id": "paketo-buildpacks/go",
+      "name": "Paketo Buildpack for Go",
+      "version": "4.13.3",
+      "homepage": "https://github.com/paketo-buildpacks/go"
+    },
+    {
+      "id": "paketo-buildpacks/go-build",
+      "name": "Paketo Buildpack for Go Build",
+      "version": "2.2.21",
+      "homepage": "https://github.com/paketo-buildpacks/go-build"
+    },
+    {
+      "id": "paketo-buildpacks/go-dist",
+      "name": "Paketo Buildpack for Go Distribution",
+      "version": "2.6.13",
+      "homepage": "https://github.com/paketo-buildpacks/go-dist"
+    },
+    {
+      "id": "paketo-buildpacks/go-mod-vendor",
+      "name": "Paketo Buildpack for Go Mod Vendor",
+      "version": "1.0.49",
+      "homepage": "https://github.com/paketo-buildpacks/go-mod-vendor"
+    },
+    {
+      "id": "paketo-buildpacks/google-stackdriver",
+      "name": "Paketo Buildpack for Google Stackdriver",
+      "version": "9.3.1",
+      "homepage": "https://github.com/paketo-buildpacks/google-stackdriver"
+    },
+    {
+      "id": "paketo-buildpacks/gradle",
+      "name": "Paketo Buildpack for Gradle",
+      "version": "7.15.2",
+      "homepage": "https://github.com/paketo-buildpacks/gradle"
+    },
+    {
+      "id": "paketo-buildpacks/httpd",
+      "name": "Paketo Buildpack for Apache HTTP Server",
+      "version": "0.7.39",
+      "homepage": "https://github.com/paketo-buildpacks/httpd"
+    },
+    {
+      "id": "paketo-buildpacks/icu",
+      "name": "Paketo Buildpack for ICU",
+      "version": "0.7.33",
+      "homepage": "https://github.com/paketo-buildpacks/icu"
+    },
+    {
+      "id": "paketo-buildpacks/image-labels",
+      "name": "Paketo Buildpack for Image Labels",
+      "version": "4.7.2",
+      "homepage": "https://github.com/paketo-buildpacks/image-labels"
+    },
+    {
+      "id": "paketo-buildpacks/image-labels",
+      "name": "Paketo Buildpack for Image Labels",
+      "version": "4.8.0",
+      "homepage": "https://github.com/paketo-buildpacks/image-labels"
+    },
+    {
+      "id": "paketo-buildpacks/jattach",
+      "name": "Paketo Buildpack for JAttach",
+      "version": "1.9.0",
+      "homepage": "https://github.com/paketo-buildpacks/jattach"
+    },
+    {
+      "id": "paketo-buildpacks/java",
+      "name": "Paketo Buildpack for Java",
+      "version": "17.4.0",
+      "homepage": "https://github.com/paketo-buildpacks/java"
+    },
+    {
+      "id": "paketo-buildpacks/java-memory-assistant",
+      "name": "Paketo Buildpack for Java Memory Assistant",
+      "version": "1.7.0",
+      "homepage": "https://github.com/paketo-buildpacks/java-memory-assistant"
+    },
+    {
+      "id": "paketo-buildpacks/java-native-image",
+      "name": "Paketo Buildpack for Java Native Image",
+      "version": "11.3.0",
+      "homepage": "https://github.com/paketo-buildpacks/java-native-image"
+    },
+    {
+      "id": "paketo-buildpacks/leiningen",
+      "name": "Paketo Buildpack for Leiningen",
+      "version": "4.11.0",
+      "homepage": "https://github.com/paketo-buildpacks/leiningen"
+    },
+    {
+      "id": "paketo-buildpacks/liberty",
+      "name": "Paketo Buildpack for Liberty",
+      "version": "4.4.1",
+      "homepage": "https://github.com/paketo-buildpacks/liberty"
+    },
+    {
+      "id": "paketo-buildpacks/maven",
+      "name": "Paketo Buildpack for Maven",
+      "version": "6.19.2",
+      "homepage": "https://github.com/paketo-buildpacks/maven"
+    },
+    { "id": "paketo-buildpacks/miniconda", "name": "Paketo Buildpack for Miniconda", "version": "0.10.4" },
+    {
+      "id": "paketo-buildpacks/mri",
+      "name": "Paketo Buildpack for MRI",
+      "version": "0.17.15",
+      "homepage": "https://github.com/paketo-buildpacks/mri"
+    },
+    {
+      "id": "paketo-buildpacks/native-image",
+      "name": "Paketo Buildpack for Native Image",
+      "version": "5.15.0",
+      "homepage": "https://github.com/paketo-buildpacks/native-image"
+    },
+    {
+      "id": "paketo-buildpacks/nginx",
+      "name": "Paketo Buildpack for Nginx Server",
+      "version": "0.17.16",
+      "homepage": "https://github.com/paketo-buildpacks/nginx"
+    },
+    {
+      "id": "paketo-buildpacks/node-engine",
+      "name": "Paketo Buildpack for Node Engine",
+      "version": "4.1.11",
+      "homepage": "https://github.com/paketo-buildpacks/node-engine"
+    },
+    {
+      "id": "paketo-buildpacks/node-engine",
+      "name": "Paketo Buildpack for Node Engine",
+      "version": "5.1.1",
+      "homepage": "https://github.com/paketo-buildpacks/node-engine"
+    },
+    {
+      "id": "paketo-buildpacks/node-engine",
+      "name": "Paketo Buildpack for Node Engine",
+      "version": "5.1.3",
+      "homepage": "https://github.com/paketo-buildpacks/node-engine"
+    },
+    {
+      "id": "paketo-buildpacks/node-engine",
+      "name": "Paketo Buildpack for Node Engine",
+      "version": "5.1.4",
+      "homepage": "https://github.com/paketo-buildpacks/node-engine"
+    },
+    {
+      "id": "paketo-buildpacks/node-run-script",
+      "name": "Paketo Buildpack for Node Run Script",
+      "version": "2.0.3",
+      "homepage": "https://github.com/paketo-buildpacks/node-run-script"
+    },
+    {
+      "id": "paketo-buildpacks/node-run-script",
+      "name": "Paketo Buildpack for Node Run Script",
+      "version": "2.0.4",
+      "homepage": "https://github.com/paketo-buildpacks/node-run-script"
+    },
+    {
+      "id": "paketo-buildpacks/node-start",
+      "name": "Paketo Buildpack for Node Start",
+      "version": "2.1.16",
+      "homepage": "https://github.com/paketo-buildpacks/node-start"
+    },
+    {
+      "id": "paketo-buildpacks/nodejs",
+      "name": "Paketo Buildpack for Node.js",
+      "version": "7.1.3",
+      "homepage": "https://github.com/paketo-buildpacks/nodejs"
+    },
+    {
+      "id": "paketo-buildpacks/npm-install",
+      "name": "Paketo Buildpack for NPM Install",
+      "version": "1.6.8",
+      "homepage": "https://github.com/paketo-buildpacks/npm-install"
+    },
+    {
+      "id": "paketo-buildpacks/npm-install",
+      "name": "Paketo Buildpack for NPM Install",
+      "version": "1.6.9",
+      "homepage": "https://github.com/paketo-buildpacks/npm-install"
+    },
+    {
+      "id": "paketo-buildpacks/npm-start",
+      "name": "Paketo Buildpack for NPM Start",
+      "version": "2.1.4",
+      "homepage": "https://github.com/paketo-buildpacks/npm-start"
+    },
+    {
+      "id": "paketo-buildpacks/passenger",
+      "name": "Paketo Buildpack for Passenger",
+      "version": "0.14.11",
+      "homepage": "https://github.com/paketo-buildpacks/passenger"
+    },
+    { "id": "paketo-buildpacks/pip", "name": "Paketo Buildpack for Pip", "version": "0.22.1" },
+    { "id": "paketo-buildpacks/pip-install", "name": "Paketo Buildpack for Pip Install", "version": "0.6.6" },
+    { "id": "paketo-buildpacks/pipenv", "name": "Paketo Buildpack for Pipenv", "version": "1.21.6" },
+    { "id": "paketo-buildpacks/pipenv-install", "name": "Paketo Buildpack for Pipenv Install", "version": "0.6.24" },
+    { "id": "paketo-buildpacks/poetry", "name": "Paketo Buildpack for Poetry", "version": "0.9.4" },
+    { "id": "paketo-buildpacks/poetry-install", "name": "Paketo Buildpack for Poetry Install", "version": "0.3.23" },
+    { "id": "paketo-buildpacks/poetry-run", "name": "Paketo Buildpack for Poetry Run", "version": "0.4.35" },
+    {
+      "id": "paketo-buildpacks/procfile",
+      "name": "Paketo Buildpack for Procfile",
+      "version": "5.10.2",
+      "homepage": "https://github.com/paketo-buildpacks/procfile"
+    },
+    {
+      "id": "paketo-buildpacks/procfile",
+      "name": "Paketo Buildpack for Procfile",
+      "version": "5.9.2",
+      "homepage": "https://github.com/paketo-buildpacks/procfile"
+    },
+    {
+      "id": "paketo-buildpacks/puma",
+      "name": "Paketo Buildpack for Puma",
+      "version": "0.4.56",
+      "homepage": "https://github.com/paketo-buildpacks/puma"
+    },
+    { "id": "paketo-buildpacks/python", "name": "Paketo Buildpack for Python", "version": "2.23.3" },
+    {
+      "id": "paketo-buildpacks/python-start",
+      "name": "Paketo Buildpack for Python Start",
+      "version": "0.14.19",
+      "homepage": "https://github.com/paketo-buildpacks/python-start"
+    },
+    {
+      "id": "paketo-buildpacks/rackup",
+      "name": "Paketo Buildpack for Rackup",
+      "version": "0.4.51",
+      "homepage": "https://github.com/paketo-buildpacks/rackup"
+    },
+    {
+      "id": "paketo-buildpacks/rails-assets",
+      "name": "Paketo Buildpack for Rails Assets",
+      "version": "0.10.24",
+      "homepage": "https://github.com/paketo-buildpacks/rails-assets"
+    },
+    {
+      "id": "paketo-buildpacks/rake",
+      "name": "Paketo Buildpack for Rake",
+      "version": "0.4.56",
+      "homepage": "https://github.com/paketo-buildpacks/rake"
+    },
+    {
+      "id": "paketo-buildpacks/ruby",
+      "name": "Paketo Buildpack for Ruby",
+      "version": "0.47.6",
+      "homepage": "https://github.com/paketo-buildpacks/ruby"
+    },
+    {
+      "id": "paketo-buildpacks/sbt",
+      "name": "Paketo Buildpack for SBT",
+      "version": "6.17.4",
+      "homepage": "https://github.com/paketo-buildpacks/sbt"
+    },
+    { "id": "paketo-buildpacks/source-removal", "name": "Paketo Buildpack for Source Removal", "version": "0.2.26" },
+    {
+      "id": "paketo-buildpacks/spring-boot",
+      "name": "Paketo Buildpack for Spring Boot",
+      "version": "5.32.0",
+      "homepage": "https://github.com/paketo-buildpacks/spring-boot"
+    },
+    {
+      "id": "paketo-buildpacks/syft",
+      "name": "Paketo Buildpack for Syft",
+      "version": "2.6.1",
+      "homepage": "https://github.com/paketo-buildpacks/syft"
+    },
+    {
+      "id": "paketo-buildpacks/thin",
+      "name": "Paketo Buildpack for Thin",
+      "version": "0.5.51",
+      "homepage": "https://github.com/paketo-buildpacks/thin"
+    },
+    {
+      "id": "paketo-buildpacks/unicorn",
+      "name": "Paketo Buildpack for Unicorn",
+      "version": "0.4.54",
+      "homepage": "https://github.com/paketo-buildpacks/unicorn"
+    },
+    {
+      "id": "paketo-buildpacks/upx",
+      "name": "Paketo Buildpack for UPX",
+      "version": "3.7.0",
+      "homepage": "https://github.com/paketo-buildpacks/upx"
+    },
+    { "id": "paketo-buildpacks/vsdbg", "name": "Paketo Buildpack for Visual Studio Debugger", "version": "0.3.37" },
+    {
+      "id": "paketo-buildpacks/watchexec",
+      "name": "Paketo Buildpack for Watchexec",
+      "version": "3.3.1",
+      "homepage": "https://github.com/paketo-buildpacks/watchexec"
+    },
+    {
+      "id": "paketo-buildpacks/web-servers",
+      "name": "Paketo Buildpack for Web Servers",
+      "version": "1.1.3",
+      "homepage": "https://github.com/paketo-buildpacks/web-servers"
+    },
+    {
+      "id": "paketo-buildpacks/yarn",
+      "name": "Paketo Buildpack for Yarn",
+      "version": "1.3.15",
+      "homepage": "https://github.com/paketo-buildpacks/yarn"
+    },
+    {
+      "id": "paketo-buildpacks/yarn",
+      "name": "Paketo Buildpack for Yarn",
+      "version": "1.3.22",
+      "homepage": "https://github.com/paketo-buildpacks/yarn"
+    },
+    {
+      "id": "paketo-buildpacks/yarn",
+      "name": "Paketo Buildpack for Yarn",
+      "version": "1.3.24",
+      "homepage": "https://github.com/paketo-buildpacks/yarn"
+    },
+    {
+      "id": "paketo-buildpacks/yarn",
+      "name": "Paketo Buildpack for Yarn",
+      "version": "1.3.25",
+      "homepage": "https://github.com/paketo-buildpacks/yarn"
+    },
+    {
+      "id": "paketo-buildpacks/yarn-install",
+      "name": "Paketo Buildpack for Yarn Install",
+      "version": "2.0.9",
+      "homepage": "https://github.com/paketo-buildpacks/yarn-install"
+    },
+    {
+      "id": "paketo-buildpacks/yarn-install",
+      "name": "Paketo Buildpack for Yarn Install",
+      "version": "2.1.6",
+      "homepage": "https://github.com/paketo-buildpacks/yarn-install"
+    },
+    {
+      "id": "paketo-buildpacks/yarn-install",
+      "name": "Paketo Buildpack for Yarn Install",
+      "version": "2.1.7",
+      "homepage": "https://github.com/paketo-buildpacks/yarn-install"
+    },
+    {
+      "id": "paketo-buildpacks/yarn-start",
+      "name": "Paketo Buildpack for Yarn Start",
+      "version": "2.0.22",
+      "homepage": "https://github.com/paketo-buildpacks/yarn-start"
+    }
+  ],
+  "paketobuildpacks/builder-jammy-buildpackless-static": null,
+  "paketobuildpacks/builder-jammy-full": [
+    {
+      "id": "paketo-buildpacks/apache-tomcat",
+      "name": "Paketo Buildpack for Apache Tomcat",
+      "version": "8.4.1",
+      "homepage": "https://github.com/paketo-buildpacks/apache-tomcat"
+    },
+    {
+      "id": "paketo-buildpacks/apache-tomee",
+      "name": "Paketo Buildpack for Apache Tomee",
+      "version": "1.11.0",
+      "homepage": "https://github.com/paketo-buildpacks/apache-tomee"
+    },
+    {
+      "id": "paketo-buildpacks/azure-application-insights",
+      "name": "Paketo Buildpack for Azure Application Insights",
+      "version": "5.23.0",
+      "homepage": "https://github.com/paketo-buildpacks/azure-application-insights"
+    },
+    {
+      "id": "paketo-buildpacks/bellsoft-liberica",
+      "name": "Paketo Buildpack for BellSoft Liberica",
+      "version": "11.0.1",
+      "homepage": "https://github.com/paketo-buildpacks/bellsoft-liberica"
+    },
+    {
+      "id": "paketo-buildpacks/bundle-install",
+      "name": "Paketo Buildpack for Bundle Install",
+      "version": "0.8.14",
+      "homepage": "https://github.com/paketo-buildpacks/bundle-install"
+    },
+    {
+      "id": "paketo-buildpacks/bundler",
+      "name": "Paketo Buildpack for Bundler",
+      "version": "0.8.25",
+      "homepage": "https://github.com/paketo-buildpacks/bundler"
+    },
+    {
+      "id": "paketo-buildpacks/ca-certificates",
+      "name": "Paketo Buildpack for CA Certificates",
+      "version": "3.8.5",
+      "homepage": "https://github.com/paketo-buildpacks/ca-certificates"
+    },
+    {
+      "id": "paketo-buildpacks/ca-certificates",
+      "name": "Paketo Buildpack for CA Certificates",
+      "version": "3.8.6",
+      "homepage": "https://github.com/paketo-buildpacks/ca-certificates"
+    },
+    {
+      "id": "paketo-buildpacks/ca-certificates",
+      "name": "Paketo Buildpack for CA Certificates",
+      "version": "3.9.0",
+      "homepage": "https://github.com/paketo-buildpacks/ca-certificates"
+    },
+    {
+      "id": "paketo-buildpacks/clojure-tools",
+      "name": "Paketo Buildpack for Clojure Tools",
+      "version": "2.14.1",
+      "homepage": "https://github.com/paketo-buildpacks/clojure-tools"
+    },
+    {
+      "id": "paketo-buildpacks/composer",
+      "name": "Paketo Buildpack for Composer",
+      "version": "0.7.15",
+      "homepage": "https://github.com/paketo-buildpacks/composer"
+    },
+    {
+      "id": "paketo-buildpacks/composer-install",
+      "name": "Paketo Buildpack for Composer Install",
+      "version": "0.3.28",
+      "homepage": "https://github.com/paketo-buildpacks/composer-install"
+    },
+    {
+      "id": "paketo-buildpacks/conda-env-update",
+      "name": "Paketo Buildpack for Conda Env Update",
+      "version": "0.7.14",
+      "homepage": "https://github.com/paketo-buildpacks/conda-env-update"
+    },
+    { "id": "paketo-buildpacks/cpython", "name": "Paketo Buildpack for CPython", "version": "1.13.21" },
+    {
+      "id": "paketo-buildpacks/datadog",
+      "name": "Paketo Buildpack for Datadog",
+      "version": "5.27.1",
+      "homepage": "https://github.com/paketo-buildpacks/datadog"
+    },
+    {
+      "id": "paketo-buildpacks/dist-zip",
+      "name": "Paketo Buildpack for DistZip",
+      "version": "5.9.0",
+      "homepage": "https://github.com/paketo-buildpacks/dist-zip"
+    },
+    {
+      "id": "paketo-buildpacks/dotnet-core",
+      "name": "Paketo Buildpack for .NET Core",
+      "version": "1.2.3",
+      "homepage": "https://github.com/paketo-buildpacks/dotnet-core"
+    },
+    {
+      "id": "paketo-buildpacks/dotnet-core-aspnet-runtime",
+      "name": "Paketo Buildpack for ASP.NET Core Runtime",
+      "version": "1.0.5",
+      "homepage": "https://github.com/paketo-buildpacks/dotnet-core-aspnet-runtime"
+    },
+    {
+      "id": "paketo-buildpacks/dotnet-core-sdk",
+      "name": "Paketo Buildpack for .NET Core SDK",
+      "version": "1.0.5",
+      "homepage": "https://github.com/paketo-buildpacks/dotnet-core-sdk"
+    },
+    {
+      "id": "paketo-buildpacks/dotnet-execute",
+      "name": "Paketo Buildpack for .NET Execute",
+      "version": "1.0.5",
+      "homepage": "https://github.com/paketo-buildpacks/dotnet-execute"
+    },
+    {
+      "id": "paketo-buildpacks/dotnet-publish",
+      "name": "Paketo Buildpack for .NET Publish",
+      "version": "1.0.3",
+      "homepage": "https://github.com/paketo-buildpacks/dotnet-publish"
+    },
+    {
+      "id": "paketo-buildpacks/encrypt-at-rest",
+      "name": "Paketo Buildpack for Encrypt-at-Rest",
+      "version": "4.8.4",
+      "homepage": "https://github.com/paketo-buildpacks/encrypt-at-rest"
+    },
+    {
+      "id": "paketo-buildpacks/environment-variables",
+      "name": "Paketo Buildpack for Environment Variables",
+      "version": "4.7.2",
+      "homepage": "https://github.com/paketo-buildpacks/environment-variables"
+    },
+    {
+      "id": "paketo-buildpacks/environment-variables",
+      "name": "Paketo Buildpack for Environment Variables",
+      "version": "4.7.3",
+      "homepage": "https://github.com/paketo-buildpacks/environment-variables"
+    },
+    {
+      "id": "paketo-buildpacks/environment-variables",
+      "name": "Paketo Buildpack for Environment Variables",
+      "version": "4.8.0",
+      "homepage": "https://github.com/paketo-buildpacks/environment-variables"
+    },
+    {
+      "id": "paketo-buildpacks/executable-jar",
+      "name": "Paketo Buildpack for Executable JAR",
+      "version": "6.12.0",
+      "homepage": "https://github.com/paketo-buildpacks/executable-jar"
+    },
+    {
+      "id": "paketo-buildpacks/git",
+      "name": "Paketo Buildpack for Git",
+      "version": "1.0.32",
+      "homepage": "https://github.com/paketo-buildpacks/git"
+    },
+    {
+      "id": "paketo-buildpacks/go",
+      "name": "Paketo Buildpack for Go",
+      "version": "4.13.3",
+      "homepage": "https://github.com/paketo-buildpacks/go"
+    },
+    {
+      "id": "paketo-buildpacks/go-build",
+      "name": "Paketo Buildpack for Go Build",
+      "version": "2.2.21",
+      "homepage": "https://github.com/paketo-buildpacks/go-build"
+    },
+    {
+      "id": "paketo-buildpacks/go-dist",
+      "name": "Paketo Buildpack for Go Distribution",
+      "version": "2.6.13",
+      "homepage": "https://github.com/paketo-buildpacks/go-dist"
+    },
+    {
+      "id": "paketo-buildpacks/go-mod-vendor",
+      "name": "Paketo Buildpack for Go Mod Vendor",
+      "version": "1.0.49",
+      "homepage": "https://github.com/paketo-buildpacks/go-mod-vendor"
+    },
+    {
+      "id": "paketo-buildpacks/google-stackdriver",
+      "name": "Paketo Buildpack for Google Stackdriver",
+      "version": "9.3.1",
+      "homepage": "https://github.com/paketo-buildpacks/google-stackdriver"
+    },
+    {
+      "id": "paketo-buildpacks/gradle",
+      "name": "Paketo Buildpack for Gradle",
+      "version": "7.15.2",
+      "homepage": "https://github.com/paketo-buildpacks/gradle"
+    },
+    {
+      "id": "paketo-buildpacks/httpd",
+      "name": "Paketo Buildpack for Apache HTTP Server",
+      "version": "0.7.37",
+      "homepage": "https://github.com/paketo-buildpacks/httpd"
+    },
+    {
+      "id": "paketo-buildpacks/httpd",
+      "name": "Paketo Buildpack for Apache HTTP Server",
+      "version": "0.7.39",
+      "homepage": "https://github.com/paketo-buildpacks/httpd"
+    },
+    {
+      "id": "paketo-buildpacks/icu",
+      "name": "Paketo Buildpack for ICU",
+      "version": "0.7.33",
+      "homepage": "https://github.com/paketo-buildpacks/icu"
+    },
+    {
+      "id": "paketo-buildpacks/image-labels",
+      "name": "Paketo Buildpack for Image Labels",
+      "version": "4.7.2",
+      "homepage": "https://github.com/paketo-buildpacks/image-labels"
+    },
+    {
+      "id": "paketo-buildpacks/image-labels",
+      "name": "Paketo Buildpack for Image Labels",
+      "version": "4.7.3",
+      "homepage": "https://github.com/paketo-buildpacks/image-labels"
+    },
+    {
+      "id": "paketo-buildpacks/image-labels",
+      "name": "Paketo Buildpack for Image Labels",
+      "version": "4.8.0",
+      "homepage": "https://github.com/paketo-buildpacks/image-labels"
+    },
+    {
+      "id": "paketo-buildpacks/jattach",
+      "name": "Paketo Buildpack for JAttach",
+      "version": "1.9.0",
+      "homepage": "https://github.com/paketo-buildpacks/jattach"
+    },
+    {
+      "id": "paketo-buildpacks/java",
+      "name": "Paketo Buildpack for Java",
+      "version": "17.4.0",
+      "homepage": "https://github.com/paketo-buildpacks/java"
+    },
+    {
+      "id": "paketo-buildpacks/java-memory-assistant",
+      "name": "Paketo Buildpack for Java Memory Assistant",
+      "version": "1.7.0",
+      "homepage": "https://github.com/paketo-buildpacks/java-memory-assistant"
+    },
+    {
+      "id": "paketo-buildpacks/java-native-image",
+      "name": "Paketo Buildpack for Java Native Image",
+      "version": "11.3.0",
+      "homepage": "https://github.com/paketo-buildpacks/java-native-image"
+    },
+    {
+      "id": "paketo-buildpacks/leiningen",
+      "name": "Paketo Buildpack for Leiningen",
+      "version": "4.11.0",
+      "homepage": "https://github.com/paketo-buildpacks/leiningen"
+    },
+    {
+      "id": "paketo-buildpacks/liberty",
+      "name": "Paketo Buildpack for Liberty",
+      "version": "4.4.1",
+      "homepage": "https://github.com/paketo-buildpacks/liberty"
+    },
+    {
+      "id": "paketo-buildpacks/maven",
+      "name": "Paketo Buildpack for Maven",
+      "version": "6.19.2",
+      "homepage": "https://github.com/paketo-buildpacks/maven"
+    },
+    { "id": "paketo-buildpacks/miniconda", "name": "Paketo Buildpack for Miniconda", "version": "0.10.4" },
+    {
+      "id": "paketo-buildpacks/mri",
+      "name": "Paketo Buildpack for MRI",
+      "version": "0.17.15",
+      "homepage": "https://github.com/paketo-buildpacks/mri"
+    },
+    {
+      "id": "paketo-buildpacks/native-image",
+      "name": "Paketo Buildpack for Native Image",
+      "version": "5.15.0",
+      "homepage": "https://github.com/paketo-buildpacks/native-image"
+    },
+    {
+      "id": "paketo-buildpacks/nginx",
+      "name": "Paketo Buildpack for Nginx Server",
+      "version": "0.17.15",
+      "homepage": "https://github.com/paketo-buildpacks/nginx"
+    },
+    {
+      "id": "paketo-buildpacks/nginx",
+      "name": "Paketo Buildpack for Nginx Server",
+      "version": "0.17.16",
+      "homepage": "https://github.com/paketo-buildpacks/nginx"
+    },
+    {
+      "id": "paketo-buildpacks/node-engine",
+      "name": "Paketo Buildpack for Node Engine",
+      "version": "4.1.11",
+      "homepage": "https://github.com/paketo-buildpacks/node-engine"
+    },
+    {
+      "id": "paketo-buildpacks/node-engine",
+      "name": "Paketo Buildpack for Node Engine",
+      "version": "5.1.1",
+      "homepage": "https://github.com/paketo-buildpacks/node-engine"
+    },
+    {
+      "id": "paketo-buildpacks/node-engine",
+      "name": "Paketo Buildpack for Node Engine",
+      "version": "5.1.3",
+      "homepage": "https://github.com/paketo-buildpacks/node-engine"
+    },
+    {
+      "id": "paketo-buildpacks/node-engine",
+      "name": "Paketo Buildpack for Node Engine",
+      "version": "5.1.4",
+      "homepage": "https://github.com/paketo-buildpacks/node-engine"
+    },
+    {
+      "id": "paketo-buildpacks/node-run-script",
+      "name": "Paketo Buildpack for Node Run Script",
+      "version": "2.0.3",
+      "homepage": "https://github.com/paketo-buildpacks/node-run-script"
+    },
+    {
+      "id": "paketo-buildpacks/node-run-script",
+      "name": "Paketo Buildpack for Node Run Script",
+      "version": "2.0.4",
+      "homepage": "https://github.com/paketo-buildpacks/node-run-script"
+    },
+    {
+      "id": "paketo-buildpacks/node-start",
+      "name": "Paketo Buildpack for Node Start",
+      "version": "2.1.16",
+      "homepage": "https://github.com/paketo-buildpacks/node-start"
+    },
+    {
+      "id": "paketo-buildpacks/nodejs",
+      "name": "Paketo Buildpack for Node.js",
+      "version": "7.1.3",
+      "homepage": "https://github.com/paketo-buildpacks/nodejs"
+    },
+    {
+      "id": "paketo-buildpacks/npm-install",
+      "name": "Paketo Buildpack for NPM Install",
+      "version": "1.6.8",
+      "homepage": "https://github.com/paketo-buildpacks/npm-install"
+    },
+    {
+      "id": "paketo-buildpacks/npm-install",
+      "name": "Paketo Buildpack for NPM Install",
+      "version": "1.6.9",
+      "homepage": "https://github.com/paketo-buildpacks/npm-install"
+    },
+    {
+      "id": "paketo-buildpacks/npm-start",
+      "name": "Paketo Buildpack for NPM Start",
+      "version": "2.1.4",
+      "homepage": "https://github.com/paketo-buildpacks/npm-start"
+    },
+    {
+      "id": "paketo-buildpacks/passenger",
+      "name": "Paketo Buildpack for Passenger",
+      "version": "0.14.11",
+      "homepage": "https://github.com/paketo-buildpacks/passenger"
+    },
+    {
+      "id": "paketo-buildpacks/php",
+      "name": "Paketo Buildpack for PHP",
+      "version": "2.19.7",
+      "homepage": "https://github.com/paketo-buildpacks/php"
+    },
+    {
+      "id": "paketo-buildpacks/php-builtin-server",
+      "name": "Paketo Buildpack for PHP Built-in Server",
+      "version": "0.4.39",
+      "homepage": "https://github.com/paketo-buildpacks/php-builtin-server"
+    },
+    {
+      "id": "paketo-buildpacks/php-dist",
+      "name": "Paketo Buildpack for PHP Distribution",
+      "version": "2.3.25",
+      "homepage": "https://github.com/paketo-buildpacks/php-dist"
+    },
+    {
+      "id": "paketo-buildpacks/php-fpm",
+      "name": "Paketo Buildpack for PHP FPM",
+      "version": "0.2.43",
+      "homepage": "https://github.com/paketo-buildpacks/php-fpm"
+    },
+    {
+      "id": "paketo-buildpacks/php-httpd",
+      "name": "Paketo Buildpack for PHP HTTPD",
+      "version": "0.3.41",
+      "homepage": "https://github.com/paketo-buildpacks/php-httpd"
+    },
+    {
+      "id": "paketo-buildpacks/php-memcached-session-handler",
+      "name": "Paketo Buildpack for PHP Memcached Session Handler",
+      "version": "0.2.32",
+      "homepage": "https://github.com/paketo-buildpacks/php-memcached-session-handler"
+    },
+    {
+      "id": "paketo-buildpacks/php-nginx",
+      "name": "Paketo Buildpack for PHP Nginx",
+      "version": "0.3.27",
+      "homepage": "https://github.com/paketo-buildpacks/php-nginx"
+    },
+    {
+      "id": "paketo-buildpacks/php-redis-session-handler",
+      "name": "Paketo Buildpack for PHP Redis Session Handler",
+      "version": "0.2.41",
+      "homepage": "https://github.com/paketo-buildpacks/php-redis-session-handler"
+    },
+    {
+      "id": "paketo-buildpacks/php-start",
+      "name": "Paketo Buildpack for PHP Start",
+      "version": "0.4.43",
+      "homepage": "https://github.com/paketo-buildpacks/php-start"
+    },
+    { "id": "paketo-buildpacks/pip", "name": "Paketo Buildpack for Pip", "version": "0.22.1" },
+    { "id": "paketo-buildpacks/pip-install", "name": "Paketo Buildpack for Pip Install", "version": "0.6.6" },
+    { "id": "paketo-buildpacks/pipenv", "name": "Paketo Buildpack for Pipenv", "version": "1.21.6" },
+    { "id": "paketo-buildpacks/pipenv-install", "name": "Paketo Buildpack for Pipenv Install", "version": "0.6.24" },
+    { "id": "paketo-buildpacks/poetry", "name": "Paketo Buildpack for Poetry", "version": "0.9.4" },
+    { "id": "paketo-buildpacks/poetry-install", "name": "Paketo Buildpack for Poetry Install", "version": "0.3.23" },
+    { "id": "paketo-buildpacks/poetry-run", "name": "Paketo Buildpack for Poetry Run", "version": "0.4.35" },
+    {
+      "id": "paketo-buildpacks/procfile",
+      "name": "Paketo Buildpack for Procfile",
+      "version": "5.10.1",
+      "homepage": "https://github.com/paketo-buildpacks/procfile"
+    },
+    {
+      "id": "paketo-buildpacks/procfile",
+      "name": "Paketo Buildpack for Procfile",
+      "version": "5.10.2",
+      "homepage": "https://github.com/paketo-buildpacks/procfile"
+    },
+    {
+      "id": "paketo-buildpacks/procfile",
+      "name": "Paketo Buildpack for Procfile",
+      "version": "5.9.2",
+      "homepage": "https://github.com/paketo-buildpacks/procfile"
+    },
+    {
+      "id": "paketo-buildpacks/puma",
+      "name": "Paketo Buildpack for Puma",
+      "version": "0.4.56",
+      "homepage": "https://github.com/paketo-buildpacks/puma"
+    },
+    { "id": "paketo-buildpacks/python", "name": "Paketo Buildpack for Python", "version": "2.23.3" },
+    {
+      "id": "paketo-buildpacks/python-start",
+      "name": "Paketo Buildpack for Python Start",
+      "version": "0.14.19",
+      "homepage": "https://github.com/paketo-buildpacks/python-start"
+    },
+    {
+      "id": "paketo-buildpacks/rackup",
+      "name": "Paketo Buildpack for Rackup",
+      "version": "0.4.51",
+      "homepage": "https://github.com/paketo-buildpacks/rackup"
+    },
+    {
+      "id": "paketo-buildpacks/rails-assets",
+      "name": "Paketo Buildpack for Rails Assets",
+      "version": "0.10.24",
+      "homepage": "https://github.com/paketo-buildpacks/rails-assets"
+    },
+    {
+      "id": "paketo-buildpacks/rake",
+      "name": "Paketo Buildpack for Rake",
+      "version": "0.4.56",
+      "homepage": "https://github.com/paketo-buildpacks/rake"
+    },
+    {
+      "id": "paketo-buildpacks/ruby",
+      "name": "Paketo Buildpack for Ruby",
+      "version": "0.47.6",
+      "homepage": "https://github.com/paketo-buildpacks/ruby"
+    },
+    {
+      "id": "paketo-buildpacks/sbt",
+      "name": "Paketo Buildpack for SBT",
+      "version": "6.17.4",
+      "homepage": "https://github.com/paketo-buildpacks/sbt"
+    },
+    { "id": "paketo-buildpacks/source-removal", "name": "Paketo Buildpack for Source Removal", "version": "0.2.26" },
+    {
+      "id": "paketo-buildpacks/spring-boot",
+      "name": "Paketo Buildpack for Spring Boot",
+      "version": "5.32.0",
+      "homepage": "https://github.com/paketo-buildpacks/spring-boot"
+    },
+    {
+      "id": "paketo-buildpacks/syft",
+      "name": "Paketo Buildpack for Syft",
+      "version": "2.6.1",
+      "homepage": "https://github.com/paketo-buildpacks/syft"
+    },
+    {
+      "id": "paketo-buildpacks/thin",
+      "name": "Paketo Buildpack for Thin",
+      "version": "0.5.51",
+      "homepage": "https://github.com/paketo-buildpacks/thin"
+    },
+    {
+      "id": "paketo-buildpacks/unicorn",
+      "name": "Paketo Buildpack for Unicorn",
+      "version": "0.4.54",
+      "homepage": "https://github.com/paketo-buildpacks/unicorn"
+    },
+    {
+      "id": "paketo-buildpacks/upx",
+      "name": "Paketo Buildpack for UPX",
+      "version": "3.7.0",
+      "homepage": "https://github.com/paketo-buildpacks/upx"
+    },
+    { "id": "paketo-buildpacks/vsdbg", "name": "Paketo Buildpack for Visual Studio Debugger", "version": "0.3.37" },
+    {
+      "id": "paketo-buildpacks/watchexec",
+      "name": "Paketo Buildpack for Watchexec",
+      "version": "3.3.1",
+      "homepage": "https://github.com/paketo-buildpacks/watchexec"
+    },
+    {
+      "id": "paketo-buildpacks/web-servers",
+      "name": "Paketo Buildpack for Web Servers",
+      "version": "1.1.3",
+      "homepage": "https://github.com/paketo-buildpacks/web-servers"
+    },
+    {
+      "id": "paketo-buildpacks/yarn",
+      "name": "Paketo Buildpack for Yarn",
+      "version": "1.3.15",
+      "homepage": "https://github.com/paketo-buildpacks/yarn"
+    },
+    {
+      "id": "paketo-buildpacks/yarn",
+      "name": "Paketo Buildpack for Yarn",
+      "version": "1.3.22",
+      "homepage": "https://github.com/paketo-buildpacks/yarn"
+    },
+    {
+      "id": "paketo-buildpacks/yarn",
+      "name": "Paketo Buildpack for Yarn",
+      "version": "1.3.24",
+      "homepage": "https://github.com/paketo-buildpacks/yarn"
+    },
+    {
+      "id": "paketo-buildpacks/yarn",
+      "name": "Paketo Buildpack for Yarn",
+      "version": "1.3.25",
+      "homepage": "https://github.com/paketo-buildpacks/yarn"
+    },
+    {
+      "id": "paketo-buildpacks/yarn-install",
+      "name": "Paketo Buildpack for Yarn Install",
+      "version": "2.0.9",
+      "homepage": "https://github.com/paketo-buildpacks/yarn-install"
+    },
+    {
+      "id": "paketo-buildpacks/yarn-install",
+      "name": "Paketo Buildpack for Yarn Install",
+      "version": "2.1.6",
+      "homepage": "https://github.com/paketo-buildpacks/yarn-install"
+    },
+    {
+      "id": "paketo-buildpacks/yarn-install",
+      "name": "Paketo Buildpack for Yarn Install",
+      "version": "2.1.7",
+      "homepage": "https://github.com/paketo-buildpacks/yarn-install"
+    },
+    {
+      "id": "paketo-buildpacks/yarn-start",
+      "name": "Paketo Buildpack for Yarn Start",
+      "version": "2.0.22",
+      "homepage": "https://github.com/paketo-buildpacks/yarn-start"
+    }
+  ],
+  "paketobuildpacks/builder-jammy-tiny": [
+    {
+      "id": "paketo-buildpacks/apache-tomcat",
+      "name": "Paketo Buildpack for Apache Tomcat",
+      "version": "8.4.1",
+      "homepage": "https://github.com/paketo-buildpacks/apache-tomcat"
+    },
+    {
+      "id": "paketo-buildpacks/apache-tomee",
+      "name": "Paketo Buildpack for Apache Tomee",
+      "version": "1.11.0",
+      "homepage": "https://github.com/paketo-buildpacks/apache-tomee"
+    },
+    {
+      "id": "paketo-buildpacks/azure-application-insights",
+      "name": "Paketo Buildpack for Azure Application Insights",
+      "version": "5.23.0",
+      "homepage": "https://github.com/paketo-buildpacks/azure-application-insights"
+    },
+    {
+      "id": "paketo-buildpacks/bellsoft-liberica",
+      "name": "Paketo Buildpack for BellSoft Liberica",
+      "version": "11.0.1",
+      "homepage": "https://github.com/paketo-buildpacks/bellsoft-liberica"
+    },
+    {
+      "id": "paketo-buildpacks/ca-certificates",
+      "name": "Paketo Buildpack for CA Certificates",
+      "version": "3.9.0",
+      "homepage": "https://github.com/paketo-buildpacks/ca-certificates"
+    },
+    {
+      "id": "paketo-buildpacks/clojure-tools",
+      "name": "Paketo Buildpack for Clojure Tools",
+      "version": "2.14.1",
+      "homepage": "https://github.com/paketo-buildpacks/clojure-tools"
+    },
+    {
+      "id": "paketo-buildpacks/datadog",
+      "name": "Paketo Buildpack for Datadog",
+      "version": "5.27.1",
+      "homepage": "https://github.com/paketo-buildpacks/datadog"
+    },
+    {
+      "id": "paketo-buildpacks/dist-zip",
+      "name": "Paketo Buildpack for DistZip",
+      "version": "5.9.0",
+      "homepage": "https://github.com/paketo-buildpacks/dist-zip"
+    },
+    {
+      "id": "paketo-buildpacks/encrypt-at-rest",
+      "name": "Paketo Buildpack for Encrypt-at-Rest",
+      "version": "4.8.4",
+      "homepage": "https://github.com/paketo-buildpacks/encrypt-at-rest"
+    },
+    {
+      "id": "paketo-buildpacks/environment-variables",
+      "name": "Paketo Buildpack for Environment Variables",
+      "version": "4.8.0",
+      "homepage": "https://github.com/paketo-buildpacks/environment-variables"
+    },
+    {
+      "id": "paketo-buildpacks/executable-jar",
+      "name": "Paketo Buildpack for Executable JAR",
+      "version": "6.12.0",
+      "homepage": "https://github.com/paketo-buildpacks/executable-jar"
+    },
+    {
+      "id": "paketo-buildpacks/git",
+      "name": "Paketo Buildpack for Git",
+      "version": "1.0.32",
+      "homepage": "https://github.com/paketo-buildpacks/git"
+    },
+    {
+      "id": "paketo-buildpacks/go",
+      "name": "Paketo Buildpack for Go",
+      "version": "4.13.3",
+      "homepage": "https://github.com/paketo-buildpacks/go"
+    },
+    {
+      "id": "paketo-buildpacks/go-build",
+      "name": "Paketo Buildpack for Go Build",
+      "version": "2.2.21",
+      "homepage": "https://github.com/paketo-buildpacks/go-build"
+    },
+    {
+      "id": "paketo-buildpacks/go-dist",
+      "name": "Paketo Buildpack for Go Distribution",
+      "version": "2.6.13",
+      "homepage": "https://github.com/paketo-buildpacks/go-dist"
+    },
+    {
+      "id": "paketo-buildpacks/go-mod-vendor",
+      "name": "Paketo Buildpack for Go Mod Vendor",
+      "version": "1.0.49",
+      "homepage": "https://github.com/paketo-buildpacks/go-mod-vendor"
+    },
+    {
+      "id": "paketo-buildpacks/google-stackdriver",
+      "name": "Paketo Buildpack for Google Stackdriver",
+      "version": "9.3.1",
+      "homepage": "https://github.com/paketo-buildpacks/google-stackdriver"
+    },
+    {
+      "id": "paketo-buildpacks/gradle",
+      "name": "Paketo Buildpack for Gradle",
+      "version": "7.15.2",
+      "homepage": "https://github.com/paketo-buildpacks/gradle"
+    },
+    {
+      "id": "paketo-buildpacks/image-labels",
+      "name": "Paketo Buildpack for Image Labels",
+      "version": "4.8.0",
+      "homepage": "https://github.com/paketo-buildpacks/image-labels"
+    },
+    {
+      "id": "paketo-buildpacks/jattach",
+      "name": "Paketo Buildpack for JAttach",
+      "version": "1.9.0",
+      "homepage": "https://github.com/paketo-buildpacks/jattach"
+    },
+    {
+      "id": "paketo-buildpacks/java",
+      "name": "Paketo Buildpack for Java",
+      "version": "17.4.0",
+      "homepage": "https://github.com/paketo-buildpacks/java"
+    },
+    {
+      "id": "paketo-buildpacks/java-memory-assistant",
+      "name": "Paketo Buildpack for Java Memory Assistant",
+      "version": "1.7.0",
+      "homepage": "https://github.com/paketo-buildpacks/java-memory-assistant"
+    },
+    {
+      "id": "paketo-buildpacks/java-native-image",
+      "name": "Paketo Buildpack for Java Native Image",
+      "version": "11.3.0",
+      "homepage": "https://github.com/paketo-buildpacks/java-native-image"
+    },
+    {
+      "id": "paketo-buildpacks/leiningen",
+      "name": "Paketo Buildpack for Leiningen",
+      "version": "4.11.0",
+      "homepage": "https://github.com/paketo-buildpacks/leiningen"
+    },
+    {
+      "id": "paketo-buildpacks/liberty",
+      "name": "Paketo Buildpack for Liberty",
+      "version": "4.4.1",
+      "homepage": "https://github.com/paketo-buildpacks/liberty"
+    },
+    {
+      "id": "paketo-buildpacks/maven",
+      "name": "Paketo Buildpack for Maven",
+      "version": "6.19.2",
+      "homepage": "https://github.com/paketo-buildpacks/maven"
+    },
+    {
+      "id": "paketo-buildpacks/native-image",
+      "name": "Paketo Buildpack for Native Image",
+      "version": "5.15.0",
+      "homepage": "https://github.com/paketo-buildpacks/native-image"
+    },
+    {
+      "id": "paketo-buildpacks/node-engine",
+      "name": "Paketo Buildpack for Node Engine",
+      "version": "5.1.1",
+      "homepage": "https://github.com/paketo-buildpacks/node-engine"
+    },
+    {
+      "id": "paketo-buildpacks/procfile",
+      "name": "Paketo Buildpack for Procfile",
+      "version": "5.10.2",
+      "homepage": "https://github.com/paketo-buildpacks/procfile"
+    },
+    {
+      "id": "paketo-buildpacks/sbt",
+      "name": "Paketo Buildpack for SBT",
+      "version": "6.17.4",
+      "homepage": "https://github.com/paketo-buildpacks/sbt"
+    },
+    {
+      "id": "paketo-buildpacks/spring-boot",
+      "name": "Paketo Buildpack for Spring Boot",
+      "version": "5.32.0",
+      "homepage": "https://github.com/paketo-buildpacks/spring-boot"
+    },
+    {
+      "id": "paketo-buildpacks/syft",
+      "name": "Paketo Buildpack for Syft",
+      "version": "2.6.1",
+      "homepage": "https://github.com/paketo-buildpacks/syft"
+    },
+    {
+      "id": "paketo-buildpacks/upx",
+      "name": "Paketo Buildpack for UPX",
+      "version": "3.7.0",
+      "homepage": "https://github.com/paketo-buildpacks/upx"
+    },
+    {
+      "id": "paketo-buildpacks/watchexec",
+      "name": "Paketo Buildpack for Watchexec",
+      "version": "3.3.1",
+      "homepage": "https://github.com/paketo-buildpacks/watchexec"
+    },
+    {
+      "id": "paketo-buildpacks/yarn",
+      "name": "Paketo Buildpack for Yarn",
+      "version": "1.3.22",
+      "homepage": "https://github.com/paketo-buildpacks/yarn"
+    }
+  ]
+}

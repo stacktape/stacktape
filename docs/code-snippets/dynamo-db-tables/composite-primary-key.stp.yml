@@ -1,0 +1,13 @@
+resources:
+  myDynamoTable:
+    type: dynamo-db-table
+    properties:
+      # {start-highlight}
+      primaryKey:
+        partitionKey:
+          name: this_attribute_will_be_partition_key
+          type: string
+        sortKey:
+          name: this_attribute_will_be_sort_key
+          type: number
+      # {stop-highlight}

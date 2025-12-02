@@ -1,0 +1,45 @@
+---
+title: "(ts) Web Scraper Lambda Puppeteer"
+order: 6
+---
+
+## Description
+
+Web link-scraper implemented in typescript using headless chrome (puppeteer). Runs in a lambda function. Accessed using
+HTTP API Gateway.
+
+<br />
+
+LONG DESCRIPTION LONG DESCRIPTION LONG DESCRIPTION LONG DESCRIPTION LONG DESCRIPTION LONG DESCRIPTION LONG DESCRIPTION
+LONG DESCRIPTION LONG DESCRIPTION LONG DESCRIPTION LONG DESCRIPTION LONG DESCRIPTION LONG DESCRIPTION
+
+[Github](https://github.com/stacktape/stacktape/tree/master/starter-projects/typescript-web-scraper-lambda-puppeteer)
+
+## Used resources
+
+- `bucket` - used for both uploading raw videos (`raw-videos` directory) and outputing transcoded videos (`transcoded`
+  directory)
+- `batch-job` - transcodes the uploaded video and uploads it to the `transcoded` directory. Batch job is triggered when
+  a video is uploaded to the `raw-videos` directory of the bucket.
+- `http-api-gateway` - entrypoint for the frontend lambda function
+- `function` - used to serve frontend (server-side rendered React application)
+
+## Initialize
+
+The following command will initialize the starter project in a selected directory.
+
+```bash
+stacktape init --project-id typescript-web-scraper-lambda-puppeteer
+```
+
+## Deploy
+
+You can deploy your application using a single command.
+
+```bash
+stacktape deploy --stage test --region your-region
+```
+
+<!-- WRITE ONLY BELOW THIS LINE -->
+
+<!-- WRITE ONLY ABOVE THIS LINE -->

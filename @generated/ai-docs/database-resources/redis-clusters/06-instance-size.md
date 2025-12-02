@@ -1,0 +1,12 @@
+# Instance size
+
+```yaml
+resources:
+  myRedisCluster:
+    type: redis-cluster
+    properties:
+      # {start-highlight}
+      instanceSize: cache.t3.micro
+      # {stop-highlight}
+      defaultUserPassword: $Secret('redis.password')
+```

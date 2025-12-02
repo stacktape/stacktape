@@ -1,0 +1,57 @@
+scripts:
+  installPoetry:
+    type: local-script
+    properties:
+      executeCommand: curl -sSL https://install.python-poetry.org | python3 -
+  installDependencies:
+    type: local-script
+    properties:
+      executeCommand: poetry install
+  migrateDb:
+    type: local-script
+    properties:
+      executeCommands:
+        - poetry run flask db stamp head
+        - poetry run flask db migrate
+        - poetry run flask db upgrade
+      connectTo:
+        - mainDatabase
+
+hooks:
+  beforeDeploy:
+    # install poetry package manager in CI environment
+    # on local machine, you should install poetry manager manually
+    - scriptName: installPoetry
+      skipOnLocal: true
+    # install dependencies
+    - scriptName: installDependencies
+  afterDeploy:
+    - scriptName: migrateDb
+
+resources:
+  webService:
+    type: web-service
+    properties:
+      packaging:
+        type: stacktape-image-buildpack
+        properties:
+          entryfilePath: ./app.py
+      resources:
+        cpu: 0.25
+        memory: 512
+      connectTo:
+        - mainDatabase
+      cors:
+        enabled: true
+
+  mainDatabase:
+    type: relational-database
+    properties:
+      credentials:
+        masterUserPassword: my_secret_password
+      engine:
+        type: postgres
+        properties:
+          version: '16.4'
+          primaryInstance:
+            instanceSize: db.t3.micro

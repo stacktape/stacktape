@@ -1,0 +1,15 @@
+resources:
+  myFunction:
+    type: function
+    properties:
+      # {start-highlight}
+      logging:
+        logForwarding:
+          type: datadog
+          properties:
+            apiKey: your_datadog_api_key
+      # {stop-highlight}
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: lambdas/js-lambda.js

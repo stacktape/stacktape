@@ -1,0 +1,10 @@
+# {start-highlight}
+stackConfig:
+  outputs:
+    - name: BUCKET_URL
+      value: $ResourceParam('myBucket', 'url')
+# {stop-highlight}
+
+resources:
+  myBucket:
+    type: bucket

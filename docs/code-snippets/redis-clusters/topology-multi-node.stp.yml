@@ -1,0 +1,7 @@
+resources:
+  myRedisCluster:
+    type: redis-cluster
+    properties:
+      instanceSize: cache.t3.micro
+      defaultUserPassword: $Secret('redis.password')
+      numReplicaNodes: 2

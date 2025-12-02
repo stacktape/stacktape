@@ -1,0 +1,73 @@
+scripts:
+  generatePrismaClient:
+    type: local-script
+    properties:
+      executeCommand: npx prisma generate --schema ./packages/prisma/schema.prisma
+  migrateDb:
+    type: local-script
+    properties:
+      executeCommand: npx prisma db push --config ./packages/prisma/prisma.config.ts
+      connectTo:
+        - mainDatabase
+
+hooks:
+  beforeDeploy:
+    - scriptName: generatePrismaClient
+  afterDeploy:
+    - scriptName: migrateDb
+
+resources:
+  mainApiGateway:
+    type: http-api-gateway
+    properties:
+      cors:
+        enabled: true
+
+  mainDatabase:
+    type: relational-database
+    properties:
+      credentials:
+        masterUserPassword: my_secret_password
+      engine:
+        type: postgres
+        properties:
+          version: '17.6'
+          primaryInstance:
+            instanceSize: db.t3.micro
+
+  savePost:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          languageSpecificConfig:
+            nodeVersion: 24
+            outputModuleFormat: esm
+          entryfilePath: ./packages/api/lambdas/save-post.ts
+      memory: 512
+      connectTo:
+        - mainDatabase
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: mainApiGateway
+            path: /posts
+            method: POST
+
+  getPosts:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./packages/api/lambdas/get-posts.ts
+      memory: 512
+      connectTo:
+        - mainDatabase
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: mainApiGateway
+            path: /posts
+            method: GET

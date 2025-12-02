@@ -1,0 +1,16 @@
+resources:
+  myBucket:
+    type: bucket
+
+  myFunction:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: path/to/my/lambda.ts
+      environment:
+        - name: BUCKET_NAME
+          value: $ResourceParam('myBucket', 'arn')
+      connectTo:
+        - myBucket

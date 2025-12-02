@@ -1,0 +1,15 @@
+resources:
+  myWebService:
+    type: web-service
+    properties:
+      resources:
+        cpu: 2
+        memory: 2048
+      packaging:
+        type: stacktape-image-buildpack
+        properties:
+          entryfilePath: src/main.ts
+      # {start-highlight}
+      customDomains:
+        - domainName: whatever.mydomain.com
+      # {stop-highlight}

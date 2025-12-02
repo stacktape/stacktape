@@ -1,0 +1,113 @@
+---
+title: ""
+order: 5
+---
+
+# Introduction
+
+Alarms are used to monitor stack resources. With alarms you can easily:
+
+- Specify the **metric** and the **resource** to be monitored, as well as what the **threshold** that causes alarm to
+  fire.
+- Setup email or slack notifications for when alarm is fired.
+- Integrate alarm with your lambda function (trigger function on alarm)
+
+# Usage
+
+<PropertiesTable definitionName="Alarm" />
+
+Alarm can be specified in `alarms` section of your config.
+
+`embed:alarms/basic.stp.yml`
+
+Alarm consists of 3 parts:
+
+1. **Trigger** - Type of the trigger specifies what metric will be monitored. Depending on the type further properties
+   of trigger can be specified
+2. **Notifications** (OPTIONAL) - Specifies where to send notification when alarm is triggered
+3. **Evaluation** (OPTIONAL) - Configures evaluation period (interval) for the monitored metric
+
+# Integrating with function
+
+You can integrate lambda function with alarm using cloudwatch-alarm trigger.
+
+See also [lambda trigger events docs](/compute-resources/lambda-functions/#alarm-event).
+
+`embed:lambda-functions/event-alarm.stp.yml`
+
+# Trigger types
+
+<Info>
+  New trigger types are being added continuously. If you have a specific wish for a trigger do not hesitate to open a{" "}
+  <a href="https://github.com/stacktape/stacktape/issues/new">Github issue</a>.
+</Info>
+
+## Lambda Error Rate
+
+<PropDescription definitionName="LambdaErrorRateTriggerProps" propertyName="threshold" descType="ld" />
+
+<PropertiesTable definitionName="LambdaErrorRateTrigger" searchForReferencesInDefinition="Alarm" />
+
+## Lambda Duration
+
+<PropDescription definitionName="LambdaDurationTriggerProps" propertyName="threshold" descType="ld" />
+
+<PropertiesTable definitionName="LambdaDurationTrigger" searchForReferencesInDefinition="Alarm" />
+
+## Database Read Latency
+
+<PropDescription definitionName="RelationalDatabaseReadLatencyTriggerProps" propertyName="threshold" descType="ld" />
+
+<PropertiesTable definitionName="RelationalDatabaseReadLatencyTrigger" searchForReferencesInDefinition="Alarm" />
+
+## Database Write Latency
+
+<PropDescription definitionName="RelationalDatabaseWriteLatencyTriggerProps" propertyName="threshold" descType="ld" />
+
+<PropertiesTable definitionName="RelationalDatabaseWriteLatencyTrigger" searchForReferencesInDefinition="Alarm" />
+
+## Database CPU Utilization
+
+<PropDescription definitionName="RelationalDatabaseCPUUtilizationTriggerProps" propertyName="threshold" descType="ld" />
+
+<PropertiesTable definitionName="RelationalDatabaseCPUUtilizationTrigger" searchForReferencesInDefinition="Alarm" />
+
+## Database Free Storage
+
+<PropDescription definitionName="RelationalDatabaseFreeStorageTriggerProps" propertyName="threshold" descType="ld" />
+
+<PropertiesTable definitionName="RelationalDatabaseFreeStorageTrigger" searchForReferencesInDefinition="Alarm" />
+
+## Database Free Memory
+
+<PropDescription definitionName="RelationalDatabaseFreeMemoryTriggerProps" propertyName="threshold" descType="ld" />
+
+<PropertiesTable definitionName="RelationalDatabaseFreeMemoryTrigger" searchForReferencesInDefinition="Alarm" />
+
+## Database Connection Count
+
+<PropDescription
+  definitionName="RelationalDatabaseConnectionCountTriggerProps"
+  propertyName="threshold"
+  descType="ld"
+/>
+
+<PropertiesTable definitionName="RelationalDatabaseConnectionCountTrigger" searchForReferencesInDefinition="Alarm" />
+
+## Http Api Gateway Error Rate
+
+<PropDescription definitionName="HttpApiGatewayErrorRateTriggerProps" propertyName="threshold" descType="ld" />
+
+<PropertiesTable definitionName="HttpApiGatewayErrorRateTrigger" searchForReferencesInDefinition="Alarm" />
+
+## Http Api Gateway Latency
+
+<PropDescription definitionName="HttpApiGatewayLatencyTriggerProps" propertyName="threshold" descType="ld" />
+
+<PropertiesTable definitionName="HttpApiGatewayLatencyTrigger" searchForReferencesInDefinition="Alarm" />
+
+## Application Load Balancer Error Rate
+
+<PropDescription definitionName="ApplicationLoadBalancerErrorRateTriggerProps" propertyName="threshold" descType="ld" />
+
+<PropertiesTable definitionName="ApplicationLoadBalancerErrorRateTrigger" searchForReferencesInDefinition="Alarm" />

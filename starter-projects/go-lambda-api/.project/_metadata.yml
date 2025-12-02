@@ -1,0 +1,7 @@
+name: Go lambda with DynamoDB
+tags:
+  - Go
+  - DynamoDB
+  - REST API
+  - Lambda
+icon: go.svg

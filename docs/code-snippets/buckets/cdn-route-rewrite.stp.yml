@@ -1,0 +1,18 @@
+resources:
+  myBucket:
+    type: bucket
+    properties:
+      cdn:
+        enabled: true
+        # {start-highlight}
+        routeRewrites:
+          - path: /images/*
+            routeTo:
+              type: bucket
+              properties:
+                bucketName: myBucket2
+                disableUrlNormalization: true
+        # {stop-highlight}
+
+  myBucket2:
+    type: 'bucket'

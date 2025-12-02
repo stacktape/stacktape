@@ -1,0 +1,10 @@
+# {start-highlight}
+providerConfig:
+  upstash:
+    accountEmail: xxxxx.yyyy@example.com
+    apiKey: $Secret('upstash-api-key')
+# {stop-highlight}
+
+resources:
+  myUpstash:
+    type: upstash-redis

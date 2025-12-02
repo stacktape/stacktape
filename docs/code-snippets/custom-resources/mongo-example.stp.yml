@@ -1,0 +1,22 @@
+resources:
+  myMongoCluster:
+    type: mongo-db-atlas-cluster
+    properties:
+      clusterTier: M10
+
+  mongoSeeder:
+    type: custom-resource-definition
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: seed-the-mongo-cluster.ts
+      connectTo:
+        - myMongoCluster
+
+  seedMongoCluster:
+    type: custom-resource-instance
+    properties:
+      definitionName: mongoSeeder
+      resourceProperties:
+        mongoConnectionString: $Param('myMongoCluster', 'AtlasMongoCluster::SrvConnectionString')

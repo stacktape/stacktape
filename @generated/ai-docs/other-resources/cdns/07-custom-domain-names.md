@@ -1,0 +1,14 @@
+# Custom domain names
+
+```yaml
+resources:
+  myHttpApi:
+    type: 'http-api-gateway'
+    properties:
+      cdn:
+        enabled: true
+        # {start-highlight}
+        customDomains:
+          - domainName: mydomain.com
+        # {stop-highlight}
+```

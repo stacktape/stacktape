@@ -1,0 +1,16 @@
+providerConfig:
+  mongoDbAtlas:
+    privateKey: 'xxxxfa523543fxxxx42543xx'
+    publicKey: 'xxxxxxx'
+    # {start-highlight}
+    # "accessibility" option is shared between "mongo-db-atlas-cluster" resources of your stack
+    accessibility:
+      accessibilityMode: vpc
+    # {stop-highlight}
+    organizationId: 'xxxxxxxxxxx07a593cbe63dd'
+
+resources:
+  myMongoCluster:
+    type: mongo-db-atlas-cluster
+    properties:
+      clusterTier: M10

@@ -1,0 +1,21 @@
+resources:
+  # {start-highlight}
+  myFirewall:
+    type: web-app-firewall
+    properties:
+      scope: regional
+  # {stop-highlight}
+  lambda:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/index.ts
+      # {start-highlight}
+      url:
+        enabled: true
+      cdn:
+        enabled: true
+        useFirewall: myFirewall
+      # {stop-highlight}

@@ -1,0 +1,43 @@
+---
+title: ""
+order: 3
+---
+
+# Introduction
+
+- Policies allow you enforce certain rules for all the stacks deployed using the given stacktape configuration.
+- They can be used to enforce organization-level best practices and avoid accidental mistakes.
+
+<PropertiesTable definitionName="Policies" />
+
+# Simple policies
+
+`allowedStages`
+
+- The stack can be deployed to only specified stages.
+
+```yml
+allowedStages: ["production", "staging", "testing", "dev-john", "dev-jane"]
+```
+
+<br />
+<br />
+
+`allowedRegions`
+
+- The stack can be deployed to only specified regions.
+
+```yml
+allowedRegions: ["eu-west-1"]
+```
+
+<br />
+<br />
+
+More policies will be added soon.
+
+# Cloudformation stack policies
+
+<PropDescription definitionName="Policies" propertyName="cloudformationStackPolicies" descType="ld" />
+
+<PropertiesTable definitionName="CfStackPolicyStatement" searchForReferencesInDefinition="Policies" />

@@ -1,0 +1,198 @@
+---
+title: "Buckets (S3)"
+order: 220
+---
+
+<br />
+<br />
+
+Buckets provide a way to store and retrieve any amount of data, at any time, from anywhere on the web. They are a good choice for a variety of use cases, including hosting websites, storing user-generated content, and for backup and disaster recovery.
+
+A bucket is a collection of objects, where an object is a file and any metadata that describes it. Buckets have a flat structure, but you can simulate a folder hierarchy by using a common prefix for your object names (e.g., `photos/`).
+
+Under the hood, Stacktape uses [Amazon S3](https://aws.amazon.com/s3/) for buckets.
+
+# When to use them
+
+Buckets are ideal for storing large amounts of data. They are not recommended for use cases that require very low read/write latency.
+
+<NegativeMargin />
+
+## Advantages
+
+- **Easy to use:** S3 provides a simple, HTTP-based API.
+- **Serverless:** Buckets scale automatically, and you only pay for what you use.
+- **Highly available and durable:** S3 is designed for 99.999999999% (eleven 9s) of data durability, storing objects across multiple _Availability Zones_.
+- **Flexible storage classes:** You can choose from multiple storage classes with different latencies, prices, and durability characteristics.
+- **Access control:** You can easily control who can access your bucket.
+- **Encryption:** Supports server-side encryption.
+- **Integrations:** You can trigger a [function](/compute-resources/functions#s3-event) or a [batch job](/compute-resources/batch-jobs#s3-event) in response to bucket events.
+
+## Disadvantages
+
+- **Performance:** Read and write operations are significantly slower than with block storage (a physical disk attached to a machine).
+
+# Basic usage
+
+`embed:buckets/basic-usage.stp.yml`
+
+> A Lambda function connected to a bucket.
+
+`embed:buckets/basic-usage.ts`
+
+> A Lambda function that uploads and downloads a file from a bucket.
+
+# Directory upload
+
+You can automatically upload the contents of a local directory to a bucket during deployment.
+
+<PropDescription definitionName="BucketProps" propertyName="directoryUpload" descType="ld" />
+
+`embed:buckets/auto-sync.stp.yml`
+
+> This configuration uploads the `public` folder to the bucket on every deployment.
+
+<PropertiesTable definitionName="DirectoryUpload" searchForReferencesInDefinition="BucketProps" />
+
+## Adding metadata
+
+You can add metadata, such as headers and tags, to the files you upload. This is useful for setting `Cache-Control` headers for a static website or for filtering objects in [lifecycle rules](#object-lifecycle-rules).
+
+<PropertiesTable definitionName="DirectoryUploadFilter" searchForReferencesInDefinition="BucketProps" />
+
+# Encryption
+
+If enabled, all objects uploaded to the bucket will be encrypted on the server side using the AES-256 algorithm.
+
+`embed:buckets/encryption.stp.yml`
+
+# CORS
+
+You can configure Cross-Origin Resource Sharing (CORS) to allow web applications from other domains to access the resources in your bucket.
+
+<PropDescription definitionName="BucketCorsConfig" propertyName="corsRules" descType="ld" />
+
+`embed:buckets/cors.stp.yml`
+
+<PropertiesTable definitionName="BucketCorsConfig" searchForReferencesInDefinition="BucketProps" />
+
+<PropertiesTable definitionName="BucketCorsRule" searchForReferencesInDefinition="BucketProps" />
+
+# Versioning
+
+You can enable versioning to keep a complete history of all object versions. This is useful for protecting against accidental deletions or overwrites.
+
+<PropDescription definitionName="BucketProps" propertyName="versioning" descType="ld" />
+
+`embed:buckets/versioning.stp.yml`
+
+# CDN
+
+You can place an AWS CloudFront _CDN_ in front of your bucket to cache its content in edge locations around the world, reducing latency for your users. This is a common pattern for serving static websites.
+
+For more information, see the [_CDN_ documentation](/other-resources/cdns).
+
+`embed:buckets/static-web.stp.yml`
+
+> A bucket with a _CDN_ and directory upload enabled.
+
+<Info>
+
+If you're hosting a static website, consider using a [hosting bucket](/other-resources/hosting-buckets), which is pre-configured for that use case.
+
+</Info>
+
+<Divider />
+
+# Object lifecycle rules
+
+Lifecycle rules allow you to automate the management of your objects. You can define rules to transition objects to different storage classes or delete them after a certain period.
+
+## Storage class transition
+
+You can transition objects to a different storage class to save costs. For example, you can move infrequently accessed data to a cheaper, long-term storage class like Glacier.
+
+<PropDescription definitionName="ClassTransitionProps" propertyName="storageClass" descType="ld" />
+
+`embed:buckets/lifecycle-class-transition.stp.yml`
+
+> This configuration transfers all objects to the Glacier storage class 90 days after they are uploaded.
+
+<PropertiesTable definitionName="ClassTransition" searchForReferencesInDefinition="BucketProps" />
+
+<Divider />
+
+## Expiration
+
+You can configure objects to be automatically deleted after a specified number of days.
+
+<PropertiesTable definitionName="Expiration" searchForReferencesInDefinition="BucketProps" />
+
+`embed:buckets/lifecycle-expiration.stp.yml`
+
+<Divider />
+
+## Non-current version class transition
+
+You can transition previous versions of an object to a different storage class.
+
+<PropertiesTable definitionName="NonCurrentVersionClassTransition" searchForReferencesInDefinition="BucketProps" />
+
+`embed:buckets/lifecycle-class-transition-non-current.stp.yml`
+
+<Divider />
+
+## Non-current version expiration
+
+You can automatically delete previous versions of an object after a specified number of days.
+
+<PropertiesTable definitionName="NonCurrentVersionExpiration" searchForReferencesInDefinition="BucketProps" />
+
+`embed:buckets/lifecycle-expiration-non-current.stp.yml`
+
+<Divider />
+
+## Abort incomplete multipart upload
+
+You can abort multipart uploads that do not complete within a specified number of days to avoid storing incomplete object parts.
+
+<PropertiesTable definitionName="AbortIncompleteMultipartUpload" searchForReferencesInDefinition="BucketProps" />
+
+`embed:buckets/lifecycle-abort.stp.yml`
+
+# Accessibility
+
+You can control who can access your bucket and its objects.
+
+<PropertiesTable definitionName="BucketAccessibility" searchForReferencesInDefinition="BucketProps" />
+
+## Accessibility modes
+
+<PropDescription definitionName="BucketAccessibility" propertyName="accessibilityMode" descType="ld" />
+
+## Access policy statements
+
+For fine-grained control, you can define custom access policy statements. This requires knowledge of [AWS IAM](https://aws.amazon.com/iam/). For examples, see the [AWS documentation](https://docs.aws.amazon.com/AmazonS3/latest/userguide/example-bucket-policies.html).
+
+`embed:buckets/accessibility.stp.yml`
+
+<PropertiesTable definitionName="BucketPolicyIamRoleStatement" searchForReferencesInDefinition="BucketProps" />
+
+<Divider />
+
+# Referenceable parameters
+
+<ReferenceableParams resource="bucket" />
+
+# API reference
+
+<PropertiesTable definitionName="TagFilter" searchForReferencesInDefinition="BucketProps" />
+
+<PropertiesTable definitionName="KeyValuePair" searchForReferencesInDefinition="BucketProps" />
+
+<PropertiesTable
+  definitionName="Bucket"
+  rewriteLinksForReferencedCompositeTypes={{
+    BucketCdnConfiguration: "#cdn"
+  }}
+/>

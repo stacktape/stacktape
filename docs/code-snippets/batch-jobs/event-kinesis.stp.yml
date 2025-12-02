@@ -1,0 +1,33 @@
+resources:
+  myBatchJob:
+    type: batch-job
+    properties:
+      container:
+        packaging:
+          type: stacktape-image-buildpack
+          properties:
+            entryfilePath: path/to/my/batch-job.ts
+      resources:
+        cpu: 2
+        memory: 1800
+      # {start-highlight}
+      events:
+        - type: kinesis-stream
+          properties:
+            autoCreateConsumer: true
+            maxBatchWindowSeconds: 30
+            batchSize: 200
+            streamArn: $CfResourceParam('myKinesisStream', 'Arn')
+            onFailure:
+              arn: $CfResourceParam('myOnFailureSqsQueue', 'Arn')
+              type: sqs
+      # {stop-highlight}
+
+cloudformationResources:
+  myKinesisStream:
+    Type: AWS::Kinesis::Stream
+    Properties:
+      ShardCount: 1
+
+  myOnFailureSqsQueue:
+    Type: AWS::SQS::Queue

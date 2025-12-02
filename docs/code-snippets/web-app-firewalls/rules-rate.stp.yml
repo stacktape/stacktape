@@ -1,0 +1,14 @@
+resources:
+  regionalFirewall:
+    type: web-app-firewall
+    properties:
+      scope: regional
+      # {start-highlight}
+      rules:
+        - type: rate-based-rule
+          properties:
+            name: RateRule
+            limit: 100
+            aggregateBasedOn: IP
+            priority: 0
+        # {stop-highlight}

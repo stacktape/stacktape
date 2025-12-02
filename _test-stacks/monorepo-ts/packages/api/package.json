@@ -1,0 +1,9 @@
+{
+  "name": "@my-organization/api",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {},
+  "dependencies": {
+    "@my-organization/prisma": "^0.1.0"
+  }
+}

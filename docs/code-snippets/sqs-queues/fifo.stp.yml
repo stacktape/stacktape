@@ -1,0 +1,5 @@
+resources:
+  mainQueue:
+    type: sqs-queue
+    properties:
+      fifoEnabled: true

@@ -1,0 +1,22 @@
+resources:
+  myScript:
+    type: deployment-script
+    properties:
+      trigger: after:deploy
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: path/to/my-script.ts
+      environment:
+        - name: MY_BUCKET_NAME
+          value: $ResourceParam('myBucket', 'name')
+      # {start-highlight}
+      connectTo:
+        # access to the bucket
+        - myBucket
+        # access to AWS SES
+        - aws:ses
+      # {stop-highlight}
+
+  myBucket:
+    type: bucket

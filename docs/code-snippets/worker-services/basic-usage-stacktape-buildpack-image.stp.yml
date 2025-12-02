@@ -1,0 +1,13 @@
+resources:
+  myWorkerService:
+    type: worker-service
+    properties:
+      # {start-highlight}
+      packaging:
+        type: stacktape-image-buildpack
+        properties:
+          entryfilePath: src/main.ts
+      # {stop-highlight}
+      resources:
+        cpu: 2
+        memory: 2048

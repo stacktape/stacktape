@@ -1,0 +1,21 @@
+resources:
+  myBatchJob:
+    type: batch-job
+    properties:
+      container:
+        packaging:
+          type: stacktape-image-buildpack
+          properties:
+            entryfilePath: path/to/my/batch-job.ts
+      resources:
+        cpu: 2
+        memory: 1800
+      # {start-highlight}
+      events:
+        - type: sqs
+          properties:
+            sqsQueueName: mySqsQueue
+      # {stop-highlight}
+
+  mySqsQueue:
+    type: sqs-queue

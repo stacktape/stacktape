@@ -1,0 +1,13 @@
+resources:
+  myDatabase:
+    type: relational-database
+    properties:
+      credentials:
+        masterUserPassword: $Secret('dbSecret.password')
+      # {start-highlight}
+      engine:
+        type: aurora-postgresql-serverless-v2
+        properties:
+          version: '16.4'
+          maxCapacity: 8
+      # {stop-highlight}

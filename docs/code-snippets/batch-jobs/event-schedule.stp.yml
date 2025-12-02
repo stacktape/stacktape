@@ -1,0 +1,23 @@
+resources:
+  myBatchJob:
+    type: batch-job
+    properties:
+      container:
+        packaging:
+          type: stacktape-image-buildpack
+          properties:
+            entryfilePath: path/to/my/batch-job.ts
+      resources:
+        cpu: 2
+        memory: 1800
+      # {start-highlight}
+      events:
+        # invoke function every two hours
+        - type: schedule
+          properties:
+            scheduleRate: rate(2 hours)
+        # invoke function at 10:00 UTC every day
+        - type: schedule
+          properties:
+            scheduleRate: cron(0 10 * * ? *)
+      # {stop-highlight}

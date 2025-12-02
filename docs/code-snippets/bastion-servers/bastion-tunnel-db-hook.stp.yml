@@ -1,0 +1,32 @@
+scripts:
+  migrateDb:
+    type: local-script-with-bastion-tunneling
+    properties:
+      executeScript: migrate.ts
+      connectTo:
+        - myDatabase
+
+# {start-highlight}
+hooks:
+  afterDeploy:
+    - scriptName: migrateDb
+# {stop-highlight}
+
+resources:
+  myBastion:
+    type: bastion
+
+  myDatabase:
+    type: relational-database
+    properties:
+      # database is only accessible from withing VPC
+      accessibility:
+        accessibilityMode: vpc
+      engine:
+        type: postgres
+        properties:
+          version: '16.2'
+          primaryInstance:
+            instanceSize: db.t3.micro
+      credentials:
+        masterUserPassword: my_secret_pass

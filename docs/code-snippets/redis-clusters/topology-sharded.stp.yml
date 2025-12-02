@@ -1,0 +1,11 @@
+resources:
+  myRedisCluster:
+    type: redis-cluster
+    properties:
+      instanceSize: cache.t3.micro
+      defaultUserPassword: $Secret('redis.password')
+      # {start-highlight}
+      enableSharding: true
+      numShards: 2
+      # {stop-highlight}
+      numReplicaNodes: 2

@@ -1,0 +1,19 @@
+resources:
+  myFunction:
+    resourceType: function
+    cloudformationChildResources:
+      # {start-highlight}
+      MyFunctionFunction:
+        # {stop-highlight}
+        cloudformationResourceType: AWS::Lambda::Function
+        status: DEPLOYED
+        referenceableParams:
+          - Name
+          - Arn
+      LogGroup:
+        cloudformationResourceType: AWS::Logs::LogGroup
+        status: DEPLOYED
+        referenceableParams:
+          - Name
+          - Arn
+        logicalName: DeletePostLambdaLogGroup

@@ -1,0 +1,17 @@
+resources:
+  myBucket:
+    type: bucket
+    properties:
+      cdn:
+        enabled: true
+        # {start-highlight}
+        routeRewrites:
+          - path: /api/*
+            routeTo:
+              type: 'http-api-gateway'
+              properties:
+                httpApiGatewayName: appApiGateway
+        # {stop-highlight}
+
+  appApiGateway:
+    type: 'http-api-gateway'

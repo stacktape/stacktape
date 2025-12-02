@@ -1,0 +1,451 @@
+---
+title: "Directives"
+order: 0
+---
+
+<br />
+<br />
+
+Directives are functions that add dynamic behavior to your `stacktape.yml` file. They allow you to go beyond the
+declarative nature of YAML and introduce logic into your configurations.
+
+Stacktape supports two types of directives:
+
+- **Built-in directives** are provided by Stacktape for common tasks, such as accessing command-line arguments or
+  formatting strings.
+- **Custom directives** are user-defined functions that allow you to add your own logic, such as setting a database
+  instance size based on the deployment stage or fetching data required for your configuration. Custom directives can be
+  written in Javascript, Typescript, or Python.
+
+## How to use directives
+
+Directives always start with a `$` and can be used to configure any property in your `stacktape.yml` file.
+
+`embed:directives/usage-simple.yml`
+
+A directive can return primitive values (strings, numbers, booleans), objects, or arrays. You can access properties of a
+returned object using dot notation (e.g., `$Directive().propertyName`).
+
+Directives can accept any number of arguments. If you pass arguments inline, they must be primitive values. If you pass
+arguments as the result of another directive, they can be primitive values, objects, or arrays.
+
+`embed:directives/usage-parameters.yml`
+
+Directives can be nested up to two levels deep (e.g., `$MyDirective1($MyDirective2())`). To overcome this limitation,
+you can use [variables](#var) to store the output of a directive and then reference it in another.
+
+`embed:directives/usage-nesting.yml`
+
+## Built-in directives
+
+Built-in directives are resolved either **locally** (when the configuration is loaded) or at **runtime** (during
+deployment).
+
+### Local directives
+
+Local directives are resolved when the configuration is loaded, and their values are substituted directly into the
+configuration.
+
+#### $CliArgs()
+
+Returns a command-line argument passed to a Stacktape command. You can pass custom arguments to a Stacktape command
+after the `--` separator. You can also specify a default value as the second argument to the directive (e.g.,
+`$CliArgs('myArg', 'myDefaultValue')`).
+
+```bash
+stacktape deploy --stage test --region eu-west-1 -- --myCustomArg myValue
+```
+
+`embed:directives/cli-args.stp.yml`
+
+#### $File()
+
+Reads and parses the content of a file. Supported file types are `.env`, `.ini`, `.json`, and `.yml`.
+
+<Info>
+
+If you need to read the raw content of a file as a string, use the [`$FileRaw()`](#fileraw) directive instead.
+
+</Info>
+
+##### Dotenv files
+
+Parses the contents of a `.env` file.
+
+`embed:directives/file.env`
+
+`embed:directives/file-env.stp.yml`
+
+##### INI files
+
+Parses the contents of an `.ini` file.
+
+`embed:directives/file.ini`
+
+`embed:directives/file-ini.stp.yml`
+
+##### JSON files
+
+Parses the contents of a `.json` file.
+
+`embed:directives/file.json`
+
+`embed:directives/file-json.stp.yml`
+
+##### YML files
+
+Parses the contents of a `.yml` file.
+
+`embed:directives/file.stp.yml`
+
+`embed:directives/file-yml.stp.yml`
+
+#### $FileRaw()
+
+Loads the content of a file and returns it as a string (UTF-8 encoded).
+
+`embed:directives/file-raw.stp.yml`
+
+#### $Format()
+
+Returns an interpolated string. The first argument is the string to be interpolated, and subsequent arguments are the
+values to be substituted for each `{}` placeholder. The number of placeholders must match the number of subsequent
+arguments.
+
+The `$Format()` directive cannot contain runtime-resolved directives as arguments. For those use cases, use the
+[`$CfFormat()`](#cfformat) directive.
+
+- `$Format('{}-{}', 'foo', 'bar')` results in `foo-bar`.
+- `$Format('{}-mydomain.com', 'foo')` results in `foo-mydomain.com`.
+- `$Format('{}.{}', $Stage(), 'mydomain.com')` results in `staging.mydomain.com` if the stage is `staging`.
+
+#### $Var()
+
+Returns a variable defined in the `variables` section of your `stacktape.yml` file. Variables are useful for:
+
+- Reusing values throughout your template.
+- Organizing your template files.
+- Storing intermediate return values of other directives to allow for multi-level nesting.
+
+`embed:directives/var-events.stp.yml`
+
+#### $Stage()
+
+Returns the current `stage`. Unlike `$CliArgs().stage`, this directive also resolves default values configured with the
+`stacktape defaults:configure` command.
+
+#### $Region()
+
+Returns the current `region`. Unlike `$CliArgs().region`, this directive also resolves default values configured with
+the `stacktape defaults:configure` command.
+
+#### $Profile()
+
+Returns the current `profile`. Unlike `$CliArgs().profile`, this directive also resolves default values configured with
+the `stacktape defaults:configure` command.
+
+#### $This()
+
+Returns the current Stacktape template as an object.
+
+`embed:directives/this.stp.yml`
+
+#### $GitInfo()
+
+Returns information about the current Git repository and user.
+
+| Directive usage        | Description                            |
+| ---------------------- | -------------------------------------- |
+| `$GitInfo('commit')`   | Return the latest commit ID            |
+| `$GitInfo('branch')`   | Returns the name of the current branch |
+| `$GitInfo('username')` | Returns git user's name                |
+| `$GitInfo('gitUrl')`   | Returns the URL of the git repository  |
+
+`embed:directives/git-info.stp.yml`
+
+#### $StackOutput()
+
+Returns the specified output of another stack, allowing you to reference resources deployed in a different stack.
+
+The arguments are:
+
+- **stack name**: The name of the stack that contains the output. If the stack was deployed with Stacktape, the name has
+  the format `<<projectName>>-<<stage>>`.
+- **output name**: The name of the output to return.
+
+<Warning>
+
+The `$StackOutput()` directive returns the output value of another stack at the time the current stack is deployed. To
+ensure that the value does not change or that the other stack is not deleted, use the
+[`$CfStackOutput()`](#cfstackoutput) directive instead.
+
+</Warning>
+
+Consider a stack named `base-stack` deployed to a `dev` stage with the following configuration:
+
+`embed:directives/stack-output-base-stack.stp.yml`
+
+You can reference the output of `base-stack` in another stack:
+
+```yml
+variables:
+  baseStackName: $Format('{}-{}', 'base-stack', $Stage())
+
+scripts:
+  validateBucket:
+    executeScript: hooks/validate-bucket-in-base-stack.ts
+    environment:
+      - name: BUCKET_NAME
+        # {start-highlight}
+        value: $StackOutput($Var().baseStackName, 'baseBucketName')
+        # {stop-highlight}
+
+hooks:
+  beforeDeploy:
+    # {start-highlight}
+    - executeNamedScript: validateBucket
+    # {stop-highlight}
+
+resources: ...
+```
+
+### Runtime directives
+
+Some directives are resolved at runtime by _Cloudformation_ during deployment. This is necessary when the value of a
+directive is not known until a resource is created. For example, the connection string of a database is only available
+after the database has been deployed.
+
+Under the hood, runtime directives are transformed into
+[CloudFormation intrinsic functions](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/intrinsic-function-reference.html).
+
+<Warning>
+
+Runtime directives can only be used in the `resources` and `scripts` sections of your `stacktape.yml` file.
+
+</Warning>
+
+<Info>
+
+For convenience, Stacktape resolves runtime directives **locally** (by automatically downloading the value) when they
+are used inside a script or with development commands (`stacktape cw:run-local` and `stacktape fn:develop`).
+
+</Info>
+
+#### $ResourceParam()
+
+Returns a specified parameter of a Stacktape resource, such as the name or port of a database, or the URL of an HTTP API
+Gateway.
+
+The arguments are:
+
+- **stacktape resource name**: The name of the Stacktape resource as defined in your configuration.
+- **parameter name**: The parameter to reference. You can find a list of all referenceable parameters in the
+  documentation for each resource:
+  - [relational-databases](/database-resources/relational-databases/#referenceable-parameters)
+  - [dynamo-db-tables](/database-resources/dynamo-db-tables/#referenceable-parameters)
+  - [mongo-db-atlas-clusters](/3rd-party-resources/mongo-db-atlas-clusters/#referenceable-parameters)
+  - [redis-clusters](/database-resources/redis-clusters/#referenceable-parameters)
+  - [http-api-gateways](/other-resources/http-api-gateways/#referenceable-parameters)
+  - [buckets](/other-resources/buckets/#referenceable-parameters)
+  - [application-load-balancers](/other-resources/application-load-balancers/#referenceable-parameters)
+  - [event-buses](/other-resources/event-buses/#referenceable-parameters)
+  - [functions](/compute-resources/functions/#referenceable-parameters)
+  - [multi-container-workloads](/compute-resources/multi-container-workloads/#referenceable-parameters)
+  - [batch-jobs](/compute-resources/batch-jobs/#referenceable-parameters)
+
+For more information, see [Referencing parameters](/configuration/referencing-parameters).
+
+```yml
+resources:
+  myDatabase:
+    type: relational-database
+    properties: ...
+
+  myFunction:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: path/to/my/lambda.ts
+      environment:
+        # {start-highlight}
+        - name: DB_CONNECTION_STRING
+          value: $ResourceParam('myDatabase', 'connectionString')
+        # {stop-highlight}
+```
+
+#### $CfResourceParam()
+
+Returns a specified parameter of a _Cloudformation_ resource.
+
+The arguments are:
+
+- **cloudformation logical name**: The logical name of the _Cloudformation_ resource. If you are referencing a resource
+  defined in the `cloudformationResources` section, use its name. To reference a child resource of a Stacktape resource,
+  you can get a list of child resources with the `stacktape stack-info` command.
+- **parameter name**: The parameter of the _Cloudformation_ resource to reference. For a list of all referenceable
+  parameters, see
+  [Referencing parameters](/configuration/referencing-parameters#parameters-of-cloudformation-resources).
+
+For more information, see [Referencing parameters](/configuration/referencing-parameters).
+
+```yml
+cloudformationResources:
+  MySnsTopic:
+    Type: AWS::SNS::Topic
+
+resources:
+  myBucket:
+    type: bucket
+
+  processData:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: path/to/my/lambda.ts
+      destinations:
+        # {start-highlight}
+        onFailure: $CfResourceParam('MySnsTopic', 'Arn')
+        # {stop-highlight}
+      environment:
+        - name: BUCKET_NAME
+          # {start-highlight}
+          value: $CfResourceParam('MyBucketBucket', 'Name')
+        # {stop-highlight}
+```
+
+#### $Secret()
+
+Returns the value of a secret. For more information, see the [secrets documentation](/security-resources/secrets).
+
+The argument is the name of the secret. If the secret is in JSON format, you can extract nested properties using dot
+notation.
+
+```yml
+resources:
+  myDatabase:
+    type: relational-database
+    properties:
+      credentials:
+        # {start-highlight}
+        masterUserPassword: $Secret('my-database-password')
+        # {stop-highlight}
+```
+
+Alternatively:
+
+```yml
+resources:
+  myDatabase:
+    type: relational-database
+    properties:
+      credentials:
+        # {start-highlight}
+        masterUserPassword: $Secret('my-database-credentials.password')
+        # {stop-highlight}
+```
+
+#### $CfFormat()
+
+Returns an interpolated string. Unlike the [`$Format()`](#format) directive, the `$CfFormat()` directive can contain
+runtime-resolved directives as arguments.
+
+The arguments are:
+
+- **string to interpolate**: Occurrences of `{}` are replaced by the subsequent arguments.
+- **values to use in the interpolation**: The number of values must be equal to the number of `{}` placeholders in the
+  first argument.
+
+- `$CfFormat('{}-{}', 'foo', 'bar')` results in `foo-bar`.
+- `$CfFormat('{}-mydomain.com', 'foo')` results in `foo-mydomain.com`.
+- `$CfFormat('{}.mydomain.com', $Stage())` results in `staging.mydomain.com` if the stage is `staging`.
+
+#### $CfStackOutput()
+
+Returns the output of another stack, allowing you to reference resources deployed in another stack. The referenced stack
+must already be deployed. If you try to delete a stack that is referenced by another stack, you will get an error.
+
+To get the output locally (i.e., download the value and pass it to the configuration), use the
+[`$StackOutput()`](#stackoutput) directive.
+
+The arguments are:
+
+- **stack name**: The name of the stack that contains the output. If the stack was deployed using Stacktape, the name
+  has the format `<<projectName>>-<<stage>>`.
+- **output name**: The name of the output to reference.
+
+Consider a stack named `base-stack` deployed to a `dev` stage with the following configuration:
+
+`embed:directives/stack-output-base-stack.stp.yml`
+
+You can reference the output of `base-stack` in another stack:
+
+```yml
+variables:
+  baseStackName: $Format('{}-{}', 'base-stack', $Stage())
+
+resources:
+  myFunction:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: path/to/my/lambda.ts
+      environment:
+        - name: OTHER_STACK_BUCKET_NAME
+          # {start-highlight}
+          value: $CfStackOutput($Var().baseStackName, 'bucketName')
+          # {stop-highlight}
+```
+
+## Custom directives
+
+Custom directives are user-defined functions that allow you to add your own logic to your configurations, such as
+setting a database instance size based on the deployment stage or fetching data required for your configuration.
+
+### Registering directives
+
+To use a custom directive, you must first register it in the `directives` section of your `stacktape.yml` file.
+
+`embed:directives/registering.stp.yml`
+
+<PropertiesTable definitionName="DirectiveDefinition" />
+
+### Writing directives
+
+You can write custom directives in Javascript, Typescript, or Python. They can return primitive values, objects, or
+arrays. If a directive returns an object, you can access its properties using dot notation (e.g.,
+`$GetBooks().books.Dune`).
+
+Any code outside the function handler will be executed only once, when the configuration is first parsed.
+
+#### Javascript and Typescript
+
+You can write directives in Javascript (ES2020) and Typescript. The code is automatically transpiled. Your directive can
+return a promise, which will be automatically awaited.
+
+```ts
+export const getDbInstanceSize = (stage: string) => {
+  if (stage === "production") {
+    return "db.m5.xlarge";
+  }
+  return "db.t2.micro";
+};
+```
+
+`embed:directives/custom-directive-typescript.stp.yml`
+
+#### Python
+
+```python
+def get_db_instance_size(stage):
+    if (stage == 'production'):
+        return 'M5'
+    return 'M2'
+```
+
+`embed:directives/custom-directive-python.stp.yml`

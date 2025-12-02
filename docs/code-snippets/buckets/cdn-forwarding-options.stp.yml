@@ -1,0 +1,11 @@
+resources:
+  myBucket:
+    type: bucket
+    properties:
+      cdn:
+        enabled: true
+        # {start-highlight}
+        forwardingOptions:
+          allowedMethods:
+            - 'GET'
+        # {stop-highlight}

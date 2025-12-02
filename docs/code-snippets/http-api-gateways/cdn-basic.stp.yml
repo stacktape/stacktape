@@ -1,0 +1,8 @@
+resources:
+  myHttpApi:
+    type: 'http-api-gateway'
+    properties:
+      # {start-highlight}
+      cdn:
+        enabled: true
+      # {stop-highlight}

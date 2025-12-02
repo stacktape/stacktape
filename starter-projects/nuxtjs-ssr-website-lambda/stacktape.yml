@@ -1,0 +1,44 @@
+scripts:
+  nuxtBuild:
+    type: local-script
+    properties:
+      executeCommand: npm run build
+
+hooks:
+  beforeDeploy:
+    - scriptName: nuxtBuild
+
+resources:
+  mainApiGateway:
+    type: http-api-gateway
+    properties:
+      cors:
+        enabled: true
+
+  nuxtLambda:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./handler.ts
+      environment:
+        - name: NUXT_APP_CDN_URL
+          value: $ResourceParam('webBucket', 'cdnUrl')
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: mainApiGateway
+            method: '*'
+            path: /{proxy+}
+
+  webBucket:
+    type: bucket
+    properties:
+      cors:
+        enabled: true
+      directoryUpload:
+        directoryPath: ./.output/public
+        headersPreset: static-website
+      cdn:
+        enabled: true

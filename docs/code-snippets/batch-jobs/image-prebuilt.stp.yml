@@ -1,0 +1,15 @@
+resources:
+  myBatchJob:
+    type: batch-job
+    properties:
+      container:
+        # {start-highlight}
+        packaging:
+          type: prebuilt-image
+          properties:
+            image: mypublicrepo/my-container
+            command: ['index.js']
+        # {stop-highlight}
+      resources:
+        cpu: 2
+        memory: 1800

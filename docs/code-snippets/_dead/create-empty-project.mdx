@@ -1,0 +1,37 @@
+## 1 - Create Stacktape project
+
+First, create a Stacktape project.
+
+In the [Stacktape console](https://console.stacktape.com/) click on the `Deploy new project` button in the top right
+corner and choose `Any project using CLI`.
+
+![Initiate create project](../static/create-new-project-deploy-using-cli/d2.png)
+
+1. **Choose project name** - project name can contain lowercase letters, numbers, and dashes. The name is arbitrary, but
+   developers often use the name of the Bitbucket repository as their project name. In this tutorial, we are using
+   `my-project-1`.
+2. **Choose how you write a configuration** - If you already have our Stacktape configuration prepared in our Bitbucket
+   repository, choose `I'll write Stacktape config on my own`. In our case, we will create the Stacktape configuration
+   now, so we choose `Interactively in console` - this option provides an interactive editor to write your Stacktape
+   configuration in the next step.
+
+![Specify project details](../static/create-new-project-deploy-using-cli/d3.png)
+
+If you have chosen to write configuration `Interactively in console`, then in this step, you will write Stacktape config
+using the interactive config editor. Our configuration only contains an HTTP API gateway connected to a Lambda function.
+After finishing with the configuration, continue to the next step.
+
+![Writing configuration](../static/create-new-project-deploy-using-cli/docs2.png)
+
+Your Stacktape project is created and ready to be used. In the final step, you can see information on how to install
+Stacktape CLI and log in to Stacktape on your local machine.
+
+If you have used an interactive configuration editor to create your configuration, you can use `stacktape init` command
+to download the created configuration onto your local machine. You should place the downloaded file in the root of your
+project repository.
+
+![Project created](../static/create-new-project-deploy-using-cli/d5.png)
+
+<!-- On the project stage overview page, you can see details about your stack (project stage).
+
+![Project stage overview page](../static/bitbucket-pipelines/7.png) -->

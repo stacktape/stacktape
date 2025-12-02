@@ -1,0 +1,19 @@
+resources:
+  myLoadBalancer:
+    type: 'application-load-balancer'
+    properties:
+      customDomains:
+        - my-app.mydomain.com
+      listeners:
+        - port: 443
+          protocol: HTTPS
+        - port: 80
+          protocol: HTTP
+          # {start-highlight}
+          defaultAction:
+            type: redirect
+            properties:
+              statusCode: HTTP_301
+              protocol: HTTPS
+              port: 443
+          # {stop-highlight}

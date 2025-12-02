@@ -1,0 +1,27 @@
+resources:
+  regionalFirewall:
+    type: web-app-firewall
+    properties:
+      scope: regional
+      # {start-highlight}
+      rules:
+        # example reference to managed rule group
+        - type: 'managed-rule-group'
+          properties:
+            name: 'AWSManagedRulesCommonRuleSet'
+            vendorName: 'AWS'
+            priority: 0
+        # example rate-based rule
+        - type: 'rate-based-rule'
+          properties:
+            name: RateRule
+            limit: 100
+            aggregateBasedOn: 'IP'
+            priority: 1
+        # example rate-based rule
+        - type: 'rate-based-rule'
+          properties:
+            name: CustomRuleGroup
+            arn: <<ARN of existing rule group>>
+            priority: 2
+        # {stop-highlight}

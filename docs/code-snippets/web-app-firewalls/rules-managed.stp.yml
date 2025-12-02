@@ -1,0 +1,13 @@
+resources:
+  regionalFirewall:
+    type: web-app-firewall
+    properties:
+      scope: regional
+      # {start-highlight}
+      rules:
+        - type: managed-rule-group
+          properties:
+            name: AWSManagedRulesCommonRuleSet
+            vendorName: AWS
+            priority: 0
+        # {stop-highlight}

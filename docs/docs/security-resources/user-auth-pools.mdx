@@ -1,0 +1,110 @@
+---
+title: "User Authentication (Cognito)"
+order: 260
+---
+
+<br />
+<br />
+
+User pools provide a secure identity store for your users, handling sign-up, sign-in, and access control for your applications. They support standard identity protocols like OAuth 2.0, SAML 2.0, and OpenID Connect, and can be integrated with HTTP API Gateways to protect your endpoints.
+
+# When to use them
+
+User pools are a good choice whenever your application needs to authenticate and authorize users.
+
+<br />
+
+**Advantages**
+
+- **Pay-per-MAU:** You pay for monthly active users.
+- **Free tier:** The first 50,000 monthly active users are free (for users who sign in directly, not through SAML or OIDC federation).
+- **Serverless:** Scales seamlessly to handle a large number of users.
+- **Secure by default:** User data is stored securely by AWS.
+- **Compliant:** User pools are HIPAA eligible and compliant with PCI DSS, SOC, ISO/IEC 27001, and other standards.
+
+**Disadvantages**
+
+- **Cost at scale:** Can become expensive for large user bases or heavy use of SAML or OIDC federation.
+- **Complexity:** Authentication flows and standards like OAuth can be complex to understand and implement correctly.
+
+<Divider />
+
+# Basic usage
+
+This example shows a Lambda function connected to an HTTP API Gateway with an authorizer that only allows access to users authenticated by `myUserPool`.
+
+`embed:user-pools/basic.stp.yml`
+
+<Divider />
+
+# Password policy
+
+You can enforce a password policy for your users, specifying minimum length and requiring lowercase letters, numbers, symbols, and uppercase letters.
+
+<PropertiesTable definitionName="PasswordPolicy" searchForReferencesInDefinition="UserAuthPool" />
+
+# Multi-factor authentication
+
+You can enable multi-factor authentication (MFA) for your user pool to add an extra layer of security.
+
+<PropertiesTable definitionName="MfaConfiguration" searchForReferencesInDefinition="UserAuthPool" />
+
+# Hooks
+
+You can use Lambda functions as hooks to trigger custom logic at different points in the user authentication lifecycle, such as before sign-up or after a successful sign-in.
+
+<PropertiesTable definitionName="UserPoolHooks" searchForReferencesInDefinition="UserAuthPool" />
+
+# External identity providers
+
+You can allow users to sign in with external identity providers like Google, Facebook, or any SAML or OIDC-compliant provider.
+
+<PropertiesTable definitionName="IdentityProvider" searchForReferencesInDefinition="UserAuthPool" />
+
+# Firewall
+
+You can protect your user pool with a web application firewall.
+
+<PropDescription definitionName="UserAuthPoolProps" propertyName="useFirewall" descType="ld" />
+
+To learn more, see the [Web Application Firewall](/security-resources/web-app-firewalls/) documentation.
+
+`embed:user-pools/firewall.stp.yml`
+
+# Pricing
+
+Amazon Cognito has a free tier for user pools, which includes 10,000 monthly active users (MAUs) for users who sign in directly or through a social identity provider. For users who sign in through SAML or OIDC federation, the free tier includes 50 MAUs.
+
+Beyond the free tier, pricing is based on the number of MAUs. For the "Lite" tier, the costs are as follows:
+
+-   **10,001 - 100,000 MAUs:** $0.0055 per MAU
+-   **100,001 - 1,000,000 MAUs:** $0.0046 per MAU
+-   **Over 1,000,000 MAUs:** $0.00325 per MAU
+
+For users federated through SAML or OIDC, the price is $0.015 per MAU above the free tier.
+
+Additional charges apply for sending SMS messages for MFA and for using advanced security features. For detailed and up-to-date pricing information, see the [Amazon Cognito pricing page](https://aws.amazon.com/cognito/pricing/).
+
+# Referenceable parameters
+
+<ReferenceableParams resource="user-auth-pool" />
+
+# API reference
+
+<PropertiesTable definitionName="UserAuthPool" />
+
+<PropertiesTable definitionName="UserPoolHooks" searchForReferencesInDefinition="UserAuthPool" />
+
+<PropertiesTable definitionName="EmailConfiguration" searchForReferencesInDefinition="UserAuthPool" />
+
+<PropertiesTable definitionName="InviteMessageConfig" searchForReferencesInDefinition="UserAuthPool" />
+
+<PropertiesTable definitionName="UserVerificationMessageConfig" searchForReferencesInDefinition="UserAuthPool" />
+
+<PropertiesTable definitionName="MfaConfiguration" searchForReferencesInDefinition="UserAuthPool" />
+
+<PropertiesTable definitionName="PasswordPolicy" searchForReferencesInDefinition="UserAuthPool" />
+
+<PropertiesTable definitionName="AttributeSchema" searchForReferencesInDefinition="UserAuthPool" />
+
+<PropertiesTable definitionName="IdentityProvider" searchForReferencesInDefinition="UserAuthPool" />

@@ -1,0 +1,19 @@
+resources:
+  myWorkerService:
+    type: worker-service
+    properties:
+      packaging:
+        type: stacktape-image-buildpack
+        properties:
+          entryfilePath: src/index.ts
+      resources:
+        cpu: 0.5
+        memory: 1024
+      # {start-highlight}
+      scaling:
+        minInstances: 1
+        maxInstances: 5
+        scalingPolicy:
+          keepAvgMemoryUtilizationUnder: 80
+          keepAvgCpuUtilizationUnder: 80
+      # {stop-highlight}

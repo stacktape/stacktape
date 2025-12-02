@@ -1,0 +1,7 @@
+resources:
+  myBucket:
+    type: bucket
+    properties:
+      # {start-highlight}
+      versioning: true
+      # {stop-highlight}

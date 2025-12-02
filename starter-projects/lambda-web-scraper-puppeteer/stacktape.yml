@@ -1,0 +1,19 @@
+resources:
+  mainApiGateway:
+    type: http-api-gateway
+
+  scrapeLinks:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/scrape-links.ts
+          excludeDependencies:
+            - puppeteer
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: mainApiGateway
+            path: /scrape-links/{url}
+            method: GET

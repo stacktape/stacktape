@@ -1,0 +1,20 @@
+resources:
+  myApiGateway:
+    type: http-api-gateway
+    properties:
+      cdn:
+        enabled: true
+
+  myFunction:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: hello.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: myApiGateway
+            method: GET
+            path: /hello

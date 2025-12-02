@@ -1,0 +1,17 @@
+resources:
+  myBatchJob:
+    type: batch-job
+    properties:
+      container:
+        packaging:
+          type: stacktape-image-buildpack
+          properties:
+            entryfilePath: path/to/my/batch-job.ts
+      resources:
+        cpu: 2
+        memory: 1800
+      # {start-highlight}
+      retryConfig:
+        attempts: 3
+        retryIntervalSeconds: 120
+      # {stop-highlight}

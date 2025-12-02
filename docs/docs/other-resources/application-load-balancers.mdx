@@ -1,0 +1,153 @@
+---
+title: "Application Load Balancers"
+order: 210
+---
+
+<br />
+<br />
+
+An Application Load Balancer (ALB) serves as a single point of contact for clients and distributes incoming application traffic across multiple targets, such as containers and Lambda functions. It operates at the application layer (layer 7) and is ideal for load balancing HTTP and HTTPS traffic.
+
+ALBs can be integrated with various compute resources, offload SSL/TLS termination, and be configured with custom domain names or fronted by a _CDN_.
+
+Under the hood, Stacktape uses [AWS Application Load Balancer](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/introduction.html).
+
+# When to use them
+
+ALBs are a good fit for most modern cloud applications. They offer high throughput and low latency, making them suitable for demanding workloads.
+
+<NegativeMargin />
+
+## Advantages
+
+- **Predictable pricing:** ALBs have a predictable pricing model, which can be more cost-effective than HTTP API Gateways for high-traffic applications.
+- **Scalability:** ALBs can handle millions of requests per second and scale automatically as traffic grows.
+- **Health checks:** When used with container workloads, an ALB periodically checks the health of each container and only routes traffic to healthy ones.
+- **Content-based routing:** ALBs can route requests to different services based on the content of the request, such as the URL path, HTTP header, or query string.
+- **Security:** You can offload SSL/TLS termination to the load balancer, encrypting traffic between the client and the ALB.
+
+## Disadvantages
+
+- **Fixed cost:** ALBs have a fixed monthly cost (around $20/month), even if they are idle. For low-traffic applications, an [HTTP API Gateway](/other-resources/http-api-gateways) might be a more cost-effective choice.
+
+<Divider />
+
+# Basic usage
+
+<PropertiesTable
+  definitionName="ApplicationLoadBalancer"
+  rewriteLinksForReferencedCompositeTypes={{
+    ApplicationLoadBalancerCdnConfiguration: "#cdn"
+  }}
+/>
+
+`embed:application-load-balancers/basic.stp.yml`
+
+> An Application Load Balancer with a Lambda function integration.
+
+<Divider />
+
+# Integrating with compute resources
+
+You can forward requests from an ALB to your compute resources by creating an event integration on a **multi-container workload**, **function**, or **batch job**.
+
+Each integration must specify:
+
+- **`loadBalancerName`**: The name of the ALB that will forward requests.
+- **`priority`**: A number that determines the order in which the integration rules are evaluated (from lowest to highest).
+- **`condition`**: A set of rules that determine which requests are forwarded to the resource. Conditions can be based on the URL path, query string, headers, and other request properties.
+
+The following example shows two integrations:
+
+- The first integration forwards all requests (`*`) to a multi-container workload.
+- The second integration, which has a lower priority and is evaluated first, forwards any requests with a URL path prefixed with `/lambda-service/` to a Lambda function.
+
+`embed:application-load-balancers/workload-integration.stp.yml`
+
+> An ALB with integrations for both a function and a multi-container workload.
+
+For more information, see the documentation on integrating ALBs with [functions](/compute-resources/functions#application-load-balancer-event), [multi-container workloads](/compute-resources/multi-container-workloads#application-load-balancer-event), and [batch jobs](/compute-resources/batch-jobs#application-load-balancer-event).
+
+<Divider />
+
+# Custom domain names
+
+You can use a custom domain for your ALB. If you don't have one, you can [register one](/other-resources/domains-and-certificates/#registering-domain) through Stacktape.
+
+If you already have a domain, you can either let [Stacktape manage it](#using-stacktape-to-manage-domains-and-certs) (if you use AWS Route 53 for DNS) or [use a third-party DNS provider](#using-a-3rd-party-dns).
+
+For more details, see the [Domains and Certificates](/other-resources/domains-and-certificates/) page.
+
+## Using Stacktape to manage domains and certs
+
+<PropDescription definitionName="ApplicationLoadBalancerProps" propertyName="customDomains" descType="ld" />
+
+`embed:application-load-balancers/domain-names.stp.yml`
+
+## Using a 3rd-party DNS
+
+To use a domain from a provider like GoDaddy or Cloudflare:
+
+1.  Create or import a TLS certificate for your domain in the [AWS Certificate Manager console](https://console.aws.amazon.com/acm/home#/certificates/list) and copy its _ARN_.
+2.  Configure a listener on your load balancer to use the custom certificate.
+3.  After deploying, find the ALB's domain name in the [Stacktape Console](https://console.stacktape.com/projects).
+4.  In your DNS provider's dashboard, create a `CNAME` or `ALIAS` record pointing to the ALB's domain name.
+
+`embed:application-load-balancers/custom-certs.stp.yml`
+
+> A custom HTTPS listener with a custom certificate and an automatic redirect from HTTP to HTTPS.
+
+<Divider />
+
+# Custom listeners
+
+Listeners check for connection requests from clients, using the protocol and port that you configure. You can define rules for a listener that determine how the load balancer routes requests to its registered targets.
+
+<PropDescription definitionName="ApplicationLoadBalancerProps" propertyName="listeners" descType="ld" />
+
+<PropertiesTable
+  definitionName="ApplicationLoadBalancerListener"
+  searchForReferencesInDefinition="ApplicationLoadBalancerProps"
+/>
+
+`embed:application-load-balancers/listeners.stp.yml`
+
+> An ALB with a single listener and a function integration.
+
+## Default listener action
+
+The default action for a listener determines what to do with a request that doesn't match any of the listener's rules.
+
+### Redirect
+
+You can configure a listener to redirect incoming requests to a different URL. For example, you can redirect all HTTP requests on port 80 to an HTTPS listener on port 443.
+
+<PropertiesTable definitionName="LbRedirect" searchForReferencesInDefinition="ApplicationLoadBalancerProps" />
+
+`embed:application-load-balancers/listeners-default-action.stp.yml`
+
+<Divider />
+
+# CDN
+
+You can place an AWS CloudFront _CDN_ in front of your ALB to cache content and reduce latency.
+
+<PropDescription definitionName="ApplicationLoadBalancerProps" propertyName="cdn" descType="ld" />
+
+For more information, see the [_CDN_ documentation](/other-resources/cdns).
+
+<Divider />
+
+# Using a firewall
+
+You can protect your ALB with a web application firewall (WAF).
+
+<PropDescription definitionName="ApplicationLoadBalancerProps" propertyName="useFirewall" descType="ld" />
+
+To learn more, see the [Web Application Firewall](/security-resources/web-app-firewalls/) documentation.
+
+`embed:application-load-balancers/firewall.stp.yml`
+
+# Referenceable parameters
+
+<ReferenceableParams resource="application-load-balancer" />

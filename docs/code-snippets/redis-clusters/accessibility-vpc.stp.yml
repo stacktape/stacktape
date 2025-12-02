@@ -1,0 +1,10 @@
+resources:
+  myRedisCluster:
+    type: redis-cluster
+    properties:
+      instanceSize: cache.t3.micro
+      defaultUserPassword: $Secret('redis.password')
+      # {start-highlight}
+      accessibility:
+        accessibilityMode: vpc
+      # {stop-highlight}

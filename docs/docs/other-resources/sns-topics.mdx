@@ -1,0 +1,81 @@
+---
+title: "SNS Topics"
+order: 274
+---
+
+<br />
+<br />
+
+An SNS topic provides high-throughput, push-based, many-to-many messaging. It's a managed service that allows you to send messages to a large number of subscribers, including distributed systems, microservices, and serverless applications. You can use SNS for both application-to-application (A2A) and application-to-person (A2P) communication.
+
+Under the hood, Stacktape uses [Amazon Simple Notification Service (SNS)](https://aws.amazon.com/sns/).
+
+# When to use them
+
+Stacktape offers three managed resources for messaging and communication:
+
+1.  SNS topics
+2.  [SQS queues](/other-resources/sqs-queues/)
+3.  [Event buses](/other-resources/event-buses/)
+
+**Use an SNS topic when:**
+
+-   You need to publish messages to many different subscribers with a single action.
+-   You require high throughput and reliability.
+
+**Use an SQS queue when:**
+
+-   You need reliable, one-to-one, asynchronous communication to decouple your applications.
+-   You want to control the rate at which messages are consumed.
+
+**Use an event bus when:**
+
+-   You want to publish messages to many subscribers and use the event data itself to filter which messages are delivered to which subscribers.
+-   You need to integrate with third-party SaaS providers like Shopify, Datadog, or PagerDuty.
+
+# Basic usage
+
+You don't need to specify any properties to create a basic SNS topic.
+
+`embed:sns-topics/basic.stp.yml`
+
+<PropertiesTable definitionName="SnsTopic" />
+
+# Integrating with workloads
+
+You can trigger a [function](/compute-resources/functions/#sns-event) or a [batch job](/compute-resources/batch-jobs/#sns-event) whenever a message is published to an SNS topic.
+
+`embed:lambda-functions/event-sns.stp.yml`
+
+> A Lambda function with an SNS topic integration.
+
+# Publishing messages
+
+You can use the [AWS SDK](https://aws.amazon.com/developer/tools/#SDKs) to publish messages to a topic.
+
+```javascript
+import { PublishCommand, SNSClient } from "@aws-sdk/client-sns";
+
+const snsClient = new SNSClient({});
+
+snsClient.send(
+  new PublishCommand({
+    Message: "Hello from the other side.",
+    TopicArn: process.env.STP_MY_TOPIC_ARN,
+  })
+);
+```
+
+# FIFO
+
+You can enable FIFO (First-In, First-Out) to ensure that messages are processed in the exact order that they are sent.
+
+<PropDescription definitionName="SnsTopicProps" propertyName="fifoEnabled" descType="ld" />
+
+`embed:sns-topics/fifo.stp.yml`
+
+## Content-based deduplication
+
+You can enable content-based deduplication to prevent duplicate messages from being sent.
+
+<PropDescription definitionName="SnsTopicProps" propertyName="contentBasedDeduplication" descType="ld" />

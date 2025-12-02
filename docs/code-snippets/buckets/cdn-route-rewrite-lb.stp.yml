@@ -1,0 +1,17 @@
+resources:
+  myBucket:
+    type: bucket
+    properties:
+      cdn:
+        enabled: true
+        # {start-highlight}
+        routeRewrites:
+          - path: /api/*
+            routeTo:
+              type: 'application-load-balancer'
+              properties:
+                loadBalancerName: myLoadBalancer
+        # {stop-highlight}
+
+  myLoadBalancer:
+    type: 'application-load-balancer'

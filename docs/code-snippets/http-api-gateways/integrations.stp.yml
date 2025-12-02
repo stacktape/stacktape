@@ -1,0 +1,44 @@
+resources:
+  myHttpApi:
+    type: http-api-gateway
+
+  myFunction:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: 'path/to/my-lambda.ts'
+      # {start-highlight}
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: 'myHttpApi'
+            path: '/invoke-my-function'
+            method: 'GET'
+      # {stop-highlight}
+
+  mySingleContainer:
+    type: 'multi-container-workload'
+    properties:
+      containers:
+        - name: 'myAppContainer'
+          packaging:
+            type: stacktape-image-buildpack
+            properties:
+              entryfilePath: '_example-configs/containers/ts-container.ts'
+          environment:
+            - name: port
+              value: 80
+          # {start-highlight}
+          events:
+            - type: 'http-api-gateway'
+              properties:
+                httpApiGatewayName: 'myHttpApi'
+                containerPort: 80
+                path: /{proxy+} # greedy path
+                method: '*'
+          # {stop-highlight}
+      resources:
+        cpu: 0.25
+        memory: 512

@@ -1,0 +1,18 @@
+resources:
+  myHttpApi:
+    type: 'http-api-gateway'
+    properties:
+      cdn:
+        enabled: true
+        # {start-highlight}
+        routeRewrites:
+          - path: /static/*
+            routeTo:
+              type: bucket
+              properties:
+                bucketName: myBucket
+                disableUrlNormalization: true
+        # {stop-highlight}
+
+  myBucket:
+    type: 'bucket'

@@ -1,0 +1,32 @@
+import BrowserSettings_ from './browserSettings';
+import DataProtectionSettings_ from './dataProtectionSettings';
+import IdentityProvider_ from './identityProvider';
+import IpAccessSettings_ from './ipAccessSettings';
+import NetworkSettings_ from './networkSettings';
+import Portal_ from './portal';
+import SessionLogger_ from './sessionLogger';
+import TrustStore_ from './trustStore';
+import UserAccessLoggingSettings_ from './userAccessLoggingSettings';
+import UserSettings_ from './userSettings';
+export namespace WorkSpacesWeb {
+  export const BrowserSettings = BrowserSettings_;
+  export const DataProtectionSettings = DataProtectionSettings_;
+  export const IdentityProvider = IdentityProvider_;
+  export const IpAccessSettings = IpAccessSettings_;
+  export const NetworkSettings = NetworkSettings_;
+  export const Portal = Portal_;
+  export const SessionLogger = SessionLogger_;
+  export const TrustStore = TrustStore_;
+  export const UserAccessLoggingSettings = UserAccessLoggingSettings_;
+  export const UserSettings = UserSettings_;
+  export type BrowserSettings = BrowserSettings_;
+  export type DataProtectionSettings = DataProtectionSettings_;
+  export type IdentityProvider = IdentityProvider_;
+  export type IpAccessSettings = IpAccessSettings_;
+  export type NetworkSettings = NetworkSettings_;
+  export type Portal = Portal_;
+  export type SessionLogger = SessionLogger_;
+  export type TrustStore = TrustStore_;
+  export type UserAccessLoggingSettings = UserAccessLoggingSettings_;
+  export type UserSettings = UserSettings_;
+}

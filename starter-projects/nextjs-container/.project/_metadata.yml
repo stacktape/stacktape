@@ -1,0 +1,9 @@
+name: Next.js app using container
+tags:
+  - website
+  - Server side rendered website
+  - Typescript
+  - Next.js
+  - React
+icon: nextjs-circle.svg
+priority: 0

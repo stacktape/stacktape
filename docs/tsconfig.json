@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "incremental": true,
+    "target": "es2022",
+    "jsx": "react-jsx",
+    "jsxImportSource": "@emotion/react",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "module": "esnext",
+    "moduleResolution": "node",
+    "paths": {
+      "@/*": ["./src/*"],
+      "@generated/*": ["../@generated/*"]
+    },
+    "resolveJsonModule": true,
+    "typeRoots": ["./node_modules/@types"],
+    "allowImportingTsExtensions": true,
+    "allowJs": true,
+    "strict": false,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "isolatedModules": true,
+    "skipLibCheck": true
+  },
+  "include": ["next-env.d.ts", "globals.d.ts", "**/*.ts", "**/*.tsx"],
+  "exclude": ["node_modules"]
+}

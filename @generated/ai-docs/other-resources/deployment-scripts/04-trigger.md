@@ -1,0 +1,22 @@
+# Trigger
+
+The `trigger` property determines when the script is executed.
+
+```yaml
+resources:
+  myHttpApi:
+    type: http-api-gateway
+
+  testApiMethods:
+    type: deployment-script
+    properties:
+      # {start-highlight}
+      trigger: after:deploy
+      # {stop-highlight}
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: test-url.ts
+      parameters:
+        apiURL: $ResourceParam('myHttpApi', 'url')
+```

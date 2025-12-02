@@ -1,0 +1,15 @@
+resources:
+  auroraSlsPostgres:
+    type: relational-database
+    properties:
+      credentials:
+        masterUserPassword: $Secret('dbSecret.password')
+      # {start-highlight}
+      engine:
+        type: aurora-postgresql
+        properties:
+          version: '16.2'
+          instances:
+            - instanceSize: db.t3.medium
+          port: 5432
+      # {stop-highlight}

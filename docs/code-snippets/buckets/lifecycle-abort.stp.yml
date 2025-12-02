@@ -1,0 +1,10 @@
+resources:
+  myBucket:
+    type: bucket
+    properties:
+      # {start-highlight}
+      lifecycleRules:
+        - type: abort-incomplete-multipart-upload
+          properties:
+            daysAfterInitiation: 5
+      # {stop-highlight}

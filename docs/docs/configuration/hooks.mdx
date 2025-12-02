@@ -1,0 +1,74 @@
+---
+title: "Hooks"
+order: 2
+---
+
+<br />
+<br />
+
+Hooks allow you to execute a custom command or script before or after a specified Stacktape command.
+
+Example use cases:
+
+- Building, validating, or linting your application before deployment.
+- Running unit tests before deployment.
+- Executing database migrations after deployment.
+- Cleaning up a database before deletion.
+
+## How to use hooks
+
+You can reference scripts defined in the [`scripts`](/configuration/scripts) section of your `stacktape.yml` file within
+a hook. Scripts can also be executed manually. For more information, see the
+[scripts documentation](/configuration/scripts).
+
+<Info>
+
+When a script is executed, it receives the following environment variables:
+
+- `STP_HOOK_TYPE`: `before` or `after`
+- `STP_COMMAND`: The Stacktape command that was used
+
+These are in addition to the environment variables specified in the script definition and those injected when using
+[`connectTo`](/configuration/scripts#connecting-to-resources).
+
+</Info>
+
+<PropertiesTable definitionName="NamedScriptLifecycleHook" searchForReferencesInDefinition="Hooks" />
+
+```yaml
+scripts:
+  # {start-highlight}
+  buildWeb:
+    # {stop-highlight}
+    type: local-script
+    properties:
+      executeCommand: npx gatsby build
+
+hooks:
+  beforeDeploy:
+    # {start-highlight}
+    - scriptName: buildWeb
+    # {stop-highlight}
+```
+
+## Hookable events
+
+<PropertiesTable definitionName="Hooks" />
+
+### Before-command hooks
+
+These hooks are executed before the specified command, but after the configuration has been successfully loaded.
+
+<Warning>
+
+A before-command hook is only executed if the configuration is loaded successfully and the hooks are registered. The
+hook will not be executed if there is an error in your CLI arguments or in your configuration file.
+
+</Warning>
+
+### After-command hooks
+
+These hooks are executed after the specified command has finished successfully. Common use cases for after-command hooks
+include database migration or seeding, and API or endpoint testing.
+
+`embed:bastion-servers/bastion-tunnel-db-hook.stp.yml`

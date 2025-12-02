@@ -1,0 +1,15 @@
+resources:
+  web:
+    type: nextjs-web
+    properties:
+      appDirectory: ./
+      iamRoleStatements:
+        - Resource:
+            - $CfResourceParam('NotificationTopic', 'Arn')
+          Effect: 'Allow'
+          Action:
+            - 'sns:Publish'
+
+cloudformationResources:
+  NotificationTopic:
+    Type: AWS::SNS::Topic

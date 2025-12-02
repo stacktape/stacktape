@@ -1,0 +1,286 @@
+---
+title: "OpenSearch (Elastic)"
+order: 312
+---
+
+<br />
+<br />
+
+OpenSearch is a scalable, open-source search and analytics suite. It's used for various purposes, including full-text search, log analytics, and real-time application monitoring. As a fully managed service, Stacktape makes it easy to deploy, operate, and scale OpenSearch clusters in the AWS Cloud.
+
+Under the hood, Stacktape uses [AWS OpenSearch Service](https://aws.amazon.com/opensearch-service/), which was previously known as Amazon Elasticsearch Service.
+
+# Basic configuration
+
+To set up a basic OpenSearch domain, you only need to specify the resource type and the desired OpenSearch version.
+
+<PropDescription definitionName="OpenSearchDomainProps" propertyName="clusterConfig" descType="ld" />
+
+```yaml
+resources:
+  myOpenSearch:
+    type: open-search-domain
+    properties:
+      version: "2.17"
+```
+
+# Connecting to an OpenSearch domain
+
+You can connect to your OpenSearch domain either from anywhere on the internet or exclusively from resources within your stack's _VPC_, depending on your [accessibility](#restrict-access) configuration.
+
+In either case, you need valid _IAM_ credentials. You can grant these to your stack's resources using the `connectTo` property.
+
+```yaml
+resources:
+  myOpenSearch:
+    type: open-search-domain
+    properties:
+      accessibility:
+        accessibilityMode: vpc
+
+  webService:
+    type: web-service
+    properties:
+      # ...
+      # {start-highlight}
+      connectTo:
+        - myOpenSearch
+      # {stop-highlight}
+```
+
+> A web service connected to an OpenSearch domain.
+
+```ts
+import { Client, Connection } from "@opensearch-project/opensearch";
+import { defaultProvider } from "@aws-sdk/credential-provider-node";
+import aws4 from "aws4";
+
+// The OpenSearch domain endpoint is automatically injected as an environment variable
+const host = `https://${process.env.STP_MY_OPEN_SEARCH_DOMAIN_ENDPOINT}`;
+
+const createAwsConnector = (credentials, region) => {
+  class AmazonConnection extends Connection {
+    buildRequestObject(params) {
+      const request = super.buildRequestObject(params) as any;
+      request.service = "es";
+      request.region = region;
+      request.headers = request.headers || {};
+      request.headers["host"] = request.hostname;
+
+      return aws4.sign(request, credentials);
+    }
+  }
+  return {
+    Connection: AmazonConnection
+  };
+};
+
+const getClient = async () => {
+  const credentials = await defaultProvider()();
+  return new Client({
+    ...createAwsConnector(credentials, "eu-west-1"),
+    node: host
+  });
+};
+
+async function search() {
+  const client = await getClient();
+  await client.indices.create({
+    index: "test-index"
+  });
+}
+```
+
+> Example code for connecting to an OpenSearch domain.
+
+# Data nodes
+
+You can configure the instance type and number of data nodes in your cluster.
+
+<PropDescription definitionName="OpenSearchClusterConfig" propertyName="instanceType" descType="ld" />
+
+```yaml
+resources:
+  myOpenSearch:
+    type: open-search-domain
+    properties:
+      clusterConfig:
+        # {start-highlight}
+        instanceType: r6g.large.search
+        instanceCount: 3
+        # {stop-highlight}
+```
+
+# OpenSearch version
+
+You can specify the version of OpenSearch you want to use.
+
+<PropDescription definitionName="OpenSearchDomainProps" propertyName="version" descType="ld" />
+
+```yaml
+resources:
+  myOpenSearch:
+    type: open-search-domain
+    properties:
+      version: "2.17"
+```
+
+# Dedicated master nodes
+
+For production environments, it's recommended to use dedicated master nodes to improve cluster stability.
+
+<PropDescription definitionName="OpenSearchClusterConfig" propertyName="dedicatedMasterType" descType="ld" />
+
+```yaml
+resources:
+  myOpenSearch:
+    type: open-search-domain
+    properties:
+      version: "2.17"
+      clusterConfig:
+        instanceType: r6g.large.search
+        instanceCount: 3
+        # {start-highlight}
+        dedicatedMasterType: r6g.large.search
+        dedicatedMasterCount: 3
+        # {stop-highlight}
+```
+
+# Warm nodes
+
+Warm nodes provide a cost-effective way to store large amounts of read-only data.
+
+<PropDescription definitionName="OpenSearchClusterConfig" propertyName="warmType" descType="ld" />
+
+```yaml
+resources:
+  myOpenSearch:
+    type: open-search-domain
+    properties:
+      version: "2.17"
+      clusterConfig:
+        instanceType: r6g.large.search
+        instanceCount: 3
+        # {start-highlight}
+        warmType: ultrawarm1.medium.search
+        warmCount: 2
+        # {stop-highlight}
+```
+
+# Multi-AZ with standby
+
+You can enable a multi-AZ deployment with a standby Availability Zone for high availability.
+
+<PropDescription definitionName="OpenSearchClusterConfig" propertyName="standbyEnabled" descType="ld" />
+
+```yaml
+resources:
+  myOpenSearch:
+    type: open-search-domain
+    properties:
+      version: "2.17"
+      clusterConfig:
+        instanceType: r6g.large.search
+        instanceCount: 3
+        dedicatedMasterType: r6g.large.search
+        dedicatedMasterCount: 3
+        # {start-highlight}
+        standbyEnabled: true
+        # {stop-highlight}
+```
+
+# Restrict access
+
+You can restrict access to your OpenSearch domain to a specific _VPC_.
+
+<PropDescription definitionName="OpenSearchDomainProps" propertyName="accessibility" descType="ld" />
+
+<PropDescription definitionName="OpenSearchAccessibility" propertyName="accessibilityMode" descType="ld" />
+
+```yaml
+resources:
+  myOpenSearch:
+    type: open-search-domain
+    properties:
+      accessibility:
+        accessibilityMode: vpc
+```
+
+# Logging
+
+You can enable and configure logging for your OpenSearch domain.
+
+<PropDescription definitionName="OpenSearchDomainProps" propertyName="logging" descType="ld" />
+
+<PropertiesTable definitionName="OpenSearchLogConfiguration" searchForReferencesInDefinition="OpenSearchDomainProps" />
+
+<PropertiesTable
+  definitionName="OpenSearchLogRetentionSettings"
+  searchForReferencesInDefinition="OpenSearchDomainProps"
+/>
+
+```yaml
+resources:
+  myOpenSearch:
+    type: open-search-domain
+    properties:
+      logging:
+        errorLogs:
+          retentionDays: 30
+        searchSlowLogs:
+          retentionDays: 14
+        indexSlowLogs:
+          disabled: true
+```
+
+# Storage
+
+You can configure the storage for your OpenSearch domain using EBS volumes.
+
+<PropDescription definitionName="OpenSearchDomainProps" propertyName="storage" descType="ld" />
+
+<PropertiesTable definitionName="OpenSearchStorage" searchForReferencesInDefinition="OpenSearchDomainProps" />
+
+```yaml
+resources:
+  myOpenSearch:
+    type: open-search-domain
+    properties:
+      clusterConfig:
+        instanceType: r6g.large.search
+        instanceCount: 3
+      # {start-highlight}
+      storage:
+        size: 100
+        iops: 3000
+        throughput: 200
+      # {stop-highlight}
+```
+
+# Disable Multi-AZ awareness
+
+You can disable Multi-AZ awareness if you don't need the high availability features.
+
+<PropDescription definitionName="OpenSearchClusterConfig" propertyName="multiAzDisabled" descType="ld" />
+
+```yml
+resources:
+  myOpenSearch:
+    type: open-search-domain
+    properties:
+      version: "2.17"
+      clusterConfig:
+        instanceType: r6g.large.search
+        instanceCount: 3
+        # {start-highlight}
+        multiAzDisabled: true
+        # {stop-highlight}
+```
+
+# API Reference
+
+<PropertiesTable definitionName="OpenSearchDomain" />
+
+<PropertiesTable definitionName="OpenSearchClusterConfig" searchForReferencesInDefinition="OpenSearchDomainProps" />
+
+<PropertiesTable definitionName="OpenSearchAccessibility" searchForReferencesInDefinition="OpenSearchDomainProps" />

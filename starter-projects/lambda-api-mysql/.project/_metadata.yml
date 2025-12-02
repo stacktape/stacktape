@@ -1,0 +1,9 @@
+name: Lambda API with MySQL
+tags:
+  - Typescript
+  - MySQL
+  - REST API
+  - Prisma
+  - Lambda
+icon: typescript.svg
+

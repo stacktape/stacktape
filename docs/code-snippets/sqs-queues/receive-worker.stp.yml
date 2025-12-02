@@ -1,0 +1,20 @@
+resources:
+  myQueue:
+    type: sqs-queue
+    properties:
+      fifoEnabled: true
+
+  processing:
+    type: worker-service
+    properties:
+      packaging:
+        type: stacktape-image-buildpack
+        properties:
+          entryfilePath: processing.ts
+      # {start-highlight}
+      connectTo:
+        - myQueue
+      # {stop-highlight}
+      resources:
+        cpu: 0.25
+        memory: 512

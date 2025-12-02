@@ -1,0 +1,205 @@
+/* eslint-disable unicorn/error-message */
+import { isAbsolute, join } from 'node:path';
+import { eventManager } from '@application-services/event-manager';
+import { IS_DEV } from '@config';
+import { getRelativePath, isFileAccessible } from '@shared/utils/fs-utils';
+import stacktrace from 'stack-trace';
+import stripAnsi from 'strip-ansi';
+import { printer } from './printer';
+
+export class ExpectedError extends Error {
+  type: ErrorType;
+  isExpected: boolean;
+  hint?: string | string[];
+  details?: ReturnType<typeof getErrorDetails>;
+  metadata?: Record<string, any>;
+
+  constructor(type: ErrorType, message: string, hint?: string | string[], metadata?: Record<string, any>) {
+    super(message);
+    this.isExpected = true;
+    this.name = type;
+    this.type = type;
+    this.hint = hint;
+    this.metadata = metadata;
+
+    this.details = getErrorDetails(this);
+  }
+}
+
+export class UnexpectedError extends Error {
+  message: string;
+  isExpected = false;
+  details?: ReturnType<typeof getErrorDetails>;
+
+  constructor({ error, customMessage }: { error?: Error; customMessage?: string }) {
+    const message = `${customMessage || ''}${error ? `${error?.message}` : ''}`;
+    const lastCapturedEventPart = `Last captured event: ${eventManager.lastEvent?.eventType || 'NONE'}`;
+    const fullMessage = `${message}${message.endsWith('.') ? '' : '.'} ${lastCapturedEventPart}`;
+    super(fullMessage);
+    this.message = fullMessage;
+    if (error?.stack) {
+      this.stack = error.stack;
+    }
+    this.details = getErrorDetails(this);
+  }
+}
+
+export class UserCodeError extends ExpectedError {
+  constructor(message: string, originalError: Error, hint?: string | string[]) {
+    super('SOURCE_CODE', `${message}\n${originalError.message}`, hint);
+    this.stack = originalError.stack;
+    const hintArray = Array.isArray(hint) ? hint : hint ? [hint] : [];
+    const errHint = (originalError as ExpectedError).hint;
+    if (errHint) {
+      hintArray.push(...(Array.isArray(errHint) ? errHint : [errHint]));
+    }
+    this.hint = hintArray;
+  }
+}
+
+export const getReturnableError = (error: ExpectedError | UnexpectedError): Error => {
+  const res = new Error();
+  delete res.stack;
+  res.message = stripAnsi(error.message);
+  if (IS_DEV) {
+    res.stack = stripAnsi(`[${error.details.errorType}] ${error.message}\n${error.details.prettyStackTrace}`);
+  }
+  const { sentryEventId, errorType } = error.details;
+
+  const hint = (error as ExpectedError).hint;
+  (res as any).details = {
+    errorId: sentryEventId,
+    errorType,
+    hints: hint ? (Array.isArray(hint) ? hint : [hint]) : null
+  };
+  return res;
+};
+
+export const getPrettyStacktrace = (
+  error: ExpectedError | UnexpectedError,
+  colorizeOwnCode?: (msg: string) => string,
+  colorizeDependencyCode?: (msg: string) => string
+) => {
+  const trace = stacktrace.parse(error);
+  return trace
+    .filter(({ fileName, native }) => {
+      if (fileName) {
+        return (
+          !native &&
+          !fileName.startsWith('internal/') &&
+          fileName !== '------' &&
+          !fileName.startsWith('node:internal') &&
+          fileName !== 'vm.js' &&
+          !fileName.includes('bootstrap_node.js') &&
+          (IS_DEV ? true : !fileName.includes('__publish-folder') && !fileName.includes('stacktape.js:1'))
+        );
+      }
+      return false;
+    })
+    .map((callsite) => {
+      const { fileName, lineNumber, columnNumber, functionName } = callsite;
+      let isUserCode = true;
+      let adjustedFileName: string = fileName;
+      let adjustedFunctionName = `${functionName} `;
+      if (functionName && functionName.includes('Object.')) {
+        adjustedFunctionName = '';
+      } else if (!functionName) {
+        adjustedFunctionName = '<anonymous> ';
+      }
+      if (fileName) {
+        isUserCode =
+          !fileName.includes('node_modules') &&
+          !fileName.includes('node:') &&
+          !fileName.includes('var/runtime/Runtime');
+        if (fileName.includes('webpack:') && !/'webpack\\'|'webpack\/'/.exec(fileName)) {
+          adjustedFileName = fileName
+            .replace(/(.*)webpack:\/stacktape/, '')
+            .replace(/(.*)webpack:\\stacktape/, '')
+            .replace(/\/|\\/, '');
+        }
+      }
+      if (isAbsolute(fileName) && isFileAccessible(fileName)) {
+        adjustedFileName = getRelativePath(fileName).replaceAll('\\', '/');
+      } else {
+        adjustedFileName = getRelativePath(join(process.cwd(), fileName)).replaceAll('\\', '/');
+      }
+      adjustedFileName = adjustedFileName.replace('C:/snapshot/core/', '').replace('/snapshot/core/', '');
+      const position = `(${isUserCode ? './' : ''}${adjustedFileName}:${lineNumber}${
+        columnNumber ? `:${columnNumber}` : ''
+      })`;
+      const res = `at ${adjustedFunctionName}${fileName ? position : ''}`;
+      return isUserCode
+        ? colorizeOwnCode
+          ? colorizeOwnCode(res)
+          : res
+        : colorizeDependencyCode
+          ? colorizeDependencyCode(res)
+          : res;
+    })
+    .join('\n');
+};
+
+export const getErrorDetails = (error: UnexpectedError | ExpectedError) => {
+  const prettyStackTrace: string = IS_DEV ? getPrettyStacktrace(error, (msg) => printer.colorize('cyan', msg)) : null;
+  const originalErrorType = error.name && !error.isExpected ? error.stack.slice(0, error.stack.indexOf(':')) : '';
+  const errorType = error.isExpected ? `${(error as ExpectedError).type}_ERROR` : 'UNEXPECTED_ERROR';
+  const code = error.isExpected ? `${errorType}_${(error as any).code || 'UNKNOWN_CODE'}` : errorType;
+  return {
+    prettyStackTrace,
+    originalErrorType,
+    code,
+    errorType,
+    sentryEventId: null as string
+  };
+};
+
+export const attemptToGetUsefulExpectedError = (error: Error) => {
+  if (`${error}`.includes('ENOSPC')) {
+    return new ExpectedError(
+      'DEVICE',
+      `There seems to be no space left on the device. Error: ${error}`,
+      'Please free up some space on the device and try again.'
+    );
+  }
+  return null;
+};
+
+export const getErrorFromString = (errorString: string) => {
+  let [message, ...stackArray] = errorString.split('    at');
+
+  // Stacktape-built image
+  if (message.includes('/app/index.js:')) {
+    message = message.split('\n\n')[1];
+  }
+
+  const stack = stackArray.filter(Boolean).join('    at');
+  const error = new Error(message);
+  error.stack = `${message}\n    at${stack}`;
+
+  // console.log(error);
+  let prettyStacktrace = getPrettyStacktrace(
+    error as any,
+    (msg) => msg,
+    (msg) => printer.colorize('gray', msg)
+  );
+
+  if (!prettyStacktrace.endsWith('\n')) {
+    prettyStacktrace += '\n';
+  }
+  if (!message.endsWith('\n')) {
+    message += '\n';
+  }
+
+  return `\n${printer.makeBold(message)}${prettyStacktrace}`;
+};
+
+// export const handleStderrData = (data, killProcessFn) => {
+//   const parsedData: string = data.toString();
+//   if (parsedData !== '\n') {
+//     if (parsedData.includes('at ')) {
+//       const err = getErrorFromString(parsedData);
+//       killProcessFn('SIGTERM', { forceKillAfterTimeout: 4000 });
+//       throw err;
+//     }
+//   }
+// };

@@ -1,0 +1,15 @@
+resources:
+  webService:
+    type: web-service
+    properties:
+      packaging:
+        type: custom-dockerfile
+        properties:
+          buildContextPath: ./
+      resources:
+        cpu: 0.25
+        memory: 512
+      cors:
+        enabled: true
+      cdn:
+        enabled: true

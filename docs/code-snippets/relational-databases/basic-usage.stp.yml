@@ -1,0 +1,29 @@
+resources:
+  myDatabase:
+    type: relational-database
+    properties:
+      credentials:
+        masterUserPassword: $Secret('database.password')
+      engine:
+        type: postgres
+        properties:
+          version: '16.2'
+          primaryInstance:
+            instanceSize: db.t3.micro
+
+  apiServer:
+    type: multi-container-workload
+    properties:
+      resources:
+        cpu: 1
+        memory: 1024
+      containers:
+        - name: api-container
+          packaging:
+            type: stacktape-image-buildpack
+            properties:
+              entryfilePath: src/main.ts
+      # {start-highlight}
+      connectTo:
+        - myDatabase
+      # {stop-highlight}

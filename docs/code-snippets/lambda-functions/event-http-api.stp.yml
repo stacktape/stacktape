@@ -1,0 +1,19 @@
+resources:
+  myHttpApi:
+    type: http-api-gateway
+
+  myLambda:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: path/to/my-lambda.ts
+      # {start-highlight}
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: myHttpApi
+            path: /hello
+            method: GET
+      # {stop-highlight}

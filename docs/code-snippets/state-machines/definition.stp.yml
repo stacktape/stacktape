@@ -1,0 +1,47 @@
+resources:
+  checkAndHoldProduct:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: 'check-and-hold-product.ts'
+
+  billCustomer:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: 'bill-customer.ts'
+
+  shipmentNotification:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: 'shipment-notification.ts'
+
+  eshopBuyingProcessStateMachine:
+    type: 'state-machine'
+    properties:
+      # {start-highlight}
+      definition:
+        StartAt: 'checkAndHold'
+        States:
+          checkAndHold:
+            Type: Task
+            Resource: $ResourceParam('checkAndHoldProduct', 'arn')
+            Next: bill
+          bill:
+            Type: Task
+            Resource: $ResourceParam('billCustomer', 'arn')
+            Next: notify
+          notify:
+            Type: Task
+            Resource: $ResourceParam('shipmentNotification', 'arn')
+            Next: succeed
+          succeed:
+            Type: Succeed
+      # {stop-highlight}

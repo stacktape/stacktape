@@ -1,0 +1,15 @@
+# Using Stacktape to manage domains and certs
+
+```yaml
+resources:
+  myLoadBalancer:
+    type: 'network-load-balancer'
+    properties:
+      # {start-highlight}
+      customDomains:
+        - my-app.mydomain.com
+      # {stop-highlight}
+      listeners:
+        - port: 8080
+          protocol: TLS
+```

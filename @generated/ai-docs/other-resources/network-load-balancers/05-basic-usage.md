@@ -1,0 +1,34 @@
+# Basic usage
+
+```yaml
+resources:
+  # {start-highlight}
+  myLoadBalancer:
+    type: 'network-load-balancer'
+    properties:
+      listeners:
+        - port: 8080
+          protocol: TLS
+  # {stop-highlight}
+
+  myWorkload:
+    type: 'multi-container-workload'
+    properties:
+      containers:
+        - name: container1
+          packaging:
+            type: stacktape-image-buildpack
+            properties:
+              entryfilePath: containers/ts-container.ts
+          events:
+            - type: network-load-balancer
+              properties:
+                loadBalancerName: myLoadBalancer
+                listenerPort: 8080
+                containerPort: 8080
+      resources:
+        cpu: 0.25
+        memory: 512
+```
+
+> A Network Load Balancer with a multi-container workload integration.

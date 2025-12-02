@@ -1,0 +1,35 @@
+import Alias_ from './alias';
+import CodeSigningConfig_ from './codeSigningConfig';
+import EventInvokeConfig_ from './eventInvokeConfig';
+import EventSourceMapping_ from './eventSourceMapping';
+import Function_ from './function';
+import LayerVersion_ from './layerVersion';
+import LayerVersionPermission_ from './layerVersionPermission';
+import Permission_ from './permission';
+import Url_ from './url';
+import Version_ from './version';
+import ResourcePolicy_ from './resourcePolicy';
+export namespace Lambda {
+  export const Alias = Alias_;
+  export const CodeSigningConfig = CodeSigningConfig_;
+  export const EventInvokeConfig = EventInvokeConfig_;
+  export const EventSourceMapping = EventSourceMapping_;
+  export const Function = Function_;
+  export const LayerVersion = LayerVersion_;
+  export const LayerVersionPermission = LayerVersionPermission_;
+  export const Permission = Permission_;
+  export const Url = Url_;
+  export const Version = Version_;
+  export const ResourcePolicy = ResourcePolicy_;
+  export type Alias = Alias_;
+  export type CodeSigningConfig = CodeSigningConfig_;
+  export type EventInvokeConfig = EventInvokeConfig_;
+  export type EventSourceMapping = EventSourceMapping_;
+  export type Function = Function_;
+  export type LayerVersion = LayerVersion_;
+  export type LayerVersionPermission = LayerVersionPermission_;
+  export type Permission = Permission_;
+  export type Url = Url_;
+  export type Version = Version_;
+  export type ResourcePolicy = ResourcePolicy_;
+}

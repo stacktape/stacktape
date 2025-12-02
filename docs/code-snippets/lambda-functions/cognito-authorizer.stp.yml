@@ -1,0 +1,28 @@
+resources:
+  myGateway:
+    type: http-api-gateway
+
+  myUserPool:
+    type: user-auth-pool
+    properties:
+      userVerificationType: email-code
+
+  myLambda:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/my-lambda.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: myGateway
+            path: /some-path
+            method: '*'
+            # {start-highlight}
+            authorizer:
+              type: cognito
+              properties:
+                userPoolName: myUserPool
+            # {stop-highlight}

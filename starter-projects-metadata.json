@@ -1,0 +1,1513 @@
+[
+  {
+    "name": "Astro.js SSR",
+    "tags": [
+      "Typescript",
+      "Website",
+      "SSR"
+    ],
+    "icon": "astro.svg",
+    "priority": 0,
+    "starterProjectId": "astro-ssr",
+    "projectType": "es",
+    "usedResources": [
+      {
+        "name": "webService",
+        "type": "web-service",
+        "containerNames": []
+      }
+    ],
+    "usedResourceTypes": [
+      "web-service"
+    ],
+    "isServerSideRenderedWebsite": false,
+    "githubLink": "https://github.com/stacktape/starter-astro-ssr",
+    "isWebsite": false,
+    "isSpaWebsite": false,
+    "isStaticWebsite": false,
+    "hasPrisma": false,
+    "hasNextJs": false,
+    "hasTypescript": true,
+    "hasReact": false,
+    "isRestApi": false,
+    "monthlyAwsCosts": 9,
+    "hasCognito": false,
+    "description": "simple Server-side rendered Astro.js application.\nThe project uses a Web Service to run the Astro.js container.\n"
+  },
+  {
+    "name": "Astro.js static",
+    "tags": [
+      "website",
+      "static website",
+      "Typescript",
+      "React"
+    ],
+    "icon": "astro.svg",
+    "priority": 0,
+    "starterProjectId": "astro-static",
+    "projectType": "es",
+    "usedResources": [
+      {
+        "name": "webBucket",
+        "type": "hosting-bucket",
+        "containerNames": []
+      }
+    ],
+    "usedResourceTypes": [
+      "hosting-bucket"
+    ],
+    "isServerSideRenderedWebsite": false,
+    "githubLink": "https://github.com/stacktape/starter-astro-static",
+    "isWebsite": true,
+    "isSpaWebsite": false,
+    "isStaticWebsite": true,
+    "hasPrisma": false,
+    "hasNextJs": false,
+    "hasTypescript": true,
+    "hasReact": true,
+    "isRestApi": false,
+    "monthlyAwsCosts": 0,
+    "hasCognito": false,
+    "description": "statically-built Astro.js application.\nThe project uses a S3 storage bucket to store the application assets\n  and a CDN to cache the content at the edge.\n"
+  },
+  {
+    "name": "Express.js API with Postgres",
+    "tags": [
+      "REST API",
+      "Typescript",
+      "Express.js",
+      "Prisma",
+      "Postgres"
+    ],
+    "icon": "typescript.svg",
+    "priority": 0,
+    "starterProjectId": "expressjs-api-postgres",
+    "projectType": "es",
+    "usedResources": [
+      {
+        "name": "mainDatabase",
+        "type": "relational-database",
+        "containerNames": []
+      },
+      {
+        "name": "webService",
+        "type": "web-service",
+        "containerNames": []
+      }
+    ],
+    "usedResourceTypes": [
+      "relational-database",
+      "web-service"
+    ],
+    "isServerSideRenderedWebsite": false,
+    "githubLink": "https://github.com/stacktape/starter-expressjs-api-postgres",
+    "isWebsite": false,
+    "isSpaWebsite": false,
+    "isStaticWebsite": false,
+    "hasPrisma": true,
+    "hasNextJs": false,
+    "hasTypescript": true,
+    "hasReact": false,
+    "isRestApi": true,
+    "monthlyAwsCosts": 22,
+    "hasCognito": false,
+    "description": "simple HTTP API built using Express.js.\nThe application runs in a web service resource and uses\n  a Postgres relational database to store the data. To\n  simplify the database access, this project uses Prisma.\n"
+  },
+  {
+    "name": "Next.js app using container",
+    "tags": [
+      "website",
+      "Server side rendered website",
+      "Typescript",
+      "Next.js",
+      "React"
+    ],
+    "icon": "nextjs-circle.svg",
+    "priority": 0,
+    "starterProjectId": "nextjs-container",
+    "projectType": "es",
+    "usedResources": [
+      {
+        "name": "webService",
+        "type": "web-service",
+        "containerNames": []
+      }
+    ],
+    "usedResourceTypes": [
+      "web-service"
+    ],
+    "isServerSideRenderedWebsite": true,
+    "githubLink": "https://github.com/stacktape/starter-nextjs-container",
+    "isWebsite": true,
+    "isSpaWebsite": false,
+    "isStaticWebsite": false,
+    "hasPrisma": false,
+    "hasNextJs": true,
+    "hasTypescript": true,
+    "hasReact": true,
+    "isRestApi": false,
+    "monthlyAwsCosts": 9,
+    "hasCognito": false,
+    "description": "simple Server-side rendered Next.js application.\nThe project uses a Web Service to run the Next app.\n"
+  },
+  {
+    "name": "Next.js Serverless (OpenNext)",
+    "tags": [
+      "website",
+      "Server side rendered website",
+      "Typescript",
+      "Next.js",
+      "React",
+      "Lambda"
+    ],
+    "icon": "nextjs-circle.svg",
+    "priority": 0,
+    "starterProjectId": "nextjs-serverless",
+    "projectType": "es",
+    "usedResources": [
+      {
+        "name": "web",
+        "type": "nextjs-web",
+        "containerNames": []
+      }
+    ],
+    "usedResourceTypes": [
+      "nextjs-web"
+    ],
+    "isServerSideRenderedWebsite": true,
+    "githubLink": "https://github.com/stacktape/starter-nextjs-serverless",
+    "isWebsite": true,
+    "isSpaWebsite": false,
+    "isStaticWebsite": false,
+    "hasPrisma": false,
+    "hasNextJs": true,
+    "hasTypescript": true,
+    "hasReact": true,
+    "isRestApi": false,
+    "monthlyAwsCosts": 0,
+    "hasCognito": false,
+    "description": "Simple Server-side rendered Next.js application.\nThe project uses a purpose-built, optimized Next.js resource to\n  run the Next app inside AWS Lambda (or Lambda@edge).\n"
+  },
+  {
+    "name": "Django API with Postgres",
+    "tags": [
+      "Python",
+      "Postgres",
+      "Django",
+      "REST API"
+    ],
+    "icon": "python.svg",
+    "priority": 1,
+    "starterProjectId": "django-api-postgres",
+    "projectType": "python",
+    "usedResources": [
+      {
+        "name": "mainDatabase",
+        "type": "relational-database",
+        "containerNames": []
+      },
+      {
+        "name": "webService",
+        "type": "web-service",
+        "containerNames": []
+      }
+    ],
+    "usedResourceTypes": [
+      "relational-database",
+      "web-service"
+    ],
+    "isServerSideRenderedWebsite": false,
+    "githubLink": "https://github.com/stacktape/starter-django-api-postgres",
+    "isWebsite": false,
+    "isSpaWebsite": false,
+    "isStaticWebsite": false,
+    "hasPrisma": false,
+    "hasNextJs": false,
+    "hasTypescript": false,
+    "hasReact": false,
+    "isRestApi": true,
+    "monthlyAwsCosts": 22,
+    "hasCognito": false,
+    "description": "simple HTTP API built using Django and\n  Django REST Framework.\nThe application runs in a web service resource and uses\n  a Postgres relational database to store the data.\n"
+  },
+  {
+    "name": "Express.js API with MongoDb",
+    "tags": [
+      "Typescript",
+      "MongoDb",
+      "REST API",
+      "Lambda"
+    ],
+    "icon": "typescript.svg",
+    "priority": 1,
+    "starterProjectId": "expressjs-api-mongo-db",
+    "projectType": "es",
+    "usedResources": [
+      {
+        "name": "mongoDbCluster",
+        "type": "mongo-db-atlas-cluster",
+        "containerNames": []
+      },
+      {
+        "name": "webService",
+        "type": "web-service",
+        "containerNames": []
+      }
+    ],
+    "usedResourceTypes": [
+      "mongo-db-atlas-cluster",
+      "web-service"
+    ],
+    "isServerSideRenderedWebsite": false,
+    "githubLink": "https://github.com/stacktape/starter-expressjs-api-mongo-db",
+    "isWebsite": false,
+    "isSpaWebsite": false,
+    "isStaticWebsite": false,
+    "hasPrisma": false,
+    "hasNextJs": false,
+    "hasTypescript": true,
+    "hasReact": false,
+    "isRestApi": true,
+    "monthlyAwsCosts": 9,
+    "hasCognito": false,
+    "description": "Simple Webservice-based HTTP API.\nThe application runs in a Lambda function and uses\n  MongoDb Atlas cluster to store the data. To\n  simplify the database access, this project uses Mongoose ORM.\n"
+  },
+  {
+    "name": "Flask API with Postgres",
+    "tags": [
+      "Python",
+      "Flask",
+      "Postgres",
+      "SqlAlchemy",
+      "REST API"
+    ],
+    "icon": "python.svg",
+    "priority": 1,
+    "starterProjectId": "flask-api-postgres",
+    "projectType": "python",
+    "usedResources": [
+      {
+        "name": "mainDatabase",
+        "type": "relational-database",
+        "containerNames": []
+      },
+      {
+        "name": "webService",
+        "type": "web-service",
+        "containerNames": []
+      }
+    ],
+    "usedResourceTypes": [
+      "relational-database",
+      "web-service"
+    ],
+    "isServerSideRenderedWebsite": false,
+    "githubLink": "https://github.com/stacktape/starter-flask-api-postgres",
+    "isWebsite": false,
+    "isSpaWebsite": false,
+    "isStaticWebsite": false,
+    "hasPrisma": false,
+    "hasNextJs": false,
+    "hasTypescript": false,
+    "hasReact": false,
+    "isRestApi": true,
+    "monthlyAwsCosts": 22,
+    "hasCognito": false,
+    "description": "simple HTTP API built using Flask.\nThe application runs in a web service resource and uses\n  a Postgres relational database to store the data.\n"
+  },
+  {
+    "name": "Gin API with Postgres",
+    "tags": [
+      "Go",
+      "Gin",
+      "Postgres",
+      "go-pg",
+      "REST API"
+    ],
+    "icon": "go.svg",
+    "priority": 1,
+    "starterProjectId": "gin-api-postgres",
+    "usedResources": [
+      {
+        "name": "mainDatabase",
+        "type": "relational-database",
+        "containerNames": []
+      },
+      {
+        "name": "webService",
+        "type": "web-service",
+        "containerNames": []
+      }
+    ],
+    "usedResourceTypes": [
+      "relational-database",
+      "web-service"
+    ],
+    "isServerSideRenderedWebsite": false,
+    "githubLink": "https://github.com/stacktape/starter-gin-api-postgres",
+    "isWebsite": false,
+    "isSpaWebsite": false,
+    "isStaticWebsite": false,
+    "hasPrisma": false,
+    "hasNextJs": false,
+    "hasTypescript": false,
+    "hasReact": false,
+    "isRestApi": true,
+    "monthlyAwsCosts": 22,
+    "hasCognito": false,
+    "description": "simple HTTP API built using Gin framework.\nThe application runs in a web service resource and uses\n  a Postgres relational database to store the data. To\n  simplify the database access, this project uses go-gin.\n"
+  },
+  {
+    "name": "Lambda API with DynamoDb",
+    "tags": [
+      "Typescript",
+      "DynamoDb",
+      "REST API",
+      "Lambda"
+    ],
+    "icon": "typescript.svg",
+    "priority": 1,
+    "starterProjectId": "lambda-api-dynamo-db",
+    "projectType": "es",
+    "usedResources": [
+      {
+        "name": "mainDynamoDbTable",
+        "type": "dynamo-db-table",
+        "containerNames": []
+      },
+      {
+        "name": "savePost",
+        "type": "function",
+        "containerNames": []
+      },
+      {
+        "name": "getPosts",
+        "type": "function",
+        "containerNames": []
+      },
+      {
+        "name": "mainApiGateway",
+        "type": "http-api-gateway",
+        "containerNames": []
+      }
+    ],
+    "usedResourceTypes": [
+      "dynamo-db-table",
+      "function",
+      "http-api-gateway"
+    ],
+    "isServerSideRenderedWebsite": false,
+    "githubLink": "https://github.com/stacktape/starter-lambda-api-dynamo-db",
+    "isWebsite": false,
+    "isSpaWebsite": false,
+    "isStaticWebsite": false,
+    "hasPrisma": false,
+    "hasNextJs": false,
+    "hasTypescript": true,
+    "hasReact": false,
+    "isRestApi": true,
+    "monthlyAwsCosts": 0,
+    "hasCognito": false,
+    "description": "simple Lambda-based HTTP API.\nThe application runs in a Lambda function and uses\n  DynamoDb to store the data. To simplify the database access,\n  this project uses DynamoDb OneTable.\n"
+  },
+  {
+    "name": "Lambda API with MongoDb",
+    "tags": [
+      "Typescript",
+      "MongoDb",
+      "REST API",
+      "Lambda"
+    ],
+    "icon": "typescript.svg",
+    "priority": 1,
+    "starterProjectId": "lambda-api-mongo-db",
+    "projectType": "es",
+    "usedResources": [
+      {
+        "name": "savePost",
+        "type": "function",
+        "containerNames": []
+      },
+      {
+        "name": "getPosts",
+        "type": "function",
+        "containerNames": []
+      },
+      {
+        "name": "mainApiGateway",
+        "type": "http-api-gateway",
+        "containerNames": []
+      },
+      {
+        "name": "mongoDbCluster",
+        "type": "mongo-db-atlas-cluster",
+        "containerNames": []
+      }
+    ],
+    "usedResourceTypes": [
+      "function",
+      "http-api-gateway",
+      "mongo-db-atlas-cluster"
+    ],
+    "isServerSideRenderedWebsite": false,
+    "githubLink": "https://github.com/stacktape/starter-lambda-api-mongo-db",
+    "isWebsite": false,
+    "isSpaWebsite": false,
+    "isStaticWebsite": false,
+    "hasPrisma": false,
+    "hasNextJs": false,
+    "hasTypescript": true,
+    "hasReact": false,
+    "isRestApi": true,
+    "monthlyAwsCosts": 0,
+    "hasCognito": false,
+    "description": "simple Lambda-based HTTP API.\nThe application runs in a Lambda function and uses\n  MongoDb Atlas cluster to store the data. To\n  simplify the database access, this project uses Mongoose ORM.\n"
+  },
+  {
+    "name": "Laravel SSR website",
+    "tags": [
+      "website",
+      "Server side rendered website",
+      "PHP",
+      "Laravel",
+      "Blade"
+    ],
+    "icon": "laravel.svg",
+    "priority": 1,
+    "starterProjectId": "laravel-ssr-website",
+    "usedResources": [
+      {
+        "name": "webService",
+        "type": "web-service",
+        "containerNames": []
+      }
+    ],
+    "usedResourceTypes": [
+      "web-service"
+    ],
+    "isServerSideRenderedWebsite": true,
+    "githubLink": "https://github.com/stacktape/starter-laravel-ssr-website",
+    "isWebsite": true,
+    "isSpaWebsite": false,
+    "isStaticWebsite": false,
+    "hasPrisma": false,
+    "hasNextJs": false,
+    "hasTypescript": false,
+    "hasReact": false,
+    "isRestApi": false,
+    "monthlyAwsCosts": 9,
+    "hasCognito": false,
+    "description": "simple Server-side rendered Laravel application.\nThe project uses a Web Service to run the Laravel app.\n"
+  },
+  {
+    "name": "Typescript monorepo with pnpm",
+    "tags": [
+      "Typescript",
+      "REST API",
+      "Lambda"
+    ],
+    "icon": "typescript.svg",
+    "priority": 1,
+    "starterProjectId": "monorepo-typescript",
+    "projectType": "es",
+    "usedResources": [
+      {
+        "name": "myLambda",
+        "type": "function",
+        "containerNames": []
+      },
+      {
+        "name": "myApiGateway",
+        "type": "http-api-gateway",
+        "containerNames": []
+      },
+      {
+        "name": "myServer",
+        "type": "web-service",
+        "containerNames": []
+      }
+    ],
+    "usedResourceTypes": [
+      "function",
+      "http-api-gateway",
+      "web-service"
+    ],
+    "isServerSideRenderedWebsite": false,
+    "githubLink": "https://github.com/stacktape/starter-monorepo-typescript",
+    "isWebsite": false,
+    "isSpaWebsite": false,
+    "isStaticWebsite": false,
+    "hasPrisma": false,
+    "hasNextJs": false,
+    "hasTypescript": true,
+    "hasReact": false,
+    "isRestApi": true,
+    "monthlyAwsCosts": 9,
+    "hasCognito": false,
+    "description": "This example demonstrates how to use Stacktape with a pnpm monorepo\n"
+  },
+  {
+    "name": "Typescript monorepo with pnpm",
+    "tags": [
+      "Typescript",
+      "REST API",
+      "Lambda"
+    ],
+    "icon": "typescript.svg",
+    "priority": 1,
+    "starterProjectId": "monorepo-typescript-pnpm",
+    "projectType": "es",
+    "usedResources": [
+      {
+        "name": "myLambda",
+        "type": "function",
+        "containerNames": []
+      },
+      {
+        "name": "myApiGateway",
+        "type": "http-api-gateway",
+        "containerNames": []
+      },
+      {
+        "name": "myServer",
+        "type": "web-service",
+        "containerNames": []
+      }
+    ],
+    "usedResourceTypes": [
+      "function",
+      "http-api-gateway",
+      "web-service"
+    ],
+    "isServerSideRenderedWebsite": false,
+    "githubLink": "https://github.com/stacktape/starter-monorepo-typescript-pnpm",
+    "isWebsite": false,
+    "isSpaWebsite": false,
+    "isStaticWebsite": false,
+    "hasPrisma": false,
+    "hasNextJs": false,
+    "hasTypescript": true,
+    "hasReact": false,
+    "isRestApi": true,
+    "monthlyAwsCosts": 9,
+    "hasCognito": false,
+    "description": "This example demonstrates how to use Stacktape with a pnpm monorepo\n"
+  },
+  {
+    "name": "Nest.js API with Postgres",
+    "tags": [
+      "Typescript",
+      "Nest.js",
+      "REST API",
+      "Prisma"
+    ],
+    "icon": "typescript.svg",
+    "priority": 1,
+    "starterProjectId": "nestjs-api-postgres",
+    "projectType": "es",
+    "usedResources": [
+      {
+        "name": "mainDatabase",
+        "type": "relational-database",
+        "containerNames": []
+      },
+      {
+        "name": "webService",
+        "type": "web-service",
+        "containerNames": []
+      }
+    ],
+    "usedResourceTypes": [
+      "relational-database",
+      "web-service"
+    ],
+    "isServerSideRenderedWebsite": false,
+    "githubLink": "https://github.com/stacktape/starter-nestjs-api-postgres",
+    "isWebsite": false,
+    "isSpaWebsite": false,
+    "isStaticWebsite": false,
+    "hasPrisma": true,
+    "hasNextJs": false,
+    "hasTypescript": true,
+    "hasReact": false,
+    "isRestApi": true,
+    "monthlyAwsCosts": 22,
+    "hasCognito": false,
+    "description": "simple HTTP API built using Nest.js.\nThe application runs in a web service resource and uses\n  a Postgres relational database to store the data. To\n  simplify the database access, this project uses Prisma.\n"
+  },
+  {
+    "name": "Remix website container",
+    "tags": [
+      "website",
+      "Server side rendered website",
+      "Typescript",
+      "Remix",
+      "React"
+    ],
+    "icon": "remix.svg",
+    "priority": 1,
+    "hasOwnTsConfig": true,
+    "starterProjectId": "remix-website-container",
+    "projectType": "es",
+    "usedResources": [
+      {
+        "name": "webService",
+        "type": "web-service",
+        "containerNames": []
+      }
+    ],
+    "usedResourceTypes": [
+      "web-service"
+    ],
+    "isServerSideRenderedWebsite": true,
+    "githubLink": "https://github.com/stacktape/starter-remix-website-container",
+    "isWebsite": true,
+    "isSpaWebsite": false,
+    "isStaticWebsite": false,
+    "hasPrisma": false,
+    "hasNextJs": false,
+    "hasTypescript": true,
+    "hasReact": true,
+    "isRestApi": false,
+    "monthlyAwsCosts": 9,
+    "hasCognito": false,
+    "description": "simple Server-side rendered Remix application.\nThe project uses a Web Service to run the Remix app.\n"
+  },
+  {
+    "name": "Ruby on Rails API with Postgres",
+    "tags": [
+      "Ruby",
+      "Ruby on Rails",
+      "REST API",
+      "Postgres"
+    ],
+    "icon": "ruby.svg",
+    "priority": 1,
+    "starterProjectId": "ruby-on-rails-api-postgres",
+    "projectType": "ruby",
+    "usedResources": [
+      {
+        "name": "mainDatabase",
+        "type": "relational-database",
+        "containerNames": []
+      },
+      {
+        "name": "webService",
+        "type": "web-service",
+        "containerNames": []
+      }
+    ],
+    "usedResourceTypes": [
+      "relational-database",
+      "web-service"
+    ],
+    "isServerSideRenderedWebsite": false,
+    "githubLink": "https://github.com/stacktape/starter-ruby-on-rails-api-postgres",
+    "isWebsite": false,
+    "isSpaWebsite": false,
+    "isStaticWebsite": false,
+    "hasPrisma": false,
+    "hasNextJs": false,
+    "hasTypescript": false,
+    "hasReact": false,
+    "isRestApi": true,
+    "monthlyAwsCosts": 22,
+    "hasCognito": false,
+    "description": "simple HTTP API built using Ruby on Rails.\nThe application runs in a Web Service resource and uses\n  a Postgres relational database to store the data.\n"
+  },
+  {
+    "name": "Spring Boot API with Postgres",
+    "tags": [
+      "REST API",
+      "Hibernate ORM",
+      "Spring Boot",
+      "Postgres",
+      "Java"
+    ],
+    "icon": "java.svg",
+    "priority": 1,
+    "starterProjectId": "spring-boot-api-postgres",
+    "projectType": "java",
+    "usedResources": [
+      {
+        "name": "mainDatabase",
+        "type": "relational-database",
+        "containerNames": []
+      },
+      {
+        "name": "webService",
+        "type": "web-service",
+        "containerNames": []
+      }
+    ],
+    "usedResourceTypes": [
+      "relational-database",
+      "web-service"
+    ],
+    "isServerSideRenderedWebsite": false,
+    "githubLink": "https://github.com/stacktape/starter-spring-boot-api-postgres",
+    "isWebsite": false,
+    "isSpaWebsite": false,
+    "isStaticWebsite": false,
+    "hasPrisma": false,
+    "hasNextJs": false,
+    "hasTypescript": false,
+    "hasReact": false,
+    "isRestApi": true,
+    "monthlyAwsCosts": 22,
+    "hasCognito": false,
+    "description": "simple HTTP API built using Spring Boot.\nThe application runs in a web service resource and uses\n  a Postgres relational database to store the data.\n"
+  },
+  {
+    "name": "Angular SPA",
+    "tags": [
+      "website",
+      "SPA website",
+      "Typescript",
+      "Angular"
+    ],
+    "disableLintingOption": true,
+    "hasOwnTsConfig": true,
+    "icon": "angular.svg",
+    "starterProjectId": "angular-spa",
+    "projectType": "es",
+    "usedResources": [
+      {
+        "name": "webBucket",
+        "type": "hosting-bucket",
+        "containerNames": []
+      }
+    ],
+    "usedResourceTypes": [
+      "hosting-bucket"
+    ],
+    "isServerSideRenderedWebsite": false,
+    "githubLink": "https://github.com/stacktape/starter-angular-spa",
+    "isWebsite": true,
+    "isSpaWebsite": true,
+    "isStaticWebsite": false,
+    "hasPrisma": false,
+    "hasNextJs": false,
+    "hasTypescript": true,
+    "hasReact": false,
+    "isRestApi": false,
+    "monthlyAwsCosts": 0,
+    "priority": 100,
+    "hasCognito": false,
+    "description": "simple Single Page Application built using Angular.io.\nThe project uses a S3 storage bucket to store the application assets\n  and a CDN to cache the content at the edge.\n"
+  },
+  {
+    "name": "Docker web service",
+    "tags": [],
+    "icon": "docker.svg",
+    "starterProjectId": "docker",
+    "usedResources": [
+      {
+        "name": "webService",
+        "type": "web-service",
+        "containerNames": []
+      }
+    ],
+    "usedResourceTypes": [
+      "web-service"
+    ],
+    "isServerSideRenderedWebsite": false,
+    "githubLink": "https://github.com/stacktape/starter-docker",
+    "isWebsite": false,
+    "isSpaWebsite": false,
+    "isStaticWebsite": false,
+    "hasPrisma": false,
+    "hasNextJs": false,
+    "hasTypescript": false,
+    "hasReact": false,
+    "isRestApi": false,
+    "monthlyAwsCosts": 9,
+    "priority": 100,
+    "hasCognito": false,
+    "description": "simple Single Page Application built using React.js and\n  Vite.js.\nThe project uses a S3 storage bucket to store the application assets\n  and a CDN to cache the content at the edge.\n"
+  },
+  {
+    "name": "Gatsby.js website",
+    "tags": [
+      "website",
+      "static website",
+      "Typescript",
+      "Gatsby.js",
+      "React"
+    ],
+    "icon": "gatsby.svg",
+    "starterProjectId": "gatsbyjs-website",
+    "projectType": "es",
+    "usedResources": [
+      {
+        "name": "webBucket",
+        "type": "hosting-bucket",
+        "containerNames": []
+      }
+    ],
+    "usedResourceTypes": [
+      "hosting-bucket"
+    ],
+    "isServerSideRenderedWebsite": false,
+    "githubLink": "https://github.com/stacktape/starter-gatsbyjs-website",
+    "isWebsite": true,
+    "isSpaWebsite": false,
+    "isStaticWebsite": true,
+    "hasPrisma": false,
+    "hasNextJs": false,
+    "hasTypescript": true,
+    "hasReact": true,
+    "isRestApi": false,
+    "monthlyAwsCosts": 0,
+    "priority": 100,
+    "hasCognito": false,
+    "description": "statically-built Gatsby.js application.\nThe project uses a S3 storage bucket to store the application assets\n  and a CDN to cache the content at the edge.\n"
+  },
+  {
+    "name": "Go lambda with DynamoDB",
+    "tags": [
+      "Go",
+      "DynamoDB",
+      "REST API",
+      "Lambda"
+    ],
+    "icon": "go.svg",
+    "starterProjectId": "go-lambda-api",
+    "usedResources": [
+      {
+        "name": "mainDynamoDbTable",
+        "type": "dynamo-db-table",
+        "containerNames": []
+      },
+      {
+        "name": "savePost",
+        "type": "function",
+        "containerNames": []
+      },
+      {
+        "name": "getPosts",
+        "type": "function",
+        "containerNames": []
+      },
+      {
+        "name": "mainApiGateway",
+        "type": "http-api-gateway",
+        "containerNames": []
+      }
+    ],
+    "usedResourceTypes": [
+      "dynamo-db-table",
+      "function",
+      "http-api-gateway"
+    ],
+    "isServerSideRenderedWebsite": false,
+    "githubLink": "https://github.com/stacktape/starter-go-lambda-api",
+    "isWebsite": false,
+    "isSpaWebsite": false,
+    "isStaticWebsite": false,
+    "hasPrisma": false,
+    "hasNextJs": false,
+    "hasTypescript": false,
+    "hasReact": false,
+    "isRestApi": true,
+    "monthlyAwsCosts": 0,
+    "priority": 100,
+    "hasCognito": false,
+    "description": "simple Lambda-based HTTP API using Go runtime.\nThe application runs in a Lambda function and uses\n  DynamoDb to store the data.\n"
+  },
+  {
+    "name": "Java lambda with DynamoDB",
+    "tags": [
+      "Java",
+      "DynamoDB",
+      "REST API",
+      "Lambda"
+    ],
+    "icon": "java.svg",
+    "starterProjectId": "java-lambda-api",
+    "projectType": "java",
+    "usedResources": [
+      {
+        "name": "mainDynamoDbTable",
+        "type": "dynamo-db-table",
+        "containerNames": []
+      },
+      {
+        "name": "savePost",
+        "type": "function",
+        "containerNames": []
+      },
+      {
+        "name": "getPosts",
+        "type": "function",
+        "containerNames": []
+      },
+      {
+        "name": "mainApiGateway",
+        "type": "http-api-gateway",
+        "containerNames": []
+      }
+    ],
+    "usedResourceTypes": [
+      "dynamo-db-table",
+      "function",
+      "http-api-gateway"
+    ],
+    "isServerSideRenderedWebsite": false,
+    "githubLink": "https://github.com/stacktape/starter-java-lambda-api",
+    "isWebsite": false,
+    "isSpaWebsite": false,
+    "isStaticWebsite": false,
+    "hasPrisma": false,
+    "hasNextJs": false,
+    "hasTypescript": false,
+    "hasReact": false,
+    "isRestApi": true,
+    "monthlyAwsCosts": 0,
+    "priority": 100,
+    "hasCognito": false,
+    "description": "simple Lambda-based HTTP API using Java runtime.\nThe application runs in a Lambda function and uses\n  DynamoDb to store the data.\n"
+  },
+  {
+    "name": "Lambda API with MySQL",
+    "tags": [
+      "Typescript",
+      "MySQL",
+      "REST API",
+      "Prisma",
+      "Lambda"
+    ],
+    "icon": "typescript.svg",
+    "starterProjectId": "lambda-api-mysql",
+    "projectType": "es",
+    "usedResources": [
+      {
+        "name": "savePost",
+        "type": "function",
+        "containerNames": []
+      },
+      {
+        "name": "getPosts",
+        "type": "function",
+        "containerNames": []
+      },
+      {
+        "name": "mainApiGateway",
+        "type": "http-api-gateway",
+        "containerNames": []
+      },
+      {
+        "name": "mainDatabase",
+        "type": "relational-database",
+        "containerNames": []
+      }
+    ],
+    "usedResourceTypes": [
+      "function",
+      "http-api-gateway",
+      "relational-database"
+    ],
+    "isServerSideRenderedWebsite": false,
+    "githubLink": "https://github.com/stacktape/starter-lambda-api-mysql",
+    "isWebsite": false,
+    "isSpaWebsite": false,
+    "isStaticWebsite": false,
+    "hasPrisma": true,
+    "hasNextJs": false,
+    "hasTypescript": true,
+    "hasReact": false,
+    "isRestApi": true,
+    "monthlyAwsCosts": 13,
+    "priority": 100,
+    "hasCognito": false,
+    "description": "simple Lambda-based HTTP API.\nThe application runs in a Lambda function and uses a\n  MySQL relational database to store the data. To simplify\n  the database access, this project uses Prisma.\n"
+  },
+  {
+    "name": "Lambda app with Redis",
+    "tags": [
+      "Typescript",
+      "Redis",
+      "Lambda"
+    ],
+    "icon": "typescript.svg",
+    "starterProjectId": "lambda-app-redis",
+    "projectType": "es",
+    "usedResources": [
+      {
+        "name": "storeKeyValuePair",
+        "type": "function",
+        "containerNames": []
+      },
+      {
+        "name": "mainApiGateway",
+        "type": "http-api-gateway",
+        "containerNames": []
+      },
+      {
+        "name": "redis",
+        "type": "upstash-redis",
+        "containerNames": []
+      }
+    ],
+    "usedResourceTypes": [
+      "function",
+      "http-api-gateway",
+      "upstash-redis"
+    ],
+    "isServerSideRenderedWebsite": false,
+    "githubLink": "https://github.com/stacktape/starter-lambda-app-redis",
+    "isWebsite": false,
+    "isSpaWebsite": false,
+    "isStaticWebsite": false,
+    "hasPrisma": false,
+    "hasNextJs": false,
+    "hasTypescript": true,
+    "hasReact": false,
+    "isRestApi": false,
+    "monthlyAwsCosts": 0,
+    "priority": 100,
+    "hasCognito": false,
+    "description": "simple Lambda-based HTTP endpoint that stores the data in\n  Upstash Redis.\n"
+  },
+  {
+    "name": "Web scraper with Puppeteer",
+    "tags": [
+      "Typescript",
+      "Puppeteer",
+      "Lambda"
+    ],
+    "icon": "puppeteer.svg",
+    "starterProjectId": "lambda-web-scraper-puppeteer",
+    "projectType": "es",
+    "usedResources": [
+      {
+        "name": "scrapeLinks",
+        "type": "function",
+        "containerNames": []
+      },
+      {
+        "name": "mainApiGateway",
+        "type": "http-api-gateway",
+        "containerNames": []
+      }
+    ],
+    "usedResourceTypes": [
+      "function",
+      "http-api-gateway"
+    ],
+    "isServerSideRenderedWebsite": false,
+    "githubLink": "https://github.com/stacktape/starter-lambda-web-scraper-puppeteer",
+    "isWebsite": false,
+    "isSpaWebsite": false,
+    "isStaticWebsite": false,
+    "hasPrisma": false,
+    "hasNextJs": false,
+    "hasTypescript": true,
+    "hasReact": false,
+    "isRestApi": false,
+    "monthlyAwsCosts": 0,
+    "priority": 100,
+    "hasCognito": false,
+    "description": "web link scraper implemented in Typescript using headless chrome -\n  Puppeteer.\nThe scraper runs in a Lambda function\n"
+  },
+  {
+    "name": "NuxtJs SSR website container",
+    "tags": [
+      "website",
+      "Server side rendered website",
+      "Typescript",
+      "NuxtJs",
+      "Vue"
+    ],
+    "hasOwnTsConfig": true,
+    "disableLintingOption": true,
+    "icon": "nuxt.svg",
+    "starterProjectId": "nuxtjs-ssr-website-container",
+    "projectType": "es",
+    "usedResources": [
+      {
+        "name": "webBucket",
+        "type": "bucket",
+        "containerNames": []
+      },
+      {
+        "name": "webService",
+        "type": "web-service",
+        "containerNames": []
+      }
+    ],
+    "usedResourceTypes": [
+      "bucket",
+      "web-service"
+    ],
+    "isServerSideRenderedWebsite": true,
+    "githubLink": "https://github.com/stacktape/starter-nuxtjs-ssr-website-container",
+    "isWebsite": true,
+    "isSpaWebsite": false,
+    "isStaticWebsite": false,
+    "hasPrisma": false,
+    "hasNextJs": false,
+    "hasTypescript": true,
+    "hasReact": false,
+    "isRestApi": false,
+    "monthlyAwsCosts": 9,
+    "priority": 100,
+    "hasCognito": false,
+    "description": "simple Server-side rendered NuxtJS v3 application.\nThe project uses a Web Service to run the Nuxt app and a\n  S3 storage bucket with\n  CDN to host the static content.\n"
+  },
+  {
+    "name": "NuxtJs SSR website lambda",
+    "tags": [
+      "website",
+      "Server side rendered website",
+      "Typescript",
+      "NuxtJs",
+      "Vue",
+      "Lambda"
+    ],
+    "hasOwnTsConfig": true,
+    "disableLintingOption": true,
+    "icon": "nuxt.svg",
+    "starterProjectId": "nuxtjs-ssr-website-lambda",
+    "projectType": "es",
+    "usedResources": [
+      {
+        "name": "webBucket",
+        "type": "bucket",
+        "containerNames": []
+      },
+      {
+        "name": "nuxtLambda",
+        "type": "function",
+        "containerNames": []
+      },
+      {
+        "name": "mainApiGateway",
+        "type": "http-api-gateway",
+        "containerNames": []
+      }
+    ],
+    "usedResourceTypes": [
+      "bucket",
+      "function",
+      "http-api-gateway"
+    ],
+    "isServerSideRenderedWebsite": true,
+    "githubLink": "https://github.com/stacktape/starter-nuxtjs-ssr-website-lambda",
+    "isWebsite": true,
+    "isSpaWebsite": false,
+    "isStaticWebsite": false,
+    "hasPrisma": false,
+    "hasNextJs": false,
+    "hasTypescript": true,
+    "hasReact": false,
+    "isRestApi": false,
+    "monthlyAwsCosts": 0,
+    "priority": 100,
+    "hasCognito": false,
+    "description": "simple Server-side rendered NuxtJS v3 application.\nThe project uses a Lambda function to run the Nuxt\n  app and a S3 storage bucket with\n  CDN to host the static content.\n"
+  },
+  {
+    "name": "Python Lambda with MongoDb",
+    "tags": [
+      "Python",
+      "MongoDb",
+      "REST API",
+      "Lambda"
+    ],
+    "icon": "python.svg",
+    "starterProjectId": "python-lambda-api",
+    "projectType": "python",
+    "usedResources": [
+      {
+        "name": "savePost",
+        "type": "function",
+        "containerNames": []
+      },
+      {
+        "name": "getPosts",
+        "type": "function",
+        "containerNames": []
+      },
+      {
+        "name": "mainApiGateway",
+        "type": "http-api-gateway",
+        "containerNames": []
+      },
+      {
+        "name": "mongoDbCluster",
+        "type": "mongo-db-atlas-cluster",
+        "containerNames": []
+      }
+    ],
+    "usedResourceTypes": [
+      "function",
+      "http-api-gateway",
+      "mongo-db-atlas-cluster"
+    ],
+    "isServerSideRenderedWebsite": false,
+    "githubLink": "https://github.com/stacktape/starter-python-lambda-api",
+    "isWebsite": false,
+    "isSpaWebsite": false,
+    "isStaticWebsite": false,
+    "hasPrisma": false,
+    "hasNextJs": false,
+    "hasTypescript": false,
+    "hasReact": false,
+    "isRestApi": true,
+    "monthlyAwsCosts": 0,
+    "priority": 100,
+    "hasCognito": false,
+    "description": "simple Lambda-based HTTP API using Python runtime.\nThe application runs in a Lambda function and uses\n  DynamoDb to store the data. To simplify\n  the database access, this project uses PyMongo.\n"
+  },
+  {
+    "name": "React SPA with Vite.js",
+    "tags": [
+      "website",
+      "SPA website",
+      "Typescript",
+      "Vite.js",
+      "React"
+    ],
+    "hasOwnTsConfig": true,
+    "icon": "react.svg",
+    "starterProjectId": "react-spa-vitejs",
+    "projectType": "es",
+    "usedResources": [
+      {
+        "name": "webBucket",
+        "type": "hosting-bucket",
+        "containerNames": []
+      }
+    ],
+    "usedResourceTypes": [
+      "hosting-bucket"
+    ],
+    "isServerSideRenderedWebsite": false,
+    "githubLink": "https://github.com/stacktape/starter-react-spa-vitejs",
+    "isWebsite": true,
+    "isSpaWebsite": true,
+    "isStaticWebsite": false,
+    "hasPrisma": false,
+    "hasNextJs": false,
+    "hasTypescript": true,
+    "hasReact": true,
+    "isRestApi": false,
+    "monthlyAwsCosts": 0,
+    "priority": 100,
+    "hasCognito": false,
+    "description": "simple Single Page Application built using React.js and\n  Vite.js.\nThe project uses a S3 storage bucket to store the application assets\n  and a CDN to cache the content at the edge.\n"
+  },
+  {
+    "name": "Websocket API with Socket.io",
+    "tags": [
+      "Typescript",
+      "Redis",
+      "Websocket API",
+      "Socket.io"
+    ],
+    "icon": "socket-light.svg",
+    "starterProjectId": "socketio-websocket-api-redis",
+    "projectType": "es",
+    "usedResources": [
+      {
+        "name": "mainLoadBalancer",
+        "type": "application-load-balancer",
+        "containerNames": []
+      },
+      {
+        "name": "websocketServer",
+        "type": "multi-container-workload",
+        "containerNames": [
+          "socketio-server"
+        ]
+      },
+      {
+        "name": "redis",
+        "type": "upstash-redis",
+        "containerNames": []
+      }
+    ],
+    "usedResourceTypes": [
+      "application-load-balancer",
+      "multi-container-workload",
+      "upstash-redis"
+    ],
+    "isServerSideRenderedWebsite": false,
+    "githubLink": "https://github.com/stacktape/starter-socketio-websocket-api-redis",
+    "isWebsite": false,
+    "isSpaWebsite": false,
+    "isStaticWebsite": false,
+    "hasPrisma": false,
+    "hasNextJs": false,
+    "hasTypescript": true,
+    "hasReact": false,
+    "isRestApi": false,
+    "monthlyAwsCosts": 25,
+    "priority": 100,
+    "hasCognito": false,
+    "description": "simple Websocket API built using Socket.io.\nThe application runs in a\n  container workload and uses\n  Upstash redis to store the session data. The requests\n  are routed using Application Load Balancer.\n"
+  },
+  {
+    "name": "Svelte SPA with Vite.js",
+    "tags": [
+      "website",
+      "SPA website",
+      "Typescript",
+      "Vite.js",
+      "Svelte"
+    ],
+    "disableLintingOption": true,
+    "hasOwnTsConfig": true,
+    "icon": "svelte.svg",
+    "starterProjectId": "svelte-spa-vitejs",
+    "projectType": "es",
+    "usedResources": [
+      {
+        "name": "webBucket",
+        "type": "hosting-bucket",
+        "containerNames": []
+      }
+    ],
+    "usedResourceTypes": [
+      "hosting-bucket"
+    ],
+    "isServerSideRenderedWebsite": false,
+    "githubLink": "https://github.com/stacktape/starter-svelte-spa-vitejs",
+    "isWebsite": true,
+    "isSpaWebsite": true,
+    "isStaticWebsite": false,
+    "hasPrisma": false,
+    "hasNextJs": false,
+    "hasTypescript": true,
+    "hasReact": false,
+    "isRestApi": false,
+    "monthlyAwsCosts": 0,
+    "priority": 100,
+    "hasCognito": false,
+    "description": "simple Single Page Application built using Vue.js and\n  Vite.js.\nThe project uses a S3 storage bucket to store the application assets\n  and a CDN to cache the content at the edge.\n"
+  },
+  {
+    "name": "React SPA with Vite.js",
+    "tags": [
+      "website",
+      "SPA website",
+      "Typescript",
+      "Vite.js",
+      "React"
+    ],
+    "hasOwnTsConfig": true,
+    "icon": "react.svg",
+    "starterProjectId": "tanstack-start",
+    "projectType": "es",
+    "usedResources": [
+      {
+        "name": "webBucket",
+        "type": "hosting-bucket",
+        "containerNames": []
+      }
+    ],
+    "usedResourceTypes": [
+      "hosting-bucket"
+    ],
+    "isServerSideRenderedWebsite": false,
+    "githubLink": "https://github.com/stacktape/starter-tanstack-start",
+    "isWebsite": true,
+    "isSpaWebsite": true,
+    "isStaticWebsite": false,
+    "hasPrisma": false,
+    "hasNextJs": false,
+    "hasTypescript": true,
+    "hasReact": true,
+    "isRestApi": false,
+    "monthlyAwsCosts": 0,
+    "priority": 100,
+    "hasCognito": false,
+    "description": "simple Single Page Application built using React.js and\n  Vite.js.\nThe project uses a S3 storage bucket to store the application assets\n  and a CDN to cache the content at the edge.\n"
+  },
+  {
+    "name": "Tensorflow image classification",
+    "tags": [
+      "Machine learning",
+      "Tensorflow",
+      "Python"
+    ],
+    "icon": "tensorflow.svg",
+    "starterProjectId": "tensorflow-image-classification",
+    "projectType": "python",
+    "usedResources": [
+      {
+        "name": "classifierJob",
+        "type": "batch-job",
+        "containerNames": []
+      },
+      {
+        "name": "inputBucket",
+        "type": "bucket",
+        "containerNames": []
+      },
+      {
+        "name": "outputBucket",
+        "type": "bucket",
+        "containerNames": []
+      }
+    ],
+    "usedResourceTypes": [
+      "batch-job",
+      "bucket"
+    ],
+    "isServerSideRenderedWebsite": false,
+    "githubLink": "https://github.com/stacktape/starter-tensorflow-image-classification",
+    "isWebsite": false,
+    "isSpaWebsite": false,
+    "isStaticWebsite": false,
+    "hasPrisma": false,
+    "hasNextJs": false,
+    "hasTypescript": false,
+    "hasReact": false,
+    "isRestApi": false,
+    "monthlyAwsCosts": 0,
+    "priority": 100,
+    "hasCognito": false,
+    "description": "Example Docker container deployed as a web service.\n"
+  },
+  {
+    "name": "Vue SPA with Vite.js",
+    "tags": [
+      "website",
+      "SPA website",
+      "Typescript",
+      "Vite.js",
+      "Vue"
+    ],
+    "disableLintingOption": true,
+    "hasOwnTsConfig": true,
+    "icon": "vue.svg",
+    "starterProjectId": "vue-spa-vitejs",
+    "projectType": "es",
+    "usedResources": [
+      {
+        "name": "webBucket",
+        "type": "hosting-bucket",
+        "containerNames": []
+      }
+    ],
+    "usedResourceTypes": [
+      "hosting-bucket"
+    ],
+    "isServerSideRenderedWebsite": false,
+    "githubLink": "https://github.com/stacktape/starter-vue-spa-vitejs",
+    "isWebsite": true,
+    "isSpaWebsite": true,
+    "isStaticWebsite": false,
+    "hasPrisma": false,
+    "hasNextJs": false,
+    "hasTypescript": true,
+    "hasReact": false,
+    "isRestApi": false,
+    "monthlyAwsCosts": 0,
+    "priority": 100,
+    "hasCognito": false,
+    "description": "simple Single Page Application built using Vue.js and\n  Vite.js.\nThe project uses a S3 storage bucket to store the application assets\n  and a CDN to cache the content at the edge.\n"
+  }
+]

@@ -1,0 +1,15 @@
+resources:
+  # {start-highlight}
+  myFirewall:
+    type: web-app-firewall
+    properties:
+      scope: cdn
+  # {stop-highlight}
+  myApiGateway:
+    type: http-api-gateway
+    properties:
+      cdn:
+        enabled: true
+        # {start-highlight}
+        useFirewall: myFirewall
+        # {stop-highlight}

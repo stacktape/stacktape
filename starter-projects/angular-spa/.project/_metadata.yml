@@ -1,0 +1,9 @@
+name: Angular SPA
+tags:
+  - website
+  - SPA website
+  - Typescript
+  - Angular
+disableLintingOption: true
+hasOwnTsConfig: true
+icon: angular.svg

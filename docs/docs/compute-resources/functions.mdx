@@ -1,0 +1,356 @@
+---
+title: ""
+order: 100
+---
+
+<br />
+<br />
+
+Functions are Stacktape's abstraction for AWS Lambda, a _serverless_ compute service that lets you run code without managing servers. You can write code in multiple languages and trigger it to run in response to events like HTTP requests, file uploads to an _S3 bucket_, or messages in an SQS queue.
+
+This allows you to build and deploy web applications, process data, and automate workflows while only paying for the compute time you use.
+
+# Example function
+
+`embed:lambda-functions/basic-usage.stp.yml`
+
+> Stacktape configuration for a basic Lambda function.
+
+`embed:lambda-functions/basic-usage.ts`
+
+> Example function code written in TypeScript.
+
+# Under the hood
+
+Stacktape Functions are built on top of AWS Lambda, a production-ready, pay-per-request service suitable for a wide range of use cases.
+
+# When to use
+
+Lambda functions are a great choice for many applications, including HTTP APIs, scheduled tasks, and event-driven integrations. However, they are not suitable for long-running processes or tasks that require fine-grained control over the execution environment.
+
+## Advantages
+
+-   **Pay-per-use**: You are billed only for the compute time you consume, rounded to the nearest millisecond.
+-   **Massive & fast scaling**: Functions can scale to thousands of parallel executions in milliseconds.
+-   **High availability**: AWS Lambda automatically runs your function in multiple _Availability Zones_ to ensure high availability.
+-   **Secure by default**: The underlying environment is securely managed by AWS.
+-   **Lots of integrations**: Functions can be triggered by a wide variety of services.
+
+## Disadvantages
+
+-   **Limited execution time**: A function can run for a maximum of 15 minutes.
+-   **Limited configuration**: You can only configure memory (from 128MB to 10GB), and CPU power scales proportionally.
+-   **More expensive for certain tasks**: For continuous or predictable workloads, batch jobs or container workloads can be more cost-effective.
+-   **_Cold starts_**: The first invocation of a function after a period of inactivity can experience a slight delay.
+
+# Packaging
+
+In the `packaging` section, you specify the path to your code and how it should be built. For more details, see the [packaging documentation](../../configuration/packaging.mdx#packaging-lambda-functions).
+
+`embed:lambda-functions/packaging.stp.yml`
+
+# Computing resources
+
+The function's execution environment is fully managed. You can set the `memory` from 128MB to 10,240MB. CPU power is allocated proportionally to the memory, with 1,797MB corresponding to one virtual CPU and a maximum of six vCPUs at 10,240MB.
+
+`embed:lambda-functions/memory.stp.yml`
+
+# Runtime
+
+<PropDescription definitionName="LambdaFunctionProps" propertyName="runtime" descType="ld" />
+
+# Timeout
+
+Sets the maximum execution time for the function in seconds. The default is 3 seconds, and the maximum is 900 seconds (15 minutes).
+
+`embed:lambda-functions/timeout.stp.yml`
+
+# Environment variables
+
+<PropDescription definitionName="LocalScriptProps" propertyName="environment" descType="ld" />
+
+`embed:_common/environment.yml`
+
+# Logging
+
+Any output to `stdout` or `stderr` is captured and stored in an AWS CloudWatch log group. You can view logs through the [Stacktape Console](https://console.stacktape.com/), the `stacktape stack-info` command, or by streaming them with the `stacktape logs` command.
+
+To manage costs, you can configure `retentionDays` to automatically delete old logs.
+
+<PropertiesTable definitionName="LambdaFunctionLogging" searchForReferencesInDefinition="LambdaFunction" />
+
+## Forwarding logs
+
+You can forward logs to third-party services. For more information, see the [Log Forwarding documentation](../../configuration/log-forwarding.mdx).
+
+# Storage
+
+Each function has access to 512MB of temporary, _ephemeral storage_ at `/tmp`. This storage is not shared between concurrent executions but can be used for caching data within a single execution environment. For persistent storage, use [Buckets](../../other-resources/buckets.mdx).
+
+# Trigger events
+
+Functions are invoked in response to events. Stacktape automatically creates the necessary integrations and permissions for your specified triggers. A single function can have multiple event integrations, and the payload it receives will vary based on the event source.
+
+## HTTP API event
+
+Triggers the function when a request is made to a specified HTTP API Gateway.
+
+`embed:lambda-functions/event-http-api.stp.yml`
+
+<PropertiesTable definitionName="HttpApiIntegration" searchForReferencesInDefinition="LambdaFunction" />
+
+### Cognito authorizer
+
+Restricts access to users authenticated with a [User Pool](../../security-resources/user-auth-pools.mdx).
+
+`embed:lambda-functions/cognito-authorizer.stp.yml`
+
+`embed:lambda-functions/cognito-auth.ts`
+
+<PropertiesTable definitionName="CognitoAuthorizer" searchForReferencesInDefinition="LambdaFunctionProps" />
+
+<br />
+
+### Lambda authorizer
+
+Uses another Lambda function to authorize incoming requests.
+
+<PropertiesTable definitionName="LambdaAuthorizer" searchForReferencesInDefinition="LambdaFunctionProps" />
+
+<Divider />
+
+## Schedule event
+
+Triggers the function on a fixed rate or cron schedule.
+
+`embed:lambda-functions/event-schedule.stp.yml`
+
+<PropertiesTable definitionName="ScheduleIntegration" searchForReferencesInDefinition="LambdaFunction" />
+
+<Divider />
+
+## Event Bus event
+
+Triggers the function when a matching event is received by an event bus.
+
+`embed:lambda-functions/event-default-event-bus.stp.yml`
+
+`embed:lambda-functions/event-custom-event-bus.stp.yml`
+
+<PropertiesTable definitionName="EventBusIntegration" searchForReferencesInDefinition="LambdaFunction" />
+
+<Divider />
+
+## Kafka Topic event
+
+Triggers the function when messages are available in a Kafka topic.
+
+`embed:lambda-functions/event-kafka-custom.stp.yml`
+
+<PropertiesTable definitionName="KafkaTopicIntegration" searchForReferencesInDefinition="LambdaFunction" />
+
+<Divider />
+
+## SNS event
+
+Triggers the function when a message is published to an [SNS topic](../../other-resources/sns-topics.mdx).
+
+`embed:lambda-functions/event-sns.stp.yml`
+
+<PropertiesTable definitionName="SnsIntegration" searchForReferencesInDefinition="LambdaFunction" />
+
+<Divider />
+
+## SQS event
+
+Triggers the function when messages are available in an [SQS queue](../../other-resources/sqs-queues.mdx).
+
+`embed:lambda-functions/event-sqs.stp.yml`
+
+<PropertiesTable definitionName="SqsIntegration" searchForReferencesInDefinition="LambdaFunction" />
+
+<Divider />
+
+## Kinesis stream event
+
+Triggers the function when records are available in a Kinesis Data Stream.
+
+`embed:lambda-functions/event-kinesis.stp.yml`
+
+<PropertiesTable definitionName="KinesisIntegration" searchForReferencesInDefinition="LambdaFunction" />
+
+<Divider />
+
+## DynamoDB stream event
+
+Triggers the function in response to item-level changes in a [DynamoDB table](../../database-resources/dynamo-db-tables.mdx).
+
+`embed:lambda-functions/event-dynamo-db.stp.yml`
+
+<PropertiesTable definitionName="DynamoDbIntegration" searchForReferencesInDefinition="LambdaFunction" />
+
+<Divider />
+
+## S3 event
+
+Triggers the function in response to events in an S3 bucket.
+
+`embed:lambda-functions/event-s3.stp.yml`
+
+<PropertiesTable definitionName="S3Integration" searchForReferencesInDefinition="LambdaFunction" />
+
+<PropertiesTable definitionName="S3FilterRule" searchForReferencesInDefinition="LambdaFunctionProps" />
+
+<Divider />
+
+## Cloudwatch Log event
+
+Triggers the function when a log record is added to a CloudWatch log group.
+
+`embed:lambda-functions/event-cloudwatch-log.stp.yml`
+
+<PropertiesTable definitionName="CloudwatchLogIntegration" searchForReferencesInDefinition="LambdaFunction" />
+
+<Divider />
+
+## Alarm event
+
+Triggers the function when a CloudWatch alarm enters the `ALARM` state. You can reference alarms created in the [Stacktape Console](https://console.stacktape.com/alarms) or directly in your configuration file.
+
+`embed:lambda-functions/event-alarm.stp.yml`
+
+`embed:lambda-functions/event-alarm-global.stp.yml`
+
+<Divider />
+
+## Application Load Balancer event
+
+Triggers the function when an Application Load Balancer receives a request matching specified rules.
+
+`embed:lambda-functions/event-application-load-balancer.stp.yml`
+
+<PropertiesTable definitionName="ApplicationLoadBalancerIntegration" searchForReferencesInDefinition="LambdaFunction" />
+
+# Sync vs. Async invocations
+
+Functions can be invoked synchronously or asynchronously, depending on the trigger.
+
+## Synchronous invocation
+
+The caller waits for the function to complete and returns its result. This is used by API Gateway, Application Load Balancer, and direct SDK calls.
+
+## Asynchronous invocation
+
+The caller queues the function for execution and does not wait for the result. This is used by SNS, SQS, EventBridge, S3, and others. If an asynchronously invoked function fails, AWS Lambda will automatically retry it up to two times.
+
+# Lambda Destinations
+
+For asynchronous invocations, you can configure destinations to handle the results. You can send the output of a function to another service (like SQS, SNS, or another Lambda) on success or failure.
+
+`embed:lambda-functions/dest-comb.stp.yml`
+
+<PropertiesTable definitionName="LambdaFunctionDestinations" searchForReferencesInDefinition="LambdaFunctionProps" />
+
+# Accessing other resources
+
+By default, functions cannot access other AWS resources. You must grant permissions explicitly using _IAM_.
+
+## Using connectTo
+
+The `connectTo` property is a simplified way to grant access to other Stacktape-managed resources.
+
+`embed:lambda-functions/allow-acc-to.stp.yml`
+
+<br />
+
+<PropDescription definitionName="LambdaFunctionProps" propertyName="connectTo" descType="ld" />
+
+## Using iamRoleStatements
+
+For fine-grained control, you can provide raw _IAM_ role statements.
+
+`embed:lambda-functions/iam-role-stat.stp.yml`
+
+# Deployment strategies
+
+<PropDescription definitionName="LambdaFunctionProps" propertyName="deployment" descType="ld" />
+
+<PropertiesTable
+  definitionName="LambdaFunctionDeploymentConfig"
+  searchForReferencesInDefinition="LambdaFunctionProps"
+/>
+
+`embed:lambda-functions/deployment.stp.yml`
+
+## Hook functions
+
+You can use hook functions to perform checks during deployment.
+
+`embed:lambda-functions/deployment-with-hook.stp.yml`
+
+`embed:lambda-functions/validate-deployment.ts`
+
+# Cold starts
+
+A _cold start_ is the latency experienced on the first invocation of a function after a period of inactivity. This happens because AWS needs to provision a new container to run your code. Subsequent invocations are much faster until the container is terminated due to inactivity.
+
+The duration of a cold start depends on the runtime, the size of your function package, and the amount of code that runs outside your main handler.
+
+# Default VPC connection
+
+Functions are not connected to a _VPC_ by default. If your function needs to access resources inside a _VPC_ (like a [Relational Database](../../database-resources/relational-databases.mdx)), you must explicitly connect it.
+
+Connecting a function to a _VPC_ will cut off its access to the public internet. Restoring internet access requires a [NAT Gateway](../../user-guides/vpcs.mdx#using-a-nat-gateway), which can be complex and costly.
+
+`embed:lambda-functions/join-vpc.stp.yml`
+
+> Function connected to the default VPC.
+
+# Pricing
+
+You are charged for:
+
+-   **Total compute**: A combination of memory allocated and execution time.
+-   **Number of requests**: A flat rate per million invocations.
+
+AWS offers a generous free tier for Lambda. For details, see the [AWS pricing page](https://aws.amazon.com/lambda/pricing/).
+
+# Referenceable parameters
+
+<ReferenceableParams resource="function" />
+
+# API reference
+
+<PropertiesTable
+  definitionName="LambdaFunction"
+  rewriteLinksForReferencedCompositeTypes={{
+    StpBuildpackLambdaPackaging: "#packaging",
+    CustomArtifactLambdaPackaging: "#packaging"
+  }}
+/>
+
+<PropertiesTable definitionName="EventInputTransformer" searchForReferencesInDefinition="LambdaFunctionProps" />
+
+<PropertiesTable definitionName="EventBusIntegrationPattern" searchForReferencesInDefinition="LambdaFunctionProps" />
+
+<PropertiesTable definitionName="CustomKafkaEventSource" searchForReferencesInDefinition="LambdaFunctionProps" />
+
+<PropertiesTable definitionName="KafkaSASLAuth" searchForReferencesInDefinition="LambdaFunctionProps" />
+
+<PropertiesTable definitionName="KafkaMTLSAuth" searchForReferencesInDefinition="LambdaFunctionProps" />
+
+<PropertiesTable definitionName="EventInputTransformer" searchForReferencesInDefinition="LambdaFunctionProps" />
+
+<PropertiesTable definitionName="SnsOnDeliveryFailure" searchForReferencesInDefinition="LambdaFunctionProps" />
+
+<PropertiesTable definitionName="DestinationOnFailure" searchForReferencesInDefinition="LambdaFunctionProps" />
+
+<PropertiesTable definitionName="LbHeaderCondition" searchForReferencesInDefinition="LambdaFunctionProps" />
+
+<PropertiesTable definitionName="LbQueryParamCondition" searchForReferencesInDefinition="LambdaFunctionProps" />
+
+<PropertiesTable definitionName="EnvironmentVar" searchForReferencesInDefinition="LambdaFunctionProps" />
+
+<PropertiesTable definitionName="CloudformationTag" searchForReferencesInDefinition="LambdaFunctionProps" />
+
+<PropertiesTable definitionName="StpIamRoleStatement" searchForReferencesInDefinition="LambdaFunctionProps" />

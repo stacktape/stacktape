@@ -1,0 +1,12 @@
+resources:
+  myLambda:
+    type: function
+    properties:
+      # {start-highlight}
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: path/to/my-lambda.ts
+      # {stop-highlight}
+      timeout: 10
+      memory: 2048

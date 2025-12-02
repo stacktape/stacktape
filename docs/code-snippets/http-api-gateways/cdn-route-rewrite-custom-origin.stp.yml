@@ -1,0 +1,14 @@
+resources:
+  myHttpApi:
+    type: 'http-api-gateway'
+    properties:
+      cdn:
+        enabled: true
+        # {start-highlight}
+        routeRewrites:
+          - path: /external/*
+            routeTo:
+              type: custom-origin
+              properties:
+                domainName: my-custom-origin.example.com
+        # {stop-highlight}

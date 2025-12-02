@@ -1,0 +1,35 @@
+import Analysis_ from './analysis';
+import CustomPermissions_ from './customPermissions';
+import Dashboard_ from './dashboard';
+import DataSet_ from './dataSet';
+import DataSource_ from './dataSource';
+import Folder_ from './folder';
+import RefreshSchedule_ from './refreshSchedule';
+import Template_ from './template';
+import Theme_ from './theme';
+import Topic_ from './topic';
+import VPCConnection_ from './vpcConnection';
+export namespace QuickSight {
+  export const Analysis = Analysis_;
+  export const CustomPermissions = CustomPermissions_;
+  export const Dashboard = Dashboard_;
+  export const DataSet = DataSet_;
+  export const DataSource = DataSource_;
+  export const Folder = Folder_;
+  export const RefreshSchedule = RefreshSchedule_;
+  export const Template = Template_;
+  export const Theme = Theme_;
+  export const Topic = Topic_;
+  export const VPCConnection = VPCConnection_;
+  export type Analysis = Analysis_;
+  export type CustomPermissions = CustomPermissions_;
+  export type Dashboard = Dashboard_;
+  export type DataSet = DataSet_;
+  export type DataSource = DataSource_;
+  export type Folder = Folder_;
+  export type RefreshSchedule = RefreshSchedule_;
+  export type Template = Template_;
+  export type Theme = Theme_;
+  export type Topic = Topic_;
+  export type VPCConnection = VPCConnection_;
+}

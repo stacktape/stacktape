@@ -1,0 +1,3 @@
+resources:
+  myOpenSearch:
+    type: open-search-domain

@@ -1,0 +1,31 @@
+resources:
+  webService:
+    type: web-service
+    properties:
+      packaging:
+        type: stacktape-image-buildpack
+        properties:
+          entryfilePath: src/main.ts
+      resources:
+        cpu: 2
+        memory: 2048
+      loadBalancing:
+        type: application-load-balancer
+      # {start-highlight}
+      deployment:
+        strategy: Canary10Percent5Minutes
+        beforeAllowTrafficFunction: testDeployment
+      # {stop-highlight}
+
+  testDeployment:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/test-deployment.ts
+      environment:
+        - name: WEB_SERVICE_URL
+          value: $ResourceParam('webService', 'url')
+        - name: TEST_LISTENER_PORT
+          value: 8080

@@ -1,0 +1,12 @@
+{
+  "name": "lambda-app-redis",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {},
+  "dependencies": {
+    "ioredis": "^5.2.3"
+  },
+  "devDependencies": {
+    "aws-lambda": "^1.0.7"
+  }
+}

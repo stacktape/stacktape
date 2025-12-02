@@ -1,0 +1,19 @@
+# {start-highlight}
+directives:
+  - name: GetDate
+    filePath: user-defined.js:getDate
+# {stop-highlight}
+
+resources:
+  myLambda:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: 'path/to/my-lambda.ts'
+      environment:
+        - name: MY_DIRECTIVE_VARIABLE
+          # {start-highlight}
+          value: $GetDate().isoString
+          # {stop-highlight}

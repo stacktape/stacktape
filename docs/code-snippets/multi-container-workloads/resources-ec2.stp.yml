@@ -1,0 +1,15 @@
+resources:
+  myContainerWorkload:
+    type: multi-container-workload
+    properties:
+      containers:
+        - name: api-container
+          packaging:
+            type: stacktape-image-buildpack
+            properties:
+              entryfilePath: src/index.ts
+      # {start-highlight}
+      resources:
+        instanceTypes:
+          - c5.large
+      # {stop-highlight}

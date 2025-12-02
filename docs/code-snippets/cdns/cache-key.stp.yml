@@ -1,0 +1,13 @@
+resources:
+  myApiGateway:
+    type: http-api-gateway
+    properties:
+      cdn:
+        enabled: true
+        cachingOptions:
+          # {start-highlight}
+          cacheKeyParameters:
+            headers:
+              whitelist:
+                - Accept-Language
+          # {stop-highlight}

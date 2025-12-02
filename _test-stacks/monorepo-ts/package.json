@@ -1,0 +1,31 @@
+{
+  "name": "monorepo-typescript",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "packages/prisma",
+    "packages/api"
+  ],
+  "bugs": {
+    "url": "https://github.com/stacktape/stacktape/issues"
+  },
+  "author": "Stacktape team <info@stacktape.com> (https://stacktape.com)",
+  "scripts": {
+    "lint": "npx eslint .",
+    "format": "npx prettier . --write"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@eslint/js": "^9.16.0",
+    "@stacktape/sdk": "^2.5.0",
+    "@types/aws-lambda": "^8.10.137",
+    "@types/node": "^22.10.1",
+    "@typescript-eslint/eslint-plugin": "^8.15.0",
+    "@typescript-eslint/parser": "^8.15.0",
+    "eslint": "^9.16.0",
+    "eslint-plugin-import": "^2.31.0",
+    "prettier": "^3.3.3",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.15.0"
+  }
+}
