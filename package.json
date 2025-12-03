@@ -39,6 +39,7 @@
     "push:starters": "bun scripts/push-starter-projects.ts",
     "compile:cf:schema": "bun scripts/compile-cf-schema.ts",
     "release": "bun scripts/trigger-github-release.ts",
+    "build:bin": "bun scripts/trigger-build-binary.ts",
     "publish:schemas": "bun scripts/publish-schemas.ts",
     "publish:install:scripts": "bun scripts/publish-install-scripts.ts",
     "publish:install:scripts:preview": "bun scripts/publish-install-scripts-preview.ts",

@@ -1,0 +1,75 @@
+name: Build Binary
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: 'Target platform (linux, alpine, macos, macos-arm, win)'
+        required: true
+        type: choice
+        options:
+          - linux
+          - alpine
+          - macos
+          - macos-arm
+          - win
+
+permissions:
+  contents: read
+
+jobs:
+  build-binary:
+    name: Build ${{ inputs.platform }} binary
+    runs-on: ${{ inputs.platform == 'win' && 'windows-latest' || 'ubuntu-latest' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lockb') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Clean node_modules on Windows (workaround for nested path issues)
+        if: inputs.platform == 'win'
+        run: |
+          if (Test-Path node_modules) { Remove-Item -Recurse -Force node_modules }
+        shell: pwsh
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build binary for ${{ inputs.platform }}
+        if: inputs.platform != 'alpine'
+        run: bun run scripts/build-dist-package.ts --platform ${{ inputs.platform }} --version dev
+
+      - name: Build Alpine binary (in Docker)
+        if: inputs.platform == 'alpine'
+        run: |
+          docker run --rm -v $(pwd):/workspace -w /workspace node:22-alpine sh -c "
+            apk add --no-cache curl bash git
+            curl -fsSL https://bun.sh/install | bash
+            export PATH=\$HOME/.bun/bin:\$PATH
+            bun install
+            bun run scripts/build-dist-package.ts --platform alpine --version dev
+          "
+
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: binary-${{ inputs.platform }}
+          path: |
+            __dist/*.tar.gz
+            __dist/*.zip
+          retention-days: 7
+

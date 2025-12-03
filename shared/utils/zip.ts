@@ -50,20 +50,29 @@ const archiveDirectoryNodeImpl = async ({
   };
 
   if (isDir) {
-    await new Promise((resolve, reject) => {
+    await new Promise<void>((resolve, reject) => {
+      outputStream.on('error', reject);
+      outputStream.on('close', () => resolve());
+
       archive
         .directory(absoluteSourcePath, false, (entry) => {
           // Set mode to 755 (executable) for matched files, 644 (readable) for others
           entry.mode = isExecutable(entry.name) ? 0o755 : 0o644;
           return entry;
         })
-        .on('error', (err) => reject(err))
+        .on('error', reject)
+        .on('warning', (err) => {
+          if (err.code !== 'ENOENT') reject(err);
+        })
         .pipe(outputStream);
-      outputStream.on('close', () => resolve(true));
-      archive.finalize();
+
+      archive.finalize().catch(reject);
     });
   } else {
-    await new Promise((resolve, reject) => {
+    await new Promise<void>((resolve, reject) => {
+      outputStream.on('error', reject);
+      outputStream.on('close', () => resolve());
+
       // For single file archives, check if it should be executable
       const mode = isExecutable(basename(absoluteSourcePath)) ? 0o755 : 0o644;
       archive
@@ -71,10 +80,13 @@ const archiveDirectoryNodeImpl = async ({
           name: basename(absoluteSourcePath),
           mode
         })
-        .on('error', (err) => reject(err))
+        .on('error', reject)
+        .on('warning', (err) => {
+          if (err.code !== 'ENOENT') reject(err);
+        })
         .pipe(outputStream);
-      outputStream.on('close', () => resolve(true));
-      archive.finalize();
+
+      archive.finalize().catch(reject);
     });
   }
 };
