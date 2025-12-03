@@ -1,13 +1,34 @@
+import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { INVOKED_FROM_ENV_VAR_NAME } from '@config';
-import { getCliInput } from '@utils/cli';
-import { config as loadDotenv } from 'dotenv';
-import { runCommand } from '../../index';
 
-// Load environment variables from .env file
-loadDotenv();
+// Set up esbuild binary path BEFORE any other imports
+// This must happen before esbuild module is loaded because esbuild checks
+// ESBUILD_BINARY_PATH during module initialization to locate its native binary.
+// When bundled with Bun, the normal resolution logic fails.
+const ESBUILD_BINARY = {
+  win32: 'exec.exe',
+  darwin: 'exec',
+  linux: 'exec'
+}[process.platform];
 
-export const runUsingCli = async () => {
+const esbuildBinPath = join(dirname(process.execPath), 'esbuild', ESBUILD_BINARY);
+
+// Only set if the binary exists at the expected location (for bundled binary distribution)
+// This allows development mode to use node_modules esbuild
+if (existsSync(esbuildBinPath)) {
+  process.env.ESBUILD_BINARY_PATH = esbuildBinPath;
+}
+
+// Main function that loads dependencies dynamically after env var is set
+const main = async () => {
+  const { INVOKED_FROM_ENV_VAR_NAME } = await import('@config');
+  const { getCliInput } = await import('@utils/cli');
+  const { config: loadDotenv } = await import('dotenv');
+  const { runCommand } = await import('../../index');
+
+  // Load environment variables from .env file
+  loadDotenv();
+
   const { commands, options, additionalArgs } = getCliInput();
   return runCommand({
     args: options,
@@ -17,29 +38,12 @@ export const runUsingCli = async () => {
   });
 };
 
-const ESBUILD_BINARY = {
-  win32: 'exec.exe',
-  darwin: 'exec',
-  linux: 'exec'
-}[process.platform];
-
-const newEsbuildBinPath = join(dirname(process.execPath), 'esbuild', ESBUILD_BINARY);
-
-process.env.ESBUILD_BINARY_PATH = newEsbuildBinPath;
+// Export for external usage (SDK)
+export const runUsingCli = main;
 
 // Auto-run when executed as main module (for Bun compile)
 if (import.meta.main) {
-  // Set up esbuild binary path (required for bundling functionality)
-  const ESBUILD_BINARY = {
-    win32: 'exec.exe',
-    darwin: 'exec',
-    linux: 'exec'
-  }[process.platform];
-
-  const newEsbuildBinPath = join(dirname(process.execPath), 'esbuild', ESBUILD_BINARY);
-  process.env.ESBUILD_BINARY_PATH = newEsbuildBinPath;
-
-  runUsingCli().catch(() => {
+  main().catch(() => {
     process.exit(1);
   });
 }
