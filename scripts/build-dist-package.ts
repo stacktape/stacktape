@@ -54,7 +54,7 @@ const buildEverything = async () => {
     generateStarterProjectsMetadata({ distFolderPath: platformDistFolderPath }),
     packageHelperLambdas({ isDev: false, distFolderPath: platformDistFolderPath }),
     createReleaseDataFile({ distFolderPath: platformDistFolderPath, version }),
-    generateSourceMapInstall({ distFolderPath: platformDistFolderPath }),
+    generateSourceMapInstall({ distFolderPath: platformDistFolderPath })
   ]);
   // await copyLegalComments({ distFolderPath: platformDistFolderPath });
 

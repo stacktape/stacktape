@@ -39,6 +39,10 @@ export const publishInstallScripts = async ({
 }) => {
   await prepareInstallScripts({ version });
 
+  if (!version) {
+    throw new Error('Version is required');
+  }
+
   logInfo(
     `Publishing install scripts with default version ${version} to ${bucketType} install scripts hosting bucket...`
   );
