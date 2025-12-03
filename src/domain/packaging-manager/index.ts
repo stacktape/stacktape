@@ -439,7 +439,6 @@ export class PackagingManager {
               }),
               additionalDigestInput
             });
-            console.dir({ sharedProps, result }, { depth: 5 });
             this.#packagedJobs.push({ ...result, skipped: result.outcome === 'skipped' });
             return result;
           }
