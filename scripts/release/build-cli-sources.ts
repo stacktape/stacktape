@@ -281,9 +281,12 @@ export const copyEsbuildBinary = async ({
     'esbuild',
     esbuildBinFileLocations[esbuildBinFileLocations.length - 1].replace('esbuild', 'exec')
   );
+  if (platform !== 'win') {
+    await chmod(esbuildExecutableSourcePath, '755');
+  }
   await copy(esbuildExecutableSourcePath, esbuildExecutableDistPath);
   if (platform !== 'win') {
-    return chmod(esbuildExecutableDistPath, '755');
+    await chmod(esbuildExecutableDistPath, '755');
   }
   await Promise.all([remove(extractedPath), remove(downloadedFilePath)]);
 };
