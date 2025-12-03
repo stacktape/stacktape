@@ -19,15 +19,10 @@ if (existsSync(esbuildBinPath)) {
   process.env.ESBUILD_BINARY_PATH = esbuildBinPath;
 }
 
-// Main function that loads dependencies dynamically after env var is set
 const main = async () => {
   const { INVOKED_FROM_ENV_VAR_NAME } = await import('@config');
   const { getCliInput } = await import('@utils/cli');
-  const { config: loadDotenv } = await import('dotenv');
   const { runCommand } = await import('../../index');
-
-  // Load environment variables from .env file
-  loadDotenv();
 
   const { commands, options, additionalArgs } = getCliInput();
   return runCommand({
@@ -38,10 +33,8 @@ const main = async () => {
   });
 };
 
-// Export for external usage (SDK)
 export const runUsingCli = main;
 
-// Auto-run when executed as main module (for Bun compile)
 if (import.meta.main) {
   main().catch(() => {
     process.exit(1);
