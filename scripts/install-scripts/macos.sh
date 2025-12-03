@@ -52,6 +52,10 @@ echo "${Bold}${Green}Installing ${White}version ${Green}$version ${Format_Off}${
 curl -q --fail --location --progress-bar --output "$executable_file_path.tar.gz" "$archive_source_url"
 cd $bin_dir_path
 tar xzf "$executable_file_path.tar.gz"
+
+# Fix directory permissions first (needed to access files inside)
+find "$bin_dir_path" -type d -exec chmod +x {} \;
+
 chmod +x "$executable_file_path"
 chmod +x "$esbuild_executable_file_path"
 chmod +x "$session_manager_plugin_executable_file_path"
