@@ -22,9 +22,10 @@ const getCurrentBranch = async (): Promise<string> => {
 const main = async () => {
   const argv = yargsParser(process.argv.slice(2));
   const platform = argv.platform as Platform;
+  const version = argv.version as string;
 
-  if (!platform) {
-    console.error('Usage: bun build:bin --platform <platform>');
+  if (!platform || !version) {
+    console.error('Usage: bun build:bin --platform <platform> --version <version>');
     console.error(`Valid platforms: ${VALID_PLATFORMS.join(', ')}`);
     process.exit(1);
   }
@@ -38,7 +39,7 @@ const main = async () => {
   const currentBranch = await getCurrentBranch();
 
   logInfo(`Current branch: ${currentBranch}`);
-  logInfo(`Triggering build workflow for platform: ${platform}`);
+  logInfo(`Triggering build workflow for platform: ${platform}, version: ${version}`);
 
   try {
     const response = await octokit.actions.createWorkflowDispatch({
@@ -47,7 +48,8 @@ const main = async () => {
       workflow_id: 'build-binary.yml',
       ref: currentBranch,
       inputs: {
-        platform
+        platform,
+        version
       }
     });
 

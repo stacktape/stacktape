@@ -1,4 +1,5 @@
 name: Build Binary
+run-name: Build ${{ inputs.platform }} ${{ inputs.version }}
 
 on:
   workflow_dispatch:
@@ -13,6 +14,10 @@ on:
           - macos
           - macos-arm
           - win
+      version:
+        description: 'Version (e.g., 3.0.2 or 3.0.2-beta.1)'
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -51,7 +56,7 @@ jobs:
 
       - name: Build binary for ${{ inputs.platform }}
         if: inputs.platform != 'alpine'
-        run: bun run scripts/build-dist-package.ts --platform ${{ inputs.platform }} --version dev
+        run: bun run scripts/build-dist-package.ts --platform ${{ inputs.platform }} --version ${{ inputs.version }}
 
       - name: Build Alpine binary (in Docker)
         if: inputs.platform == 'alpine'
@@ -61,7 +66,7 @@ jobs:
             curl -fsSL https://bun.sh/install | bash
             export PATH=\$HOME/.bun/bin:\$PATH
             bun install
-            bun run scripts/build-dist-package.ts --platform alpine --version dev
+            bun run scripts/build-dist-package.ts --platform alpine --version ${{ inputs.version }}
           "
 
       - name: Upload binary artifact
