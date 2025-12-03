@@ -137,7 +137,6 @@ jobs:
 
       - name: Install Stacktape CLI
         run: |
-          export STACKTAPE_VERSION="2.3.1"
           curl -L https://installs.stacktape.com/linux.sh | sh
           echo "$HOME/.stacktape/bin" >> $GITHUB_PATH
 
