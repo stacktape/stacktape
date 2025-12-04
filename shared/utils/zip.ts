@@ -56,8 +56,13 @@ const archiveDirectoryNodeImpl = async ({
 
       archive
         .directory(absoluteSourcePath, false, (entry) => {
-          // Set mode to 755 (executable) for matched files, 644 (readable) for others
-          entry.mode = isExecutable(entry.name) ? 0o755 : 0o644;
+          // Directories need execute permission to be traversable
+          // Executable files get 755, other files get 644
+          if (entry.stats?.isDirectory()) {
+            entry.mode = 0o755;
+          } else {
+            entry.mode = isExecutable(entry.name) ? 0o755 : 0o644;
+          }
           return entry;
         })
         .on('error', reject)
