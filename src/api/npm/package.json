@@ -1,6 +1,6 @@
 {
   "name": "stacktape",
-  "version": "3.0.6",
+  "version": "3.0.7",
   "description": "PaaS 2.0 that deploys to your own AWS account.",
   "author": "Stacktape team <support@stacktape.com>",
   "license": "MIT",
