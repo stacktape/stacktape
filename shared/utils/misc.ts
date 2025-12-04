@@ -35,11 +35,6 @@ export const isNonNullObject = (obj: any) => {
   return obj !== null && typeof obj === 'object';
 };
 
-const getCliArg = (arg: string) => {
-  const idx = process.argv.indexOf(`--${arg}`);
-  return idx ? process.argv[idx + 1] : null;
-};
-
 export const wait = (ms: number) => {
   return new Promise((resolve) => setTimeout(resolve, ms));
 };
@@ -80,14 +75,6 @@ export const sortObjectKeys = (obj) => Object.fromEntries(Object.entries(obj).so
 
 export const raiseError = (props: ArgsType<typeof getError>[0]): never => {
   throw getError(props);
-};
-
-const safeJsonParse = (obj: any) => {
-  try {
-    return JSON.parse(obj);
-  } catch {
-    return {};
-  }
 };
 
 export const splitStringIntoLines = (text: string, lineMaxLength: number, whitespaceLookup = 40) => {
@@ -175,9 +162,6 @@ export const getUniqueDuplicates = (array: any[]): any[] => {
 export const hasDuplicates = (array: any[]): boolean => {
   return array.length !== new Set(array).size;
 };
-
-const isNumeric = (num: any) =>
-  (typeof num === 'number' || (typeof num === 'string' && num.trim() !== '')) && !Number.isNaN(Number(num));
 
 export const processAllNodes = async (
   node: any,
@@ -295,16 +279,6 @@ export const isAlphanumeric = (str: string) => /^[a-z0-9]+$/i.test(str);
 
 export const definedValueOr = (val: any, defaultValue: any) => (val !== undefined ? val : defaultValue);
 
-const compareObjectByKeyAlphabetically = (key: string) => (a, b) => {
-  if (a[key] < b[key]) {
-    return -1;
-  }
-  if (a[key] > b[key]) {
-    return 1;
-  }
-  return 0;
-};
-
 export const processConcurrently = (jobs: ((...args: any[]) => Promise<any>)[], concurrencyLimit: number) => {
   return new Promise((resolve, reject) => {
     let isErrored = false;
@@ -384,31 +358,12 @@ export const getByteSize = (size: number, unit: 'MB' | 'KB', decimals = 2) => {
   return Number(res.toFixed(decimals));
 };
 
-const isMoreThanOneDefined = (...params: any[]) => {
-  let isOneDefined = false;
-  for (const param of params) {
-    if (param) {
-      if (isOneDefined) {
-        return true;
-      }
-      isOneDefined = true;
-    }
-  }
-  return false;
-};
-
 export const propertyFromObjectOrNull = (obj: Record<string, any>, prop: string) => {
   try {
     return obj[prop];
   } catch {
     return null;
   }
-};
-
-const removeDuplicates = <T>(items: any[]): T[] => Array.from(new Set(items));
-
-const isOlderThanSeconds = (dateString: string, seconds: number) => {
-  return Date.now() - seconds * 1000 > new Date(dateString).getTime();
 };
 
 export const capitalizeFirstLetter = (string: string): string => string.charAt(0).toUpperCase() + string.slice(1);
@@ -418,11 +373,6 @@ export const hasProperties = (obj: any) => {
     return false;
   }
   return !!Object.keys(obj).length;
-};
-
-const getLastSplitPart = (str: string, splitBy: string): string => {
-  const parts = str.split(splitBy);
-  return parts[parts.length - 1];
 };
 
 // @note this is a "forked" version of 'pend' npm package use in s3Sync
@@ -495,11 +445,6 @@ export const getTimeSinceProcessStart = () => {
   return Math.round(process.uptime() * 1000);
 };
 
-const getLocalBuildExternals = async () => {
-  const packageJsonContent = await readJson(join(process.cwd(), 'package.json'));
-  return ['pnpapi', 'fsevents', ...Object.keys(packageJsonContent.dependencies)];
-};
-
 export const localBuildTsConfigPath = join(process.cwd(), 'tsconfig.json');
 
 export const builtinModules = [
@@ -565,35 +510,7 @@ export const applyAll = (functionsArray: ((...args: any) => any)[], value: any) 
   return res;
 };
 
-const findNthIndex = (inputString: string, pattern: string, n: number) => {
-  const L = inputString.length;
-  let i = -1;
-
-  while (n-- && i++ < L) {
-    i = inputString.indexOf(pattern, i);
-    if (i < 0) {
-      break;
-    }
-  }
-  return i;
-};
-
 export const filterDuplicates = (item: any, index: number, arr: any[]) => arr.indexOf(item) === index;
-
-const measureTime = (fnName: string, fn: (...args: any) => any) => {
-  return async (...args) => {
-    const start = Date.now();
-    const res = await fn(...args);
-    console.info(`Function ${fnName} -> Duration: ${Date.now() - start}ms.`);
-    return res;
-  };
-};
-
-const getInstanceMethodNames = (obj) => {
-  return Object.getOwnPropertyNames(Object.getPrototypeOf(obj)).filter(
-    (name) => name !== 'constructor' && typeof obj[name] === 'function'
-  );
-};
 
 export const getFirstAndLastItem = <T>(arr: T[]) => {
   return { first: arr[0] || null, last: arr[arr.length - 1] || null };
@@ -611,15 +528,6 @@ export const groupBy = <T, K extends keyof any>(list: T[], getKey: (item: T) => 
     },
     {} as Record<K, T[]>
   );
-
-const deletePropertiesWithValues = (obj: Record<string, any>, values: any[]) => {
-  for (const propName in obj) {
-    if (values.includes(obj[propName])) {
-      delete obj[propName];
-    }
-  }
-  return obj;
-};
 
 export const chunkArray = <T>(arr: T[], chunkSize: number): T[][] => {
   return arr.reduce((all: T[][], one: T, i) => {
@@ -660,10 +568,6 @@ const lowerCaseFirstCharacter = (str: string): string => {
   return str.length > 0 ? `${str[0].toLowerCase()}${str.slice(1)}` : str;
 };
 
-const getAllNumbersFromString = (str: string): number[] => {
-  return str.match(/^\d+|\d+\b|\d+\B/g).map(Number);
-};
-
 export const removeColoringFromString = (str: string) =>
   // eslint-disable-next-line no-control-regex
   str.replace(/[\u001B\u009B][[()#;?]*(?:\d{1,4}(?:;\d{0,4})*)?[0-9A-ORZcf-nqry=><]/g, '');
@@ -690,7 +594,3 @@ export const settleAllBeforeThrowing = async (promises: Promise<any>[]) => {
     return res.value;
   });
 };
-
-function notEmpty<TValue>(value: TValue | null | undefined): value is TValue {
-  return value !== null && value !== undefined;
-}
