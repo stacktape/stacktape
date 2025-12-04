@@ -115,38 +115,6 @@ export class ConfigManager {
     this.globalConfigAlarms = [];
   };
 
-  temporaryPreloadConfigForServiceNameDeprecationValidation = async ({
-    configRequired = true
-  }: {
-    configRequired?: boolean;
-  }) => {
-    await eventManager.startEvent({
-      eventType: 'VALIDATE_CONFIG_TEMP',
-      description: 'Pre-loading configuration'
-    });
-    const { templateId } = globalStateManager.args;
-    let detectedConfigPath: string;
-    if (!templateId && !globalStateManager.presetConfig) {
-      detectedConfigPath = getConfigPath();
-      if (!detectedConfigPath && configRequired) {
-        throw stpErrors.e16(null);
-      }
-      globalStateManager.setConfigPath(detectedConfigPath);
-    }
-
-    const shouldLoadConfig = configRequired || detectedConfigPath || templateId;
-
-    if (shouldLoadConfig) {
-      await this.configResolver.loadRawConfig();
-      // if (this.configResolver.rawConfig.serviceName) {
-      //   throw stpErrors.e104({ serviceName: this.configResolver.rawConfig.serviceName });
-      // }
-    }
-    await eventManager.finishEvent({
-      eventType: 'VALIDATE_CONFIG_TEMP'
-    });
-  };
-
   loadGlobalConfig = async () => {
     const globalConfig = await stacktapeTrpcApiManager.apiClient.globalConfig();
     this.globalConfigAlarms = ((globalConfig.alarms as AlarmDefinition[]) || []).filter((alarm) =>

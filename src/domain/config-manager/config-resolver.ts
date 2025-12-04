@@ -43,9 +43,7 @@ export class ConfigResolver {
   };
 
   loadRawConfig = async () => {
-    // raw config could have been preloaded, see temporary function `temporaryPreloadConfigForServiceNameDeprecationValidation`
-    // in that case it is "redundant" to load the config again
-    this.rawConfig = this.rawConfig || (await this.getRawConfig());
+    this.rawConfig = await this.getRawConfig();
   };
 
   reset = () => {

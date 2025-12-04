@@ -49,8 +49,6 @@ export const initializeAllStackServices = async ({
       throw stpErrors.e502({ message });
     }
   }
-  // @todo in future delete this after some while. at the same time remove serviceName from the config schema.
-  await configManager.temporaryPreloadConfigForServiceNameDeprecationValidation({ configRequired: true });
   await globalStateManager.loadTargetStackInfo();
   await configManager.init({ configRequired: true });
 
@@ -121,8 +119,6 @@ export const initializeStackServicesForLocalResolve = async () => {
   await loadUserCredentials();
   await recordStackOperationStart();
 
-  // @todo in future delete this after some while. at the same time remove serviceName from the config schema.
-  await configManager.temporaryPreloadConfigForServiceNameDeprecationValidation({ configRequired: true });
   await globalStateManager.loadTargetStackInfo();
   await configManager.init({ configRequired: true });
 
@@ -159,8 +155,6 @@ export const initializeStackServicesForHotSwapDeploy = async () => {
   await loadUserCredentials();
   await recordStackOperationStart();
 
-  // @todo in future delete this after some while. at the same time remove serviceName from the config schema.
-  await configManager.temporaryPreloadConfigForServiceNameDeprecationValidation({ configRequired: true });
   await globalStateManager.loadTargetStackInfo();
   await configManager.init({ configRequired: true });
 
@@ -211,10 +205,6 @@ export const initializeStackServicesForWorkingWithDeployedStack = async ({
   await loadUserCredentials();
   await recordStackOperationStart();
 
-  // @todo in future delete this after some while. at the same time remove serviceName from the config schema.
-  await configManager.temporaryPreloadConfigForServiceNameDeprecationValidation({
-    configRequired: commandRequiresConfig
-  });
   await globalStateManager.loadTargetStackInfo();
   await startStackOperationRecording({ stackName: globalStateManager.targetStack.stackName });
 
