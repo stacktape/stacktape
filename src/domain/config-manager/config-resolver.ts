@@ -20,7 +20,7 @@ import { ExpectedError, UnexpectedError } from '@utils/errors';
 import { loadFromAnySupportedFile, loadFromTypescript } from '@utils/file-loaders';
 import { getUserCodeAsFn, parseUserCodeFilepath } from '@utils/user-code-processing';
 import { validatePrimitiveFunctionParams } from '@utils/validation-utils';
-import { writeFile } from 'fs-extra';
+import { mkdir, writeFile } from 'fs-extra';
 import { builtInDirectives } from './built-in-directives';
 
 type DirectiveToProcess = Directive & {
@@ -133,6 +133,7 @@ export class ConfigResolver {
       } catch (err) {
         yamlParseError = err;
       }
+      await mkdir(join(process.cwd(), '.stacktape'), { recursive: true });
       const tempPath = join(process.cwd(), '.stacktape', 'stacktape.ts');
       await writeFile(tempPath, downloadedTemplate.content);
       let typescriptParseError: Error | null = null;
