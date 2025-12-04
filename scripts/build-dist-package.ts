@@ -44,6 +44,13 @@ const buildEverything = async () => {
     version
   });
 
+  // i (21:43:01:586) Copying esbuild-register...
+  // i (21:43:01:587) Copying config schema...
+  // i (21:43:01:588) Generating starter projects metadata...
+  // i (21:43:01:588) Packaging helper lambdas...
+  // i (21:43:01:589) Creating release data file...
+  // i (21:43:01:589) Generating source map install file...
+
   await Promise.all([
     copyPackBinary({ distFolderPath, platform }),
     copyNixpacksBinary({ distFolderPath, platform }),
@@ -75,8 +82,5 @@ const buildEverything = async () => {
 };
 
 if (import.meta.main) {
-  buildEverything().catch((error) => {
-    console.error('Error building platform binary:', error);
-    process.exit(1);
-  });
+  buildEverything();
 }

@@ -37,6 +37,10 @@ export const ALL_SUPPORTED_PLATFORMS: SupportedPlatform[] = [
   'linux-arm'
 ];
 
+const chmodPlusX = async (filePath: string) => {
+  return await chmod(filePath, 0o755);
+};
+
 export const buildEsbuildRegister = async ({ distFolderPath }: { distFolderPath?: string }) => {
   logInfo('Copying esbuild-register...');
   const esbuildRegisterDistFolderPath = join(distFolderPath, 'esbuild', 'esbuild-register.js');
@@ -183,7 +187,7 @@ export const buildBinaryFile = async ({
   }
 
   if (platform !== 'win') {
-    await chmod(outputPath, '755');
+    await chmod(outputPath, 0o755);
   }
 
   logSuccess(`Binary for platform ${platform} generated successfully.`);
@@ -208,7 +212,7 @@ export const copyPackBinary = async ({
   );
   await copy(sourcePath, distPath);
   if (platform !== 'win') {
-    return chmod(distPath, '755');
+    return await chmod(distPath, 0o755);
   }
 };
 
@@ -229,7 +233,7 @@ export const copyNixpacksBinary = async ({
   );
   await copy(sourcePath, distPath);
   if (platform !== 'win') {
-    return chmod(distPath, '755');
+    return await chmod(distPath, 0o755);
   }
 };
 
@@ -250,7 +254,7 @@ export const copySessionsManagerPluginBinary = async ({
   );
   await copy(sourcePath, distPath);
   if (platform !== 'win') {
-    return chmod(distPath, '755');
+    return await chmod(distPath, 0o755);
   }
 };
 

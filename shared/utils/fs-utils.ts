@@ -1,31 +1,14 @@
-import type { CopyOptions } from 'fs-extra';
 import type { BinaryToTextEncoding } from 'node:crypto';
 import { createHash } from 'node:crypto';
-import { promises as nodeFs } from 'node:fs';
-import os from 'node:os';
-import {
-  basename,
-  dirname,
-  extname,
-  isAbsolute,
-  join,
-  sep as pathSeparator,
-  relative,
-  resolve as resolvePath,
-  sep
-} from 'node:path';
+import { basename, dirname, extname, isAbsolute, join, sep as pathSeparator, relative } from 'node:path';
 import { getAllFilePaths } from 'cup-readdir';
 import fastGlob from 'fast-glob';
 import fsExtra, { createReadStream, existsSync, outputFile, remove } from 'fs-extra';
 import getFolderSizeCb from 'get-folder-size';
 import { encode, parse as parseIni } from 'ini';
-import walk from 'walk-filtered';
-import { getByteSize, wait } from './misc';
-import { shortHash } from './short-hash';
+import { getByteSize } from './misc';
 
-const temporaryDirectoryLocation = () => nodeFs.realpath(os.tmpdir());
-
-const { readFile, copy, stat, readdirSync, lstatSync } = fsExtra;
+const { readFile, stat, readdirSync, lstatSync } = fsExtra;
 
 export const getFileExtension = (filePath: string): SupportedFileExt => {
   const ext = extname(filePath).slice(1, filePath.length);
@@ -206,59 +189,6 @@ export const getFileSize = async (filePath: string, unit: 'MB' | 'KB', decimals 
   return getByteSize(size, unit, decimals);
 };
 
-const getDirectoryContent = ({
-  absoluteDirectory,
-  relativeDirectory
-}: {
-  relativeDirectory?: string;
-  absoluteDirectory?: string;
-}): { entryNameWithoutExt: string; path: string; entryName: string }[] => {
-  const directory = absoluteDirectory || join(__dirname, relativeDirectory);
-  return readdirSync(directory).map((entry) => {
-    const baseEntryName = basename(entry);
-    return {
-      entryNameWithoutExt: baseEntryName.includes('.')
-        ? baseEntryName.slice(0, baseEntryName.lastIndexOf('.'))
-        : baseEntryName,
-      path: join(directory, entry),
-      entryName: entry
-    };
-  });
-};
-
-const retryableCopy = (from: string, to: string, opts: CopyOptions = {}, attempts = 0) => {
-  return copy(from, to, opts).catch(async (err) => {
-    if (err.code === 'EBUSY') {
-      if (attempts >= 5) {
-        throw new Error(`Can't copy from ${from} to ${to}. Tried 5 times`);
-      }
-      await wait((attempts + 1) ** 1.3 * 50);
-
-      return retryableCopy(from, to, opts, attempts++);
-    }
-  });
-};
-
-const copyUsingTempDir = async (from: string, to: string, opts: CopyOptions = {}, deleteTempFolder = true) => {
-  const tempDirPath = join(await temporaryDirectoryLocation(), shortHash(to));
-  await remove(tempDirPath);
-  await copy(from, tempDirPath, opts);
-  await copy(tempDirPath, to, opts);
-  if (deleteTempFolder) {
-    await remove(tempDirPath);
-  }
-};
-
-const getAllFilesWithExtension = async (folder: string, extension: string) => {
-  const res = [];
-  await walk(folder, (file) => {
-    if (file.fullPath.endsWith(extension)) {
-      res.push(file.fullPath);
-    }
-  });
-  return res;
-};
-
 export const getPathRelativeTo = (filePath: string, relativeTo: string): string => {
   const cwdArray: string[] = relativeTo.split(pathSeparator);
   return Object.entries(filePath.split(pathSeparator))
@@ -276,38 +206,12 @@ export const getRelativePath = (itemPath: string) => {
   return relative(process.cwd(), itemPath);
 };
 
-const isPathInside = (childPath, parentPath) => {
-  const relation = relative(parentPath, childPath);
-
-  return Boolean(
-    relation && relation !== '..' && !relation.startsWith(`..${sep}`) && relation !== resolvePath(childPath)
-  );
-};
-
 export const getFirstExistingPath = (paths: string[]) => {
   for (const path of paths) {
     if (existsSync(path)) {
       return path;
     }
   }
-};
-
-const arrayToCsv = (items: Record<string, any>): string => {
-  const array = typeof items !== 'object' ? JSON.parse(items) : items;
-  const str =
-    `${Object.keys(array[0])
-      .map((value) => `"${value}"`)
-
-      .join(',')}` + '\r\n';
-
-  return array.reduce((str, next) => {
-    str +=
-      `${Object.values(next)
-        .map((value) => `"${value}"`)
-
-        .join(',')}` + '\r\n';
-    return str;
-  }, str);
 };
 
 export const deleteDirectoryContent = async (dirPath: string) => {

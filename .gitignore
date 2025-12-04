@@ -35,6 +35,7 @@ docs/node_modules
 docs/.next
 docs/public/_timestamps.json
 docs/out
+__dist
 
 # Ignore Gradle project-specific cache directory
 .gradle
