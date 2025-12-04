@@ -7,6 +7,8 @@ export const FILES_TO_INCLUDE_IN_DIGEST = [
   'deno.lockb',
   'deno.lock',
   'node_modules/.prisma/client/index.js',
+  'prisma.schema',
+  'prisma.config.ts',
   'tsconfig.json'
 ];
 
