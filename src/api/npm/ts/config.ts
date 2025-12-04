@@ -1,13 +1,68 @@
 import { CHILD_RESOURCES } from './child-resources';
 
 // Private symbols for internal methods - not accessible from outside
-// Use Symbol.for() so it can be accessed across modules
+// Use Symbol.for() so it can be accessed across modules (crucial for npm package interop)
 const getParamReferenceSymbol = Symbol.for('stacktape:getParamReference');
 const getTypeSymbol = Symbol.for('stacktape:getType');
 const getPropertiesSymbol = Symbol.for('stacktape:getProperties');
 const getOverridesSymbol = Symbol.for('stacktape:getOverrides');
 const getTransformsSymbol = Symbol.for('stacktape:getTransforms');
 const setResourceNameSymbol = Symbol.for('stacktape:setResourceName');
+const resourceParamRefSymbol = Symbol.for('stacktape:isResourceParamRef');
+const baseTypePropertiesSymbol = Symbol.for('stacktape:isBaseTypeProperties');
+
+// Duck-type checkers - use symbols instead of instanceof for cross-module compatibility
+const isBaseResource = (value: unknown): value is BaseResource =>
+  value !== null && typeof value === 'object' && setResourceNameSymbol in value;
+
+const isBaseTypeProperties = (value: unknown): value is BaseTypeProperties =>
+  value !== null && typeof value === 'object' && baseTypePropertiesSymbol in value;
+
+const isResourceParamReference = (value: unknown): value is ResourceParamReference =>
+  value !== null && typeof value === 'object' && resourceParamRefSymbol in value;
+
+const deferredNameSymbol = Symbol.for('stacktape:isDeferredResourceName');
+
+const isDeferredResourceName = (value: unknown): value is DeferredResourceName =>
+  value !== null && typeof value === 'object' && deferredNameSymbol in value;
+
+/**
+ * A deferred reference to a resource's name.
+ * Used when accessing resourceName before the name is set.
+ * Resolves lazily during transformation.
+ */
+class DeferredResourceName {
+  private __resource: BaseResource;
+  readonly [deferredNameSymbol] = true;
+
+  constructor(resource: BaseResource) {
+    this.__resource = resource;
+  }
+
+  resolve(): string {
+    // At resolution time, the name should be set
+    const name = (this.__resource as any)._resourceName;
+    if (name === undefined) {
+      throw new Error(
+        'Resource name not set. Make sure to add the resource to the resources object in your config. ' +
+          'The resource name is automatically derived from the object key.'
+      );
+    }
+    return name;
+  }
+
+  toString(): string {
+    return this.resolve();
+  }
+
+  toJSON(): string {
+    return this.resolve();
+  }
+
+  valueOf(): string {
+    return this.resolve();
+  }
+}
 
 /**
  * A reference to a resource parameter that will be resolved at runtime.
@@ -16,6 +71,7 @@ const setResourceNameSymbol = Symbol.for('stacktape:setResourceName');
 export class ResourceParamReference {
   private __resource: BaseResource;
   private __param: string;
+  readonly [resourceParamRefSymbol] = true;
 
   constructor(resource: BaseResource, param: string) {
     this.__resource = resource;
@@ -42,6 +98,7 @@ export class ResourceParamReference {
 export class BaseTypeProperties {
   public readonly type: string;
   public readonly properties: any;
+  readonly [baseTypePropertiesSymbol] = true;
 
   constructor(type: string, properties: any) {
     this.type = type;
@@ -112,12 +169,12 @@ export class BaseResource {
   }
 
   // Public getter for resource name (used for referencing resources)
+  // Returns a deferred reference when name isn't set yet, which resolves during transformation
   get resourceName(): string {
     if (this._resourceName === undefined) {
-      throw new Error(
-        'Resource name not set. Make sure to add the resource to the resources object in your config. ' +
-          'The resource name is automatically derived from the object key.'
-      );
+      // Return a deferred reference that will resolve during transformation
+      // TypeScript sees this as string due to toString/valueOf, runtime resolves lazily
+      return new DeferredResourceName(this) as unknown as string;
     }
     return this._resourceName;
   }
@@ -340,7 +397,7 @@ export const transformConfigWithResources = (config: any): any => {
   if (config.resources && typeof config.resources === 'object') {
     for (const key in config.resources) {
       const resource = config.resources[key];
-      if (resource instanceof BaseResource) {
+      if (isBaseResource(resource)) {
         (resource as any)[setResourceNameSymbol](key);
       }
     }
@@ -388,7 +445,7 @@ const transformResourceDefinitions = (resources: any): any => {
   const result: any = {};
   for (const key in resources) {
     const resource = resources[key];
-    if (resource instanceof BaseResource) {
+    if (isBaseResource(resource)) {
       const type = (resource as any)[getTypeSymbol]();
       const properties = (resource as any)[getPropertiesSymbol]();
       const overrides = (resource as any)[getOverridesSymbol]();
@@ -417,7 +474,7 @@ const transformScriptDefinitions = (scripts: any): any => {
   const result: any = {};
   for (const key in scripts) {
     const script = scripts[key];
-    if (script instanceof BaseTypeProperties) {
+    if (isBaseTypeProperties(script)) {
       result[key] = {
         type: script.type,
         properties: transformValue(script.properties)
@@ -434,19 +491,24 @@ export const transformValue = (value: any): any => {
     return value;
   }
 
+  // Transform DeferredResourceName - resolve to actual name
+  if (isDeferredResourceName(value)) {
+    return value.resolve();
+  }
+
   // Transform ResourceParamReference
-  if (value instanceof ResourceParamReference) {
+  if (isResourceParamReference(value)) {
     return value.toString();
   }
 
   // Transform BaseResource references (not definitions) to resourceName
   // This handles cases like connectTo: [database]
-  if (value instanceof BaseResource) {
+  if (isBaseResource(value)) {
     return value.resourceName;
   }
 
   // Transform BaseTypeProperties (engines, packaging, events) to plain object
-  if (value instanceof BaseTypeProperties) {
+  if (isBaseTypeProperties(value)) {
     return {
       type: value.type,
       properties: transformValue(value.properties)
@@ -457,7 +519,7 @@ export const transformValue = (value: any): any => {
   if (Array.isArray(value)) {
     return value.map((item) => {
       // If it's a resource instance in an array (e.g., connectTo), transform to resourceName
-      if (item instanceof BaseResource) {
+      if (isBaseResource(item)) {
         return item.resourceName;
       }
       return transformValue(item);

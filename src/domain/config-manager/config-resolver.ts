@@ -1,5 +1,6 @@
-import type { GetConfigParams } from '@api/npm/ts';
+import type { GetConfigParams } from '@api/npm/ts/config';
 import type { DirectiveParam } from '@utils/directives';
+import { join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
 import { supportedCodeConfigLanguages } from '@config';
@@ -19,6 +20,7 @@ import { ExpectedError, UnexpectedError } from '@utils/errors';
 import { loadFromAnySupportedFile, loadFromTypescript } from '@utils/file-loaders';
 import { getUserCodeAsFn, parseUserCodeFilepath } from '@utils/user-code-processing';
 import { validatePrimitiveFunctionParams } from '@utils/validation-utils';
+import { writeFile } from 'fs-extra';
 import { builtInDirectives } from './built-in-directives';
 
 type DirectiveToProcess = Directive & {
@@ -79,6 +81,44 @@ export class ConfigResolver {
     }
   };
 
+  loadTypescriptConfig = async ({ filePath }: { filePath: string }) => {
+    const [getConfigFunction, defaultExport] = await Promise.all([
+      loadFromTypescript({
+        filePath,
+        exportName: 'getConfig'
+      }),
+      loadFromTypescript({
+        filePath,
+        exportName: 'default'
+      })
+    ]);
+
+    const params: GetConfigParams = {
+      projectName: globalStateManager.targetStack?.projectName || globalStateManager.args.projectName,
+      stage: globalStateManager.targetStack?.stage || globalStateManager.args.stage,
+      region: globalStateManager.region,
+      command: globalStateManager.command,
+      awsProfile: globalStateManager.awsProfileName,
+      user: {
+        id: globalStateManager.userData.id,
+        name: globalStateManager.userData.name,
+        email: globalStateManager.userData.email
+      },
+      cliArgs: globalStateManager.args
+    };
+    if (getConfigFunction) {
+      if (typeof getConfigFunction !== 'function') {
+        throw stpErrors.e128({ configPath: globalStateManager.configPath });
+      }
+      return getConfigFunction(params);
+    }
+    // handle defineConfig-style config files
+    else if (defaultExport && typeof defaultExport === 'function') {
+      return defaultExport(params);
+    }
+    return null;
+  };
+
   getRawConfig = async () => {
     if (globalStateManager.presetConfig) {
       return globalStateManager.presetConfig;
@@ -87,47 +127,36 @@ export class ConfigResolver {
       const downloadedTemplate = await stacktapeTrpcApiManager.apiClient.template({
         templateId: globalStateManager.args.templateId
       });
-      return parseYaml(downloadedTemplate.content);
+      let yamlParseError: Error | null = null;
+      try {
+        return parseYaml(downloadedTemplate.content);
+      } catch (err) {
+        yamlParseError = err;
+      }
+      const tempPath = join(process.cwd(), '.stacktape', 'stacktape.ts');
+      await writeFile(tempPath, downloadedTemplate.content);
+      let typescriptParseError: Error | null = null;
+      try {
+        return await this.loadTypescriptConfig({ filePath: tempPath });
+      } catch (err) {
+        typescriptParseError = err;
+      } finally {
+        // await remove(tempPath);
+      }
+      if (yamlParseError) {
+        throw yamlParseError;
+      }
+      if (typescriptParseError) {
+        throw typescriptParseError;
+      }
+      return null;
     }
     try {
       let config;
 
       // Special case for TypeScript config files
       if (globalStateManager.configPath.endsWith('.ts')) {
-        const [getConfigFunction, defaultExport] = await Promise.all([
-          loadFromTypescript({
-            filePath: globalStateManager.configPath,
-            exportName: 'getConfig'
-          }),
-          loadFromTypescript({
-            filePath: globalStateManager.configPath,
-            exportName: 'default'
-          })
-        ]);
-
-        const params: GetConfigParams = {
-          projectName: globalStateManager.targetStack?.projectName || globalStateManager.args.projectName,
-          stage: globalStateManager.targetStack?.stage || globalStateManager.args.stage,
-          region: globalStateManager.region,
-          command: globalStateManager.command,
-          awsProfile: globalStateManager.awsProfileName,
-          user: {
-            id: globalStateManager.userData.id,
-            name: globalStateManager.userData.name,
-            email: globalStateManager.userData.email
-          },
-          cliArgs: globalStateManager.args
-        };
-        if (getConfigFunction) {
-          if (typeof getConfigFunction !== 'function') {
-            throw stpErrors.e128({ configPath: globalStateManager.configPath });
-          }
-          config = getConfigFunction(params);
-        }
-        // handle defineConfig-style config files
-        else if (defaultExport && typeof defaultExport === 'function') {
-          config = defaultExport(params);
-        }
+        config = await this.loadTypescriptConfig({ filePath: globalStateManager.configPath });
       }
 
       // If config not loaded yet, try loadFromAnySupportedFile

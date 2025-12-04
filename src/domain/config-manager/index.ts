@@ -90,10 +90,6 @@ export class ConfigManager {
         this.config = cleanConfigForMinimalTemplateCompilerMode(this.configResolver.resolvedConfig);
       }
       this.rawConfig = this.configResolver.rawConfig;
-      // if (this.config.serviceName) {
-      //   throw stpErrors.e104({ serviceName: this.config.serviceName });
-      // }
-      // after we have resolved config, we can run some validations
       await validateConfigStructure({ config: this.config, configPath: globalStateManager.configPath, templateId });
       if (globalStateManager.invokedFrom !== 'server') {
         runInitialValidations();
