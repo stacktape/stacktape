@@ -37,10 +37,6 @@ export const ALL_SUPPORTED_PLATFORMS: SupportedPlatform[] = [
   'linux-arm'
 ];
 
-const chmodPlusX = async (filePath: string) => {
-  return await chmod(filePath, 0o755);
-};
-
 export const buildEsbuildRegister = async ({ distFolderPath }: { distFolderPath?: string }) => {
   logInfo('Copying esbuild-register...');
   const esbuildRegisterDistFolderPath = join(distFolderPath, 'esbuild', 'esbuild-register.js');
@@ -210,10 +206,7 @@ export const copyPackBinary = async ({
     'pack',
     platform !== 'win' ? 'pack' : 'pack.exe'
   );
-  await copy(sourcePath, distPath);
-  if (platform !== 'win') {
-    return await chmod(distPath, 0o755);
-  }
+  return await copy(sourcePath, distPath);
 };
 
 export const copyNixpacksBinary = async ({
@@ -231,10 +224,7 @@ export const copyNixpacksBinary = async ({
     'nixpacks',
     platform !== 'win' ? 'nixpacks' : 'nixpacks.exe'
   );
-  await copy(sourcePath, distPath);
-  if (platform !== 'win') {
-    return await chmod(distPath, 0o755);
-  }
+  return await copy(sourcePath, distPath);
 };
 
 export const copySessionsManagerPluginBinary = async ({
@@ -252,10 +242,7 @@ export const copySessionsManagerPluginBinary = async ({
     'session-manager-plugin',
     platform === 'win' ? 'smp.exe' : 'smp'
   );
-  await copy(sourcePath, distPath);
-  if (platform !== 'win') {
-    return await chmod(distPath, 0o755);
-  }
+  return await copy(sourcePath, distPath);
 };
 
 export const copyEsbuildBinary = async ({
