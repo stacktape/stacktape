@@ -1919,6 +1919,41 @@ Property ${printer.prettyConfigProperty('runAppAs')} can be specified only for $
       message: `VPC ${printer.makeBold(vpcId)} does not have enough private subnets. Found ${printer.makeBold(String(foundCount))} private subnet(s), but at least ${printer.makeBold('2')} are required when resources use ${printer.makeBold('usePrivateSubnetsWithNAT')}.`,
       hint: `The following resources require private subnets: ${requiringResources.map((r) => printer.prettyResourceName(r)).join(', ')}. Private subnets are identified by NOT having a direct route to an Internet Gateway in their route table.`
     };
+  },
+  e136({ configPath, packageName }: { configPath: string; packageName: string }): ReturnedError {
+    return {
+      type: 'CONFIG_VALIDATION',
+      message: `Cannot find package ${printer.makeBold(packageName)} when loading config from ${printer.prettyFilePath(configPath)}.`,
+      hint: `Install the package by running: ${printer.makeBold(`npm install ${packageName}`)} or ${printer.makeBold(`bun add ${packageName}`)}`
+    };
+  },
+  e137({ configPath, errorMessage }: { configPath: string; errorMessage: string }): ReturnedError {
+    return {
+      type: 'CONFIG_VALIDATION',
+      message: `Syntax error in TypeScript config ${printer.prettyFilePath(configPath)}.`,
+      hint: `Error details: ${errorMessage}`
+    };
+  },
+  e138({ configPath, errorMessage }: { configPath: string; errorMessage: string }): ReturnedError {
+    return {
+      type: 'CONFIG_VALIDATION',
+      message: `Failed to execute TypeScript config ${printer.prettyFilePath(configPath)}.`,
+      hint: `Error details: ${errorMessage}`
+    };
+  },
+  e139({ configPath }: { configPath: string }): ReturnedError {
+    return {
+      type: 'CONFIG_VALIDATION',
+      message: `TypeScript config ${printer.prettyFilePath(configPath)} must export a default function (using ${printer.makeBold('defineConfig')}) or a ${printer.makeBold('getConfig')} function.`,
+      hint: `Example:\n${printer.makeBold(`import { defineConfig } from 'stacktape';\nexport default defineConfig(({ stage }) => ({ resources: {} }));`)}`
+    };
+  },
+  e140({ configPath, exportValue }: { configPath: string; exportValue: string }): ReturnedError {
+    return {
+      type: 'CONFIG_VALIDATION',
+      message: `Config function in ${printer.prettyFilePath(configPath)} must return an object, but returned ${printer.makeBold(exportValue)}.`,
+      hint: `Make sure your config function returns a valid Stacktape configuration object with at least a ${printer.makeBold('resources')} property.`
+    };
   }
 } as const;
 

@@ -453,9 +453,9 @@ export class StackManager {
       isResourceToHandleCountPossiblyInaccurate = true;
       resourcesToHandleCount = Object.keys(templateManager.template.Resources).length;
     }
-    // fetch events no older than before the last stack action started
+
     let fetchSince = await getAwsSynchronizedTime();
-    fetchSince.setSeconds(fetchSince.getSeconds() - 10);
+    fetchSince.setSeconds(fetchSince.getSeconds() - 20);
     let lastStackActionTimestamp: Date;
     let eventBatchEvaluationInProgress = false;
     let cleanupAfterSuccessfulUpdateInProgress = false;
@@ -530,7 +530,7 @@ export class StackManager {
         eventBatchEvaluationInProgress = true;
         try {
           // we are only fetching for new events "fetchSince"
-          const [stackEvents, stackDetails] = await Promise.all([
+          const [stackEvents, stackDetailsFromBatch] = await Promise.all([
             awsSdkManager.getStackEvents(stackId, fetchSince),
             fetchNumber % 4 === 0 && awsSdkManager.getStackDetails(stackId)
           ]).catch((err) => {
@@ -542,11 +542,31 @@ export class StackManager {
           ++fetchNumber;
           // we are reversing to go from oldest to newest
           stackEvents.reverse();
-          // if there are no new events, return
+          // if there are no new events, check stack details as fallback to detect if operation completed
+          // this is critical - without this check, the monitoring could hang indefinitely if completion events are missed
           if (!stackEvents.length) {
+            const stackDetails = stackDetailsFromBatch || (await awsSdkManager.getStackDetails(stackId));
+            if (
+              this.#stackStatusSignalsStackOperationSuccess({
+                stackStatus: stackDetails?.StackStatus as StackStatus,
+                cfStackAction
+              })
+            ) {
+              return afterStackOperationSuccess();
+            }
+            if (
+              this.#stackStatusSignalsStackOperationFailure({
+                stackStatus: stackDetails?.StackStatus as StackStatus,
+                cfStackAction
+              })
+            ) {
+              return afterStackOperationFailure();
+            }
             eventBatchEvaluationInProgress = false;
             return;
           }
+          // use stackDetails from batch for later fallback check
+          const stackDetails = stackDetailsFromBatch;
           if (!lastStackActionTimestamp) {
             // we are searching for event which denotes beginning of action that should take place (i.e CREATE_IN_PROGRESS UPDATE_IN_PROGRESS...)
             const lastStackEvent = stackEvents.find((stackEvent) => {

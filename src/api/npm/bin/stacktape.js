@@ -6,7 +6,7 @@
  */
 
 const { spawnSync, execSync } = require('node:child_process');
-const { createWriteStream, existsSync, chmodSync, mkdirSync, accessSync, constants } = require('node:fs');
+const { createWriteStream, existsSync, chmodSync, mkdirSync, accessSync, constants, unlinkSync } = require('node:fs');
 const { get: httpsGet } = require('node:https');
 const { platform, arch, homedir } = require('node:os');
 const { join } = require('node:path');
@@ -184,9 +184,7 @@ async function ensureBinary() {
 
   console.info(`Stacktape binary not found. Installing version ${version} for ${platformKey}...`);
 
-  if (!existsSync(cacheDir)) {
-    mkdirSync(cacheDir, { recursive: true });
-  }
+  mkdirSync(cacheDir, { recursive: true });
 
   const downloadUrl = `https://github.com/${GITHUB_REPO}/releases/download/${version}/${platformInfo.fileName}`;
   const archivePath = join(cacheDir, platformInfo.fileName);
@@ -200,7 +198,6 @@ async function ensureBinary() {
 
     setExecutablePermissions(cacheDir);
 
-    const { unlinkSync } = require('node:fs');
     unlinkSync(archivePath);
 
     if (!existsSync(binaryPath)) {
@@ -233,10 +230,34 @@ function getManualInstallCommand(platformKey) {
   return commands[platformKey] || 'See https://docs.stacktape.com for installation instructions';
 }
 
+function getGlobalBinaryPath() {
+  const binaryName = platform() === 'win32' ? 'stacktape.exe' : 'stacktape';
+  const globalBinaryPath = join(homedir(), '.stacktape', 'bin', binaryName);
+  if (existsSync(globalBinaryPath)) {
+    try {
+      accessSync(globalBinaryPath, constants.X_OK);
+      return globalBinaryPath;
+    } catch {
+      return globalBinaryPath;
+    }
+  }
+  return null;
+}
+
 async function main() {
   try {
-    const binaryPath = await ensureBinary();
     const args = process.argv.slice(2);
+
+    const globalBinaryPath = getGlobalBinaryPath();
+    if (globalBinaryPath) {
+      const result = spawnSync(globalBinaryPath, args, {
+        stdio: 'inherit',
+        env: process.env
+      });
+      process.exit(result.status || 0);
+    }
+
+    const binaryPath = await ensureBinary();
 
     const result = spawnSync(binaryPath, args, {
       stdio: 'inherit',

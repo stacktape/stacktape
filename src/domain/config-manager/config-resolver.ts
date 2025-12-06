@@ -20,8 +20,44 @@ import { ExpectedError, UnexpectedError } from '@utils/errors';
 import { loadFromAnySupportedFile, loadFromTypescript } from '@utils/file-loaders';
 import { getUserCodeAsFn, parseUserCodeFilepath } from '@utils/user-code-processing';
 import { validatePrimitiveFunctionParams } from '@utils/validation-utils';
-import { mkdir, writeFile } from 'fs-extra';
+import { remove, writeFile } from 'fs-extra';
 import { builtInDirectives } from './built-in-directives';
+
+/**
+ * Parse TypeScript config loading errors and throw appropriate user-friendly errors
+ */
+const handleTypescriptConfigError = (error: Error, configPath: string): never => {
+  const errorMessage = error.message || String(error);
+
+  // Check for missing package errors
+  const packageMatch = errorMessage.match(/Cannot find package '([^']+)'/);
+  if (packageMatch) {
+    throw stpErrors.e136({ configPath, packageName: packageMatch[1] });
+  }
+
+  // Check for module not found (different format)
+  const moduleMatch = errorMessage.match(/Cannot find module '([^']+)'/);
+  if (moduleMatch) {
+    const moduleName = moduleMatch[1];
+    // If it looks like a package (not a relative path), suggest installing
+    if (!moduleName.startsWith('.') && !moduleName.startsWith('/')) {
+      throw stpErrors.e136({ configPath, packageName: moduleName });
+    }
+  }
+
+  // Check for syntax errors
+  if (errorMessage.includes('SyntaxError') || errorMessage.includes('Parse error')) {
+    throw stpErrors.e137({ configPath, errorMessage });
+  }
+
+  // Check for export not found
+  if (errorMessage.includes('Export named') && errorMessage.includes('not found')) {
+    throw stpErrors.e137({ configPath, errorMessage });
+  }
+
+  // Generic execution error
+  throw stpErrors.e138({ configPath, errorMessage });
+};
 
 type DirectiveToProcess = Directive & {
   pathToProp: string;
@@ -82,16 +118,23 @@ export class ConfigResolver {
   };
 
   loadTypescriptConfig = async ({ filePath }: { filePath: string }) => {
-    const [getConfigFunction, defaultExport] = await Promise.all([
-      loadFromTypescript({
-        filePath,
-        exportName: 'getConfig'
-      }),
-      loadFromTypescript({
-        filePath,
-        exportName: 'default'
-      })
-    ]);
+    let getConfigFunction: unknown;
+    let defaultExport: unknown;
+
+    try {
+      [getConfigFunction, defaultExport] = await Promise.all([
+        loadFromTypescript({
+          filePath,
+          exportName: 'getConfig'
+        }),
+        loadFromTypescript({
+          filePath,
+          exportName: 'default'
+        })
+      ]);
+    } catch (error) {
+      handleTypescriptConfigError(error as Error, filePath);
+    }
 
     const params: GetConfigParams = {
       projectName: globalStateManager.targetStack?.projectName || globalStateManager.args.projectName,
@@ -106,16 +149,49 @@ export class ConfigResolver {
       },
       cliArgs: globalStateManager.args
     };
+
+    // Prefer getConfig export over default export
     if (getConfigFunction) {
       if (typeof getConfigFunction !== 'function') {
-        throw stpErrors.e128({ configPath: globalStateManager.configPath });
+        throw stpErrors.e128({ configPath: filePath });
       }
-      return getConfigFunction(params);
+      try {
+        const result = getConfigFunction(params);
+        if (result === null || result === undefined || typeof result !== 'object') {
+          throw stpErrors.e140({ configPath: filePath, exportValue: String(result) });
+        }
+        return result;
+      } catch (error) {
+        if ((error as any).isExpected) throw error;
+        handleTypescriptConfigError(error as Error, filePath);
+      }
     }
-    // handle defineConfig-style config files
-    else if (defaultExport && typeof defaultExport === 'function') {
-      return defaultExport(params);
+
+    // Handle defineConfig-style config files
+    if (defaultExport && typeof defaultExport === 'function') {
+      try {
+        const configFn = defaultExport as (params: GetConfigParams) => unknown;
+        const result = configFn(params);
+        if (result === null || result === undefined || typeof result !== 'object') {
+          throw stpErrors.e140({ configPath: filePath, exportValue: String(result) });
+        }
+        return result;
+      } catch (error) {
+        if ((error as any).isExpected) throw error;
+        handleTypescriptConfigError(error as Error, filePath);
+      }
     }
+
+    // No valid export found
+    if (!getConfigFunction && !defaultExport) {
+      throw stpErrors.e139({ configPath: filePath });
+    }
+
+    // Export exists but is not a function
+    if (defaultExport && typeof defaultExport !== 'function') {
+      throw stpErrors.e128({ configPath: filePath });
+    }
+
     return null;
   };
 
@@ -123,77 +199,88 @@ export class ConfigResolver {
     if (globalStateManager.presetConfig) {
       return globalStateManager.presetConfig;
     }
+
     if (globalStateManager.args.templateId) {
       const downloadedTemplate = await stacktapeTrpcApiManager.apiClient.template({
         templateId: globalStateManager.args.templateId
       });
+
+      // Try parsing as YAML first
       let yamlParseError: Error | null = null;
       try {
         return parseYaml(downloadedTemplate.content);
       } catch (err) {
         yamlParseError = err;
       }
-      await mkdir(join(process.cwd(), '.stacktape'), { recursive: true });
-      const tempPath = join(process.cwd(), '.stacktape', 'stacktape.ts');
-      await writeFile(tempPath, downloadedTemplate.content);
+
+      const tempConfigPath = join(process.cwd(), '__temp-config.stp.ts');
+      await writeFile(tempConfigPath, downloadedTemplate.content);
+
       let typescriptParseError: Error | null = null;
       try {
-        return await this.loadTypescriptConfig({ filePath: tempPath });
+        return await this.loadTypescriptConfig({ filePath: tempConfigPath });
       } catch (err) {
         typescriptParseError = err;
       } finally {
-        // await remove(tempPath);
+        await remove(tempConfigPath);
+      }
+
+      // Both failed - throw the more relevant error
+      if (typescriptParseError) {
+        throw typescriptParseError;
       }
       if (yamlParseError) {
         throw yamlParseError;
       }
-      if (typescriptParseError) {
-        throw typescriptParseError;
-      }
       return null;
     }
+
+    // Handle TypeScript config files
+    if (globalStateManager.configPath.endsWith('.ts')) {
+      const config = await this.loadTypescriptConfig({ filePath: globalStateManager.configPath });
+
+      // Strip transforms from config (they are functions and can't be serialized)
+      // Transforms are extracted separately by TransformsResolver
+      if (config) {
+        this.stripTransformsFromConfig(config);
+      }
+
+      return config;
+    }
+
+    // Handle other config file types (YAML, JSON, etc.)
     try {
-      let config;
+      let config = await loadFromAnySupportedFile({
+        sourcePath: globalStateManager.configPath,
+        codeType: 'config',
+        workingDir: globalStateManager.workingDir
+      });
 
-      // Special case for TypeScript config files
-      if (globalStateManager.configPath.endsWith('.ts')) {
-        config = await this.loadTypescriptConfig({ filePath: globalStateManager.configPath });
-      }
-
-      // If config not loaded yet, try loadFromAnySupportedFile
-      if (!config) {
-        config = await loadFromAnySupportedFile({
-          sourcePath: globalStateManager.configPath,
-          codeType: 'config',
-          workingDir: globalStateManager.workingDir
+      // If returned value is a function, run it
+      if (typeof config === 'function') {
+        config = config({
+          projectName: globalStateManager.targetStack?.projectName || globalStateManager.args.projectName,
+          stage: globalStateManager.targetStack?.stage || globalStateManager.args.stage,
+          region: globalStateManager.region,
+          command: globalStateManager.command,
+          awsProfile: globalStateManager.awsProfileName,
+          user: {
+            id: globalStateManager.userData.id,
+            name: globalStateManager.userData.name,
+            email: globalStateManager.userData.email
+          },
+          cliArgs: globalStateManager.args
         });
+      }
 
-        // If returned value is a function, run it
-        if (typeof config === 'function') {
-          config = config({
-            projectName: globalStateManager.targetStack?.projectName || globalStateManager.args.projectName,
-            stage: globalStateManager.targetStack?.stage || globalStateManager.args.stage,
-            region: globalStateManager.region,
-            command: globalStateManager.command,
-            awsProfile: globalStateManager.awsProfileName,
-            user: {
-              id: globalStateManager.userData.id,
-              name: globalStateManager.userData.name,
-              email: globalStateManager.userData.email
-            },
-            cliArgs: globalStateManager.args
-          });
-        }
+      if (config === null) {
+        throw new ExpectedError(
+          'FILE_ACCESS',
+          `Can't load stacktape config from unsupported file type ${globalStateManager.configPath}.`
+        );
       }
 
       if (!config) {
-        if (config === null) {
-          throw new ExpectedError(
-            'FILE_ACCESS',
-            `Can't load stacktape config from unsupported file type ${globalStateManager.configPath}.`
-          );
-        }
-
         try {
           JSON.parse(JSON.stringify(config));
         } catch {
@@ -207,6 +294,9 @@ export class ConfigResolver {
 
       return config;
     } catch (err) {
+      if ((err as any).isExpected) {
+        throw err;
+      }
       throw new ExpectedError(
         'CONFIG_VALIDATION',
         `Malformed configuration file at ${globalStateManager.configPath}. Error details:\n${err}`

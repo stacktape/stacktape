@@ -1,6 +1,6 @@
 {
   "name": "stacktape",
-  "version": "3.0.7",
+  "version": "3.0.8-beta.3",
   "private": true,
   "bin": {
     "stacktape": "./index.js"
@@ -94,7 +94,7 @@
     "@octokit/plugin-retry": "^8.0.0",
     "@octokit/plugin-throttling": "^10.0.0",
     "@octokit/rest": "22.0.1",
-    "@sentry/node": "^9.43.0",
+    "@sentry/bun": "^10.28.0",
     "@slack/web-api": "^7.9.3",
     "@trpc/client": "^11.7.1",
     "@types/mime": "^3.0.4",

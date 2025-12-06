@@ -1,5 +1,5 @@
 import { IS_DEV, SENTRY_CAPTURE_EXCEPTION_WAIT_TIME_MS, SENTRY_DSN } from '@config';
-import { captureException, init, rewriteFramesIntegration, setTags } from '@sentry/node';
+import { captureException, init, rewriteFramesIntegration, setTags } from '@sentry/bun';
 import { wait } from '@shared/utils/misc';
 import stripAnsi from 'strip-ansi';
 import { getStacktapeVersion } from './versioning';
