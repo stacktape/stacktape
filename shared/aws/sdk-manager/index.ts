@@ -236,6 +236,7 @@ import {
   wait
 } from '@shared/utils/misc';
 import { parseYaml } from '@shared/utils/yaml';
+import { FetchHttpHandler } from '@smithy/fetch-http-handler';
 import { kebabCase, pascalCase } from 'change-case';
 import fsExtra from 'fs-extra';
 import pRetry from 'p-retry';
@@ -296,7 +297,8 @@ export class AwsSdkManager {
   #getClientArgs() {
     return {
       region: this.region,
-      credentials: this.credentials
+      credentials: this.credentials,
+      requestHandler: new FetchHttpHandler({})
     };
   }
 
