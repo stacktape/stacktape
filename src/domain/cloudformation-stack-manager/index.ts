@@ -1,4 +1,4 @@
-import type { StackEvent, StackResourceSummary } from '@aws-sdk/client-cloudformation';
+import type { Capability, StackEvent, StackResourceSummary } from '@aws-sdk/client-cloudformation';
 import type { Tag } from '@aws-sdk/client-ecs';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
@@ -212,7 +212,7 @@ export class StackManager {
       StackName: this.#stackName,
       Tags: operationRequiresTags ? this.getTags() : [],
       Parameters: [],
-      Capabilities: ['CAPABILITY_IAM', 'CAPABILITY_NAMED_IAM', 'CAPABILITY_AUTO_EXPAND'],
+      Capabilities: ['CAPABILITY_IAM', 'CAPABILITY_NAMED_IAM', 'CAPABILITY_AUTO_EXPAND'] as Capability[],
       ...(!this.isAutoRollbackEnabled && { DisableRollback: true }),
       ...(terminationProtection && { EnableTerminationProtection: true }),
       ...(cloudformationRoleArn && { RoleARN: cloudformationRoleArn as string }),
@@ -292,7 +292,7 @@ export class StackManager {
     }
     if (commandModifiesStack) {
       // wait for stack to be stable
-      while (STACK_OPERATION_IN_PROGRESS_STATUS.includes(stackDetails?.StackStatus as StackStatus)) {
+      while (STACK_OPERATION_IN_PROGRESS_STATUS.includes(stackDetails?.StackStatus as any)) {
         progressLogger.updateEvent({
           eventType: 'FETCH_STACK_DATA',
           additionalMessage: `Waiting for stack to reach stable state before proceeding. Current stack state: ${printer.makeBold(
@@ -305,9 +305,9 @@ export class StackManager {
       // check state after stack was stabilized
       const stackIsNotReadyForOperation =
         ((command === 'deploy' || command === 'dev' || command === 'deployment-script:run') &&
-          !STACK_IS_READY_FOR_MODIFYING_OPERATION_STATUS.includes(stackDetails.StackStatus as StackStatus)) ||
+          !STACK_IS_READY_FOR_MODIFYING_OPERATION_STATUS.includes(stackDetails.StackStatus as any)) ||
         (command === 'rollback' &&
-          !STACK_IS_READY_FOR_ROLLBACK_OPERATION_STATUS.includes(stackDetails.StackStatus as StackStatus));
+          !STACK_IS_READY_FOR_ROLLBACK_OPERATION_STATUS.includes(stackDetails.StackStatus as any));
       if (stackIsNotReadyForOperation) {
         throw stpErrors.e100({
           command,
@@ -626,7 +626,7 @@ export class StackManager {
               // if we are performing update and cleanup is happening after successful update
               if (
                 cfStackAction === 'update' &&
-                event.ResourceStatus === StackStatus.UPDATE_COMPLETE_CLEANUP_IN_PROGRESS
+                event.ResourceStatus === (StackStatus.UPDATE_COMPLETE_CLEANUP_IN_PROGRESS as any)
               ) {
                 cleanupAfterSuccessfulUpdateInProgress = true;
                 isResourceToHandleCountPossiblyInaccurate = true;

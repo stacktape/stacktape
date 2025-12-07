@@ -7,23 +7,14 @@ export const retryPlugin = {
   applyToStack: (stack) => {
     stack.add(
       (next) => async (args) => {
-        // const operation =
-        //   `${context?.clientName?.replace('Client', '')}.${context?.commandName?.replace('Command', '')}` ||
-        //   'SDK operation';
-        // const prefix = `[${printer.colorize('gray', `DEBUG: ${operation}`)}]`;
-
         let tryNumber = 1;
         return pRetry(() => next(args), {
           retries: 5,
           onFailedAttempt: async (err) => {
-            // if (globalStateManager.logLevel === 'debug') {
-            //   printer.progress({
-            //     message: `${prefix} Failed. Retrying... Retry attempts: ${tryNumber}.`,
-            //     identifier: operation,
-            //     type: 'UPDATE'
-            //   });
-            // }
             const errMessage = err.toString();
+            // console.log(
+            //   `Failed. Retrying... Retry attempts: ${tryNumber}. Error:\n${JSON.stringify(err, null, 2)}\nArgs: ${args}`
+            // );
             if (
               errMessage.includes('EAI_AGAIN') ||
               errMessage.includes('ENOTFOUND') ||

@@ -14,12 +14,12 @@ import type {
   UpdateStackInput
 } from '@aws-sdk/client-cloudformation';
 import type { DistributionSummary } from '@aws-sdk/client-cloudfront';
-import type { FilteredLogEvent, InputLogEvent } from '@aws-sdk/client-cloudwatch-logs';
+import type { FilteredLogEvent, InputLogEvent, OrderBy } from '@aws-sdk/client-cloudwatch-logs';
 import type { BatchGetBuildsCommandInput, Build } from '@aws-sdk/client-codebuild';
 import type { CreateDeploymentCommandInput } from '@aws-sdk/client-codedeploy';
 import type { UserType } from '@aws-sdk/client-cognito-identity-provider';
 import type { Tag } from '@aws-sdk/client-dynamodb';
-import type { InstanceTypeInfo, RouteTable, Subnet, Vpc } from '@aws-sdk/client-ec2';
+import type { _InstanceType, InstanceTypeInfo, RouteTable, Subnet, Vpc } from '@aws-sdk/client-ec2';
 import type { ImageIdentifier } from '@aws-sdk/client-ecr';
 import type {
   DescribeServicesCommandInput,
@@ -28,6 +28,7 @@ import type {
   UpdateServiceCommandInput
 } from '@aws-sdk/client-ecs';
 import type { GetRoleCommandOutput } from '@aws-sdk/client-iam';
+import type { OpenSearchPartitionInstanceType } from '@aws-sdk/client-opensearch';
 import type { HostedZone, ResourceRecordSet } from '@aws-sdk/client-route-53';
 import type { DomainPrice } from '@aws-sdk/client-route-53-domains';
 import type { _Object, ObjectIdentifier, ObjectVersion } from '@aws-sdk/client-s3';
@@ -39,6 +40,7 @@ import type { Policy } from '@cloudform/iam/role';
 import type { Stats } from 'node:fs';
 import type { Readable } from 'node:stream';
 import { Buffer } from 'node:buffer';
+import { Agent as HttpsAgent } from 'node:https';
 import path from 'node:path';
 import {
   ACMClient,
@@ -218,7 +220,7 @@ import {
 } from '@aws-sdk/client-ssm';
 import { AssumeRoleCommand, STSClient } from '@aws-sdk/client-sts';
 import { Upload } from '@aws-sdk/lib-storage';
-import { NodeHttpHandler } from '@aws-sdk/node-http-handler';
+// import { NodeHttpHandler } from '@aws-sdk/node-http-handler';
 import { fromUtf8, toUtf8 } from '@aws-sdk/util-utf8-node';
 import { createWaiter, WaiterState } from '@aws-sdk/util-waiter';
 import { consoleLinks } from '@shared/naming/console-links';
@@ -236,7 +238,7 @@ import {
   wait
 } from '@shared/utils/misc';
 import { parseYaml } from '@shared/utils/yaml';
-import { FetchHttpHandler } from '@smithy/fetch-http-handler';
+import { NodeHttpHandler } from '@smithy/node-http-handler';
 import { kebabCase, pascalCase } from 'change-case';
 import fsExtra from 'fs-extra';
 import pRetry from 'p-retry';
@@ -295,10 +297,16 @@ export class AwsSdkManager {
   }
 
   #getClientArgs() {
+    // default keep-alive off (safe)
+    const httpsAgent = new HttpsAgent({ keepAlive: false });
     return {
       region: this.region,
       credentials: this.credentials,
-      requestHandler: new FetchHttpHandler({})
+      requestHandler: new NodeHttpHandler({
+        connectionTimeout: 10000,
+        socketTimeout: 20000,
+        httpsAgent
+      })
     };
   }
 
@@ -327,7 +335,17 @@ export class AwsSdkManager {
   }
 
   #cloudformation() {
-    const cloudformation = new CloudFormationClient({ ...this.#getClientArgs(), apiVersion: '2015-07-09' });
+    // for CF only, ensure fresh sockets (keepAlive false)
+    const cfAgent = new HttpsAgent({ keepAlive: false });
+    const cloudformation = new CloudFormationClient({
+      ...this.#getClientArgs(),
+      apiVersion: '2015-07-09',
+      requestHandler: new NodeHttpHandler({
+        connectionTimeout: 10000,
+        socketTimeout: 20000,
+        httpsAgent: cfAgent
+      })
+    });
     this.plugins.forEach(cloudformation.middlewareStack.use);
     return cloudformation;
   }
@@ -1587,7 +1605,7 @@ export class AwsSdkManager {
     logGroupName: string;
     logStreamNamePrefix?: string;
     limit?: number;
-    orderBy?: string;
+    orderBy?: OrderBy;
   }) => {
     const errHandler = this.#getErrorHandler(`Failed to get log streams for log group ${logGroupName}.`);
     const result = [];
@@ -2909,7 +2927,7 @@ export class AwsSdkManager {
     return { codebuildBuilds: result.flat(), nextToken };
   };
 
-  getEc2InstanceTypesInfo = async ({ instanceTypes }: { instanceTypes: string[] }) => {
+  getEc2InstanceTypesInfo = async ({ instanceTypes }: { instanceTypes: _InstanceType[] }) => {
     const errHandler = this.#getErrorHandler('Could not list EC2 instance types.');
     const result: InstanceTypeInfo[] = [];
     let { InstanceTypes, NextToken } = await this.#ec2()
@@ -3059,7 +3077,7 @@ export class AwsSdkManager {
     instanceType,
     openSearchVersion
   }: {
-    instanceType: string;
+    instanceType: OpenSearchPartitionInstanceType;
     openSearchVersion: string;
   }) => {
     return this.#openSearch().send(

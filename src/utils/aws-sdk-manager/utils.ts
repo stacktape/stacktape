@@ -90,12 +90,10 @@ export const loggingPlugin = {
 
         const end = Date.now();
 
-        const metadata = result.output?.$metadata || {};
+        // const metadata = result.output?.$metadata || {};
         if (shouldPrint) {
           printer.progress({
-            message: `${prefix} Finished (took ${end - start}ms). Response status: ${
-              metadata.httpStatusCode
-            }. RequestId: ${metadata.requestId}`,
+            message: `${prefix} Finished (took ${end - start}ms).`,
             identifier: operation,
             type: 'FINISH'
           });
