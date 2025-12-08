@@ -107,9 +107,6 @@ export class SsmPortForwardingTunnel {
         //   console.log('exit code', this.#tunnelProcess.exitCode);
         //   console.log('stderr', this.#tunnelProcess.);
         // }
-        console.log('timeout', this.#tunnelProcess.exitCode);
-        console.log('stderr', this.#tunnelProcess.stderr);
-        console.log('stdout', this.#tunnelProcess.stdout);
         reject(new Error(`Opening tunnel connection to ${this.#remoteHost}:${this.#remotePort} timed out.`));
       }, 10000);
     });
