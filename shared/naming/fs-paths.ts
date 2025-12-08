@@ -2,7 +2,6 @@ import { dirname, join } from 'node:path';
 import { CF_TEMPLATE_FILE_NAME, INITIAL_CF_TEMPLATE_FILE_NAME, IS_DEV, STP_TEMPLATE_FILE_NAME } from '@config';
 import { getPlatform } from '@shared/utils/bin-executable';
 import {
-  ESBUILD_BINARY_FILE_NAMES,
   NIXPACKS_BINARY_FILE_NAMES,
   PACK_BINARY_FILE_NAMES,
   SESSION_MANAGER_PLUGIN_BINARY_FILE_NAMES
@@ -18,6 +17,8 @@ import {
 
 export const fsPaths = {
   absoluteExecutableDirname() {
+    // this can be either in node_modules, or in user's home directory
+    // for development mode, it's in the project root
     return dirname(process.execPath);
   },
   absoluteTempFolderPath({ invocationId }: { invocationId: string }) {
@@ -103,7 +104,7 @@ export const fsPaths = {
       : join(
           fsPaths.absoluteExecutableDirname(),
           'session-manager-plugin',
-          SESSION_MANAGER_PLUGIN_BINARY_FILE_NAMES[getPlatform()]
+          getPlatform() === 'win' ? 'smp.exe' : 'smp'
         );
   },
   packPath() {
@@ -118,12 +119,12 @@ export const fsPaths = {
   },
   esbuildBinaryPath() {
     return IS_DEV
-      ? join(process.cwd(), 'node_modules', 'esbuild', ESBUILD_BINARY_FILE_NAMES[getPlatform()])
-      : join(fsPaths.absoluteExecutableDirname(), 'esbuild', ESBUILD_BINARY_FILE_NAMES[getPlatform()]);
+      ? null // development mode uses node_modules esbuild
+      : join(fsPaths.absoluteExecutableDirname(), 'esbuild', getPlatform() === 'win' ? 'exec.exe' : 'exec');
   },
   nixpacksPath() {
     return IS_DEV
       ? join(SCRIPTS_ASSETS_PATH, 'nixpacks', NIXPACKS_BINARY_FILE_NAMES[getPlatform()])
-      : join(fsPaths.absoluteExecutableDirname(), 'nixpacks', NIXPACKS_BINARY_FILE_NAMES[getPlatform()]);
+      : join(fsPaths.absoluteExecutableDirname(), 'nixpacks', getPlatform() === 'win' ? 'nixpacks.exe' : 'nixpacks');
   }
 };

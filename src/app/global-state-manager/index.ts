@@ -131,7 +131,7 @@ export class GlobalStateManager {
         const res = await userPrompt({
           type: 'password',
           name: 'apiKey',
-          message: `Your Stacktape API key (available in the ${printer.getLink('apiKeys', 'console')}`
+          message: `Your Stacktape API key (available in the ${printer.getLink('apiKeys', 'console')})`
         });
         this.apiKey = res.apiKey;
         await this.saveApiKey({ apiKey: res.apiKey });

@@ -11,36 +11,3 @@ export const execNixpacks = async ({ args, cwd }: { args: string[]; cwd: string 
     });
   });
 };
-
-// if (checkExecutableInPath('pack')) {
-//   try {
-//     const packResult = await exec('pack', args, {
-//       cwd,
-// disableStdout: true,
-// disableStderr: true
-//     });
-//     output = packResult.stdout;
-//   } catch (err) {
-//     throw buildError(err);
-//   }
-// } else {
-//   const command = [
-//     'run',
-//     '-v',
-//     '/var/run/docker.sock:/var/run/docker.sock',
-//     '-v',
-//     `${cwd}:/workspace`,
-//     '--user',
-//     'root',
-//     `buildpacksio/pack:${version || '0.22.0'}`,
-//     ...args
-//   ];
-//   let stderr;
-//   try {
-//     ({ stderr } = await execDocker(command));
-//   } catch (err) {
-//     throw buildError(err);
-//   }
-//   output = stderr;
-// }
-// return output;

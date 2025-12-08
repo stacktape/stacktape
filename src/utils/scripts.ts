@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { IS_DEV } from '@config';
 import { stpErrors } from '@errors';
+import { fsPaths } from '@shared/naming/fs-paths';
 import { checkExecutableInPath } from '@shared/utils/bin-executable';
 import { exec } from '@shared/utils/exec';
 import { getFileExtension } from '@shared/utils/fs-utils';
@@ -145,10 +146,7 @@ const execScriptInNewProcess = async ({
       break;
     }
     case 'ts': {
-      const absoluteEsbuildRegisterPath = IS_DEV
-        ? join(process.cwd(), 'node_modules', 'esbuild-register', 'register')
-        : join(__dirname, 'esbuild', 'esbuild-register.js');
-      await exec(absoluteNodeExecPath, ['-r', absoluteEsbuildRegisterPath, absoluteScriptPath], {
+      await exec(absoluteNodeExecPath, ['-r', fsPaths.esbuildRegisterPath(), absoluteScriptPath], {
         env: { ...env, ESBUILD_BINARY_PATH: process.env.ESBUILD_BINARY_PATH },
         ...stdioOpts,
         inheritEnvVarsExcept: ['ESBUILD_BINARY_PATH'],

@@ -169,7 +169,7 @@ export const getBatchComputeResourcesConfig = (spot: boolean, gpu: boolean) => {
     MaxvCpus: 1000,
     Ec2Configuration: [{ ImageType: gpu ? 'ECS_AL2_NVIDIA' : 'ECS_AL2' }],
     InstanceTypes: gpu ? ['p4d', 'g5'] : ['optimal'],
-    Subnets: vpcManager.getPublicSubnetIds(),
+    Subnets: vpcManager.getPublicSubnetIds().slice(0, 2),
     AllocationStrategy: 'BEST_FIT',
     SecurityGroupIds: [Ref(cfLogicalNames.batchInstanceDefaultSecurityGroup())],
     LaunchTemplate: {

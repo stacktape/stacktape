@@ -47,15 +47,6 @@ export const SESSION_MANAGER_PLUGIN_BINARY_FILE_NAMES: { [_platform in Supported
   'linux-arm': 'smp-linux-arm'
 };
 
-export const ESBUILD_BINARY_FILE_NAMES: { [_platform in SupportedPlatform]: string } = {
-  win: 'exec.exe',
-  macos: 'exec',
-  linux: 'exec',
-  'macos-arm': 'exec',
-  alpine: 'exec',
-  'linux-arm': 'exec'
-};
-
 export const COMMENT_FOR_STACKTAPE_ZONE = 'STACKTAPE';
 
 export const EDGE_LAMBDA_ENV_ASSET_REPLACER_PLACEHOLDER = '"{{_STP_INJ_ENV_}}"';

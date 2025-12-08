@@ -10,7 +10,7 @@ export const commandLogin = async () => {
     const res = await userPrompt({
       type: 'password',
       name: 'apiKey',
-      message: `Your Stacktape API key (available in the ${printer.getLink('apiKeys', 'console')}`
+      message: `Your Stacktape API key (available in the ${printer.getLink('apiKeys', 'console')})`
     });
     apiKey = res.apiKey;
   }
