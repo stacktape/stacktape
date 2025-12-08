@@ -1,17 +1,9 @@
-import { dirname, join } from 'node:path';
-import { IS_DEV } from '@config';
-import { SCRIPTS_ASSETS_PATH } from '@shared/naming/project-fs-paths';
-import { getPlatform } from './bin-executable';
-import { NIXPACKS_BINARY_FILE_NAMES } from './constants';
+import { fsPaths } from '@shared/naming/fs-paths';
 import { exec } from './exec';
 import { getError } from './misc';
 
-const packPath = IS_DEV
-  ? join(SCRIPTS_ASSETS_PATH, 'nixpacks', NIXPACKS_BINARY_FILE_NAMES[getPlatform()])
-  : join(dirname(process.execPath), 'nixpacks', getPlatform() === 'win' ? 'nixpacks.exe' : 'nixpacks');
-
 export const execNixpacks = async ({ args, cwd }: { args: string[]; cwd: string }) => {
-  return exec(packPath, args, { cwd, disableStdout: true, disableStderr: true }).catch((err) => {
+  return exec(fsPaths.nixpacksPath(), args, { cwd, disableStdout: true, disableStderr: true }).catch((err) => {
     throw getError({
       type: 'NIXPACKS',
       message: `Failed to execute nixpacks command '${args.join(' ')}' in directory ${cwd}:\n${err.message}`,

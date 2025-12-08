@@ -1,8 +1,7 @@
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
-import { IS_DEV_NATIVE } from '@config';
 import { stpErrors } from '@errors';
-import { STARTER_PROJECTS_METADATA_FOLDER_NAME } from '@shared/naming/project-fs-paths';
+import { fsPaths } from '@shared/naming/fs-paths';
 import { downloadFile } from '@shared/utils/download-file';
 import { deleteDirectoryContent } from '@shared/utils/fs-utils';
 import { unzip } from '@shared/utils/unzip';
@@ -18,11 +17,9 @@ import {
 } from './utils';
 
 export const initUsingStarterProject = async () => {
-  const startersMetadataFilePath = IS_DEV_NATIVE
-    ? join(process.cwd(), STARTER_PROJECTS_METADATA_FOLDER_NAME)
-    : join(dirname(process.execPath), STARTER_PROJECTS_METADATA_FOLDER_NAME);
-
-  const availableStarters = await getAvailableStartersMetadata({ startersMetadataFilePath });
+  const availableStarters = await getAvailableStartersMetadata({
+    startersMetadataFilePath: fsPaths.startersMetadataFilePath()
+  });
 
   let projectToUse: (typeof availableStarters)[number];
   if (globalStateManager.args.starterId) {

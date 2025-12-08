@@ -1,33 +1,25 @@
 import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { CF_TEMPLATE_FILE_NAME, INITIAL_CF_TEMPLATE_FILE_NAME, IS_DEV, STP_TEMPLATE_FILE_NAME } from '@config';
+import { getPlatform } from '@shared/utils/bin-executable';
+import {
+  ESBUILD_BINARY_FILE_NAMES,
+  NIXPACKS_BINARY_FILE_NAMES,
+  PACK_BINARY_FILE_NAMES,
+  SESSION_MANAGER_PLUGIN_BINARY_FILE_NAMES
+} from '@shared/utils/constants';
 import { getHomeDir } from '@shared/utils/misc';
-import { existsSync } from 'fs-extra';
-import { DEV_TMP_FOLDER_PATH, HELPER_LAMBDAS_FOLDER_NAME } from './project-fs-paths';
-
-// Get the directory of the current module
-// Works in both Bun compiled executables and Node.js/npm installations
-const getCurrentModuleDir = () => {
-  // For Bun compiled executables, use process.execPath
-  if (process.isBun && process.execPath.includes('stacktape')) {
-    return dirname(process.execPath);
-  }
-
-  // For ESM modules, use import.meta.url
-  if (typeof import.meta !== 'undefined' && import.meta.url) {
-    return dirname(fileURLToPath(import.meta.url));
-  }
-
-  // Fallback to __dirname (works in CommonJS/transpiled code)
-  if (typeof __dirname !== 'undefined') {
-    return __dirname;
-  }
-
-  // Last resort: use process.argv[1] (the script being executed)
-  return dirname(process.argv[1]);
-};
+import {
+  BRIDGE_FILES_FOLDER_NAME,
+  DEV_TMP_FOLDER_PATH,
+  HELPER_LAMBDAS_FOLDER_NAME,
+  SCRIPTS_ASSETS_PATH,
+  STARTER_PROJECTS_METADATA_FOLDER_NAME
+} from './project-fs-paths';
 
 export const fsPaths = {
+  absoluteExecutableDirname() {
+    return dirname(process.execPath);
+  },
   absoluteTempFolderPath({ invocationId }: { invocationId: string }) {
     return join(process.cwd(), '.stacktape', invocationId);
   },
@@ -74,38 +66,7 @@ export const fsPaths = {
     if (IS_DEV) {
       return join(DEV_TMP_FOLDER_PATH, HELPER_LAMBDAS_FOLDER_NAME);
     }
-
-    // In production, try multiple locations to find helper-lambdas
-    // This handles different installation methods: standalone executable, npm package, etc.
-    const possibleLocations = [
-      // 1. Next to the executable (for Bun compiled standalone binaries)
-      join(dirname(process.execPath), 'helper-lambdas'),
-
-      // 2. Next to the main script being executed (for npm installations)
-      join(dirname(process.argv[1]), 'helper-lambdas'),
-
-      // 3. Relative to the current module (when bundled with known structure)
-      join(getCurrentModuleDir(), '../../helper-lambdas'),
-      join(getCurrentModuleDir(), '../../../helper-lambdas'),
-
-      // 4. In the package bin directory (for npm packages)
-      join(getCurrentModuleDir(), '../../../bin/helper-lambdas')
-    ];
-
-    // Return the first location that exists
-
-    for (const location of possibleLocations) {
-      try {
-        if (existsSync(location)) {
-          return location;
-        }
-      } catch {
-        // Continue to next location
-      }
-    }
-
-    // Fallback to the first option if none exist (will error later with clear path)
-    return possibleLocations[0];
+    return join(fsPaths.absoluteExecutableDirname(), HELPER_LAMBDAS_FOLDER_NAME);
   },
   stackInfoDirectory({ workingDir, directoryName }: { workingDir: string; directoryName: string }) {
     return join(workingDir, directoryName || '.stacktape-stack-info');
@@ -126,38 +87,39 @@ export const fsPaths = {
     return join(process.cwd(), outputFileName || `stack-info.${outputFormat}`);
   },
   pythonBridgeScriptPath() {
-    const possibleLocations = [
-      // 1. Next to the executable (for Bun compiled standalone binaries)
-      join(dirname(process.execPath), 'bridge-files', 'python-bridge.py'),
-
-      // 2. Next to the main script being executed (for npm installations)
-      join(dirname(process.argv[1]), 'bridge-files', 'python-bridge.py'),
-
-      // 3. Relative to the current module
-      join(getCurrentModuleDir(), '../../bridge-files', 'python-bridge.py'),
-      join(getCurrentModuleDir(), '../../../bridge-files', 'python-bridge.py'),
-
-      // 4. In the package bin directory (for npm packages)
-      join(getCurrentModuleDir(), '../../../bin/bridge-files', 'python-bridge.py')
-    ];
-
-    // Return the first location that exists
-    // eslint-disable-next-line ts/no-require-imports
-    const fs = require('node:fs');
-    for (const location of possibleLocations) {
-      try {
-        if (fs.existsSync(location)) {
-          return location;
-        }
-      } catch {
-        // Continue to next location
-      }
-    }
-
-    // Fallback to the first option
-    return possibleLocations[0];
+    return join(fsPaths.absoluteExecutableDirname(), BRIDGE_FILES_FOLDER_NAME, 'python-bridge.py');
   },
   stackInfoPath({ dirPath, stackName }: { dirPath: string; stackName: string }) {
     return join(dirPath, `${stackName}.json`);
+  },
+  startersMetadataFilePath() {
+    return IS_DEV
+      ? join(process.cwd(), STARTER_PROJECTS_METADATA_FOLDER_NAME)
+      : join(fsPaths.absoluteExecutableDirname(), STARTER_PROJECTS_METADATA_FOLDER_NAME);
+  },
+  sessionManagerPath() {
+    return IS_DEV
+      ? join(SCRIPTS_ASSETS_PATH, SESSION_MANAGER_PLUGIN_BINARY_FILE_NAMES[getPlatform()])
+      : join(fsPaths.absoluteExecutableDirname(), SESSION_MANAGER_PLUGIN_BINARY_FILE_NAMES[getPlatform()]);
+  },
+  packPath() {
+    return IS_DEV
+      ? join(SCRIPTS_ASSETS_PATH, 'pack', PACK_BINARY_FILE_NAMES[getPlatform()])
+      : join(fsPaths.absoluteExecutableDirname(), 'pack', getPlatform() === 'win' ? 'pack.exe' : 'pack');
+  },
+  esbuildRegisterPath() {
+    return IS_DEV
+      ? join(process.cwd(), 'node_modules', 'esbuild-register', 'register')
+      : join(fsPaths.absoluteExecutableDirname(), 'esbuild', 'esbuild-register.js');
+  },
+  esbuildBinaryPath() {
+    return IS_DEV
+      ? join(process.cwd(), 'node_modules', 'esbuild', ESBUILD_BINARY_FILE_NAMES[getPlatform()])
+      : join(fsPaths.absoluteExecutableDirname(), 'esbuild', ESBUILD_BINARY_FILE_NAMES[getPlatform()]);
+  },
+  nixpacksPath() {
+    return IS_DEV
+      ? join(SCRIPTS_ASSETS_PATH, 'nixpacks', NIXPACKS_BINARY_FILE_NAMES[getPlatform()])
+      : join(fsPaths.absoluteExecutableDirname(), 'nixpacks', NIXPACKS_BINARY_FILE_NAMES[getPlatform()]);
   }
 };

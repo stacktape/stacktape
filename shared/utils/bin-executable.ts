@@ -1,4 +1,4 @@
-import path, { join } from 'node:path';
+import path from 'node:path';
 import fsExtra from 'fs-extra';
 
 const isWindows = /^win/i.test(process.platform);
@@ -104,13 +104,4 @@ export const getInstallationScript = () => {
     'macos-arm': 'curl -L https://installs.stacktape.com/macos-arm.sh | sh'
   };
   return installationScripts[getPlatform()];
-};
-
-const getDevModeBinPath = () => {
-  const binPath = {
-    win32: 'windows/stacktape.exe',
-    darwin: 'macos/stacktape',
-    linux: 'linux/stacktape'
-  }[process.platform];
-  return join(process.cwd(), '__binary-dist', binPath);
 };

@@ -8,7 +8,6 @@ import { exec } from '@shared/utils/exec';
 import { getFileExtension } from '@shared/utils/fs-utils';
 import { ExpectedError } from './errors';
 import { getPythonExecutable } from './file-loaders';
-import { INSTALLATION_DIR } from './versioning';
 
 export const getScriptEnv = ({
   userDefinedEnv = [],
@@ -148,7 +147,7 @@ const execScriptInNewProcess = async ({
     case 'ts': {
       const absoluteEsbuildRegisterPath = IS_DEV
         ? join(process.cwd(), 'node_modules', 'esbuild-register', 'register')
-        : join(INSTALLATION_DIR, 'esbuild', 'esbuild-register.js');
+        : join(__dirname, 'esbuild', 'esbuild-register.js');
       await exec(absoluteNodeExecPath, ['-r', absoluteEsbuildRegisterPath, absoluteScriptPath], {
         env: { ...env, ESBUILD_BINARY_PATH: process.env.ESBUILD_BINARY_PATH },
         ...stdioOpts,

@@ -1,22 +1,8 @@
 import { existsSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { fsPaths } from '@shared/naming/fs-paths';
 
-// Set up esbuild binary path BEFORE any other imports
-// This must happen before esbuild module is loaded because esbuild checks
-// ESBUILD_BINARY_PATH during module initialization to locate its native binary.
-// When bundled with Bun, the normal resolution logic fails.
-const ESBUILD_BINARY = {
-  win32: 'exec.exe',
-  darwin: 'exec',
-  linux: 'exec'
-}[process.platform];
-
-const esbuildBinPath = join(dirname(process.execPath), 'esbuild', ESBUILD_BINARY);
-
-// Only set if the binary exists at the expected location (for bundled binary distribution)
-// This allows development mode to use node_modules esbuild
-if (existsSync(esbuildBinPath)) {
-  process.env.ESBUILD_BINARY_PATH = esbuildBinPath;
+if (existsSync(fsPaths.esbuildBinaryPath())) {
+  process.env.ESBUILD_BINARY_PATH = fsPaths.esbuildBinaryPath();
 }
 
 const main = async () => {

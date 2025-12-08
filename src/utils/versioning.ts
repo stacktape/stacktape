@@ -1,5 +1,3 @@
-import { homedir } from 'node:os';
-import { join } from 'node:path';
 import { DEFAULT_KEEP_PREVIOUS_DEPLOYMENT_ARTIFACTS_COUNT, IS_DEV } from '@config';
 import { jsonFetch } from './http-client';
 
@@ -50,5 +48,3 @@ export const getLatestStacktapeVersion = async () => {
   const res = await jsonFetch('https://installs.stacktape.com/_data.json');
   return res.latestVersion;
 };
-
-export const INSTALLATION_DIR = join(homedir(), '.stacktape', 'bin');

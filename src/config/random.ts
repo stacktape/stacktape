@@ -1,6 +1,4 @@
-export const IS_DEV_NATIVE = process.env.STP_DEV_MODE === 'true';
-export const IS_DEV_BIN = process.env.STP_DEV_BIN_MODE === 'true';
-export const IS_DEV = IS_DEV_NATIVE || IS_DEV_BIN;
+export const IS_DEV = process.env.STP_DEV_MODE === 'true';
 
 export const VALID_CONFIG_PATHS = ['stacktape.yaml', 'stacktape.yml', 'stacktape.js', 'stacktape.ts'];
 export const ANNOUNCEMENTS_ENDPOINT = 'https://announcements.stacktape-dev.com';

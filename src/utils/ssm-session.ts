@@ -5,10 +5,10 @@ import readline from 'node:readline';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { CommandInvocationStatus } from '@aws-sdk/client-ssm';
 import { stpErrors } from '@errors';
+import { fsPaths } from '@shared/naming/fs-paths';
 import { injectedParameterEnvVarName } from '@shared/naming/utils';
 import { wait } from '@shared/utils/misc';
 import { isPortInUse } from '@shared/utils/ports';
-import { sessionManagerPath } from '@shared/utils/session-manager-exec';
 import execa from 'execa';
 import findFreePorts from 'find-free-ports';
 import pRetry from 'p-retry';
@@ -67,7 +67,7 @@ export class SsmPortForwardingTunnel {
         async () => {
           return awsSdkManager.startSsmSession(startSessionCommandInput).then((startSessionResponse) => {
             this.#ssmSessionId = startSessionResponse.SessionId;
-            this.#tunnelProcess = execa(sessionManagerPath, [
+            this.#tunnelProcess = execa(fsPaths.sessionManagerPath(), [
               JSON.stringify(startSessionResponse),
               this.#region,
               'StartSession',
@@ -135,7 +135,7 @@ export const runBastionSsmShellSession = async ({ instanceId, region }: { instan
 
   try {
     await execa(
-      sessionManagerPath,
+      fsPaths.sessionManagerPath(),
       [JSON.stringify(startSessionResponse), region, 'StartSession', '', JSON.stringify(startSessionCommandInput)],
       { stdio: 'inherit' }
     );
@@ -173,7 +173,7 @@ export const runEcsExecSsmShellSession = async ({
 
   try {
     await execa(
-      sessionManagerPath,
+      fsPaths.sessionManagerPath(),
       [JSON.stringify(startSessionResponse), region, 'StartSession', '', JSON.stringify(startSessionTargetParams)],
       { stdio: 'inherit' }
     );
@@ -210,8 +210,9 @@ export const runSsmShellScript = async ({
   const commandFailureStatus = [
     CommandInvocationStatus.CANCELLED,
     CommandInvocationStatus.TIMED_OUT,
-    CommandInvocationStatus.FAILED
-  ];
+    CommandInvocationStatus.FAILED,
+    CommandInvocationStatus.CANCELLING
+  ] as const;
   const logGroupName = '/aws/ssm/AWS-RunShellScript';
 
   const logPrinter = new SsmExecuteScriptCloudwatchLogPrinter({
@@ -222,7 +223,7 @@ export const runSsmShellScript = async ({
   });
 
   while (executionInfo.Status !== CommandInvocationStatus.SUCCESS) {
-    if (commandFailureStatus.includes(executionInfo.Status as CommandInvocationStatus)) {
+    if (commandFailureStatus.includes(executionInfo.Status as any)) {
       await wait(1000);
       await logPrinter.printLogs();
       throw new Error('Command exited with non-zero status.');
