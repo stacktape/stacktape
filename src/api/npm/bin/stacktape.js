@@ -6,7 +6,16 @@
  */
 
 const { spawnSync, execSync } = require('node:child_process');
-const { createWriteStream, existsSync, chmodSync, mkdirSync, accessSync, constants, unlinkSync } = require('node:fs');
+const {
+  createWriteStream,
+  existsSync,
+  chmodSync,
+  mkdirSync,
+  accessSync,
+  constants,
+  unlinkSync,
+  readFileSync
+} = require('node:fs');
 const { get: httpsGet } = require('node:https');
 const { platform, arch, homedir } = require('node:os');
 const { join } = require('node:path');
@@ -230,25 +239,38 @@ function getManualInstallCommand(platformKey) {
   return commands[platformKey] || 'See https://docs.stacktape.com for installation instructions';
 }
 
-function getGlobalBinaryPath() {
+function getGlobalBinaryPathIfVersionMatches() {
   const binaryName = platform() === 'win32' ? 'stacktape.exe' : 'stacktape';
-  const globalBinaryPath = join(homedir(), '.stacktape', 'bin', binaryName);
-  if (existsSync(globalBinaryPath)) {
-    try {
-      accessSync(globalBinaryPath, constants.X_OK);
-      return globalBinaryPath;
-    } catch {
-      return globalBinaryPath;
-    }
+  const globalDir = join(homedir(), '.stacktape', 'bin');
+  const globalBinaryPath = join(globalDir, binaryName);
+  const releaseDataPath = join(globalDir, 'release-data.json');
+
+  if (!existsSync(globalBinaryPath) || !existsSync(releaseDataPath)) {
+    return null;
   }
-  return null;
+
+  try {
+    const { version } = JSON.parse(readFileSync(releaseDataPath, 'utf8'));
+    if (version !== PACKAGE_VERSION) {
+      return null;
+    }
+  } catch {
+    return null;
+  }
+
+  try {
+    accessSync(globalBinaryPath, constants.X_OK);
+    return globalBinaryPath;
+  } catch {
+    return globalBinaryPath;
+  }
 }
 
 async function main() {
   try {
     const args = process.argv.slice(2);
 
-    const globalBinaryPath = getGlobalBinaryPath();
+    const globalBinaryPath = getGlobalBinaryPathIfVersionMatches();
     if (globalBinaryPath) {
       const result = spawnSync(globalBinaryPath, args, {
         stdio: 'inherit',
