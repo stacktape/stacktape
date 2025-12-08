@@ -99,8 +99,12 @@ export const fsPaths = {
   },
   sessionManagerPath() {
     return IS_DEV
-      ? join(SCRIPTS_ASSETS_PATH, SESSION_MANAGER_PLUGIN_BINARY_FILE_NAMES[getPlatform()])
-      : join(fsPaths.absoluteExecutableDirname(), SESSION_MANAGER_PLUGIN_BINARY_FILE_NAMES[getPlatform()]);
+      ? join(SCRIPTS_ASSETS_PATH, 'session-manager-plugin', SESSION_MANAGER_PLUGIN_BINARY_FILE_NAMES[getPlatform()])
+      : join(
+          fsPaths.absoluteExecutableDirname(),
+          'session-manager-plugin',
+          SESSION_MANAGER_PLUGIN_BINARY_FILE_NAMES[getPlatform()]
+        );
   },
   packPath() {
     return IS_DEV
