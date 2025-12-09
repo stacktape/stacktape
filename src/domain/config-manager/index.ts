@@ -1892,7 +1892,7 @@ export class ConfigManager {
         }
       }
     });
-    return secretNames;
+    return Array.from(new Set(secretNames));
   }
 
   get allParameterNamesUsedInAlarmNotifications() {
