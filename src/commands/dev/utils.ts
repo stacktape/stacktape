@@ -142,10 +142,13 @@ export const getWorkloadEnvironmentVars = async (jobDetails: {
     deployedStackOverviewManager.locallyResolveEnvVariablesFromConnectTo(jobDetails.connectTo)
   ]);
 
+  // On Linux with --network host, container can access host's 127.0.0.1 directly.
+  // On Windows/macOS, Docker runs in a VM, so we need to use host.docker.internal.
+  const tunnelHost = process.platform === 'linux' ? '127.0.0.1' : 'host.docker.internal';
   const substitutedInjectedEnvVars = substituteTunneledEndpointsInEnvironmentVars({
     tunnels: jobDetails.tunnels || [],
-    env: Object.entries(resolvedInjectedVars).map(([key, value]) => ({ name: key, value }))
-    // host: '172.17.0.1'
+    env: Object.entries(resolvedInjectedVars).map(([key, value]) => ({ name: key, value })),
+    host: tunnelHost
   }).reduce(
     (acc, item) => {
       return { ...acc, [item.name]: item.value };

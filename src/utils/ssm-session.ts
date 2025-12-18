@@ -299,7 +299,7 @@ export const substituteTunneledEndpointsInEnvironmentVars = ({
     tunnels.forEach((tunnel) => {
       tunnel.targetInfo.affectedReferencableParams.forEach((paramName) => {
         if (envVar.name === injectedParameterEnvVarName(tunnel.targetInfo.targetStpName, paramName)) {
-          envVar.value = `${envVar.value}`.replaceAll(`${tunnel.remoteHost}`, '127.0.0.1');
+          envVar.value = `${envVar.value}`.replaceAll(`${tunnel.remoteHost}`, host);
         }
       });
     });

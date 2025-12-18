@@ -1,4 +1,4 @@
-import { cfLogicalNames } from '@shared/naming/logical-names';
+import { cfLogicalNames } from '../../../../shared/naming/logical-names';
 
 export const CHILD_RESOURCES: Record<
   StpResourceType,

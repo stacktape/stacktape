@@ -443,11 +443,16 @@ export const dockerRun = async ({
   // we are using host network to allow the container to use bastion tunnels
   // after they implement capability for tunnel to bind to other than 127.0.0.1, we can remove this switch back
   // see here https://github.com/aws/session-manager-plugin/pull/54
-  dockerArgs.push('--network', 'host');
+  // NOTE: --network host only works properly on Linux. On macOS/Windows, Docker runs in a VM,
+  // so host networking only shares the VM's network, not the actual host. Use port mappings instead.
+  const isLinux = process.platform === 'linux';
+  if (isLinux) {
+    dockerArgs.push('--network', 'host');
+  }
   if (Object.keys(environment).length) {
     dockerArgs.push(...getEnvironmentArgsForDocker(environment));
   }
-  if (portMappings) {
+  if (portMappings && !isLinux) {
     dockerArgs.push(...getPortsArgs(portMappings));
   }
   dockerArgs.push(...getDockerArgsFromCli(args));

@@ -39,12 +39,6 @@ export const AI_DOCS_FOLDER_PATH = join(process.cwd(), '@generated', 'ai-docs');
 export const CLOUDFORM_FOLDER_PATH = join(process.cwd(), '@generated', 'cloudform');
 export const CLOUDFORM_ROOT_HELPER_FOLDER_PATH = join(process.cwd(), 'scripts', 'cloudform-root-helpers');
 
-const CONSOLE_APP_PATH = join(process.cwd(), '..', 'console-app');
-
-export const CONFIG_CONVERTER_DIST_PATH = join(DIST_FOLDER_PATH, 'config-converter.js');
-export const CONSOLE_APP_SERVER_DIST_PATH = join(CONSOLE_APP_PATH, '@generated', 'cli-commands.js');
-export const CONSOLE_APP_CONFIG_CONVERTER_DIST_PATH = join(CONSOLE_APP_PATH, '@generated', 'config-converter.js');
-
 export const CONFIG_SCHEMA_PATH = join(JSON_SCHEMAS_FOLDER_PATH, 'config-schema.json');
 export const CLI_SCHEMA_PATH = join(JSON_SCHEMAS_FOLDER_PATH, 'cli-schema.json');
 export const SDK_SCHEMA_PATH = join(JSON_SCHEMAS_FOLDER_PATH, 'sdk-schema.json');
@@ -57,5 +51,3 @@ export const SCRIPTS_ASSETS_PATH = join(process.cwd(), 'scripts', 'assets');
 
 export const CLI_SOURCE_PATH = join(SOURCE_FOLDER_PATH, 'api', 'cli', 'index.ts');
 export const SDK_SOURCE_PATH = join(SOURCE_FOLDER_PATH, 'api', 'npm', 'sdk', 'index.ts');
-export const SERVER_SOURCE_PATH = join(SOURCE_FOLDER_PATH, 'api', 'server', 'index.ts');
-export const CONFIG_CONVERTER_SOURCE_PATH = join(process.cwd(), 'shared', 'utils', 'config-converter.ts');

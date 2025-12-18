@@ -162,7 +162,7 @@ const runDockerContainer = async (
     image: imageName,
     command,
     environment,
-    // portMappings: ports.map((port) => ({ containerPort: port, hostPort: port })),
+    portMappings: ports.map((port) => ({ containerPort: port, hostPort: port })),
     transformStderrPut: transformContainerWorkloadStdout,
     transformStdoutPut: transformContainerWorkloadStdout,
     onStart: () => {
