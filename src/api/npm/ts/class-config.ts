@@ -319,7 +319,26 @@ export const RESOURCES_CONVERTIBLE_TO_CLASSES: ResourceDefinition[] = [
     propsType: 'NextjsWebProps',
     interfaceName: 'NextjsWeb',
     sourceFile: 'nextjs-web.d.ts',
-    canConnectTo: []
+    hasAugmentedProps: true,
+    canConnectTo: [
+      'RelationalDatabase',
+      'Bucket',
+      'HostingBucket',
+      'DynamoDbTable',
+      'EventBus',
+      'RedisCluster',
+      'MongoDbAtlasCluster',
+      'UpstashRedis',
+      'SqsQueue',
+      'SnsTopic',
+      'OpenSearchDomain',
+      'EfsFilesystem',
+      'PrivateService',
+      'WebService',
+      'LambdaFunction',
+      'BatchJob',
+      'UserAuthPool'
+    ]
   },
   {
     className: 'Bastion',
