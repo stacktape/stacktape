@@ -55,3 +55,7 @@ export const logErrorMessage = (errorMessages) => {
   const beginningLength = stripAnsi(beginning).length + 1;
   console.error(`${beginning} ${errorMessages.join(`\n${' '.repeat(beginningLength)}`)}`);
 };
+
+export const logPath = (path: string) => {
+  return kleur.gray().bold(path);
+};

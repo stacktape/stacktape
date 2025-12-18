@@ -232,7 +232,7 @@ export const buildEsCode = async ({
       banner: sourceMapBanner,
       bundle: true,
       external: ['fsevents', ...externals],
-      sourcemap: sourceMaps !== 'disabled',
+      sourcemap: sourceMaps !== 'disabled' ? sourceMaps : false,
       keepNames: keepNames || false,
       minify: minify !== undefined ? minify : true,
       platform: 'node',

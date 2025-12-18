@@ -40,7 +40,6 @@ export const buildNpm = async ({ version }: { version?: string } = {}) => {
   logSuccess(`Stacktape npm package for version ${versionToUse} built successfully to ${NPM_RELEASE_FOLDER_PATH}.`);
 };
 
-const isMain = process.argv[1]?.includes('build-npm');
-if (isMain) {
+if (import.meta.main) {
   buildNpm();
 }
