@@ -53,7 +53,7 @@ const main = async () => {
       }
     });
 
-    if (response.status === 204) {
+    if (response.status >= 200 && response.status < 300) {
       logSuccess(
         `Build workflow triggered successfully!\n\nView workflow runs at: https://github.com/stacktape/stacktape/actions`
       );
