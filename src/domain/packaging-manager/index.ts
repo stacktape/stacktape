@@ -2,6 +2,7 @@ import { join } from 'node:path';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { DEFAULT_CONTAINER_NODE_VERSION, DEFAULT_LAMBDA_NODE_VERSION } from '@config';
+import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
@@ -41,6 +42,16 @@ const getCacheRef = (jobName: string) => {
   return `${repositoryUrl}:${cacheTag}`;
 };
 
+const doesTargetStackExist = () => {
+  // We only want to use remote registry cache when deploying to an existing stack.
+  // On first deploy (stack create), the deployment ECR repo doesn't exist yet, and BuildKit cache export fails with 404.
+  return Boolean(stackManager.existingStackDetails && stackManager.existingStackResources.length);
+};
+
+const shouldUseRemoteDockerCache = () => {
+  return !globalStateManager.args.disableDockerRemoteCache && doesTargetStackExist();
+};
+
 export class PackagingManager {
   #packagedJobs: PackageWorkloadOutput[] = [];
 
@@ -69,7 +80,7 @@ export class PackagingManager {
     if (await isDockerRunning()) {
       await this.#installMissingDockerBuildPlatforms();
       // Ensure buildx builder for remote cache is available (required for cache export)
-      if (!globalStateManager.args.disableDockerRemoteCache) {
+      if (shouldUseRemoteDockerCache()) {
         await ensureBuildxBuilderForCache();
       }
     }
@@ -344,8 +355,7 @@ export class PackagingManager {
     const packagingType = packaging.type;
     const progressLogger = eventManager.getNamespacedInstance({ eventType: parentEventType, identifier: jobName });
 
-    const useRemoteCache = !globalStateManager.args.disableDockerRemoteCache;
-    const cacheRef = useRemoteCache ? getCacheRef(jobName) : undefined;
+    const cacheRef = shouldUseRemoteDockerCache() ? getCacheRef(jobName) : undefined;
 
     const sharedProps = {
       name: jobName,
