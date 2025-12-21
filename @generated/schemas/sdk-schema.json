@@ -116,6 +116,13 @@
         ],
         "required": false
       },
+      "disableDockerRemoteCache": {
+        "description": "#### Disable Docker Remote Cache\n\n---\n\nDisables Docker layer caching using ECR as remote cache storage.\nBy default, remote caching is enabled to speed up Docker builds by reusing layers.\nSet to `true` to disable remote caching.",
+        "allowedTypes": [
+          "boolean"
+        ],
+        "required": false
+      },
       "disableAutoRollback": {
         "description": "#### Disable Auto-Rollback\n\n---\n\nIf `true`, disables automatic rollback on deployment failure.\n\n- **With auto-rollback (default):** If a deployment fails, the stack is automatically rolled back to the last known good state.\n- **Without auto-rollback:** If a deployment fails, the stack remains in the `UPDATE_FAILED` state. You can then either fix the issues and redeploy or manually roll back using the `stacktape rollback` command.",
         "allowedTypes": [
@@ -369,6 +376,13 @@
       },
       "noCache": {
         "description": "#### No Cache\n\n---\n\nIf `true`, disables the use of cached artifacts and forces a fresh build of compute resources.",
+        "allowedTypes": [
+          "boolean"
+        ],
+        "required": false
+      },
+      "disableDockerRemoteCache": {
+        "description": "#### Disable Docker Remote Cache\n\n---\n\nDisables Docker layer caching using ECR as remote cache storage.\nBy default, remote caching is enabled to speed up Docker builds by reusing layers.\nSet to `true` to disable remote caching.",
         "allowedTypes": [
           "boolean"
         ],

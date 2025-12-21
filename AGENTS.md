@@ -1,8 +1,4 @@
----
-alwaysApply: true
----
-
-## Writing rules
+# Writing rules
 
 - Be concise. Sacrifice grammar for the sake of concision.
 
@@ -14,6 +10,7 @@ alwaysApply: true
 - To write helper functions, prefer arrow functions, e.g. `const myFunc = () => {}`
 - Only use classes when necessary. Prefer writhing procedural/functional code. E.g. just write 3 arrow functions, instead of a class with 3 methods.
 - Prefer typescript types over interfaces.
+- When using any function that writes to the console, use a single "write". E.g. don't write multiple console.log beneath each other.
 
 # Terminal rules
 
@@ -21,5 +18,5 @@ alwaysApply: true
 
 # Code style
 
-- Ignore formatting errors from eslint or prettier.
+- Ignore formatting errors (from eslint or prettier) if they are not easy for you to fix.
 - Don't add unnecessary comments to the code

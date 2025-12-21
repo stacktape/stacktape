@@ -34,7 +34,8 @@ export const cliCommands = [
   'help',
   'login',
   'logout',
-  'param:get'
+  'param:get',
+  'upgrade'
 ] as const;
 
 export const sdkCommands = [
@@ -73,9 +74,9 @@ const sdkArgsForConfigDependentCommands: StacktapeSdkArg[] = [
   'templateId'
 ];
 
-export const commandsWithDisabledAnnouncements: StacktapeCommand[] = ['dev', 'version'];
+export const commandsWithDisabledAnnouncements: StacktapeCommand[] = ['dev', 'version', 'upgrade'];
 
-export const commandsNotRequiringApiKey = ['login', 'logout', 'version', 'help', 'defaults:list', 'defaults:configure'];
+export const commandsNotRequiringApiKey = ['login', 'logout', 'version', 'help', 'defaults:list', 'defaults:configure', 'upgrade'];
 
 export const allowedCliArgs: { [_command in StacktapeCliCommand]: StacktapeCliArg[] } = {
   deploy: [
@@ -223,7 +224,8 @@ export const allowedCliArgs: { [_command in StacktapeCliCommand]: StacktapeCliAr
   'defaults:configure': [],
   'defaults:list': [],
   login: [...universalCliArgs, 'apiKey'],
-  logout: [...universalCliArgs, 'apiKey']
+  logout: [...universalCliArgs, 'apiKey'],
+  upgrade: []
 };
 
 export const requiredCliArgs: { [_command in StacktapeCliCommand]: StacktapeCliArg[] } = {
@@ -261,7 +263,8 @@ export const requiredCliArgs: { [_command in StacktapeCliCommand]: StacktapeCliA
   'defaults:configure': [],
   'defaults:list': [],
   login: [],
-  logout: []
+  logout: [],
+  upgrade: []
 };
 
 export const allowedSdkArgs: { [_command in StacktapeSdkCommand]: StacktapeSdkArg[] } = {

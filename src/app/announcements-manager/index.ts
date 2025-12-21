@@ -1,5 +1,4 @@
 import { ANNOUNCEMENTS_ENDPOINT, IS_DEV } from '@config';
-import { getInstallationScript } from '@shared/utils/bin-executable';
 import { jsonFetch } from '@utils/http-client';
 import { printer } from '@utils/printer';
 import { getLatestStacktapeVersion, getStacktapeVersion } from '@utils/versioning';
@@ -30,17 +29,13 @@ export class AnnouncementsManager {
     const latestVersion = await getLatestStacktapeVersion();
     const normalizedCurrentVersion = currentVersion.replace('dev-', '').split('.').slice(0, 3).join('.');
     const isNewerVersionAvailable = gt(latestVersion, normalizedCurrentVersion);
-    const installCommand = getInstallationScript();
-    const [cmd, ...restArgs] = installCommand.split(' ');
 
     if (isNewerVersionAvailable) {
-      const hint = `To upgrade Stacktape to the latest version, run command:\n\n ${printer.makeBold(
-        printer.colorize('yellow', cmd)
-      )} ${printer.makeBold(restArgs.join(' '))}`;
       printer.info(
         `You are currently using Stacktape version ${printer.makeBold(
           currentVersion
-        )}, but a newer version (${printer.makeBold(latestVersion)}) is available.\n${hint}`
+        )}, but a newer version (${printer.makeBold(latestVersion)}) is available.\n` +
+          `To upgrade, run: ${printer.makeBold(printer.colorize('yellow', 'stacktape upgrade'))}`
       );
     }
   };

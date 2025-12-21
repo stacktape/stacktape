@@ -42,7 +42,7 @@ export const getMinimumVersionToKeep = (
 };
 export const getStacktapeVersion = (): string => {
   // @ts-expect-error - injected using define
-  return IS_DEV ? 'dev' : STACKTAPE_VERSION;
+  return STACKTAPE_VERSION;
 };
 export const getLatestStacktapeVersion = async () => {
   const res = await jsonFetch('https://installs.stacktape.com/_data.json');

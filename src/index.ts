@@ -40,6 +40,7 @@ import { commandSecretDelete } from './commands/secret-delete';
 import { commandSecretGet } from './commands/secret-get';
 import { commandStackInfo } from './commands/stack-info';
 import { commandStackList } from './commands/stack-list';
+import { commandUpgrade } from './commands/upgrade';
 import { commandVersion } from './commands/version';
 
 export const runCommand = async (opts: StacktapeProgrammaticOptions) => {
@@ -109,7 +110,8 @@ const getCommandExecutor = (command: StacktapeCommand) => {
     'stack:list': commandStackList,
     version: commandVersion,
     login: commandLogin,
-    logout: commandLogout
+    logout: commandLogout,
+    upgrade: commandUpgrade
   };
   return commandMap[command];
 };

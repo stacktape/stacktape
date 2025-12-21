@@ -156,6 +156,14 @@
         "alias": "nc",
         "required": false
       },
+      "disableDockerRemoteCache": {
+        "description": "#### Disable Docker Remote Cache\n\n---\n\nDisables Docker layer caching using ECR as remote cache storage.\nBy default, remote caching is enabled to speed up Docker builds by reusing layers.\nSet to `true` to disable remote caching.",
+        "allowedTypes": [
+          "boolean"
+        ],
+        "alias": "drc",
+        "required": false
+      },
       "disableAutoRollback": {
         "description": "#### Disable Auto-Rollback\n\n---\n\nIf `true`, disables automatic rollback on deployment failure.\n\n- **With auto-rollback (default):** If a deployment fails, the stack is automatically rolled back to the last known good state.\n- **Without auto-rollback:** If a deployment fails, the stack remains in the `UPDATE_FAILED` state. You can then either fix the issues and redeploy or manually roll back using the `stacktape rollback` command.",
         "allowedTypes": [
@@ -519,6 +527,14 @@
           "boolean"
         ],
         "alias": "nc",
+        "required": false
+      },
+      "disableDockerRemoteCache": {
+        "description": "#### Disable Docker Remote Cache\n\n---\n\nDisables Docker layer caching using ECR as remote cache storage.\nBy default, remote caching is enabled to speed up Docker builds by reusing layers.\nSet to `true` to disable remote caching.",
+        "allowedTypes": [
+          "boolean"
+        ],
+        "alias": "drc",
         "required": false
       },
       "disableAutoRollback": {
@@ -3436,5 +3452,9 @@
         "required": true
       }
     }
+  },
+  "upgrade": {
+    "description": "Upgrades Stacktape to the latest version.\n\nYou can also specify a version to install using the `--version` option.",
+    "args": {}
   }
 }
