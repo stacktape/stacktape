@@ -478,7 +478,9 @@ export const getEcsEc2ForceDeleteAsgCustomResource = ({ workload }: { workload: 
       asgName: Ref(cfLogicalNames.ecsEc2AutoscalingGroup(workload.name))
     }
   });
-  resource.DependsOn = [cfLogicalNames.ecsCluster(workload.name)];
+  // Ensure this custom resource is deleted BEFORE the capacity provider (so its Delete handler
+  // can remove scale-in protection early, reducing CloudFormation delete timeouts).
+  resource.DependsOn = [cfLogicalNames.ecsCluster(workload.name), cfLogicalNames.ecsEc2CapacityProvider(workload.name)];
   return resource;
 };
 
@@ -492,7 +494,9 @@ export const getEcsDisableManagedTerminationProtectionCustomResource = ({
       capacityProviderName: Ref(cfLogicalNames.ecsEc2CapacityProvider(workload.name))
     }
   });
-  // No DependsOn - runs early in deletion
+  // Ensure this custom resource is deleted BEFORE the capacity provider, so its Delete handler
+  // can disable managed termination protection while the capacity provider still exists.
+  resource.DependsOn = [cfLogicalNames.ecsEc2CapacityProvider(workload.name)];
   return resource;
 };
 
@@ -509,7 +513,9 @@ export const getEcsEc2CapacityProvider = ({ workload }: { workload: StpContainer
       ManagedTerminationProtection: 'ENABLED'
     }
   });
-  resource.DependsOn = [cfLogicalNames.ecsEc2ForceDeleteAutoscalingGroupCustomResource(workload.name)];
+  // Do NOT depend on the force-delete custom resource; that would cause the custom resource to be
+  // deleted AFTER the capacity provider, making it too late to help during stack deletion.
+  resource.DependsOn = [cfLogicalNames.ecsEc2AutoscalingGroup(workload.name)];
   return resource;
 };
 

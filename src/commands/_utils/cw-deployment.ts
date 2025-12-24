@@ -25,6 +25,38 @@ import { replaceCloudformationRefFunctionsWithCfPhysicalIds } from '@utils/cloud
 import { getAwsSynchronizedTime } from '@utils/time';
 import set from 'lodash/set';
 
+const normalizeAndValidateCapacityProviderStrategyForEcsApi = (input: UpdateServiceCommandInput) => {
+  const strategy = (input as any).capacityProviderStrategy;
+  if (!Array.isArray(strategy)) {
+    return;
+  }
+
+  // Allow users to specify CF-like refs in overrides (e.g. { Ref: 'LogicalId' }).
+  // Convert them to physical IDs so the ECS API accepts them.
+  const withResolvedRefs = replaceCloudformationRefFunctionsWithCfPhysicalIds(
+    serialize(strategy),
+    stackManager.existingStackResources
+  );
+
+  const sanitized = (withResolvedRefs as any[])
+    .map((entry) => {
+      if (!entry || typeof entry !== 'object') return null;
+      const raw = entry.capacityProvider;
+      const capacityProvider = typeof raw === 'string' ? raw.trim() : undefined;
+      if (!capacityProvider) return null;
+      return { ...entry, capacityProvider };
+    })
+    .filter(Boolean);
+
+  if (!sanitized.length) {
+    // Avoid AWS error: "InvalidParameterException: Capacity Provider Identifier cannot be empty"
+    delete (input as any).capacityProviderStrategy;
+    return;
+  }
+
+  (input as any).capacityProviderStrategy = sanitized;
+};
+
 export const getECSHotswapInformation = async ({ workload }: { workload: StpContainerWorkload }) => {
   const {
     PhysicalResourceId: ecsServiceArn,
@@ -245,6 +277,7 @@ export const updateEcsService = async ({
             }
           });
         }
+        normalizeAndValidateCapacityProviderStrategyForEcsApi(updateServiceInput);
         await awsSdkManager.startEcsServiceRollingUpdate(updateServiceInput);
         await awsSdkManager.waitForEcsServiceRollingUpdateToFinish({ ecsServiceArn });
       }
