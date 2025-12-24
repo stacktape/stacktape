@@ -511,7 +511,10 @@ export const getEcsEc2CapacityProvider = ({ workload }: { workload: StpContainer
       },
       ManagedDraining: 'ENABLED',
       ManagedTerminationProtection: 'ENABLED'
-    }
+    },
+    // Ensure capacity provider has Stacktape tags (especially stackName).
+    // This improves least-privilege IAM and makes it easier to scope permissions by tags.
+    Tags: stackManager.getTags()
   });
   // Do NOT depend on the force-delete custom resource; that would cause the custom resource to be
   // deleted AFTER the capacity provider, making it too late to help during stack deletion.

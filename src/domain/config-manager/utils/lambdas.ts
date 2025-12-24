@@ -353,13 +353,16 @@ export const getStacktapeServiceLambdaCustomResourceInducedStatements = (): StpI
 
   const disableEcsManagedTerminationProtection = [
     {
-      Resource: ['*'],
+      // NOTE: We intentionally don't restrict this by resource tags.
+      // Older stacks may have ECS CapacityProviders without tags, and then the custom resource would fail during stack deletion.
+      // We restrict access by name prefix instead (all Stacktape resources are prefixed with stackName).
+      Resource: [
+        SubWithoutMapping(
+          `arn:\${AWS::Partition}:ecs:\${AWS::Region}:\${AWS::AccountId}:capacity-provider/${stackName}*`
+        ) as unknown as string
+      ],
       Action: ['ecs:UpdateCapacityProvider'],
-      Condition: {
-        StringEquals: {
-          [`aws:ResourceTag/${tagNames.stackName()}`]: stackName
-        }
-      }
+      Effect: 'Allow'
     }
   ];
 
