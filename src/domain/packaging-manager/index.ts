@@ -49,7 +49,9 @@ const doesTargetStackExist = () => {
 };
 
 const shouldUseRemoteDockerCache = () => {
-  return !globalStateManager.args.disableDockerRemoteCache && doesTargetStackExist();
+  return (
+    globalStateManager.command !== 'dev' && !globalStateManager.args.disableDockerRemoteCache && doesTargetStackExist()
+  );
 };
 
 export class PackagingManager {
