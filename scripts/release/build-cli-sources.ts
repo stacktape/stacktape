@@ -34,7 +34,8 @@ export const ALL_SUPPORTED_PLATFORMS: SupportedPlatform[] = [
   'macos',
   'macos-arm',
   'alpine',
-  'linux-arm'
+  'linux-arm',
+  'linux-ci'
 ];
 
 export const buildEsbuildRegister = async ({ distFolderPath }: { distFolderPath?: string }) => {
@@ -61,10 +62,13 @@ const BINARY_FOLDER_NAMES: { [_platform in SupportedPlatform]: string } = {
   linux: 'linux',
   'macos-arm': 'macos-arm',
   alpine: 'alpine',
-  'linux-arm': 'linux-arm'
+  'linux-arm': 'linux-arm',
+  'linux-ci': 'linux-ci'
 };
 
-const ESBUILD_BINARY_PACKAGE_NAMES: { [_platform in SupportedPlatform]: string } = {
+export type PlatformWithEsbuild = Exclude<SupportedPlatform, 'linux-ci'>;
+
+const ESBUILD_BINARY_PACKAGE_NAMES: { [_platform in PlatformWithEsbuild]: string } = {
   win: '@esbuild/win32-x64',
   macos: '@esbuild/darwin-x64',
   linux: '@esbuild/linux-x64',
@@ -72,7 +76,7 @@ const ESBUILD_BINARY_PACKAGE_NAMES: { [_platform in SupportedPlatform]: string }
   alpine: '@esbuild/linux-x64',
   'linux-arm': '@esbuild/linux-arm64'
 };
-const ESBUILD_BINARY_FILE_LOCATIONS: { [_platform in SupportedPlatform]: string[] } = {
+const ESBUILD_BINARY_FILE_LOCATIONS: { [_platform in PlatformWithEsbuild]: string[] } = {
   win: ['esbuild.exe'],
   macos: ['bin', 'esbuild'],
   linux: ['bin', 'esbuild'],
@@ -140,6 +144,7 @@ export const buildBinaryFile = async ({
       case 'macos-arm':
         return 'bun-darwin-arm64';
       case 'linux':
+      case 'linux-ci':
         return 'bun-linux-x64';
       case 'linux-arm':
         return 'bun-linux-arm64';
@@ -196,7 +201,7 @@ export const copyPackBinary = async ({
   platform
 }: {
   distFolderPath?: string;
-  platform: SupportedPlatform;
+  platform: PlatformWithEsbuild;
 }) => {
   const binFileName = PACK_BINARY_FILE_NAMES[platform];
   const sourcePath = join(SCRIPTS_ASSETS_PATH, 'pack', binFileName);
@@ -214,7 +219,7 @@ export const copyNixpacksBinary = async ({
   platform
 }: {
   distFolderPath?: string;
-  platform: SupportedPlatform;
+  platform: PlatformWithEsbuild;
 }) => {
   const binFileName = NIXPACKS_BINARY_FILE_NAMES[platform];
   const sourcePath = join(SCRIPTS_ASSETS_PATH, 'nixpacks', binFileName);
@@ -232,7 +237,7 @@ export const copySessionsManagerPluginBinary = async ({
   platform
 }: {
   distFolderPath?: string;
-  platform: SupportedPlatform;
+  platform: PlatformWithEsbuild;
 }) => {
   const binFileName = SESSION_MANAGER_PLUGIN_BINARY_FILE_NAMES[platform];
   const sourcePath = join(SCRIPTS_ASSETS_PATH, 'session-manager-plugin', binFileName);
@@ -250,7 +255,7 @@ export const copyEsbuildBinary = async ({
   platform
 }: {
   distFolderPath?: string;
-  platform: SupportedPlatform;
+  platform: PlatformWithEsbuild;
 }) => {
   const { dependencies } = readJsonSync(join(process.cwd(), 'package.json'));
   const version = dependencies.esbuild.replace('^', '').replace('~', '');
