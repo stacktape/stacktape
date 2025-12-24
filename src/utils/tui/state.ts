@@ -1,7 +1,7 @@
 // State management for the TUI - bridges eventManager to React state
 
-import type { DeploymentState, Phase, Task, DeploymentCommand, Resource } from './types';
-import { getPhasesForCommand, getPhaseForEvent } from './phases';
+import type { DeploymentCommand, DeploymentState, Phase, Resource, Task } from './types';
+import { getPhaseForEvent, getPhasesForCommand } from './phases';
 import { generateId } from './utils';
 
 // Create initial state for a deployment

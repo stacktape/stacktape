@@ -1,7 +1,6 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
-import { IS_DEV } from '@config';
 import { stpErrors } from '@errors';
 import { fsPaths } from '@shared/naming/fs-paths';
 import { checkExecutableInPath } from '@shared/utils/bin-executable';

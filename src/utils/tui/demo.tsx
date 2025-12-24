@@ -2,10 +2,10 @@
 // Demo script to test the TUI
 // Run with: bun src/utils/tui/demo.tsx
 
-import { render } from 'ink';
-import { useState, useEffect } from 'react';
-import { DeploymentUI } from './components/DeploymentUI';
 import type { DeploymentState } from './types';
+import { render } from 'ink';
+import { useEffect, useState } from 'react';
+import { DeploymentUI } from './components/DeploymentUI';
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 

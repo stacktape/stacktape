@@ -57,12 +57,16 @@ export const semantic = {
 
 // Check if terminal supports Unicode
 export const supportsUnicode = (): boolean => {
+  // On Windows, most modern terminals support Unicode but CMD doesn't handle it well
+  // Check for UTF-8 codepage or known good terminals
   if (process.platform === 'win32') {
+    const isUtf8Codepage = process.env.CHCP === '65001' || process.stdout.isTTY;
     return (
       process.env.TERM_PROGRAM === 'vscode' ||
-      !!process.env.WT_SESSION ||
+      !!process.env.WT_SESSION || // Windows Terminal
       !!process.env.ConEmuTask ||
-      process.env.TERM === 'xterm-256color'
+      process.env.TERM === 'xterm-256color' ||
+      isUtf8Codepage
     );
   }
   return true;

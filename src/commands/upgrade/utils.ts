@@ -38,9 +38,11 @@ export const detectInstallationType = async (): Promise<InstallationType> => {
 };
 
 export const getUpgradeCommand = (installationType: InstallationType): string => {
+  const isEc2Runner = process.env.STP_EC2_RUNNER === 'true';
+
   switch (installationType) {
     case 'native':
-      return getInstallationScript();
+      return getInstallationScript({ forCi: isEc2Runner });
     case 'npm-global':
       return detectPackageManager() === 'bun'
         ? 'bun update -g stacktape'
@@ -54,7 +56,7 @@ export const getUpgradeCommand = (installationType: InstallationType): string =>
           ? 'pnpm update stacktape'
           : 'npm update stacktape';
     default:
-      return getInstallationScript();
+      return getInstallationScript({ forCi: isEc2Runner });
   }
 };
 

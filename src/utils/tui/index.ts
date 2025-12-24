@@ -1,54 +1,54 @@
 // TUI module - main exports
 
-// Types
-export type {
-  DeploymentState,
-  DeploymentCommand,
-  DeploymentError,
-  Phase,
-  PhaseView,
-  Task,
-  TaskStatus,
-  Resource,
-  ResourceStatus,
-  PhaseMapping,
-  ResourceHint
-} from './types';
-
-// Theme
-export { colors, semantic, symbols, spinnerFrames, supportsUnicode } from './theme';
-
-// Utilities
-export {
-  formatDuration,
-  formatTime,
-  formatBytes,
-  isTTY,
-  getTerminalWidth,
-  truncate,
-  padEnd,
-  padStart,
-  cfStatusToTaskStatus,
-  createProgressBar,
-  generateId
-} from './utils';
+// Components (for potential customization)
+export { BorderBox, DeploymentUI, Footer, Header, PhaseSection, ProgressBar, StatusIcon, TaskItem } from './components';
 
 // Phases
 export {
-  deployPhases,
   deletePhases,
+  deployPhases,
+  getActiveResourceHint,
+  getHintForResource,
   getPhaseForEvent,
   getPhasesForCommand,
-  resourceHints,
-  getHintForResource,
-  getActiveResourceHint
+  resourceHints
 } from './phases';
 
-// State management
-export { createInitialState, stateReducer, type StateAction } from './state';
-
 // Renderer
-export { TuiRenderer, createTuiRenderer, getTuiRenderer, destroyTuiRenderer } from './renderer';
+export { createTuiRenderer, destroyTuiRenderer, getTuiRenderer, TuiRenderer } from './renderer';
 
-// Components (for potential customization)
-export { BorderBox, DeploymentUI, Footer, Header, PhaseSection, ProgressBar, StatusIcon, TaskItem } from './components';
+// State management
+export { createInitialState, type StateAction, stateReducer } from './state';
+
+// Theme
+export { colors, semantic, spinnerFrames, supportsUnicode, symbols } from './theme';
+
+// Types
+export type {
+  DeploymentCommand,
+  DeploymentError,
+  DeploymentState,
+  Phase,
+  PhaseMapping,
+  PhaseView,
+  Resource,
+  ResourceHint,
+  ResourceStatus,
+  Task,
+  TaskStatus
+} from './types';
+
+// Utilities
+export {
+  cfStatusToTaskStatus,
+  createProgressBar,
+  formatBytes,
+  formatDuration,
+  formatTime,
+  generateId,
+  getTerminalWidth,
+  isTTY,
+  padEnd,
+  padStart,
+  truncate
+} from './utils';

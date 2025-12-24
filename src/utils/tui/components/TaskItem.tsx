@@ -1,11 +1,11 @@
 // TaskItem component - renders a single task with status and optional children
 
-import { Box, Text } from 'ink';
 import type { Task } from '../types';
+import { Box, Text } from 'ink';
 import { colors, symbols } from '../theme';
 import { formatDuration } from '../utils';
-import { StatusIcon } from './StatusIcon';
 import { ProgressBar } from './ProgressBar';
+import { StatusIcon } from './StatusIcon';
 
 type TaskItemProps = {
   task: Task;
@@ -18,7 +18,7 @@ export const TaskItem = ({ task, indent = 0, isLast = false, showTree = false }:
   const { name, status, message, duration, progress, children } = task;
 
   // Tree prefix for nested items
-  const treePrefix = showTree ? (isLast ? symbols.treeCorner : symbols.treeBranch) + ' ' : '';
+  const treePrefix = showTree ? `${isLast ? symbols.treeCorner : symbols.treeBranch} ` : '';
 
   return (
     <Box flexDirection="column">

@@ -1,8 +1,8 @@
 // Status icon component - shows different icons based on task status
 
+import type { TaskStatus } from '../types';
 import { Text } from 'ink';
 import Spinner from 'ink-spinner';
-import type { TaskStatus } from '../types';
 import { colors, symbols } from '../theme';
 
 type StatusIconProps = {

@@ -16,6 +16,8 @@ export const deployPhases: PhaseMapping[] = [
       'LOAD_PROVIDER_CREDENTIALS',
       'FETCH_STACK_DATA',
       'FETCH_PREVIOUS_ARTIFACTS',
+      'FETCH_DOMAIN_STATUSES',
+      'FETCH_BUDGET_INFO',
       'LOAD_TARGET_STACK_INFO',
       'LOAD_VPC_INFO'
     ]

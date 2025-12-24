@@ -9,6 +9,7 @@ import { getCommandForCurrentEnvironment } from '@utils/cli';
 import { memoizeGetters } from '@utils/decorators';
 import { getPrettyTime } from '@utils/formatting';
 import { logCollectorStream } from '@utils/log-collector';
+import { deploymentTui } from '@utils/tui/deployment-tui';
 import kleur from 'kleur';
 import stripAnsi from 'strip-ansi';
 import { getBorderCharacters, table } from 'table';
@@ -152,7 +153,7 @@ export class Printer {
       disableWhitespacePrefixing ? 0 : stripAnsi(prefixPart).length,
       true
     )}`;
-    if (!disableTerminalPrint) {
+    if (!disableTerminalPrint && !deploymentTui.isActive) {
       if (printTo === 'stdout') {
         console.info(printContent);
       } else {

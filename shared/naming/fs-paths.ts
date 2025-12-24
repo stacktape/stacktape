@@ -15,6 +15,8 @@ import {
   STARTER_PROJECTS_METADATA_FOLDER_NAME
 } from './project-fs-paths';
 
+const isCiRunner = () => process.env.STP_EC2_RUNNER === 'true';
+
 export const fsPaths = {
   absoluteExecutableDirname() {
     // this can be either in node_modules, or in user's home directory
@@ -99,6 +101,9 @@ export const fsPaths = {
       : join(fsPaths.absoluteExecutableDirname(), STARTER_PROJECTS_METADATA_FOLDER_NAME);
   },
   sessionManagerPath() {
+    if (isCiRunner()) {
+      return 'session-manager-plugin';
+    }
     return IS_DEV
       ? join(SCRIPTS_ASSETS_PATH, 'session-manager-plugin', SESSION_MANAGER_PLUGIN_BINARY_FILE_NAMES[getPlatform()])
       : join(
@@ -108,6 +113,9 @@ export const fsPaths = {
         );
   },
   packPath() {
+    if (isCiRunner()) {
+      return 'pack';
+    }
     return IS_DEV
       ? join(SCRIPTS_ASSETS_PATH, 'pack', PACK_BINARY_FILE_NAMES[getPlatform()])
       : join(fsPaths.absoluteExecutableDirname(), 'pack', getPlatform() === 'win' ? 'pack.exe' : 'pack');
@@ -118,11 +126,17 @@ export const fsPaths = {
       : join(fsPaths.absoluteExecutableDirname(), 'esbuild', 'esbuild-register.js');
   },
   esbuildBinaryPath() {
+    if (isCiRunner()) {
+      return 'esbuild';
+    }
     return IS_DEV
       ? null // development mode uses node_modules esbuild
       : join(fsPaths.absoluteExecutableDirname(), 'esbuild', getPlatform() === 'win' ? 'exec.exe' : 'exec');
   },
   nixpacksPath() {
+    if (isCiRunner()) {
+      return 'nixpacks';
+    }
     return IS_DEV
       ? join(SCRIPTS_ASSETS_PATH, 'nixpacks', NIXPACKS_BINARY_FILE_NAMES[getPlatform()])
       : join(fsPaths.absoluteExecutableDirname(), 'nixpacks', getPlatform() === 'win' ? 'nixpacks.exe' : 'nixpacks');

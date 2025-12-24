@@ -1,7 +1,7 @@
 // Header component - shows the deployment header with status
 
-import { Box, Text, useStdout } from 'ink';
 import type { DeploymentState } from '../types';
+import { Box, Text, useStdout } from 'ink';
 import { colors, symbols } from '../theme';
 
 type HeaderProps = {

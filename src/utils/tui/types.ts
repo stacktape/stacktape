@@ -10,6 +10,8 @@ export type Task = {
   duration?: number; // milliseconds
   startedAt?: number;
   children?: Task[];
+  isParallel?: boolean; // true if this task runs in parallel with siblings
+  parentEventType?: string; // the event type this task belongs to (for grouping)
   progress?: {
     current: number;
     total: number;

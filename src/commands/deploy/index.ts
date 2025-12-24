@@ -19,6 +19,7 @@ import { fsPaths } from '@shared/naming/fs-paths';
 import { obfuscatedNamesStateHolder } from '@shared/naming/utils';
 import { printer } from '@utils/printer';
 import { getDetailedStackInfoMap } from '@utils/stack-info-map-diff';
+import { deploymentTui } from '@utils/tui/deployment-tui';
 import {
   injectEnvironmentToHostedHtmlFiles,
   potentiallyPromptBeforeOperation,
@@ -35,6 +36,13 @@ export const commandDeploy = async (): Promise<DeployReturnValue> => {
     commandModifiesStack: true,
     loadGlobalConfig: true,
     requiresSubscription: true
+  });
+
+  // Update TUI with stack info (TUI is started in runCommand)
+  deploymentTui.updateStackInfo({
+    stackName: globalStateManager.targetStack.stackName,
+    stage: globalStateManager.targetStack.stage,
+    region: globalStateManager.region
   });
 
   validateGuardrails(configManager.guardrails);
@@ -152,6 +160,9 @@ export const commandDeploy = async (): Promise<DeployReturnValue> => {
       type: 'success'
     }
   });
+
+  // Mark TUI as complete before returning
+  deploymentTui.complete();
 
   return { stackInfo: detailedStackInfoSensitive, packagedWorkloads };
 };

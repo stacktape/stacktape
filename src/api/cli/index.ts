@@ -1,8 +1,9 @@
 import { existsSync } from 'node:fs';
 import { fsPaths } from '@shared/naming/fs-paths';
 
-if (existsSync(fsPaths.esbuildBinaryPath())) {
-  process.env.ESBUILD_BINARY_PATH = fsPaths.esbuildBinaryPath();
+const esbuildPath = fsPaths.esbuildBinaryPath();
+if (esbuildPath && (esbuildPath === 'esbuild' || existsSync(esbuildPath))) {
+  process.env.ESBUILD_BINARY_PATH = esbuildPath;
 }
 
 const main = async () => {

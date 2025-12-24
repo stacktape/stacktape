@@ -1,18 +1,14 @@
+import { basename, dirname, join, relative } from 'node:path';
 import { AI_DOCS_FOLDER_PATH } from '@shared/naming/project-fs-paths';
 import { logInfo, logSuccess } from '@shared/utils/logging';
-import { readdir, readFile, writeFile, ensureDir, pathExists, emptyDir } from 'fs-extra';
-import { join, dirname, basename, relative } from 'path';
+import { emptyDir, ensureDir, pathExists, readdir, readFile, writeFile } from 'fs-extra';
 
 const DOCS_DIR = 'docs/docs';
 const TYPES_DIR = 'types';
 const CODE_SNIPPETS_DIR = 'docs/code-snippets';
 const IGNORED_FOLDERS = ['sdk', 'static'];
 
-const EXCLUDED_FILES = [
-  'index.mdx',
-  'getting-started/using-config-editor.mdx',
-  'getting-started/starter-projects.mdx',
-];
+const EXCLUDED_FILES = ['index.mdx', 'getting-started/using-config-editor.mdx', 'getting-started/starter-projects.mdx'];
 
 const RESOURCE_FOLDERS = [
   'compute-resources',
@@ -20,7 +16,7 @@ const RESOURCE_FOLDERS = [
   'other-resources',
   'security-resources',
   '3rd-party-resources',
-  'extending',
+  'extending'
 ];
 
 const normalizePath = (p: string): string => p.replace(/\\/g, '/');
@@ -58,7 +54,7 @@ const MDX_TO_TYPE_MAPPING: Record<string, string[]> = {
   'extending/custom-resources.mdx': ['stacktape-config/custom-resources.d.ts'],
   'extending/aws-cdk-constructs.mdx': ['stacktape-config/aws-cdk-construct.d.ts'],
   'configuration/alarms.mdx': ['stacktape-config/alarms.d.ts'],
-  'configuration/log-forwarding.mdx': ['stacktape-config/log-forwarding.d.ts'],
+  'configuration/log-forwarding.mdx': ['stacktape-config/log-forwarding.d.ts']
 };
 
 type Section = {
@@ -110,7 +106,7 @@ const loadCodeSnippet = async (embedPath: string): Promise<string> => {
       ts: 'typescript',
       js: 'javascript',
       py: 'python',
-      json: 'json',
+      json: 'json'
     };
     const lang = langMap[ext] || ext;
     return `\`\`\`${lang}\n${content.trim()}\n\`\`\``;
@@ -133,11 +129,7 @@ const processEmbeds = async (content: string): Promise<string> => {
 };
 
 const removeJsxComponents = (content: string): string => {
-  const jsxPatterns = [
-    /<[A-Z][A-Za-z0-9]*[^>]*\/>/g,
-    /<[A-Z][A-Za-z0-9]*[^>]*>[\s\S]*?<\/[A-Z][A-Za-z0-9]*>/g,
-    /<br\s*\/?>/g,
-  ];
+  const jsxPatterns = [/<[A-Z][^>]*\/>/g, /<[A-Z][^>]*>[\s\S]*?<\/[A-Z][A-Za-z0-9]*>/g, /<br\s*\/?>/g];
 
   let result = content;
   for (const pattern of jsxPatterns) {
@@ -148,9 +140,7 @@ const removeJsxComponents = (content: string): string => {
 };
 
 const removeImageReferences = (content: string): string => {
-  return content
-    .replace(/!\[.*?\]\(.*?\)/g, '')
-    .replace(/<img[^>]*>/g, '');
+  return content.replace(/!\[.*?\]\(.*?\)/g, '').replace(/<img[^>]*>/g, '');
 };
 
 const removeFrontmatter = (content: string): string => {
@@ -179,7 +169,7 @@ const parseSections = (content: string): Section[] => {
   const lines = content.split('\n');
   const sections: Section[] = [];
   let currentSection: { title: string; content: string; level: number } | null = null;
-  let contentBeforeFirstHeading: string[] = [];
+  const contentBeforeFirstHeading: string[] = [];
   let foundFirstHeading = false;
   let inCodeBlock = false;
 
@@ -190,14 +180,14 @@ const parseSections = (content: string): Section[] => {
 
     if (inCodeBlock) {
       if (currentSection) {
-        currentSection.content += line + '\n';
+        currentSection.content += `${line}\n`;
       } else if (!foundFirstHeading) {
         contentBeforeFirstHeading.push(line);
       }
       continue;
     }
 
-    const h1Match = line.match(/^# ([^#\{].*)$/);
+    const h1Match = line.match(/^# ([^#{].*)$/);
     const h2Match = line.match(/^## (.+)$/);
 
     if (h1Match || h2Match) {
@@ -208,17 +198,17 @@ const parseSections = (content: string): Section[] => {
           sections.push({
             ...currentSection,
             slug: slugify(currentSection.title),
-            fileName: '',
+            fileName: ''
           });
         }
       }
       currentSection = {
         title: h1Match ? h1Match[1] : h2Match![1],
         content: '',
-        level: h1Match ? 1 : 2,
+        level: h1Match ? 1 : 2
       };
     } else if (currentSection) {
-      currentSection.content += line + '\n';
+      currentSection.content += `${line}\n`;
     } else if (!foundFirstHeading) {
       contentBeforeFirstHeading.push(line);
     }
@@ -230,7 +220,7 @@ const parseSections = (content: string): Section[] => {
       sections.push({
         ...currentSection,
         slug: slugify(currentSection.title),
-        fileName: '',
+        fileName: ''
       });
     }
   }
@@ -243,7 +233,7 @@ const parseSections = (content: string): Section[] => {
         content: introContent,
         level: 0,
         slug: 'overview',
-        fileName: '',
+        fileName: ''
       });
     }
   }
@@ -255,7 +245,7 @@ const loadTypeFile = async (typePath: string): Promise<string> => {
   const fullPath = join(TYPES_DIR, typePath);
   if (await pathExists(fullPath)) {
     let content = await readFile(fullPath, 'utf-8');
-    content = content.replace(/^type Stp\w+.*?;$/gm, '');
+    content = content.replace(/^type Stp\w.*?;$/gm, '');
     content = content.replace(/\n{3,}/g, '\n\n');
     return content.trim();
   }
@@ -284,7 +274,7 @@ const convertLinks = (content: string, currentMdxPath: string, sectionMapping: S
       path = path.replace(/\.mdx$/, '');
 
       if (path.startsWith('/')) {
-        const targetMdxPath = path.slice(1) + '.mdx';
+        const targetMdxPath = `${path.slice(1)}.mdx`;
         const isTargetResource = isResourcePage(targetMdxPath);
         const newPath = path.slice(1);
 
@@ -304,7 +294,7 @@ const convertLinks = (content: string, currentMdxPath: string, sectionMapping: S
       if (path.startsWith('../') || path.startsWith('./')) {
         const currentDir = dirname(currentMdxPath);
         const resolvedPath = normalizePath(join(currentDir, path));
-        const targetMdxPath = resolvedPath + '.mdx';
+        const targetMdxPath = `${resolvedPath}.mdx`;
         const isTargetResource = isResourcePage(targetMdxPath);
 
         if (isTargetResource) {
@@ -353,7 +343,7 @@ const extractTitle = (content: string, mdxPath: string): string => {
   if (frontmatterMatch && frontmatterMatch[1].trim()) return frontmatterMatch[1];
 
   const fileName = basename(mdxPath, '.mdx');
-  return fileName.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  return fileName.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 };
 
 const buildSectionMappings = async (mdxFiles: string[]): Promise<void> => {
@@ -371,11 +361,11 @@ const buildSectionMappings = async (mdxFiles: string[]): Promise<void> => {
     const typeFiles = MDX_TO_TYPE_MAPPING[mdxPath] || [];
     const hasApiRef = typeFiles.length > 0;
 
-    const filteredSections = sections.filter(s =>
-      s.slug !== 'api-reference' && s.slug !== 'referenceable-parameters'
+    const filteredSections = sections.filter(
+      (s) => s.slug !== 'api-reference' && s.slug !== 'referenceable-parameters'
     );
 
-    const nonEmptySections = filteredSections.filter(s => s.content.trim());
+    const nonEmptySections = filteredSections.filter((s) => s.content.trim());
 
     const mapping: SectionMapping = {};
     let idx = 1;
@@ -395,7 +385,13 @@ const buildSectionMappings = async (mdxFiles: string[]): Promise<void> => {
   }
 };
 
-const processResourcePage = async ({ distFolderPath, mdxPath }: { mdxPath: string, distFolderPath: string }): Promise<void> => {
+const processResourcePage = async ({
+  distFolderPath,
+  mdxPath
+}: {
+  mdxPath: string;
+  distFolderPath: string;
+}): Promise<void> => {
   const fullMdxPath = join(DOCS_DIR, mdxPath);
   const rawContent = await readFile(fullMdxPath, 'utf-8');
   const title = extractTitle(rawContent, mdxPath);
@@ -419,9 +415,7 @@ const processResourcePage = async ({ distFolderPath, mdxPath }: { mdxPath: strin
 
   const hasApiRef = apiRefContent.trim().length > 0;
 
-  const filteredSections = sections.filter(s =>
-    s.slug !== 'api-reference' && s.slug !== 'referenceable-parameters'
-  );
+  const filteredSections = sections.filter((s) => s.slug !== 'api-reference' && s.slug !== 'referenceable-parameters');
 
   const sectionMapping = globalSectionMappings[mdxPath] || {};
 
@@ -458,7 +452,13 @@ const processResourcePage = async ({ distFolderPath, mdxPath }: { mdxPath: strin
   await writeFile(indexPath, indexContent, 'utf-8');
 };
 
-const processSimplePage = async ({ distFolderPath, mdxPath }: { mdxPath: string, distFolderPath: string }): Promise<void> => {
+const processSimplePage = async ({
+  distFolderPath,
+  mdxPath
+}: {
+  mdxPath: string;
+  distFolderPath: string;
+}): Promise<void> => {
   const fullMdxPath = join(DOCS_DIR, mdxPath);
   const rawContent = await readFile(fullMdxPath, 'utf-8');
   const title = extractTitle(rawContent, mdxPath);
@@ -479,15 +479,27 @@ const processSimplePage = async ({ distFolderPath, mdxPath }: { mdxPath: string,
   await writeFile(outputPath, fullContent, 'utf-8');
 };
 
-const processMdxFile = async ({ distFolderPath, mdxPath }: { mdxPath: string, distFolderPath: string }): Promise<void> => {
+const processMdxFile = async ({
+  distFolderPath,
+  mdxPath
+}: {
+  mdxPath: string;
+  distFolderPath: string;
+}): Promise<void> => {
   if (isResourcePage(mdxPath)) {
     await processResourcePage({ distFolderPath, mdxPath });
   } else {
-    await processSimplePage({ distFolderPath, mdxPath: mdxPath });
+    await processSimplePage({ distFolderPath, mdxPath });
   }
 };
 
-const generateMainIndex = async ({ distFolderPath, mdxPaths }: { mdxPaths: string[], distFolderPath: string }): Promise<void> => {
+const generateMainIndex = async ({
+  distFolderPath,
+  mdxPaths
+}: {
+  mdxPaths: string[];
+  distFolderPath: string;
+}): Promise<void> => {
   const categories: Record<string, string[]> = {};
 
   for (const mdxPath of mdxPaths) {
@@ -513,7 +525,7 @@ const generateMainIndex = async ({ distFolderPath, mdxPaths }: { mdxPaths: strin
     'extending',
     'cli',
     'user-guides',
-    'general',
+    'general'
   ];
 
   let content = `# Stacktape Documentation
@@ -549,11 +561,14 @@ This is the official documentation for Stacktape - a deployment platform for AWS
 
   for (const category of sortedCategories) {
     const files = categories[category];
-    const categoryTitle = category === 'general' ? 'General' : category.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    const categoryTitle =
+      category === 'general' ? 'General' : category.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
     content += `## ${categoryTitle}\n\n`;
 
     for (const file of files.sort()) {
-      const displayName = basename(file, '.mdx').replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+      const displayName = basename(file, '.mdx')
+        .replace(/-/g, ' ')
+        .replace(/\b\w/g, (c) => c.toUpperCase());
       if (isResourcePage(file)) {
         const dirName = file.replace('.mdx', '');
         content += `- [${displayName}](./${dirName}/index.md)\n`;

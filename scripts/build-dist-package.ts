@@ -1,3 +1,4 @@
+import type { PlatformWithEsbuild } from './release/build-cli-sources';
 import { join } from 'node:path';
 import { DIST_PACKAGE_FOLDER_PATH } from '@shared/naming/project-fs-paths';
 import { getPlatform } from '@shared/utils/bin-executable';
@@ -63,12 +64,15 @@ const buildEverything = async () => {
     version
   });
 
+  const isLightBuild = platform === 'linux-ci';
+  const platformWithBinaries = platform as PlatformWithEsbuild;
+
   await Promise.all([
-    copyPackBinary({ distFolderPath, platform }),
-    copyNixpacksBinary({ distFolderPath, platform }),
-    copySessionsManagerPluginBinary({ distFolderPath, platform }),
-    copyEsbuildBinary({ distFolderPath, platform }),
-    buildEsbuildRegister({ distFolderPath: platformDistFolderPath }),
+    !isLightBuild && copyPackBinary({ distFolderPath, platform: platformWithBinaries }),
+    !isLightBuild && copyNixpacksBinary({ distFolderPath, platform: platformWithBinaries }),
+    !isLightBuild && copySessionsManagerPluginBinary({ distFolderPath, platform: platformWithBinaries }),
+    !isLightBuild && copyEsbuildBinary({ distFolderPath, platform: platformWithBinaries }),
+    !isLightBuild && buildEsbuildRegister({ distFolderPath: platformDistFolderPath }),
     copyConfigSchema({ distFolderPath: platformDistFolderPath }),
     generateStarterProjectsMetadata({ distFolderPath: platformDistFolderPath }),
     packageHelperLambdas({ isDev: false, distFolderPath: platformDistFolderPath }),

@@ -1,9 +1,11 @@
 // TUI Renderer - manages the Ink rendering lifecycle
 
-import { render, type Instance } from 'ink';
-import type { DeploymentState, DeploymentCommand } from './types';
+import type { Instance } from 'ink';
+import type { StateAction } from './state';
+import type { DeploymentCommand, DeploymentState } from './types';
+import { render } from 'ink';
 import { DeploymentUI } from './components/DeploymentUI';
-import { createInitialState, stateReducer, type StateAction } from './state';
+import { createInitialState, stateReducer } from './state';
 import { isTTY } from './utils';
 
 // TUI Renderer class - manages the Ink instance and state

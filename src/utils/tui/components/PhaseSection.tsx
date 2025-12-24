@@ -1,7 +1,7 @@
 // PhaseSection component - renders a phase with its tasks
 
-import { Box, Text, useStdout } from 'ink';
 import type { Phase } from '../types';
+import { Box, Text, useStdout } from 'ink';
 import { colors, symbols } from '../theme';
 import { formatTime } from '../utils';
 import { TaskItem } from './TaskItem';
@@ -21,9 +21,9 @@ export const PhaseSection = ({ phase, phaseNumber, isActive: _isActive }: PhaseS
   const terminalWidth = stdout?.columns || 80;
   const width = Math.min(terminalWidth - 4, 76);
 
-  // Calculate elapsed time for active phase
-  const elapsedMs = startedAt ? duration || now - startedAt : 0;
-  const timeDisplay = status === 'pending' ? 'waiting' : formatTime(elapsedMs);
+  // Calculate elapsed time for phase - use duration if completed, otherwise calculate live
+  const elapsedMs = status === 'success' && duration ? duration : startedAt ? now - startedAt : 0;
+  const timeDisplay = status === 'pending' ? '' : formatTime(elapsedMs);
 
   // Determine phase name color
   const nameColor = status === 'pending' ? colors.gray500 : colors.white;

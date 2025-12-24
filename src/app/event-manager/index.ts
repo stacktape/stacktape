@@ -3,6 +3,7 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import { configManager } from '@domain-services/config-manager';
 import { stpErrors } from '@errors';
 import { printer } from '@utils/printer';
+import { deploymentTui } from '@utils/tui/deployment-tui';
 import { camelCase } from 'change-case';
 import ci from 'ci-info';
 import { getExecutableScriptFunction } from 'src/commands/script-run/utils';
@@ -167,10 +168,21 @@ export class EventManager implements ProgressLogger {
       namespace: this.namespace,
       finalMessage
     });
+
+    // Send formatted events to TUI if active
+    if (deploymentTui.isActive) {
+      deploymentTui.updateEvents(this.formattedEventLogData);
+    }
+
     this.printProgress();
   };
 
   printProgress = () => {
+    // If TUI is active, skip legacy printing - TUI handles it
+    if (deploymentTui.isActive) {
+      return;
+    }
+
     for (const event of this.formattedEventLogData) {
       const identifier = event.eventType;
       const eventStatus = printer.getEventStatus(identifier);

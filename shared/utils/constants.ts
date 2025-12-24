@@ -20,7 +20,7 @@ export const REGIONS_WITH_REGIONAL_CDN_EDGE_LOCATION = [
   'sa-east-1'
 ];
 
-export const NIXPACKS_BINARY_FILE_NAMES: { [_platform in SupportedPlatform]: string } = {
+export const NIXPACKS_BINARY_FILE_NAMES: { [_platform in Exclude<SupportedPlatform, 'linux-ci'>]: string } = {
   win: 'nixpacks-win.exe',
   macos: 'nixpacks-macos',
   linux: 'nixpacks-linux',
@@ -29,7 +29,7 @@ export const NIXPACKS_BINARY_FILE_NAMES: { [_platform in SupportedPlatform]: str
   'linux-arm': 'nixpacks-linux-arm'
 };
 
-export const PACK_BINARY_FILE_NAMES: { [_platform in SupportedPlatform]: string } = {
+export const PACK_BINARY_FILE_NAMES: { [_platform in Exclude<SupportedPlatform, 'linux-ci'>]: string } = {
   win: 'pack-win.exe',
   macos: 'pack-macos',
   linux: 'pack-linux',
@@ -38,7 +38,9 @@ export const PACK_BINARY_FILE_NAMES: { [_platform in SupportedPlatform]: string 
   'linux-arm': 'pack-linux-arm'
 };
 
-export const SESSION_MANAGER_PLUGIN_BINARY_FILE_NAMES: { [_platform in SupportedPlatform]: string } = {
+export const SESSION_MANAGER_PLUGIN_BINARY_FILE_NAMES: {
+  [_platform in Exclude<SupportedPlatform, 'linux-ci'>]: string;
+} = {
   win: 'smp-win.exe',
   macos: 'smp-macos',
   linux: 'smp-linux',

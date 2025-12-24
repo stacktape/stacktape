@@ -94,14 +94,18 @@ export const getPlatform = (): SupportedPlatform => {
   throw new Error(`Unsupported platform: ${process.platform}, arch: ${process.arch}.`);
 };
 
-export const getInstallationScript = () => {
+export const getInstallationScript = ({ forCi }: { forCi?: boolean } = {}) => {
   const installationScripts: { [_platform in SupportedPlatform]: string } = {
     win: 'iwr https://installs.stacktape.com/windows.ps1 -useb | iex',
     linux: 'curl -L https://installs.stacktape.com/linux.sh | sh',
     'linux-arm': 'curl -L https://installs.stacktape.com/linux-arm.sh | sh',
+    'linux-ci': 'curl -L https://installs.stacktape.com/linux-ci.sh | sh',
     alpine: 'curl -L https://installs.stacktape.com/alpine.sh | sh',
     macos: 'curl -L https://installs.stacktape.com/macos.sh | sh',
     'macos-arm': 'curl -L https://installs.stacktape.com/macos-arm.sh | sh'
   };
+  if (forCi && getPlatform() === 'linux') {
+    return installationScripts['linux-ci'];
+  }
   return installationScripts[getPlatform()];
 };

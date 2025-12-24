@@ -25,6 +25,33 @@ import { replaceCloudformationRefFunctionsWithCfPhysicalIds } from '@utils/cloud
 import { getAwsSynchronizedTime } from '@utils/time';
 import set from 'lodash/set';
 
+const sanitizeCapacityProviderStrategy = (input: UpdateServiceCommandInput): UpdateServiceCommandInput => {
+  const strategy = (input as any).capacityProviderStrategy;
+  if (!Array.isArray(strategy)) {
+    return input;
+  }
+
+  const sanitized = strategy
+    .map((entry: any) => {
+      if (!entry || typeof entry !== 'object') return null;
+      const capacityProviderRaw = entry.capacityProvider;
+      const capacityProvider = typeof capacityProviderRaw === 'string' ? capacityProviderRaw.trim() : undefined;
+      if (!capacityProvider) return null;
+      return { ...entry, capacityProvider };
+    })
+    .filter(Boolean);
+
+  if (!sanitized.length) {
+    // If the strategy is empty/invalid, omit it entirely to avoid AWS error:
+    // "InvalidParameterException: Capacity Provider Identifier cannot be empty"
+    delete (input as any).capacityProviderStrategy;
+    return input;
+  }
+
+  (input as any).capacityProviderStrategy = sanitized;
+  return input;
+};
+
 export const getECSHotswapInformation = async ({ workload }: { workload: StpContainerWorkload }) => {
   const {
     PhysicalResourceId: ecsServiceArn,
@@ -245,6 +272,7 @@ export const updateEcsService = async ({
             }
           });
         }
+        sanitizeCapacityProviderStrategy(updateServiceInput);
         await awsSdkManager.startEcsServiceRollingUpdate(updateServiceInput);
         await awsSdkManager.waitForEcsServiceRollingUpdateToFinish({ ecsServiceArn });
       }

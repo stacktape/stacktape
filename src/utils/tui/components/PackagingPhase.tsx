@@ -1,18 +1,18 @@
 // PackagingPhase component - specialized view for the packaging phase
 // Shows detailed progress for each workload being packaged
 
+import type { Phase, Task } from '../types';
 import { Box, Text, useStdout } from 'ink';
 import Spinner from 'ink-spinner';
-import type { Phase, Task } from '../types';
 import { colors, symbols } from '../theme';
-import { formatDuration, formatTime, formatBytes } from '../utils';
+import { formatDuration, formatTime } from '../utils';
 
 type PackagingPhaseProps = {
   phase: Phase;
 };
 
 const PackagingTaskRow = ({ task }: { task: Task }) => {
-  const { name, status, duration, progress, message } = task;
+  const { name, status, duration, message } = task;
 
   // Status indicator
   const getStatusIndicator = () => {
@@ -32,62 +32,19 @@ const PackagingTaskRow = ({ task }: { task: Task }) => {
     }
   };
 
-  // Progress bar for active tasks
-  const renderProgressBar = () => {
-    if (status !== 'active' || !progress) return null;
-
-    const { current, total } = progress;
-    const ratio = Math.min(current / total, 1);
-    const barWidth = 20;
-    const filled = Math.round(ratio * barWidth);
-    const empty = barWidth - filled;
-    const percent = Math.round(ratio * 100);
-
-    return (
-      <Box marginLeft={4}>
-        <Text color={colors.primary}>{symbols.progressFull.repeat(filled)}</Text>
-        <Text color={colors.gray700}>{symbols.progressEmpty.repeat(empty)}</Text>
-        <Text color={colors.gray400}> {percent}%</Text>
-      </Box>
-    );
-  };
-
   return (
-    <Box flexDirection="column">
-      <Box>
-        {getStatusIndicator()}
-        <Text> </Text>
-        <Text color={status === 'pending' ? colors.gray500 : colors.white}>{name}</Text>
-        {message && status === 'active' && <Text color={colors.gray500}> {message}</Text>}
-        {duration !== undefined && <Text color={colors.gray500}> {formatDuration(duration)}</Text>}
-      </Box>
-      {renderProgressBar()}
-
-      {/* Child tasks (individual files being packaged) */}
-      {task.children && task.children.length > 0 && (
-        <Box flexDirection="column" marginLeft={2}>
-          {task.children.map((child, index) => {
-            const isLast = index === task.children!.length - 1;
-            const prefix = isLast ? symbols.treeCorner : symbols.treeBranch;
-
-            return (
-              <Box key={child.id}>
-                <Text color={colors.gray600}>{prefix} </Text>
-                {child.status === 'active' ? (
-                  <Text color={colors.primary}>
-                    <Spinner type="dots" />
-                  </Text>
-                ) : child.status === 'success' ? (
-                  <Text color={colors.success}>{symbols.success}</Text>
-                ) : (
-                  <Text color={colors.gray600}>{symbols.pending}</Text>
-                )}
-                <Text color={colors.gray400}> {child.name}</Text>
-                {child.duration !== undefined && <Text color={colors.gray600}> {formatDuration(child.duration)}</Text>}
-              </Box>
-            );
-          })}
-        </Box>
+    <Box>
+      {getStatusIndicator()}
+      <Text> </Text>
+      <Text color={status === 'pending' ? colors.gray500 : colors.white}>{name}</Text>
+      {message && status === 'active' && (
+        <Text color={colors.gray500}>
+          {' '}
+          {symbols.arrowRight} {message}
+        </Text>
+      )}
+      {status === 'success' && duration !== undefined && (
+        <Text color={colors.gray500}> {formatDuration(duration)}</Text>
       )}
     </Box>
   );
@@ -102,21 +59,13 @@ export const PackagingPhase = ({ phase }: PackagingPhaseProps) => {
   const terminalWidth = stdout?.columns || 80;
   const width = Math.min(terminalWidth - 4, 76);
 
-  // Calculate elapsed time
-  const elapsedMs = startedAt ? duration || now - startedAt : 0;
-  const timeDisplay = status === 'pending' ? 'waiting' : formatTime(elapsedMs);
+  // Calculate elapsed time - use duration if completed, otherwise calculate live
+  const elapsedMs = status === 'success' && duration ? duration : startedAt ? now - startedAt : 0;
+  const timeDisplay = status === 'pending' ? '' : formatTime(elapsedMs);
 
   // Calculate totals for summary
   const completedTasks = tasks.filter((t) => t.status === 'success').length;
   const totalTasks = tasks.length;
-
-  // Calculate total size if available
-  const totalBytes = tasks.reduce((acc, task) => {
-    if (task.progress?.total && task.progress.unit === 'MB') {
-      return acc + task.progress.total * 1024 * 1024;
-    }
-    return acc;
-  }, 0);
 
   return (
     <Box flexDirection="column" marginTop={1}>
@@ -143,11 +92,10 @@ export const PackagingPhase = ({ phase }: PackagingPhaseProps) => {
       )}
 
       {/* Summary line */}
-      {status !== 'pending' && totalTasks > 0 && (
+      {status === 'success' && totalTasks > 0 && (
         <Box marginTop={1} marginLeft={2}>
           <Text color={colors.gray500}>
-            {completedTasks}/{totalTasks} packages
-            {totalBytes > 0 && ` • ${formatBytes(totalBytes)} total`}
+            {completedTasks}/{totalTasks} workloads packaged
           </Text>
         </Box>
       )}

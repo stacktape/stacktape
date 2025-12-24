@@ -1,7 +1,7 @@
 // BorderBox component - renders a box with rounded borders
 
-import { Box, Text, useStdout } from 'ink';
 import type { ReactNode } from 'react';
+import { Box, Text, useStdout } from 'ink';
 import { colors, symbols } from '../theme';
 
 type BorderBoxProps = {

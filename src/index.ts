@@ -7,6 +7,7 @@ import { notificationManager } from '@domain-services/notification-manager';
 import { printer } from '@utils/printer';
 import { initializeSentry, setSentryTags } from '@utils/sentry';
 import { deleteTempFolder } from '@utils/temp-files';
+import { deploymentTui } from '@utils/tui/deployment-tui';
 import { commandAwsProfileCreate } from './commands/aws-profile-create';
 import { commandAwsProfileDelete } from './commands/aws-profile-delete';
 import { commandAwsProfileList } from './commands/aws-profile-list';
@@ -43,6 +44,9 @@ import { commandStackList } from './commands/stack-list';
 import { commandUpgrade } from './commands/upgrade';
 import { commandVersion } from './commands/version';
 
+// Commands that should use the TUI
+const TUI_ENABLED_COMMANDS: StacktapeCommand[] = ['deploy', 'delete'];
+
 export const runCommand = async (opts: StacktapeProgrammaticOptions) => {
   try {
     initializeSentry();
@@ -51,6 +55,20 @@ export const runCommand = async (opts: StacktapeProgrammaticOptions) => {
     await eventManager.init();
     await announcementsManager.init();
     setSentryTags({ invocationId: globalStateManager.invocationId, command: globalStateManager.command });
+
+    // Start TUI early for supported commands (will update with stack info later)
+    if (TUI_ENABLED_COMMANDS.includes(globalStateManager.command) && globalStateManager.invokedFrom === 'cli') {
+      deploymentTui.start({
+        command: globalStateManager.command as 'deploy' | 'delete',
+        stackName: '', // Will be updated when available
+        stage: '',
+        region: globalStateManager.region || ''
+      });
+      applicationManager.registerCleanUpHook(() => {
+        deploymentTui.stop();
+      });
+    }
+
     await deleteTempFolder();
     const executor = getCommandExecutor(globalStateManager.command);
     const commandResult = await executor();

@@ -24,7 +24,7 @@ type StpServiceCustomResourceEventProps<Event> = {
   eventConf: Event;
 };
 
-type SupportedPlatform = 'win' | 'linux' | 'macos' | 'macos-arm' | 'alpine' | 'linux-arm';
+type SupportedPlatform = 'win' | 'linux' | 'macos' | 'macos-arm' | 'alpine' | 'linux-arm' | 'linux-ci';
 
 type StpServiceCustomResourceEdgeFunctionProps = {
   artifactBucketName: string;
