@@ -29,6 +29,7 @@ import {
   getEc2AutoscalingGroupWarmPool,
   getEcsAutoScalingRole,
   getEcsCluster,
+  getEcsDeregisterTargetsCustomResource,
   getEcsDisableManagedTerminationProtectionCustomResource,
   getEcsEc2CapacityProvider,
   getEcsEc2CapacityProviderAssociation,
@@ -207,6 +208,15 @@ export const resolveContainerWorkload = ({ definition }: { definition: StpContai
   calculatedStackOverviewManager.addCfChildResource({
     cfLogicalName: cfLogicalNames.ecsService(definition.name, isBlueGreen),
     resource: getEcsService({ workload: definition, blueGreen: isBlueGreen }),
+    nameChain
+  });
+
+  // Best-effort cleanup during stack deletion: deregister targets from LB target groups to avoid
+  // CloudFormation timeouts when ECS services get stuck in DRAINING.
+  // This is safe for create/update (no-op) and only runs on Delete.
+  calculatedStackOverviewManager.addCfChildResource({
+    cfLogicalName: cfLogicalNames.ecsDeregisterTargetsCustomResource(definition.name),
+    resource: getEcsDeregisterTargetsCustomResource({ workload: definition }),
     nameChain
   });
   // adding monitoring link

@@ -366,6 +366,22 @@ export const getStacktapeServiceLambdaCustomResourceInducedStatements = (): StpI
     }
   ];
 
+  const deregisterTargets = [
+    {
+      Resource: [
+        SubWithoutMapping(
+          `arn:\${AWS::Partition}:elasticloadbalancing:\${AWS::Region}:\${AWS::AccountId}:targetgroup/${stackName}*/*`
+        ) as unknown as string
+      ],
+      Action: [
+        'elasticloadbalancing:DescribeTargetHealth',
+        'elasticloadbalancing:DeregisterTargets',
+        'elasticloadbalancing:ModifyTargetGroupAttributes'
+      ],
+      Effect: 'Allow'
+    }
+  ];
+
   const defaultDomainCert = [
     {
       Resource: ['*'],
@@ -415,6 +431,7 @@ export const getStacktapeServiceLambdaCustomResourceInducedStatements = (): StpI
     ...publishLambdaVersion,
     ...waf,
     ...forceDeleteAsg,
+    ...deregisterTargets,
     ...disableEcsManagedTerminationProtection,
     ...defaultDomainCert,
     ...userPoolDetails,

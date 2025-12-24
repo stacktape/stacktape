@@ -500,6 +500,34 @@ export const getEcsDisableManagedTerminationProtectionCustomResource = ({
   return resource;
 };
 
+export const getEcsDeregisterTargetsCustomResource = ({ workload }: { workload: StpContainerWorkload }) => {
+  const targetGroupArns = getTargetsForContainerWorkload({
+    workloadName: workload.name,
+    containers: workload.containers
+  })
+    .map(({ loadBalancerName, targetContainerPort }) => {
+      return Ref(
+        cfLogicalNames.targetGroup({
+          stpResourceName: workload.name,
+          loadBalancerName,
+          targetContainerPort
+        })
+      );
+    })
+    .filter(Boolean);
+
+  const resource = getStpServiceCustomResource<'deregisterTargets'>({
+    deregisterTargets: {
+      targetGroupArns
+    }
+  });
+
+  // Make sure this custom resource is deleted BEFORE the ECS service.
+  // CloudFormation deletion order is reverse of dependencies.
+  resource.DependsOn = [cfLogicalNames.ecsService(workload.name, !!workload.deployment)];
+  return resource;
+};
+
 export const getEcsEc2CapacityProvider = ({ workload }: { workload: StpContainerWorkload }) => {
   const resource = new CapacityProvider({
     AutoScalingGroupProvider: {

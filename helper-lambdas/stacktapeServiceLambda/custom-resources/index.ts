@@ -5,6 +5,7 @@ import { assetReplacer } from './resolvers/asset-replacer';
 import { setDatabaseDeletionProtection } from './resolvers/database-deletion-protection';
 import { defaultDomain } from './resolvers/default-domain';
 import { defaultDomainCert } from './resolvers/default-domain-cert';
+import { deregisterTargets } from './resolvers/deregister-targets';
 import { disableEcsManagedTerminationProtection } from './resolvers/disable-ecs-managed-termination-protection';
 import { edgeFunctions } from './resolvers/edge-functions';
 import { edgeLambda } from './resolvers/edge-lambda';
@@ -34,6 +35,7 @@ const resolversMap: {
   webAppFirewall,
   openSearch,
   forceDeleteAsg,
+  deregisterTargets,
   disableEcsManagedTerminationProtection,
   defaultDomainCert,
   defaultDomain,
