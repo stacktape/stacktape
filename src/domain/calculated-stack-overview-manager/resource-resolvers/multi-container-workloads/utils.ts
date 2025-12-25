@@ -478,7 +478,9 @@ export const getEcsEc2ForceDeleteAsgCustomResource = ({ workload }: { workload: 
       asgName: Ref(cfLogicalNames.ecsEc2AutoscalingGroup(workload.name))
     }
   });
-  resource.DependsOn = [cfLogicalNames.ecsCluster(workload.name)];
+  // Ensure this custom resource is deleted BEFORE the capacity provider (so its Delete handler
+  // can remove scale-in protection early, reducing CloudFormation delete timeouts).
+  resource.DependsOn = [cfLogicalNames.ecsCluster(workload.name), cfLogicalNames.ecsEc2CapacityProvider(workload.name)];
   return resource;
 };
 
@@ -492,7 +494,37 @@ export const getEcsDisableManagedTerminationProtectionCustomResource = ({
       capacityProviderName: Ref(cfLogicalNames.ecsEc2CapacityProvider(workload.name))
     }
   });
-  // No DependsOn - runs early in deletion
+  // Ensure this custom resource is deleted BEFORE the capacity provider, so its Delete handler
+  // can disable managed termination protection while the capacity provider still exists.
+  resource.DependsOn = [cfLogicalNames.ecsEc2CapacityProvider(workload.name)];
+  return resource;
+};
+
+export const getEcsDeregisterTargetsCustomResource = ({ workload }: { workload: StpContainerWorkload }) => {
+  const targetGroupArns = getTargetsForContainerWorkload({
+    workloadName: workload.name,
+    containers: workload.containers
+  })
+    .map(({ loadBalancerName, targetContainerPort }) => {
+      return Ref(
+        cfLogicalNames.targetGroup({
+          stpResourceName: workload.name,
+          loadBalancerName,
+          targetContainerPort
+        })
+      );
+    })
+    .filter(Boolean);
+
+  const resource = getStpServiceCustomResource<'deregisterTargets'>({
+    deregisterTargets: {
+      targetGroupArns
+    }
+  });
+
+  // Make sure this custom resource is deleted BEFORE the ECS service.
+  // CloudFormation deletion order is reverse of dependencies.
+  resource.DependsOn = [cfLogicalNames.ecsService(workload.name, !!workload.deployment)];
   return resource;
 };
 
@@ -507,9 +539,14 @@ export const getEcsEc2CapacityProvider = ({ workload }: { workload: StpContainer
       },
       ManagedDraining: 'ENABLED',
       ManagedTerminationProtection: 'ENABLED'
-    }
+    },
+    // Ensure capacity provider has Stacktape tags (especially stackName).
+    // This improves least-privilege IAM and makes it easier to scope permissions by tags.
+    Tags: stackManager.getTags()
   });
-  resource.DependsOn = [cfLogicalNames.ecsEc2ForceDeleteAutoscalingGroupCustomResource(workload.name)];
+  // Do NOT depend on the force-delete custom resource; that would cause the custom resource to be
+  // deleted AFTER the capacity provider, making it too late to help during stack deletion.
+  resource.DependsOn = [cfLogicalNames.ecsEc2AutoscalingGroup(workload.name)];
   return resource;
 };
 

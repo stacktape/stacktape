@@ -774,6 +774,13 @@ export const cfLogicalNames = {
       suffix: { cloudformationResourceType: 'AWS::CloudFormation::CustomResource' }
     });
   },
+  ecsDeregisterTargetsCustomResource(stpResourceName: string) {
+    return buildCfLogicalName({
+      stpResourceName,
+      specifier: { type: 'DeregisterTargets' },
+      suffix: { cloudformationResourceType: 'AWS::CloudFormation::CustomResource' }
+    });
+  },
 
   ecsEc2CapacityProvider(stpResourceName: string) {
     return buildCfLogicalName({

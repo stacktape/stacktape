@@ -73,6 +73,10 @@ type StpServiceCustomResourceDisableEcsManagedTerminationProtectionProps = {
   capacityProviderName: string | IntrinsicFunction;
 };
 
+type StpServiceCustomResourceDeregisterTargetsProps = {
+  targetGroupArns: (string | IntrinsicFunction)[];
+};
+
 type StpServiceCustomResourceDefaultDomainCertProps = { certDomainSuffix: string; version: number };
 
 type StpServiceCustomResourceEdgeLambdaBucketProps = { globallyUniqueStackHash: string };
@@ -117,6 +121,7 @@ type StpServiceCustomResourceProperties = {
   webAppFirewall?: StpServiceCustomResourceFirewallProps;
   openSearch?: StpServiceCustomResourceOpenSearchProps;
   forceDeleteAsg?: StpServiceCustomResourceForceDeleteAsgProps;
+  deregisterTargets?: StpServiceCustomResourceDeregisterTargetsProps;
   disableEcsManagedTerminationProtection?: StpServiceCustomResourceDisableEcsManagedTerminationProtectionProps;
   defaultDomainCert?: StpServiceCustomResourceDefaultDomainCertProps;
   defaultDomain?: StpServiceCustomResourceDefaultDomainProps;

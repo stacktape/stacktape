@@ -397,6 +397,13 @@ export class StackManager {
     const roleArn =
       configManager.deploymentConfig?.cloudformationRoleArn ||
       (deployedStackOverviewManager.getStackMetadata(stackMetadataNames.cloudformationRoleArn()) as string);
+
+    // Best-effort: scale down ECS services before CloudFormation delete.
+    // This helps avoid CloudFormation timeouts like:
+    // "Resource <EcsServiceLogicalId>: Resource timed out waiting for completion"
+    // which commonly happens when ECS tasks take a long time to drain/stop.
+    await this.#scaleDownEcsServicesBeforeDelete().catch(() => {});
+
     await awsSdkManager.deleteStack(this.#stackName, {
       roleArn
     });
@@ -405,6 +412,55 @@ export class StackManager {
     );
     await eventManager.finishEvent({ eventType: 'DELETE_STACK', data: {} });
     return result;
+  };
+
+  #scaleDownEcsServicesBeforeDelete = async () => {
+    const ecsServiceArns = (this.existingStackResources || [])
+      .filter(
+        ({ ResourceType, PhysicalResourceId }) =>
+          (ResourceType === 'AWS::ECS::Service' || ResourceType === 'Stacktape::ECSBlueGreenV1::Service') &&
+          PhysicalResourceId
+      )
+      .map(({ PhysicalResourceId }) => PhysicalResourceId);
+
+    if (!ecsServiceArns.length) {
+      return;
+    }
+
+    // Ask ECS to scale all services to 0
+    await Promise.all(
+      ecsServiceArns.map(async (ecsServiceArn) => {
+        const cluster = ecsServiceArn.split('/')[1];
+        if (!cluster) return;
+        await awsSdkManager.startEcsServiceRollingUpdate({
+          service: ecsServiceArn,
+          cluster,
+          desiredCount: 0
+        });
+      })
+    );
+
+    // Wait briefly for tasks to drain (best-effort; don't block forever)
+    const maxWaitMs = 10 * 60 * 1000;
+    const pollMs = 5000;
+    const start = Date.now();
+    while (Date.now() - start < maxWaitMs) {
+      const services = await Promise.all(
+        ecsServiceArns.map(async (ecsServiceArn) => {
+          try {
+            return await awsSdkManager.getEcsService({ serviceArn: ecsServiceArn });
+          } catch {
+            // If the service is already gone, treat it as drained.
+            return null;
+          }
+        })
+      );
+      const allDrained = services.every((svc) => !svc || (svc.runningCount || 0) === 0);
+      if (allDrained) {
+        return;
+      }
+      await wait(pollMs);
+    }
   };
 
   rollbackStack = async () => {

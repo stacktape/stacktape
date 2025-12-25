@@ -1,6 +1,6 @@
 {
   "name": "stacktape",
-  "version": "3.0.14",
+  "version": "3.0.17",
   "private": true,
   "bin": {
     "stacktape": "./index.js"
@@ -67,6 +67,7 @@
     "@aws-sdk/client-ec2": "3.895.0",
     "@aws-sdk/client-ecr": "3.895.0",
     "@aws-sdk/client-ecs": "3.226.0",
+    "@aws-sdk/client-elastic-load-balancing-v2": "3.895.0",
     "@aws-sdk/client-iam": "3.895.0",
     "@aws-sdk/client-lambda": "3.895.0",
     "@aws-sdk/client-opensearch": "3.895.0",

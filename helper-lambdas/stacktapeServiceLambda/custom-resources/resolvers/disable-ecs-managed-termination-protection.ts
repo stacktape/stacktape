@@ -6,20 +6,22 @@ export const disableEcsManagedTerminationProtection: ServiceLambdaResolver<
   StpServiceCustomResourceProperties['disableEcsManagedTerminationProtection']
 > = async (currentProps, _previousProps, operation, _physicalResourceId) => {
   if (operation === 'Delete') {
-    console.info(
-      `Disabling managed termination protection for capacity provider: ${currentProps.capacityProviderName}`
-    );
+    const capacityProviderName =
+      typeof currentProps.capacityProviderName === 'string' ? currentProps.capacityProviderName.trim() : '';
+    if (!capacityProviderName) {
+      console.info('No capacity provider name provided, skipping disabling managed termination protection.');
+      return { data: {}, physicalResourceId: 'unknown-dmtp' };
+    }
+    console.info(`Disabling managed termination protection for capacity provider: ${capacityProviderName}`);
     await ecsClient.send(
       new UpdateCapacityProviderCommand({
-        name: currentProps.capacityProviderName as string,
+        name: capacityProviderName,
         autoScalingGroupProvider: {
           managedTerminationProtection: 'DISABLED'
         }
       })
     );
-    console.info(
-      `Successfully disabled managed termination protection for capacity provider: ${currentProps.capacityProviderName}`
-    );
+    console.info(`Successfully disabled managed termination protection for capacity provider: ${capacityProviderName}`);
   }
   return { data: {}, physicalResourceId: `${currentProps.capacityProviderName}-dmtp` };
 };
