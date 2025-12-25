@@ -153,6 +153,18 @@ export class Printer {
       disableWhitespacePrefixing ? 0 : stripAnsi(prefixPart).length,
       true
     )}`;
+
+    // If TUI is active, capture the log for display within phases
+    if (deploymentTui.isActive && !disableTerminalPrint) {
+      // Get the current active event from eventManager to associate the log with a phase
+      const currentEvent = eventManager.lastEvent;
+      deploymentTui.captureLog({
+        message: stripAnsi(message), // Remove ANSI codes for clean TUI display
+        type: printType as any,
+        eventType: currentEvent?.eventType
+      });
+    }
+
     if (!disableTerminalPrint && !deploymentTui.isActive) {
       if (printTo === 'stdout') {
         console.info(printContent);

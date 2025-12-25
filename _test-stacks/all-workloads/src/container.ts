@@ -9,4 +9,5 @@ const port = Number(process.env.PORT) || 3000;
 
 serve({ fetch: app.fetch, port });
 
-console.info(`Container started successfully. Listening on port ${port}. 7`);
+console.info(`Container started successfully. Listening on port ${port}.`);
+console.info('Version: 1');

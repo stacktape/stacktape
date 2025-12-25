@@ -139,8 +139,60 @@ const EventRow = ({ event }: { event: FormattedEventData }) => {
   );
 };
 
+// Log item component - displays a captured log within a phase
+const LogItem = ({ log }: { log: CapturedLog }) => {
+  const getLogColor = (type: CapturedLog['type']) => {
+    switch (type) {
+      case 'ERROR':
+        return colors.error;
+      case 'WARN':
+        return colors.warning;
+      case 'SUCCESS':
+        return colors.success;
+      case 'INFO':
+        return colors.info;
+      case 'HINT':
+        return colors.primary;
+      case 'DEBUG':
+        return colors.gray500;
+      case 'START':
+        return colors.gray400;
+      default:
+        return colors.gray400;
+    }
+  };
+
+  const getLogIcon = (type: CapturedLog['type']) => {
+    switch (type) {
+      case 'ERROR':
+        return symbols.error;
+      case 'WARN':
+        return '⚠';
+      case 'SUCCESS':
+        return symbols.success;
+      case 'HINT':
+        return 'ℹ';
+      case 'INFO':
+      case 'DEBUG':
+      case 'START':
+      default:
+        return symbols.bullet;
+    }
+  };
+
+  return (
+    <Box>
+      <Text color={getLogColor(log.type)}>{getLogIcon(log.type)}</Text>
+      <Text> </Text>
+      <Text color={colors.gray400}>[{log.type}]</Text>
+      <Text> </Text>
+      <Text color={colors.gray300}>{log.message}</Text>
+    </Box>
+  );
+};
+
 // Phase section component
-const PhaseSection = ({ phaseData }: { phaseData: PhaseWithEvents }) => {
+const PhaseSection = ({ phaseData, logs }: { phaseData: PhaseWithEvents; logs: CapturedLog[] }) => {
   const { phase, phaseNumber, events, status, startedAt, duration } = phaseData;
   const now = Date.now();
 
@@ -159,6 +211,10 @@ const PhaseSection = ({ phaseData }: { phaseData: PhaseWithEvents }) => {
 
   // Phase header color
   const headerColor = status === 'pending' ? colors.gray500 : colors.white;
+
+  // Get logs for this phase (match by eventType)
+  const phaseEventTypes = new Set(events.map((e) => e.eventType));
+  const phaseLogs = logs.filter((log) => log.eventType && phaseEventTypes.has(log.eventType as any));
 
   return (
     <Box flexDirection="column" marginTop={1} width={BOX_WIDTH + 2}>
@@ -183,6 +239,15 @@ const PhaseSection = ({ phaseData }: { phaseData: PhaseWithEvents }) => {
           {events.map((event) => (
             <EventRow key={event.eventType} event={event} />
           ))}
+
+          {/* Logs for this phase */}
+          {phaseLogs.length > 0 && (
+            <Box flexDirection="column" marginTop={1}>
+              {phaseLogs.map((log, idx) => (
+                <LogItem key={idx} log={log} />
+              ))}
+            </Box>
+          )}
         </Box>
       )}
     </Box>
@@ -340,7 +405,12 @@ const Header = ({ config }: { config: TuiConfig }) => {
 const DeploymentTuiApp = ({
   getState
 }: {
-  getState: () => { config: TuiConfig; events: FormattedEventData[]; error?: ExpectedError | UnexpectedError };
+  getState: () => {
+    config: TuiConfig;
+    events: FormattedEventData[];
+    logs: CapturedLog[];
+    error?: ExpectedError | UnexpectedError;
+  };
 }) => {
   const [, setTick] = useState(0);
 
@@ -352,7 +422,7 @@ const DeploymentTuiApp = ({
     return () => clearInterval(interval);
   }, []);
 
-  const { config, events, error } = getState();
+  const { config, events, logs, error } = getState();
   const phases = groupEventsIntoPhases(events, config.command);
 
   // Only render phases that have events
@@ -364,7 +434,7 @@ const DeploymentTuiApp = ({
       <Box flexDirection="column" width={BOX_WIDTH + 2}>
         <Header config={config} />
         {visiblePhases.map((phaseData) => (
-          <PhaseSection key={phaseData.phase.phaseId} phaseData={phaseData} />
+          <PhaseSection key={phaseData.phase.phaseId} phaseData={phaseData} logs={logs} />
         ))}
         <ErrorDisplay error={error} />
       </Box>
@@ -375,10 +445,17 @@ const DeploymentTuiApp = ({
     <Box flexDirection="column" width={BOX_WIDTH + 2}>
       <Header config={config} />
       {visiblePhases.map((phaseData) => (
-        <PhaseSection key={phaseData.phase.phaseId} phaseData={phaseData} />
+        <PhaseSection key={phaseData.phase.phaseId} phaseData={phaseData} logs={logs} />
       ))}
     </Box>
   );
+};
+
+export type CapturedLog = {
+  message: string;
+  type: 'INFO' | 'WARN' | 'ERROR' | 'DEBUG' | 'HINT' | 'SUCCESS' | 'START';
+  timestamp: number;
+  eventType?: string; // Which event was active when this log was captured
 };
 
 // Singleton TUI manager
@@ -386,6 +463,7 @@ class DeploymentTuiManager {
   private inkInstance: Instance | null = null;
   private config: TuiConfig | null = null;
   private events: FormattedEventData[] = [];
+  private capturedLogs: CapturedLog[] = [];
   private error: ExpectedError | UnexpectedError | null = null;
   private isStarted = false;
 
@@ -396,6 +474,7 @@ class DeploymentTuiManager {
     this.isStarted = true;
     this.config = config;
     this.events = [];
+    this.capturedLogs = [];
     this.error = null;
 
     this.inkInstance = render(
@@ -403,7 +482,8 @@ class DeploymentTuiManager {
         getState={() => ({
           config: this.config!,
           events: this.events,
-          error: this.error
+          logs: this.capturedLogs,
+          error: this.error ?? undefined
         })}
       />
     );
@@ -417,6 +497,14 @@ class DeploymentTuiManager {
   updateStackInfo(config: { stackName: string; stage: string; region: string }) {
     if (!this.isStarted || !this.config) return;
     this.config = { ...this.config, ...config };
+  }
+
+  captureLog(log: Omit<CapturedLog, 'timestamp'>) {
+    if (!this.isStarted) return;
+    this.capturedLogs.push({
+      ...log,
+      timestamp: Date.now()
+    });
   }
 
   showError(error: ExpectedError | UnexpectedError) {
@@ -440,6 +528,7 @@ class DeploymentTuiManager {
     this.isStarted = false;
     this.config = null;
     this.events = [];
+    this.capturedLogs = [];
     this.error = null;
   }
 
