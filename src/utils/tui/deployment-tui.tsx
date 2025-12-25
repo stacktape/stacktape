@@ -4,6 +4,7 @@
 import type { Instance } from 'ink';
 import type { FormattedEventData } from '../../app/event-manager/event-log';
 import type { PhaseMapping } from './types';
+import type { ExpectedError, UnexpectedError } from '../errors';
 import { Box, render, Text } from 'ink';
 import Spinner from 'ink-spinner';
 import { useEffect, useState } from 'react';
@@ -160,9 +161,9 @@ const PhaseSection = ({ phaseData }: { phaseData: PhaseWithEvents }) => {
   const headerColor = status === 'pending' ? colors.gray500 : colors.white;
 
   return (
-    <Box flexDirection="column" marginTop={1}>
+    <Box flexDirection="column" marginTop={1} width={BOX_WIDTH + 2}>
       {/* Phase header */}
-      <Box>
+      <Box width={BOX_WIDTH + 2}>
         <Text color={colors.gray500}>
           PHASE {phaseNumber} {symbols.bullet}{' '}
         </Text>
@@ -188,6 +189,109 @@ const PhaseSection = ({ phaseData }: { phaseData: PhaseWithEvents }) => {
   );
 };
 
+// Error display component
+const ErrorDisplay = ({ error }: { error: ExpectedError | UnexpectedError }) => {
+  const isExpected = error.isExpected;
+  const errorTitle = isExpected ? 'DEPLOYMENT FAILED' : 'UNEXPECTED ERROR';
+  const errorType = error.details?.errorType || 'ERROR';
+  const horizontalLine = symbols.horizontal.repeat(BOX_WIDTH);
+
+  // Parse hints
+  const hints = error.isExpected ? (error as ExpectedError).hint : null;
+  const hintArray = hints ? (Array.isArray(hints) ? hints : [hints]) : [];
+
+  // Parse stack trace if available
+  const stackTrace = error.details?.prettyStackTrace;
+  const stackLines = stackTrace ? stackTrace.split('\n').slice(0, 10) : []; // Limit to 10 lines
+
+  return (
+    <Box flexDirection="column" width={BOX_WIDTH + 2} marginTop={1}>
+      {/* Error header */}
+      <Text color={colors.gray700}>
+        {symbols.topLeft}
+        {horizontalLine}
+        {symbols.topRight}
+      </Text>
+      <Box width={BOX_WIDTH + 2}>
+        <Text color={colors.gray700}>{symbols.vertical} </Text>
+        <Text bold color={colors.error}>
+          {symbols.error} {errorTitle}
+        </Text>
+        <Box flexGrow={1} />
+        <Text color={colors.gray700}> {symbols.vertical}</Text>
+      </Box>
+      <Text color={colors.gray700}>
+        {symbols.bottomLeft}
+        {horizontalLine}
+        {symbols.topRight}
+      </Text>
+
+      {/* Error type badge */}
+      <Box marginTop={1}>
+        <Text color={colors.error} bold>
+          [{errorType}]
+        </Text>
+      </Box>
+
+      {/* Error message */}
+      <Box marginTop={1} flexDirection="column">
+        <Text color={colors.white} wrap="wrap">
+          {error.message}
+        </Text>
+      </Box>
+
+      {/* Hints */}
+      {hintArray.length > 0 && (
+        <Box flexDirection="column" marginTop={1}>
+          <Text color={colors.info} bold>
+            {symbols.lightbulb} Hints:
+          </Text>
+          {hintArray.map((hint, idx) => (
+            <Box key={idx} marginLeft={2} marginTop={idx > 0 ? 1 : 0}>
+              <Text color={colors.gray600}>{symbols.bullet} </Text>
+              <Text color={colors.gray300} wrap="wrap">
+                {hint}
+              </Text>
+            </Box>
+          ))}
+        </Box>
+      )}
+
+      {/* Stack trace (dev mode) */}
+      {stackLines.length > 0 && (
+        <Box flexDirection="column" marginTop={1}>
+          <Text color={colors.gray500} dimColor>
+            Stack trace:
+          </Text>
+          {stackLines.map((line, idx) => (
+            <Text key={idx} color={colors.gray600} dimColor>
+              {line}
+            </Text>
+          ))}
+        </Box>
+      )}
+
+      {/* Sentry ID if available */}
+      {error.details?.sentryEventId && (
+        <Box marginTop={1}>
+          <Text color={colors.gray500}>Error ID: </Text>
+          <Text color={colors.gray400}>{error.details.sentryEventId}</Text>
+        </Box>
+      )}
+
+      {/* Help footer */}
+      <Box marginTop={1} flexDirection="column">
+        <Text color={colors.gray600}>
+          {symbols.lineDash.repeat(BOX_WIDTH + 2)}
+        </Text>
+        <Text color={colors.gray500}>
+          Need help? Join our Discord: https://discord.gg/gSvzRWe3YD
+        </Text>
+      </Box>
+    </Box>
+  );
+};
+
 // Header component
 const Header = ({ config }: { config: TuiConfig }) => {
   const { command, stackName, stage, region } = config;
@@ -198,13 +302,13 @@ const Header = ({ config }: { config: TuiConfig }) => {
   const horizontalLine = symbols.horizontal.repeat(BOX_WIDTH);
 
   return (
-    <Box flexDirection="column">
+    <Box flexDirection="column" width={BOX_WIDTH + 2}>
       <Text color={colors.gray700}>
         {symbols.topLeft}
         {horizontalLine}
         {symbols.topRight}
       </Text>
-      <Box>
+      <Box width={BOX_WIDTH + 2}>
         <Text color={colors.gray700}>{symbols.vertical} </Text>
         <Text bold color={colors.primary}>
           {statusText}
@@ -212,7 +316,7 @@ const Header = ({ config }: { config: TuiConfig }) => {
         <Box flexGrow={1} />
         <Text color={colors.gray700}> {symbols.vertical}</Text>
       </Box>
-      <Box>
+      <Box width={BOX_WIDTH + 2}>
         <Text color={colors.gray700}>{symbols.vertical} </Text>
         <Text color={colors.white}>{stackName}</Text>
         <Text color={colors.gray500}>
@@ -233,7 +337,11 @@ const Header = ({ config }: { config: TuiConfig }) => {
 };
 
 // Main TUI component
-const DeploymentTuiApp = ({ getState }: { getState: () => { config: TuiConfig; events: FormattedEventData[] } }) => {
+const DeploymentTuiApp = ({
+  getState
+}: {
+  getState: () => { config: TuiConfig; events: FormattedEventData[]; error?: ExpectedError | UnexpectedError };
+}) => {
   const [, setTick] = useState(0);
 
   // Re-render periodically for spinner animation and time updates
@@ -244,14 +352,27 @@ const DeploymentTuiApp = ({ getState }: { getState: () => { config: TuiConfig; e
     return () => clearInterval(interval);
   }, []);
 
-  const { config, events } = getState();
+  const { config, events, error } = getState();
   const phases = groupEventsIntoPhases(events, config.command);
 
   // Only render phases that have events
   const visiblePhases = phases.filter((p) => p.events.length > 0);
 
+  // If there's an error, show error display instead of/after phases
+  if (error) {
+    return (
+      <Box flexDirection="column" width={BOX_WIDTH + 2}>
+        <Header config={config} />
+        {visiblePhases.map((phaseData) => (
+          <PhaseSection key={phaseData.phase.phaseId} phaseData={phaseData} />
+        ))}
+        <ErrorDisplay error={error} />
+      </Box>
+    );
+  }
+
   return (
-    <Box flexDirection="column">
+    <Box flexDirection="column" width={BOX_WIDTH + 2}>
       <Header config={config} />
       {visiblePhases.map((phaseData) => (
         <PhaseSection key={phaseData.phase.phaseId} phaseData={phaseData} />
@@ -265,6 +386,7 @@ class DeploymentTuiManager {
   private inkInstance: Instance | null = null;
   private config: TuiConfig | null = null;
   private events: FormattedEventData[] = [];
+  private error: ExpectedError | UnexpectedError | null = null;
   private isStarted = false;
 
   start(config: TuiConfig) {
@@ -274,12 +396,14 @@ class DeploymentTuiManager {
     this.isStarted = true;
     this.config = config;
     this.events = [];
+    this.error = null;
 
     this.inkInstance = render(
       <DeploymentTuiApp
         getState={() => ({
           config: this.config!,
-          events: this.events
+          events: this.events,
+          error: this.error
         })}
       />
     );
@@ -295,18 +419,28 @@ class DeploymentTuiManager {
     this.config = { ...this.config, ...config };
   }
 
+  showError(error: ExpectedError | UnexpectedError) {
+    if (!this.isStarted) return;
+    this.error = error;
+    // Give TUI time to render the error before stopping
+    // This ensures the error is visible to the user
+  }
+
   complete() {
     // No-op - phases complete automatically based on event status
   }
 
   stop() {
     if (this.inkInstance) {
+      // Unmount the TUI - this will clear the alternate screen buffer
+      // The last rendered frame will remain visible in the terminal
       this.inkInstance.unmount();
       this.inkInstance = null;
     }
     this.isStarted = false;
     this.config = null;
     this.events = [];
+    this.error = null;
   }
 
   get isActive() {

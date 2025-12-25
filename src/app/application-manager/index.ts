@@ -78,10 +78,26 @@ export class ApplicationManager {
       const sentryEventId = await reportErrorToSentry(stacktapeError);
       stacktapeError.details.sentryEventId = sentryEventId;
     }
-    printer.error(stacktapeError);
+
+    // If TUI is active, show error in beautiful TUI format
+    const { deploymentTui } = await import('@utils/tui/deployment-tui');
+    const wasTuiActive = deploymentTui.isActive;
+    if (wasTuiActive) {
+      deploymentTui.showError(stacktapeError);
+      // Give TUI time to render error (allow React to update)
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+
+    // Stop TUI and cleanup
     if (!skipCleanup) {
       await this.cleanUp({ success: false, err });
     }
+
+    // If TUI was not active, print error to console in traditional format
+    if (!wasTuiActive) {
+      printer.error(stacktapeError);
+    }
+
     const returnableError = getReturnableError(stacktapeError);
     // right now we do not support onError hooks, but we can easily extend hooks to support them
     // await eventManager.processHooks({
