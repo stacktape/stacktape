@@ -12,10 +12,12 @@ export class BudgetManager {
   tagsUsableInCostExploring: { error?: CostExplorerTagsError; tags: string[] };
   budgets: Budget[] = [];
 
-  init = async () => {
+  init = async ({ parentEventType }: { parentEventType?: LoggableEventType } = {}) => {
     await eventManager.startEvent({
       eventType: 'FETCH_BUDGET_INFO',
-      description: 'Fetching budget info'
+      description: 'Fetching budget info',
+      parentEventType,
+      instanceId: parentEventType ? 'budget-info' : undefined
     });
     const [tagsUsedInRegion, tagsUsableInCostExploring] = await Promise.all([
       awsSdkManager.getAllTagsUsedInRegion(),
@@ -26,7 +28,9 @@ export class BudgetManager {
     this.tagsUsedInRegion = tagsUsedInRegion;
     this.tagsUsableInCostExploring = tagsUsableInCostExploring;
     await eventManager.finishEvent({
-      eventType: 'FETCH_BUDGET_INFO'
+      eventType: 'FETCH_BUDGET_INFO',
+      parentEventType,
+      instanceId: parentEventType ? 'budget-info' : undefined
     });
   };
 

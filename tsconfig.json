@@ -39,5 +39,5 @@
     "eslint.config.ts",
     "TS-CLASS-CONFIG.ts"
   ],
-  "exclude": ["scripts/starter-projects/_script-test-api.ts"]
+  "exclude": ["scripts/starter-projects/_script-test-api.ts", "@generated/**/*"]
 }

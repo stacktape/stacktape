@@ -235,9 +235,9 @@ export class PackagingManager {
     nextjsWebResource: StpNextjsWeb;
     commandCanUseCache: boolean;
   }) => {
-    const progressLogger = eventManager.getNamespacedInstance({
-      eventType: 'PACKAGE_ARTIFACTS',
-      identifier: nextjsWebResource.name
+    const progressLogger = eventManager.createChildLogger({
+      parentEventType: 'PACKAGE_ARTIFACTS',
+      instanceId: nextjsWebResource.name
     });
     let environment;
     try {
@@ -355,7 +355,7 @@ export class PackagingManager {
 
     const existingDigests = shouldUseCache ? deploymentArtifactManager.getExistingDigestsForJob(jobName) : [];
     const packagingType = packaging.type;
-    const progressLogger = eventManager.getNamespacedInstance({ eventType: parentEventType, identifier: jobName });
+    const progressLogger = eventManager.createChildLogger({ parentEventType, instanceId: jobName });
 
     const cacheRef = shouldUseRemoteDockerCache() ? getCacheRef(jobName) : undefined;
 

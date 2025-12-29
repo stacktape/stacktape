@@ -22,24 +22,43 @@ const hookEventsRequiringDirectiveCleanup: (keyof Hooks)[] = ['beforeDeploy'];
 export class EventManager implements ProgressLogger {
   hookMap: HookMap;
   eventLog: EventLog;
-  namespace: { identifier: string; eventType: LoggableEventType };
   progressPrintingInterval: any;
   finalActions: AnyFunction[];
+  currentPhase: DeploymentPhase | null = null;
+
+  /**
+   * Context for this logger instance. Used by child loggers to inherit context.
+   * - For root eventManager: empty context
+   * - For child loggers: contains parentEventType, instanceId, etc.
+   */
+  private _eventContext: EventContext;
 
   constructor({
     eventLog,
     hookMap,
-    namespace
+    eventContext = {}
   }: {
     eventLog: EventLog;
     hookMap: HookMap;
-    namespace: { identifier: string; eventType: LoggableEventType };
+    eventContext?: EventContext;
   }) {
     this.eventLog = eventLog;
     this.hookMap = hookMap;
-    this.namespace = namespace;
+    this._eventContext = eventContext;
     this.finalActions = [];
   }
+
+  /**
+   * Returns the current event context.
+   * Used by child loggers to inherit and extend context.
+   */
+  get eventContext(): EventContext {
+    return this._eventContext;
+  }
+
+  setPhase = (phase: DeploymentPhase) => {
+    this.currentPhase = phase;
+  };
 
   get formattedEventLogData() {
     return this.eventLog.formattedData;
@@ -136,8 +155,56 @@ export class EventManager implements ProgressLogger {
     }
   };
 
-  getNamespacedInstance = ({ identifier, eventType }: { identifier: string; eventType: LoggableEventType }) => {
-    return new EventManager({ eventLog: this.eventLog, hookMap: this.hookMap, namespace: { identifier, eventType } });
+  /**
+   * Creates a child logger that inherits context and adds its own.
+   * Events logged through the child will automatically have the parent context.
+   *
+   * @param instanceId - Identifies this specific instance (e.g., "my-lambda" when packaging multiple)
+   * @param parentEventType - The parent event type (e.g., PACKAGE_ARTIFACTS)
+   *
+   * @example
+   * // For packaging multiple lambdas in parallel:
+   * const lambdaLogger = eventManager.createChildLogger({
+   *   instanceId: 'my-function',
+   *   parentEventType: 'PACKAGE_ARTIFACTS'
+   * });
+   *
+   * @example
+   * // For deeply nested events (NextJS functions):
+   * const serverFnLogger = parentLogger.createChildLogger({
+   *   instanceId: `${parentLogger.eventContext.instanceId}.serverFunction`,
+   *   parentEventType: parentLogger.eventContext.parentEventType
+   * });
+   */
+  createChildLogger = ({
+    instanceId,
+    parentEventType
+  }: {
+    instanceId: string;
+    parentEventType: LoggableEventType;
+  }): EventManager => {
+    return new EventManager({
+      eventLog: this.eventLog,
+      hookMap: this.hookMap,
+      eventContext: {
+        instanceId,
+        parentEventType,
+        parentInstanceId: this._eventContext.instanceId
+      }
+    });
+  };
+
+  /**
+   * @deprecated Use createChildLogger instead. Will be removed in future version.
+   */
+  getNamespacedInstance = ({
+    identifier,
+    eventType
+  }: {
+    identifier: string;
+    eventType: LoggableEventType;
+  }): EventManager => {
+    return this.createChildLogger({ instanceId: identifier, parentEventType: eventType });
   };
 
   handleEvent = async ({
@@ -146,17 +213,21 @@ export class EventManager implements ProgressLogger {
     data,
     captureType,
     finalMessage,
-    additionalMessage
+    additionalMessage,
+    phase,
+    instanceId,
+    parentEventType,
+    parentInstanceId
   }: Omit<EventManagerProgressEvent, 'description'> & {
     captureType: EventLogEntryType;
     description?: string;
     finalMessage?: string;
   }) => {
-    // @note we currently don't support hooking into nested events
-    // const fullIdentifier = this.namespace ? [this.namespace.identifier, eventType].join('.') : eventType;
-    // if (captureType === 'START' || captureType === 'FINISH') {
-    //   await this.processHooks({ eventType: fullIdentifier as LoggableEventType, captureType });
-    // }
+    // Merge context: explicit params override inherited context
+    const resolvedInstanceId = instanceId ?? this._eventContext.instanceId;
+    const resolvedParentEventType = parentEventType ?? this._eventContext.parentEventType;
+    const resolvedParentInstanceId = parentInstanceId ?? this._eventContext.parentInstanceId;
+
     this.eventLog.captureEvent({
       eventType,
       captureType,
@@ -164,8 +235,11 @@ export class EventManager implements ProgressLogger {
       additionalMessage,
       description,
       timestamp: Date.now(),
-      namespace: this.namespace,
-      finalMessage
+      finalMessage,
+      phase: phase || this.currentPhase,
+      instanceId: resolvedInstanceId,
+      parentEventType: resolvedParentEventType,
+      parentInstanceId: resolvedParentInstanceId
     });
     this.printProgress();
   };
@@ -201,4 +275,4 @@ export class EventManager implements ProgressLogger {
   };
 }
 
-export const eventManager = new EventManager({ eventLog: new EventLog(), hookMap: {}, namespace: null });
+export const eventManager = new EventManager({ eventLog: new EventLog(), hookMap: {} });

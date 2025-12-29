@@ -166,9 +166,9 @@ export const updateEcsService = async ({
   ecsTaskDefinition,
   ecsService
 }: Awaited<ReturnType<typeof getECSHotswapInformation>>) => {
-  const updateWorkloadLogger = eventManager.getNamespacedInstance({
-    eventType: 'HOTSWAP_UPDATE',
-    identifier: workload.name
+  const updateWorkloadLogger = eventManager.createChildLogger({
+    parentEventType: 'HOTSWAP_UPDATE',
+    instanceId: workload.name
   });
   let { taskDefinitionArn } = ecsTaskDefinition.currentState;
   if (ecsTaskDefinition.needsUpdate) {

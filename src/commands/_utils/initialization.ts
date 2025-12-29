@@ -55,13 +55,22 @@ export const initializeAllStackServices = async ({
   if (loadGlobalConfig) {
     await configManager.loadGlobalConfig();
   }
+
+  // Start the parent event for loading AWS metadata
+  await eventManager.startEvent({
+    eventType: 'LOAD_METADATA_FROM_AWS',
+    description: 'Loading metadata from AWS',
+    phase: 'INITIALIZE'
+  });
+
   // we are using allSettled instead of all because we want all operations to finish before throwing (especially startStackOperationRecording)
   // at the same time we want to make execution as fast and parallel as possible
   await settleAllBeforeThrowing([
     stackManager.init({
       stackName: globalStateManager.targetStack.stackName,
       commandModifiesStack,
-      commandRequiresDeployedStack
+      commandRequiresDeployedStack,
+      parentEventType: 'LOAD_METADATA_FROM_AWS'
     }),
     ec2Manager.init({
       instanceTypes: configManager.allUsedEc2InstanceTypes,
@@ -71,11 +80,12 @@ export const initializeAllStackServices = async ({
       reuseVpc: configManager.reuseVpcConfig,
       resourcesRequiringPrivateSubnet: configManager.allResourcesRequiringPrivateSubnets
     }),
-    budgetManager.init(),
+    budgetManager.init({ parentEventType: 'LOAD_METADATA_FROM_AWS' }),
     domainManager.init({
       stackName: globalStateManager.targetStack.stackName,
       domains: configManager.allUsedDomainsInConfig,
-      fromParameterStore: true
+      fromParameterStore: true,
+      parentEventType: 'LOAD_METADATA_FROM_AWS'
     }),
     startStackOperationRecording({
       stackName: globalStateManager.targetStack.stackName,
@@ -100,11 +110,16 @@ export const initializeAllStackServices = async ({
     deploymentArtifactManager.init({
       accountId: globalStateManager.targetAwsAccount.awsAccountId,
       globallyUniqueStackHash: globalStateManager.targetStack.globallyUniqueStackHash,
-      stackActionType: stackManager.stackActionType
+      stackActionType: stackManager.stackActionType,
+      parentEventType: 'LOAD_METADATA_FROM_AWS'
     }),
     packagingManager.init(),
     cloudformationRegistryManager.init()
   ]);
+
+  // Finish the parent event for loading AWS metadata
+  await eventManager.finishEvent({ eventType: 'LOAD_METADATA_FROM_AWS' });
+
   await eventManager.registerHooks(configManager.hooks);
   if (globalStateManager.command !== 'codebuild:deploy') {
     await dependencyInstaller.install({

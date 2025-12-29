@@ -51,13 +51,21 @@ export class StackManager {
   init = async ({
     stackName,
     commandModifiesStack,
-    commandRequiresDeployedStack
+    commandRequiresDeployedStack,
+    parentEventType
   }: {
     stackName: string;
     commandModifiesStack: boolean;
     commandRequiresDeployedStack: boolean;
+    /** Optional parent event for grouping (e.g., LOAD_METADATA_FROM_AWS) */
+    parentEventType?: LoggableEventType;
   }) => {
-    await eventManager.startEvent({ eventType: 'FETCH_STACK_DATA', description: 'Fetching stack data' });
+    await eventManager.startEvent({
+      eventType: 'FETCH_STACK_DATA',
+      description: 'Fetching stack data',
+      parentEventType,
+      instanceId: parentEventType ? 'stack-data' : undefined
+    });
     this.#stackName = stackName;
 
     let stackDetails = await awsSdkManager.getStackDetails(stackName);
@@ -81,7 +89,9 @@ export class StackManager {
 
     await eventManager.finishEvent({
       eventType: 'FETCH_STACK_DATA',
-      data: { stackDetails, stackResources }
+      data: { stackDetails, stackResources },
+      parentEventType,
+      instanceId: parentEventType ? 'stack-data' : undefined
     });
   };
 

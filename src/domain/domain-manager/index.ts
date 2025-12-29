@@ -45,11 +45,14 @@ export class DomainManager {
   init = async ({
     stackName,
     domains,
-    fromParameterStore
+    fromParameterStore,
+    parentEventType
   }: {
     stackName?: string;
     domains: string[];
     fromParameterStore?: boolean;
+    /** Optional parent event for grouping (e.g., LOAD_METADATA_FROM_AWS) */
+    parentEventType?: LoggableEventType;
   }) => {
     // if (!domains.length) {
     //   return;
@@ -58,7 +61,9 @@ export class DomainManager {
     this.dnsResolver.setServers(['8.8.8.8']);
     await eventManager.startEvent({
       eventType: 'FETCH_DOMAIN_STATUSES',
-      description: 'Fetching domain statuses'
+      description: 'Fetching domain statuses',
+      parentEventType,
+      instanceId: parentEventType ? 'domain-statuses' : undefined
     });
     this.#stackName = stackName;
     const [fetchedDefaultDomainsInfo] = await Promise.all([
@@ -74,7 +79,11 @@ export class DomainManager {
         : domains.length && this.#fetchDomainStatuses({ domains })
     ]);
     this.defaultDomainsInfo = stackName && this.#validateDefaultDomainsInfo(fetchedDefaultDomainsInfo);
-    await eventManager.finishEvent({ eventType: 'FETCH_DOMAIN_STATUSES' });
+    await eventManager.finishEvent({
+      eventType: 'FETCH_DOMAIN_STATUSES',
+      parentEventType,
+      instanceId: parentEventType ? 'domain-statuses' : undefined
+    });
   };
 
   #validateDefaultDomainsInfo(info: Partial<DefaultDomainsInfo> | undefined): DefaultDomainsInfo {
