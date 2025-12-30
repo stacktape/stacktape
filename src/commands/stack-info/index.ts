@@ -1,5 +1,6 @@
 import type { TemplateDiff } from '@aws-cdk/cloudformation-diff';
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { StackStatus } from '@aws-sdk/client-cloudformation';
 import { budgetManager } from '@domain-services/budget-manager';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
@@ -10,7 +11,6 @@ import { stpErrors } from '@errors';
 import { fsPaths } from '@shared/naming/fs-paths';
 import { getIsConfigPotentiallyUsable } from '@utils/file-loaders';
 import { getDetailedStackInfoMap } from '@utils/stack-info-map-diff';
-import { tuiManager } from '@utils/tui';
 import { saveDetailedStackInfoMap } from '../_utils/common';
 import {
   initializeAllStackServices,

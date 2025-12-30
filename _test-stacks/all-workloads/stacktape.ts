@@ -50,7 +50,7 @@ export default defineConfig(() => {
   const multiContainerWorkload = new MultiContainerWorkload({
     containers: [
       {
-        name: 'mcw',
+        name: 'lopuch',
         packaging: new StacktapeImageBuildpackPackaging({
           entryfilePath: './src/container.ts',
           languageSpecificConfig: {

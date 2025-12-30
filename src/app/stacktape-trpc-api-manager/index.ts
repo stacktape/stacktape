@@ -1,8 +1,8 @@
+import { tuiManager } from '@application-services/tui-manager';
 import { ApiKeyProtectedClient } from '../../../shared/trpc/api-key-protected';
 import { stpErrors } from '../../config/error-messages';
 import { IS_DEV } from '../../config/random';
 import { gitInfoManager } from '../../utils/git-info-manager';
-import { tuiManager } from '../../utils/tui';
 import { getStacktapeVersion } from '../../utils/versioning';
 import { globalStateManager } from '../global-state-manager';
 

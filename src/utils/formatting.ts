@@ -1,4 +1,4 @@
-import { tuiManager } from './tui';
+import { tuiManager } from '@application-services/tui-manager';
 
 export const getPrettyTime = (durationInMillis: number) => {
   const formatTime = (num, prefix) => `${num} ${prefix}`;

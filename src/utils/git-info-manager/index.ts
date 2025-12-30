@@ -1,6 +1,6 @@
+import { tuiManager } from '@application-services/tui-manager';
 import { memoizeGetters } from '@utils/decorators';
 import { getGitVariable } from '@utils/git';
-import { tuiManager } from '@utils/tui';
 
 @memoizeGetters
 export class GitInfoManager {

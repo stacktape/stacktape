@@ -1,9 +1,9 @@
 /* eslint-disable unicorn/error-message */
 import { isAbsolute, join } from 'node:path';
 import { eventManager } from '@application-services/event-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { IS_DEV } from '@config';
 import { getRelativePath, isFileAccessible } from '@shared/utils/fs-utils';
-import { tuiManager } from '@utils/tui';
 import stacktrace from 'stack-trace';
 import stripAnsi from 'strip-ansi';
 

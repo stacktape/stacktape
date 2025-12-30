@@ -4,13 +4,12 @@ import type { Stats } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
 import { applicationManager } from '@application-services/application-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { configManager } from '@domain-services/config-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { inspectDockerContainer, listDockerContainers, stopDockerContainer } from '@shared/utils/docker';
-import { userPrompt } from '@shared/utils/user-prompt';
 import { getAugmentedEnvironment } from '@utils/environment';
 import { startPortForwardingSessions, substituteTunneledEndpointsInEnvironmentVars } from '@utils/ssm-session';
-import { tuiManager } from '@utils/tui';
 import chokidar from 'chokidar';
 import { getLocalInvokeAwsCredentials, SESSION_DURATION_SECONDS } from '../_utils/assume-role';
 
@@ -202,7 +201,7 @@ export const resolveRunningContainersWithSamePort = async ({
   );
 
   if (containersWithConflictingPorts.length) {
-    const { shouldStopConflictingContainers } = await userPrompt({
+    const { shouldStopConflictingContainers } = await tuiManager.prompt({
       type: 'confirm',
       name: 'shouldStopConflictingContainers',
       message: `The following containers have conflicting ports open. Would you like to remove them?:\n${containersWithConflictingPorts.map(

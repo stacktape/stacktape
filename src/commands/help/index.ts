@@ -1,5 +1,5 @@
 import { globalStateManager } from '@application-services/global-state-manager';
-import { tuiManager } from '@utils/tui';
+import { tuiManager } from '@application-services/tui-manager';
 import orderBy from 'lodash/orderBy';
 import { marked } from 'marked';
 import { markedTerminal } from 'marked-terminal';

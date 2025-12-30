@@ -1,11 +1,11 @@
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { configManager } from '@domain-services/config-manager';
 import { WebClient } from '@slack/web-api';
 import compose from '@utils/basic-compose-shim';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
 import { getPrettyPrintedFlatObject } from '@utils/formatting';
 import { jsonFetch } from '@utils/http-client';
-import { tuiManager } from '@utils/tui';
 
 const getWarnOnFailedNotificationHandler =
   (args: { type: DeploymentNotificationUserIntegration['type']; [arg: string]: any }) => (err) => {

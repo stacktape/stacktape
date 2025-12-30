@@ -1,6 +1,7 @@
 import type { ErrorObject } from 'ajv';
 import { join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import {
   lambdaRuntimesForFileExtension,
   linksMap,
@@ -20,7 +21,6 @@ import {
 } from '@shared/utils/misc';
 import { getIsDirective } from '@utils/directives';
 import { ExpectedError, UnexpectedError } from '@utils/errors';
-import { tuiManager } from '@utils/tui';
 import { parseUserCodeFilepath } from '@utils/user-code-processing';
 import get from 'lodash/get';
 import isEqual from 'lodash/isEqual';

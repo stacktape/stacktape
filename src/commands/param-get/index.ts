@@ -1,7 +1,7 @@
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { stpErrors } from '@errors';
-import { tuiManager } from '@utils/tui';
 import { initializeStackServicesForWorkingWithDeployedStack } from '../_utils/initialization';
 
 export const commandParamGet = async (): Promise<ParamGetReturnValue> => {

@@ -2,6 +2,7 @@ import type { ImageIdentifier } from '@aws-sdk/client-ecr';
 import type { _Object, ObjectIdentifier } from '@aws-sdk/client-s3';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import {
   CF_TEMPLATE_FILE_NAME_WITHOUT_EXT,
   DEFAULT_KEEP_PREVIOUS_DEPLOYMENT_ARTIFACTS_COUNT,
@@ -31,7 +32,6 @@ import { awsSdkManager } from '@utils/aws-sdk-manager';
 import compose from '@utils/basic-compose-shim';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
 import { ExpectedError } from '@utils/errors';
-import { tuiManager } from '@utils/tui';
 import { getHotSwapDeployVersionString } from '@utils/versioning';
 import { getDeploymentBucketObjectType, parseBucketObjectS3Key, parseImageTag } from './utils';
 
@@ -442,6 +442,10 @@ export class DeploymentArtifactManager {
         eventType: 'UPLOAD_DEPLOYMENT_ARTIFACTS',
         description: 'Uploading deployment artifacts'
       });
+
+      throw new Error(
+        'test dfhgjnsdfgkjhn fdghkjn f dfgkjhn dfghjkdn fhgkjhn\nfdghkjn f dfgkjhn dfghjkdn fhgkjhn fdghkjn f dfgkjhn dfghjkdn fhgkjhn fdghkjn f dfgkjhn dfghjkdn fhgkjhn fdghkjn f dfgkjhn dfghjkdn fhgkjhn fdghkjn f dfgkjhn dfghjkdn fhgkjhn fdghkjn f dfgkjhn dfghjkdn fhgkjhn\ndfgsdf\nsdfg\nsdfgsdfgsdfg'
+      );
       await Promise.all([
         // on some occasions i started getting "NoSuchBucket: The specified bucket does not exist" when creating fresh stacks
         // this waiting should prevent it (and lose no time otherwise)

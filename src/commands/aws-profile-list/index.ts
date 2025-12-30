@@ -1,6 +1,6 @@
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { listAwsProfiles } from '@utils/aws-config';
-import { tuiManager } from '@utils/tui';
 
 export const commandAwsProfileList = async (): Promise<AwsProfileListReturnValue> => {
   const availableAwsProfiles = await listAwsProfiles();

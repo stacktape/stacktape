@@ -214,11 +214,14 @@ export const resolveContainerWorkload = ({ definition }: { definition: StpContai
   // Best-effort cleanup during stack deletion: deregister targets from LB target groups to avoid
   // CloudFormation timeouts when ECS services get stuck in DRAINING.
   // This is safe for create/update (no-op) and only runs on Delete.
-  calculatedStackOverviewManager.addCfChildResource({
-    cfLogicalName: cfLogicalNames.ecsDeregisterTargetsCustomResource(definition.name),
-    resource: getEcsDeregisterTargetsCustomResource({ workload: definition }),
-    nameChain
-  });
+  const deregisterTargetsCustomResource = getEcsDeregisterTargetsCustomResource({ workload: definition });
+  if (deregisterTargetsCustomResource) {
+    calculatedStackOverviewManager.addCfChildResource({
+      cfLogicalName: cfLogicalNames.ecsDeregisterTargetsCustomResource(definition.name),
+      resource: deregisterTargetsCustomResource,
+      nameChain
+    });
+  }
   // adding monitoring link
   calculatedStackOverviewManager.addStacktapeResourceLink({
     linkName: 'metrics',

@@ -1,8 +1,8 @@
 import type { HookType, ScriptFn } from '@utils/scripts';
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { configManager } from '@domain-services/config-manager';
 import { stpErrors } from '@errors';
-import { tuiManager } from '@utils/tui';
 import { camelCase } from 'change-case';
 import ci from 'ci-info';
 import { getExecutableScriptFunction } from 'src/commands/script-run/utils';

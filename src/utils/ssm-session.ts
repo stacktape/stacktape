@@ -14,7 +14,7 @@ import findFreePorts from 'find-free-ports';
 import pRetry from 'p-retry';
 import { awsSdkManager } from './aws-sdk-manager';
 import { SsmExecuteScriptCloudwatchLogPrinter } from './cloudwatch-logs';
-import { tuiManager } from './tui';
+import { tuiManager } from '@application-services/tui-manager';
 
 export class SsmPortForwardingTunnel {
   #instanceId: string;

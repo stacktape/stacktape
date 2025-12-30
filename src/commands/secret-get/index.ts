@@ -1,13 +1,12 @@
+import { tuiManager } from '@application-services/tui-manager';
 import { isJson } from '@shared/utils/misc';
-import { userPrompt } from '@shared/utils/user-prompt';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
-import { tuiManager } from '@utils/tui';
 import { loadUserCredentials } from '../_utils/initialization';
 
 export const commandSecretGet = async () => {
   await loadUserCredentials();
 
-  const { secretName } = await userPrompt({
+  const { secretName } = await tuiManager.prompt({
     type: 'text',
     name: 'secretName',
     message: 'Secret name:'

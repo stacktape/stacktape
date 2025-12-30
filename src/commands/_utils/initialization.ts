@@ -2,6 +2,7 @@ import { applicationManager } from '@application-services/application-manager';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { RECORDED_STACKTAPE_COMMANDS } from '@config';
 import { budgetManager } from '@domain-services/budget-manager';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
@@ -27,7 +28,6 @@ import { settleAllBeforeThrowing } from '@shared/utils/misc';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { getErrorHandler, loggingPlugin } from '@utils/aws-sdk-manager/utils';
 import { logCollectorStream } from '@utils/log-collector';
-import { tuiManager } from '@utils/tui';
 
 export const initializeAllStackServices = async ({
   commandModifiesStack,

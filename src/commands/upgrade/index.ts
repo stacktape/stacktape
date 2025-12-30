@@ -1,5 +1,5 @@
+import { tuiManager } from '@application-services/tui-manager';
 import { exec } from '@shared/utils/exec';
-import { tuiManager } from '@utils/tui';
 import { getLatestStacktapeVersion, getStacktapeVersion } from '@utils/versioning';
 import { gt } from 'semver';
 import { detectInstallationType, getUpgradeCommand } from './utils';

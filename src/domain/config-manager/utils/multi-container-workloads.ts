@@ -1,7 +1,7 @@
+import { tuiManager } from '@application-services/tui-manager';
 import { stpErrors } from '@errors';
 import { ALLOWED_MEMORY_VALUES_FOR_CPU } from '@shared/aws/fargate';
 import { ExpectedError } from '@utils/errors';
-import { tuiManager } from '@utils/tui';
 import { configManager } from '../index';
 
 const validateContainerNamesConsistency = (workload: StpContainerWorkload) => {

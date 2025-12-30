@@ -2,6 +2,7 @@ import { dirname, isAbsolute, join } from 'node:path';
 import { applicationManager } from '@application-services/application-manager';
 import { eventManager } from '@application-services/event-manager';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { commandsNotRequiringApiKey } from '@cli-config';
 import {
   DEFAULT_CLOUDFORMATION_REGISTRY_BUCKET_NAME,
@@ -19,7 +20,6 @@ import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { memoizeGetters } from '@utils/decorators';
 import { loadHelperLambdaDetails } from '@utils/helper-lambdas';
 import { getAwsSynchronizedTime } from '@utils/time';
-import { tuiManager } from '@utils/tui';
 import { generateShortUuid, generateUuid } from '@utils/uuid';
 import {
   validateArgs,

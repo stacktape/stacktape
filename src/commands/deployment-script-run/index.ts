@@ -1,10 +1,10 @@
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { configManager } from '@domain-services/config-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { stpErrors } from '@errors';
 import { tagNames } from '@shared/naming/tag-names';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
-import { tuiManager } from '@utils/tui';
 import { buildAndUpdateFunctionCode } from '../_utils/fn-deployment';
 import { initializeStackServicesForHotSwapDeploy } from '../_utils/initialization';
 

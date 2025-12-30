@@ -2,6 +2,7 @@ import type { ScriptFn } from '@utils/scripts';
 import type { SsmPortForwardingTunnel } from '@utils/ssm-session';
 import { join, resolve } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { configManager } from '@domain-services/config-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { ExpectedError } from '@utils/errors';
@@ -11,7 +12,6 @@ import {
   startPortForwardingSessions,
   substituteTunneledEndpointsInEnvironmentVars
 } from '@utils/ssm-session';
-import { tuiManager } from '@utils/tui';
 import { validateScript } from '@utils/validator';
 import { getLocalInvokeAwsCredentials } from '../_utils/assume-role';
 

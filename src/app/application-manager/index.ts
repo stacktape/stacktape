@@ -1,5 +1,6 @@
 import type { ExpectedError } from '@utils/errors';
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { IS_DEV, IS_TELEMETRY_DISABLED } from '@config';
 import { propertyFromObjectOrNull } from '@shared/utils/misc';
 import { attemptToGetUsefulExpectedError, getErrorDetails, getReturnableError, UnexpectedError } from '@utils/errors';
@@ -7,7 +8,6 @@ import { killPythonBridge } from '@utils/file-loaders';
 import { reportErrorToSentry } from '@utils/sentry';
 import { reportTelemetryEvent } from '@utils/telemetry';
 import { deleteTempFolder } from '@utils/temp-files';
-import { tuiManager } from '@utils/tui';
 import kill from 'tree-kill';
 
 const getStacktapeError = (err: any) => {

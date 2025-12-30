@@ -1,13 +1,12 @@
 import { globalStateManager } from '@application-services/global-state-manager';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
-import { userPrompt } from '@shared/utils/user-prompt';
-import { tuiManager } from '@utils/tui';
+import { tuiManager } from '@application-services/tui-manager';
 import { identifyUserInMixpanel } from '../../../shared/utils/telemetry';
 
 export const commandLogin = async () => {
   let apiKey = globalStateManager.args.apiKey;
   if (!apiKey) {
-    const res = await userPrompt({
+    const res = await tuiManager.prompt({
       type: 'password',
       name: 'apiKey',
       message: `Your Stacktape API key (available in the ${tuiManager.getLink('apiKeys', 'console')})`

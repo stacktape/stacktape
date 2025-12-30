@@ -1,11 +1,10 @@
 import { join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { IS_DEV } from '@config';
 import { stpErrors } from '@errors';
 import { getTypescriptConfig } from '@shared/utils/stacktape-config';
-import { userPrompt } from '@shared/utils/user-prompt';
-import { tuiManager } from '@utils/tui';
 import { outputFile } from 'fs-extra';
 
 export const initUsingExistingConfig = async () => {
@@ -23,7 +22,7 @@ export const initUsingExistingConfig = async () => {
 
   let templateId = globalStateManager.args.templateId;
   if (!templateId) {
-    const res = await userPrompt({
+    const res = await tuiManager.prompt({
       type: 'text',
       name: 'templateId',
       message: 'TemplateId (available at https://console.stacktape.com/template-editor) -> Click Copy templateId button'

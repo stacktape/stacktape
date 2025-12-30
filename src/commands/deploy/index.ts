@@ -3,6 +3,7 @@ import { applicationManager } from '@application-services/application-manager';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { budgetManager } from '@domain-services/budget-manager';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { cloudformationRegistryManager } from '@domain-services/cloudformation-registry-manager';
@@ -18,7 +19,6 @@ import { templateManager } from '@domain-services/template-manager';
 import { fsPaths } from '@shared/naming/fs-paths';
 import { obfuscatedNamesStateHolder } from '@shared/naming/utils';
 import { getDetailedStackInfoMap } from '@utils/stack-info-map-diff';
-import { tuiManager } from '@utils/tui';
 import {
   injectEnvironmentToHostedHtmlFiles,
   potentiallyPromptBeforeOperation,
@@ -172,7 +172,7 @@ export const prepareArtifactsForStackDeployment = async (): Promise<{
   await calculatedStackOverviewManager.resolveAllResources();
   if (obfuscatedNamesStateHolder.usingObfuscateNames) {
     tuiManager.warn(
-      'The combination of stack name (made of service name and stage) and some of the resource name(s) is too long. Some resources will have obfuscated names.'
+      'Stack name (made of project name and stage) is too long. Some resources will have obfuscated names.'
     );
   }
 

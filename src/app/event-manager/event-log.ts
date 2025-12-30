@@ -1,5 +1,5 @@
+import { tuiManager } from '@application-services/tui-manager';
 import { getFirstAndLastItem, groupBy, orderPropertiesOfObjectAccordingToKeys } from '@shared/utils/misc';
-import { tuiManager } from '@utils/tui';
 import { getGroupedEventsWithDetails } from './utils';
 
 export type ChildEventLogEntry = Omit<EventLogEntry, 'childEvents'>;

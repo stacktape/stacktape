@@ -1,11 +1,11 @@
+import { tuiManager } from '@application-services/tui-manager';
 import { cloudformationRegistryManager } from '@domain-services/cloudformation-registry-manager';
-import { userPrompt } from '@shared/utils/user-prompt';
 import { loadUserCredentials } from '../_utils/initialization';
 
 const allowedModules: StpCfInfrastructureModuleType[] = ['atlasMongo', 'upstashRedis', 'ecsBlueGreen'];
 
 export const commandCfModuleUpdate = async () => {
-  const { moduleType } = await userPrompt({
+  const { moduleType } = await tuiManager.prompt({
     type: 'select',
     choices: allowedModules.map((mod) => ({ title: mod, value: mod })),
     name: 'moduleType',

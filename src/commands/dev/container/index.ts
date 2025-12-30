@@ -3,6 +3,7 @@ import type { ExecaReturnBase } from 'execa';
 import { applicationManager } from '@application-services/application-manager';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { DEFAULT_CONTAINER_NODE_VERSION } from '@config';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
@@ -14,7 +15,6 @@ import { dockerRun } from '@shared/utils/docker';
 import { getRelativePath } from '@shared/utils/fs-utils';
 import { isJson } from '@shared/utils/misc';
 import { getErrorFromString } from '@utils/errors';
-import { tuiManager } from '@utils/tui';
 import { addCallerToAssumeRolePolicy } from 'src/commands/_utils/assume-role';
 import {
   getBastionTunnelsForResource,

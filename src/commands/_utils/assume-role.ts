@@ -1,9 +1,9 @@
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { arns } from '@shared/naming/arns';
 import { getRoleArnFromSessionArn } from '@shared/naming/utils';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
-import { tuiManager } from '@utils/tui';
 
 export const SESSION_DURATION_SECONDS = 3600;
 

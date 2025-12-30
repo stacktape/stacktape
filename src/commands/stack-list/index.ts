@@ -1,9 +1,9 @@
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { StackStatus as StackStatusEnum } from '@aws-sdk/client-cloudformation';
 import { budgetManager } from '@domain-services/budget-manager';
 import { getStacktapeStackInfoFromTemplateDescription, isStacktapeStackDescription } from '@shared/naming/utils';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
-import { tuiManager } from '@utils/tui';
 import { loadUserCredentials } from '../_utils/initialization';
 
 export const commandStackList = async (): Promise<StackListReturnValue> => {

@@ -1,9 +1,8 @@
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { consoleLinks } from '@shared/naming/console-links';
-import { userPrompt } from '@shared/utils/user-prompt';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { loadRawFileContent } from '@utils/file-loaders';
-import { tuiManager } from '@utils/tui';
 import { loadUserCredentials } from '../_utils/initialization';
 
 const provideOptions = ['Interactively using CLI', 'From file'];
@@ -11,12 +10,12 @@ const provideOptions = ['Interactively using CLI', 'From file'];
 export const commandSecretCreate = async () => {
   await loadUserCredentials();
 
-  const { secretName } = await userPrompt({
+  const { secretName } = await tuiManager.prompt({
     type: 'text',
     name: 'secretName',
     message: 'Secret name:'
   });
-  const { provideOption } = await userPrompt({
+  const { provideOption } = await tuiManager.prompt({
     type: 'select',
     choices: provideOptions.map((option) => ({ title: option, value: option })),
     name: 'provideOption',
@@ -24,13 +23,13 @@ export const commandSecretCreate = async () => {
   });
   let secretString: string;
   if (provideOption === provideOptions[0]) {
-    ({ secretString } = await userPrompt({
+    ({ secretString } = await tuiManager.prompt({
       type: 'password',
       name: 'secretString',
       message: 'Secret string:'
     }));
   } else {
-    const { filePath } = await userPrompt({
+    const { filePath } = await tuiManager.prompt({
       type: 'text',
       name: 'filePath',
       message: 'Path to file containing secret(s)'
@@ -50,7 +49,7 @@ const createNamedSecret = async (secretName: string, secretValue: string) => {
   const secretList = await awsSdkManager.listAllSecrets();
   const matchingSecret = secretList.find(({ Name }) => Name === secretName);
   if (matchingSecret) {
-    const { shouldUpdate } = await userPrompt({
+    const { shouldUpdate } = await tuiManager.prompt({
       type: 'confirm',
       name: 'shouldUpdate',
       message: `Secret with name "${secretName}" already exists. Would you like to update it?`

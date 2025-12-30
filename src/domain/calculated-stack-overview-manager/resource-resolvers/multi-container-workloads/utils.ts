@@ -516,6 +516,10 @@ export const getEcsDeregisterTargetsCustomResource = ({ workload }: { workload: 
     })
     .filter(Boolean);
 
+  if (!targetGroupArns.length) {
+    return undefined;
+  }
+
   const resource = getStpServiceCustomResource<'deregisterTargets'>({
     deregisterTargets: {
       targetGroupArns

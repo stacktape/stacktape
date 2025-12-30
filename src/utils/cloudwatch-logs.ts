@@ -1,9 +1,9 @@
 import type { FilteredLogEvent, LogStream } from '@aws-sdk/client-cloudwatch-logs';
+import { tuiManager } from '@application-services/tui-manager';
 import { IS_DEV } from '@config';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { getErrorFromString } from '@utils/errors';
 import { getAwsSynchronizedTime } from '@utils/time';
-import { tuiManager } from '@utils/tui';
 import dayjs from 'dayjs';
 import { logCollectorStream } from './log-collector';
 

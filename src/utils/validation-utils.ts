@@ -1,6 +1,6 @@
 import commandsInfo from '@schemas/cli-schema.json';
 import { ExpectedError } from './errors';
-import { tuiManager } from './tui';
+import { tuiManager } from '@application-services/tui-manager';
 
 export const validatePrimitiveFunctionParams = (
   actualParams: any[],

@@ -1,5 +1,6 @@
 import type { IntrinsicFunction } from '@cloudform/dataTypes';
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { diffTemplate } from '@aws-cdk/cloudformation-diff';
 import { StackStatus } from '@aws-sdk/client-cloudformation';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
@@ -16,7 +17,6 @@ import compose from '@utils/basic-compose-shim';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
 import { ExpectedError } from '@utils/errors';
 import { saveToCfTemplateFile, saveToInitialCfTemplateFile, saveToStpTemplateFile } from '@utils/temp-files';
-import { tuiManager } from '@utils/tui';
 import { validateStackOutput, validateUniqueness } from '@utils/validator';
 import set from 'lodash/set';
 import { getInitialCfTemplate } from './utils';

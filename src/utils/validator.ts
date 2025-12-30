@@ -10,7 +10,7 @@ import cliSchema from '../../@generated/schemas/cli-schema.json' with { type: 'j
 import sdkSchema from '../../@generated/schemas/sdk-schema.json' with { type: 'json' };
 import { allowedCliArgs, cliArgsAliases, cliCommands } from '../config/cli';
 import { getAwsCredentialsIdentity } from './aws-sdk-manager/utils';
-import { tuiManager } from './tui';
+import { tuiManager } from '@application-services/tui-manager';
 import { getCommandShortDescription, getPrettyCommand } from './validation-utils';
 
 export const validateDomain = (domain: string) => {

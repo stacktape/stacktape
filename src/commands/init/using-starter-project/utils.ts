@@ -1,7 +1,7 @@
 import { join } from 'node:path';
+import { tuiManager } from '@application-services/tui-manager';
 import { DEFAULT_STARTER_PROJECT_TARGET_DIRECTORY } from '@config';
 import { sortObjectKeys } from '@shared/utils/misc';
-import { userPrompt } from '@shared/utils/user-prompt';
 import { copy, outputFile, readJson, readJSON, writeJson } from 'fs-extra';
 import sortBy from 'lodash/sortBy';
 
@@ -203,7 +203,7 @@ export default tseslint.config(
 };
 
 export const promptAddEslintPrettier = async () => {
-  const { shouldAdd } = await userPrompt({
+  const { shouldAdd } = await tuiManager.prompt({
     type: 'confirm',
     name: 'shouldAdd',
     message: 'Add linting and code formatting? (eslint and prettier).'
@@ -225,7 +225,7 @@ export const addEslintPrettier = async ({
 };
 
 export const promptTargetDirectory = async (): Promise<string> => {
-  const { targetDirectory } = await userPrompt({
+  const { targetDirectory } = await tuiManager.prompt({
     type: 'text',
     name: 'targetDirectory',
     message: `Where to create project (Use "." for current directory. Default: "${DEFAULT_STARTER_PROJECT_TARGET_DIRECTORY}"):`

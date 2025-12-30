@@ -1,4 +1,4 @@
-import { tuiManager } from '@utils/tui';
+import { tuiManager } from '@application-services/tui-manager';
 import { getStacktapeVersion } from '@utils/versioning';
 
 export const commandVersion = async (): Promise<VersionReturnValue> => {

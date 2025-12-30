@@ -1,7 +1,7 @@
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { configManager } from '@domain-services/config-manager';
 import { packagingManager } from '@domain-services/packaging-manager';
-import { tuiManager } from '@utils/tui';
 import { loadUserCredentials } from '../_utils/initialization';
 
 export const commandPackageWorkloads = async (): Promise<PackageWorkloadsReturnValue> => {

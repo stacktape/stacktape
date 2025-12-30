@@ -1,12 +1,11 @@
+import { tuiManager } from '@application-services/tui-manager';
 import { fsPaths } from '@shared/naming/fs-paths';
 import { getIniFileContent } from '@shared/utils/fs-utils';
-import { userPrompt } from '@shared/utils/user-prompt';
 import { upsertAwsProfile } from '@utils/aws-config';
 import { ExpectedError } from '@utils/errors';
-import { tuiManager } from '@utils/tui';
 
 export const commandAwsProfileCreate = async (): Promise<AwsProfileCreateReturnValue> => {
-  const promptResult = await userPrompt({
+  const promptResult = await tuiManager.prompt({
     type: 'text',
     name: 'profile',
     message:
@@ -26,13 +25,13 @@ export const commandAwsProfileCreate = async (): Promise<AwsProfileCreateReturnV
     throw new ExpectedError('CREDENTIALS', `Credentials for profile ${profile} are already set in config file.`);
   }
 
-  const { awsAccessKeyId } = await userPrompt({
+  const { awsAccessKeyId } = await tuiManager.prompt({
     type: 'text',
     name: 'awsAccessKeyId',
     message: 'AWS_ACCESS_KEY_ID: '
   });
 
-  const { awsSecretAccessKey } = await userPrompt({
+  const { awsSecretAccessKey } = await tuiManager.prompt({
     type: 'password',
     name: 'awsSecretAccessKey',
     message: 'AWS_SECRET_ACCESS_KEY: '

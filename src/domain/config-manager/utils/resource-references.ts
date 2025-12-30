@@ -1,7 +1,7 @@
+import { tuiManager } from '@application-services/tui-manager';
 import { stpErrors } from '@errors';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import { ExpectedError } from '@utils/errors';
-import { tuiManager } from '@utils/tui';
 import { configManager } from '../index';
 
 export const getReferencableParamsError = ({

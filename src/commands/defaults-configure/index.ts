@@ -1,8 +1,7 @@
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { configurableGlobalDefaultCliArgs, configurableGlobalDefaultOtherProps } from '@config';
 import { fsPaths } from '@shared/naming/fs-paths';
-import { userPrompt } from '@shared/utils/user-prompt';
-import { tuiManager } from '@utils/tui';
 
 const getDefaults = async (
   persistedData: PersistedState['cliArgsDefaults'] | PersistedState['otherDefaults'],
@@ -15,7 +14,7 @@ const getDefaults = async (
     const currentValueRedacted = prop.isSensitive ? maskString(currentValue) : currentValue;
     const redactedValueToPrint = currentValueRedacted === null ? '<< not-set >>' : currentValueRedacted;
 
-    const res = await userPrompt({
+    const res = await tuiManager.prompt({
       type: prop.isSensitive ? 'password' : 'text',
       name: propName,
       message: `${prop.description}. (leave blank to keep unchanged${hasValue ? ', use whitespace to unset' : ''}, current value: ${redactedValueToPrint}):`,

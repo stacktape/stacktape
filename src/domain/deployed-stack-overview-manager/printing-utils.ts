@@ -1,5 +1,5 @@
 import { globalStateManager } from '@application-services/global-state-manager';
-import { tuiManager } from '@utils/tui';
+import { tuiManager } from '@application-services/tui-manager';
 
 const getTypedOutputsForResource = <T extends StpResourceType>(resource: {
   resourceType: T;

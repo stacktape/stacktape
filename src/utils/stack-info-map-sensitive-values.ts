@@ -1,7 +1,7 @@
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { CF_ESCAPED_DYNAMIC_REFERENCE_END, CF_ESCAPED_DYNAMIC_REFERENCE_START } from '@shared/utils/constants';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
-import { tuiManager } from '@utils/tui';
 
 const captureSecretsRegex = new RegExp(
   `${CF_ESCAPED_DYNAMIC_REFERENCE_START}(.*?)${CF_ESCAPED_DYNAMIC_REFERENCE_END}`,

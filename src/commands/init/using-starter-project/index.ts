@@ -1,12 +1,11 @@
 import { join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { stpErrors } from '@errors';
 import { fsPaths } from '@shared/naming/fs-paths';
 import { downloadFile } from '@shared/utils/download-file';
 import { deleteDirectoryContent } from '@shared/utils/fs-utils';
 import { unzip } from '@shared/utils/unzip';
-import { userPrompt } from '@shared/utils/user-prompt';
-import { tuiManager } from '@utils/tui';
 import { existsSync, move, readdir, readdirSync, remove, statSync } from 'fs-extra';
 import {
   addEslintPrettier,
@@ -32,7 +31,7 @@ export const initUsingStarterProject = async () => {
       throw stpErrors.e506({ projectId: globalStateManager.args.starterId });
     }
   } else {
-    const res = await userPrompt({
+    const res = await tuiManager.prompt({
       type: 'select',
       choices: availableStarters.map((s) => ({ title: s.name, value: s.name })),
       name: 'name',
@@ -56,7 +55,7 @@ export const initUsingStarterProject = async () => {
         tuiManager.warn(
           `Directory ${tuiManager.prettyFilePath(absoluteProjectPath)} already exists and is not empty. Initiating starter project into this directory will overwrite contents of this directory.`
         );
-        const { confirmed } = await userPrompt({
+        const { confirmed } = await tuiManager.prompt({
           type: 'confirm',
           name: 'confirmed',
           message: 'Continue?'

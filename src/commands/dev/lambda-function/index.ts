@@ -1,6 +1,7 @@
 import { applicationManager } from '@application-services/application-manager';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { IS_DEV, PRINT_LOGS_INTERVAL } from '@config';
 import { configManager } from '@domain-services/config-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
@@ -8,7 +9,6 @@ import { packagingManager } from '@domain-services/packaging-manager';
 import { getRelativePath } from '@shared/utils/fs-utils';
 import { LambdaCloudwatchLogPrinter } from '@utils/cloudwatch-logs';
 import { getAwsSynchronizedTime } from '@utils/time';
-import { tuiManager } from '@utils/tui';
 import { buildAndUpdateFunctionCode } from '../../_utils/fn-deployment';
 import { getLogGroupInfoForStacktapeResource } from '../../_utils/logs';
 import { hookToRestartStdinInput, SourceCodeWatcher } from '../utils';

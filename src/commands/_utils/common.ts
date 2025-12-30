@@ -3,16 +3,15 @@ import type { CloudformationResourceType } from '@cloudform/resource-types';
 import { join } from 'node:path';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { stpErrors } from '@errors';
 import { getAllFilesInDir } from '@shared/utils/fs-utils';
-import { userPrompt } from '@shared/utils/user-prompt';
 import { stringifyToYaml } from '@shared/utils/yaml';
 import { getCriticalResourcesPotentiallyEndangeredByOperation } from '@utils/stack-info-map-diff';
-import { tuiManager } from '@utils/tui';
 import { parse as dotenvParse } from 'dotenv';
 import dotenvStringify from 'dotenv-stringify';
 import { existsSync, outputFile, readFile, writeFile } from 'fs-extra';
@@ -75,7 +74,7 @@ export const potentiallyPromptBeforeOperation = async ({
     if (!process.stdout.isTTY) {
       throw stpErrors.e108({ reason: possiblyImpactedResourcesPart, command: globalStateManager.command });
     }
-    const { proceed } = await userPrompt({
+    const { proceed } = await tuiManager.prompt({
       type: 'confirm',
       name: 'proceed',
       message: 'Are you sure you want to proceed?'

@@ -1,13 +1,13 @@
 import { applicationManager } from '@application-services/application-manager';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
 import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
 import { notificationManager } from '@domain-services/notification-manager';
 import { templateManager } from '@domain-services/template-manager';
 import { ExpectedError } from '@utils/errors';
-import { tuiManager } from '@utils/tui';
 import { potentiallyPromptBeforeOperation } from '../_utils/common';
 import { initializeStackServicesForWorkingWithDeployedStack } from '../_utils/initialization';
 

@@ -1,6 +1,6 @@
+import { tuiManager } from '@application-services/tui-manager';
 import { ANNOUNCEMENTS_ENDPOINT, IS_DEV } from '@config';
 import { jsonFetch } from '@utils/http-client';
-import { tuiManager } from '@utils/tui';
 import { getLatestStacktapeVersion, getStacktapeVersion } from '@utils/versioning';
 import { gt } from 'semver';
 

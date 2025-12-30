@@ -5,6 +5,7 @@ import type {
   TuiLink,
   TuiMessage,
   TuiMessageType,
+  TuiPrompt,
   TuiState,
   TuiSummary,
   TuiWarning
@@ -301,6 +302,68 @@ class TuiStateManager {
 
   setComplete(success: boolean, message: string, links: TuiLink[] = [], consoleUrl?: string) {
     this.setSummary({ success, message, links, consoleUrl });
+  }
+
+  /**
+   * Mark all currently running events and phases as errored.
+   * Called when an error occurs to show failed state in the UI.
+   */
+  markAllRunningAsErrored() {
+    const endTime = Date.now();
+
+    // Helper to mark event and its children as errored if running
+    const markEventErrored = (event: TuiEvent): TuiEvent => {
+      const children = event.children.map((child) =>
+        child.status === 'running'
+          ? { ...child, status: 'error' as TuiEventStatus, endTime, duration: endTime - child.startTime }
+          : child
+      );
+
+      if (event.status === 'running') {
+        return {
+          ...event,
+          status: 'error' as TuiEventStatus,
+          endTime,
+          duration: endTime - event.startTime,
+          children
+        };
+      }
+      return { ...event, children };
+    };
+
+    // Mark all running events in all phases as errored
+    const newPhases = this.state.phases.map((phase) => {
+      const events = phase.events.map(markEventErrored);
+      if (phase.status === 'running') {
+        return {
+          ...phase,
+          status: 'error' as TuiEventStatus,
+          endTime,
+          duration: phase.startTime ? endTime - phase.startTime : 0,
+          events
+        };
+      }
+      return { ...phase, events };
+    });
+
+    this.state = { ...this.state, phases: newPhases };
+    this.notifyListeners();
+  }
+
+  /**
+   * Set the active prompt for user input.
+   */
+  setActivePrompt(prompt: TuiPrompt) {
+    this.state = { ...this.state, activePrompt: prompt };
+    this.notifyListeners();
+  }
+
+  /**
+   * Clear the active prompt after user has responded.
+   */
+  clearActivePrompt() {
+    this.state = { ...this.state, activePrompt: undefined };
+    this.notifyListeners();
   }
 }
 

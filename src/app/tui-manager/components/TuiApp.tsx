@@ -6,6 +6,7 @@ import { PHASE_ORDER } from '../types';
 import { Header } from './Header';
 import { Message } from './Message';
 import { Phase } from './Phase';
+import { Prompt } from './Prompt';
 import { Summary } from './Summary';
 
 type TuiAppProps = {
@@ -69,6 +70,8 @@ export const TuiApp: React.FC<TuiAppProps> = ({ isTTY }) => {
           ))}
         </Box>
       )}
+
+      {state.activePrompt && <Prompt prompt={state.activePrompt} />}
 
       {state.summary && <Summary summary={state.summary} />}
     </Box>

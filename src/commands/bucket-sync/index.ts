@@ -1,6 +1,7 @@
 import { isAbsolute, join } from 'node:path';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
@@ -9,7 +10,6 @@ import { stpErrors } from '@errors';
 import { getRelativePath, isDirAccessible, transformToUnixPath } from '@shared/utils/fs-utils';
 import { getCloudformationChildResources } from '@shared/utils/stack-info-map';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
-import { tuiManager } from '@utils/tui';
 import { initializeStackServicesForWorkingWithDeployedStack, loadUserCredentials } from '../_utils/initialization';
 
 export const commandBucketSync = async (): Promise<BucketSyncReturnValue> => {

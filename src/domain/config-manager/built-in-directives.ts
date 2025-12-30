@@ -1,5 +1,6 @@
 import type { IntrinsicFunction } from '@cloudform/dataTypes';
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { GetAtt, ImportValue, Ref, Sub } from '@cloudform/functions';
 import { IDENTIFIER_FOR_MISSING_OUTPUT } from '@config';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
@@ -14,7 +15,6 @@ import { ExpectedError } from '@utils/errors';
 import { loadFromAnySupportedFile, loadRawFileContent } from '@utils/file-loaders';
 import { gitInfoManager } from '@utils/git-info-manager';
 import { getAllReferencableParams, referenceableTypes } from '@utils/referenceable-types';
-import { tuiManager } from '@utils/tui';
 import { validateFormatDirectiveParams, validateStackOutputName } from '@utils/validator';
 import { getNonExistingResourceError, getReferencableParamsError } from './utils/resource-references';
 

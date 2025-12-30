@@ -1,8 +1,8 @@
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
-import { tuiManager } from '@utils/tui';
 import { loadUserCredentials } from '../_utils/initialization';
 import { getLogGroupInfoForStacktapeResource } from '../_utils/logs';
 

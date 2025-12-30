@@ -1,12 +1,12 @@
 import type { StackEvent } from '@aws-sdk/client-cloudformation';
 import type { EcsServiceDeploymentStatusPoller } from '@shared/aws/ecs-deployment-monitoring';
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { consoleLinks } from '@shared/naming/console-links';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import { getCloudformationChildResources } from '@shared/utils/stack-info-map';
-import { tuiManager } from '@utils/tui';
 
 export const cfFailedEventHandlers: {
   eventMatchFunction: (event: StackEvent) => boolean;

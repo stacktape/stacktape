@@ -1,5 +1,6 @@
 import type { FunctionProperties } from '@cloudform/lambda/function';
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import Application from '@cloudform/codeDeploy/application';
 import { GetAtt, Join, Ref } from '@cloudform/functions';
 import EventInvokeConfig from '@cloudform/lambda/eventInvokeConfig';
@@ -23,7 +24,6 @@ import { tagNames } from '@shared/naming/tag-names';
 import { PARENT_IDENTIFIER_SHARED_GLOBAL } from '@shared/utils/constants';
 import { getAugmentedEnvironment } from '@utils/environment';
 import { ExpectedError } from '@utils/errors';
-import { tuiManager } from '@utils/tui';
 import { resolveAlarmsForResource } from '../_utils/alarms';
 import {
   getCachePolicyHash,

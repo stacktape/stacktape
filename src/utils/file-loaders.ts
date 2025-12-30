@@ -1,5 +1,6 @@
 import { basename, isAbsolute, join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { VALID_CONFIG_PATHS } from '@config';
 import { stpErrors } from '@errors';
 import { checkExecutableInPath } from '@shared/utils/bin-executable';
@@ -16,7 +17,6 @@ import { ExpectedError } from '@utils/errors';
 import { pythonBridge } from '@utils/python-bridge';
 import { register } from 'esbuild-register/dist/node';
 import fsExtra, { lstatSync, readdirSync, readFileSync } from 'fs-extra';
-import { tuiManager } from './tui';
 import { parseUserCodeFilepath } from './user-code-processing';
 
 let isTypescriptResolvingActive = false;

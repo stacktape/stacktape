@@ -1,6 +1,7 @@
 import type { ResourceDifference, TemplateDiff } from '@aws-cdk/cloudformation-diff';
 import type { CloudformationResourceType } from '@cloudform/resource-types';
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { HELPER_LAMBDA_NAMES } from '@config';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { stpErrors } from '@errors';
@@ -15,7 +16,6 @@ import { traverseResourcesInMap } from '@shared/utils/stack-info-map';
 import compose from '@utils/basic-compose-shim';
 import { cancelablePublicMethods, memoizeGetters, skipInitIfInitialized } from '@utils/decorators';
 import { locallyResolveSensitiveValue } from '@utils/stack-info-map-sensitive-values';
-import { tuiManager } from '@utils/tui';
 import { capitalCase } from 'change-case';
 import get from 'lodash/get';
 import { pRateLimit } from 'p-ratelimit';

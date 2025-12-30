@@ -92,6 +92,7 @@
     "@aws-sdk/util-utf8-node": "3.259.0",
     "@aws-sdk/util-waiter": "3.374.0",
     "@fast-csv/parse": "^4.3.6",
+    "@inkjs/ui": "^2.0.0",
     "@octokit/plugin-retry": "^8.0.0",
     "@octokit/plugin-throttling": "^10.0.0",
     "@octokit/rest": "22.0.1",

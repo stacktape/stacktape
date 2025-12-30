@@ -1,17 +1,16 @@
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { CertificateStatus } from '@aws-sdk/client-acm';
 import { domainManager } from '@domain-services/domain-manager';
 import { sesManager } from '@domain-services/ses-manager';
 import { stpErrors } from '@errors';
 import { consoleLinks } from '@shared/naming/console-links';
-import { userPrompt } from '@shared/utils/user-prompt';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
-import { tuiManager } from '@utils/tui';
 import { parse as tldtsParse } from 'tldts';
 import { loadUserCredentials } from '../_utils/initialization';
 
 export const commandDomainAdd = async () => {
-  const { domainName } = await userPrompt({
+  const { domainName } = await tuiManager.prompt({
     type: 'text',
     name: 'domainName',
     message: 'Domain name (example: mydomain.com)'
@@ -51,7 +50,7 @@ export const commandDomainAdd = async () => {
         `${tuiManager.colorize('yellow', 'NOTE:')} To understand possible options for handling domains refer to our ${tuiManager.terminalLink('https://docs.stacktape.com/other-resources/domains-and-certificates/', 'docs')}.\n`
       ].join('\n')
     );
-    const { controlDomainDnsWithAws } = await userPrompt({
+    const { controlDomainDnsWithAws } = await tuiManager.prompt({
       type: 'confirm',
       name: 'controlDomainDnsWithAws',
       message:
@@ -78,7 +77,7 @@ export const commandDomainAdd = async () => {
         ].join('\n')
       );
 
-      const { createHostedZone } = await userPrompt({
+      const { createHostedZone } = await tuiManager.prompt({
         type: 'confirm',
         name: 'createHostedZone',
         message: `Proceed with creating hosted zone for the domain ${tuiManager.makeBold(domainName)} in your AWS account?`
@@ -145,7 +144,7 @@ export const commandDomainAdd = async () => {
         domainName
       )} Stacktape wants to generate FREE TLS certificates in your AWS account`
     );
-    const { generateCerts } = await userPrompt({
+    const { generateCerts } = await tuiManager.prompt({
       type: 'confirm',
       name: 'generateCerts',
       message: `Do you wish to generate certificates for ${tuiManager.makeBold(domainName)} in your AWS account?`
@@ -186,7 +185,7 @@ export const commandDomainAdd = async () => {
       'Your domain can be automatically verified for use with AWS SES (Simple Email Service). This will enable you to send automated emails from addresses under your domain.\n' +
         'Enabling this feature is FREE and can be useful i.e when sending alert email notifications.'
     );
-    const { prepareForSES } = await userPrompt({
+    const { prepareForSES } = await tuiManager.prompt({
       type: 'confirm',
       name: 'prepareForSES',
       message: 'Do you wish to verify your domain for using with AWS SES?'

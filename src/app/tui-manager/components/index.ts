@@ -1,8 +1,11 @@
 export { DeployPhase } from './DeployPhase';
+export { ErrorDisplay, renderErrorToString } from './Error';
+export type { ErrorDisplayData } from './Error';
 export { Event } from './Event';
 export { Header } from './Header';
 export { Message } from './Message';
 export { Phase } from './Phase';
+export { Prompt } from './Prompt';
 export { renderStackErrorsToString, StackErrors } from './StackErrors';
 export type { StackError } from './StackErrors';
 export { Summary } from './Summary';

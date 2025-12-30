@@ -1,4 +1,5 @@
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import Integration from '@cloudform/apiGatewayV2/integration';
 import { GetAtt, Ref } from '@cloudform/functions';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
@@ -8,7 +9,6 @@ import { templateManager } from '@domain-services/template-manager';
 import { awsResourceNames } from '@shared/naming/aws-resource-names';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import { ExpectedError } from '@utils/errors';
-import { tuiManager } from '@utils/tui';
 import {
   getHttpApiAuthorizerResource,
   getHttpApiLambdaPermission,

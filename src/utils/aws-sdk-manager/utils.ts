@@ -1,13 +1,13 @@
 import type { Credentials } from '@aws-sdk/types';
 import { Buffer } from 'node:buffer';
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { GetCallerIdentityCommand, STSClient } from '@aws-sdk/client-sts';
 import { hintMessages } from '@errors';
 import { retryPlugin } from '@shared/aws/sdk-manager/utils';
 import { awsResourceNames } from '@shared/naming/aws-resource-names';
 import { serialize } from '@shared/utils/misc';
 import { ExpectedError } from '@utils/errors';
-import { tuiManager } from '@utils/tui';
 
 export const getErrorHandler = (message: string) => (err: Error) => {
   if ((err as ExpectedError).isExpected) {

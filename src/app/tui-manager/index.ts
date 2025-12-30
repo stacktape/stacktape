@@ -1,5 +1,7 @@
 import type { ExpectedError, UnexpectedError } from '@utils/errors';
 import type { Instance } from 'ink';
+import type { PromptObject } from 'prompts';
+import type { ErrorDisplayData } from './components';
 import type { TuiDeploymentHeader, TuiEventStatus, TuiLink, TuiMessageType } from './types';
 import { eventManager } from '@application-services/event-manager';
 import { INVOKED_FROM_ENV_VAR_NAME, IS_DEV, linksMap } from '@config';
@@ -8,9 +10,10 @@ import { logCollectorStream } from '@utils/log-collector';
 import ci from 'ci-info';
 import { render } from 'ink';
 import kleur from 'kleur';
+import prompts from 'prompts';
 import React from 'react';
 import terminalLink from 'terminal-link';
-import { renderStackErrorsToString, Table, TuiApp } from './components';
+import { renderErrorToString, renderStackErrorsToString, Table, TuiApp } from './components';
 import { nonTTYRenderer } from './non-tty-renderer';
 import { tuiState } from './state';
 import { formatDuration, stripAnsi } from './utils';
@@ -32,8 +35,10 @@ class TuiManager {
   private inkInstance: Instance | null = null;
   private isTTY: boolean;
   private _isEnabled: boolean = false;
+  private _isPaused: boolean = false;
   private logFormat: LogFormat = 'fancy';
   private logLevel: LogLevel = 'info';
+  private nonTTYUnsubscribe: (() => void) | null = null;
 
   constructor() {
     this.isTTY = process.stdout.isTTY && !ci.isCI;
@@ -41,6 +46,10 @@ class TuiManager {
 
   get enabled(): boolean {
     return this._isEnabled;
+  }
+
+  get isPaused(): boolean {
+    return this._isPaused;
   }
 
   init(options: { logFormat?: LogFormat; logLevel?: LogLevel } = {}) {
@@ -65,20 +74,69 @@ class TuiManager {
         // Ink automatically re-renders on state changes
       });
     } else {
-      tuiState.subscribe((state) => {
+      this.nonTTYUnsubscribe = tuiState.subscribe((state) => {
         nonTTYRenderer.render(state);
       });
     }
   }
 
-  async stop() {
+  /**
+   * Temporarily pause the TUI to allow external tools (like prompts) to use the terminal.
+   * Call resume() when done with external terminal operations.
+   */
+  pause() {
+    if (!this._isEnabled || this._isPaused) return;
+    this._isPaused = true;
+
     if (this.inkInstance) {
-      // Wait a moment to ensure the final state (including summary) is rendered
-      await new Promise((resolve) => setTimeout(resolve, 100));
       this.inkInstance.unmount();
       this.inkInstance = null;
     }
+  }
+
+  /**
+   * Resume the TUI after it was paused.
+   */
+  resume() {
+    if (!this._isEnabled || !this._isPaused) return;
+    this._isPaused = false;
+
+    if (this.isTTY) {
+      this.inkInstance = render(React.createElement(TuiApp, { isTTY: true }), {
+        patchConsole: false
+      });
+    }
+  }
+
+  /**
+   * Show a user prompt. Automatically pauses the TUI during prompting.
+   * @param questions - prompts configuration object
+   * @returns Promise with the user's answers
+   */
+  async prompt<T extends string = string>(questions: PromptObject<T>): Promise<prompts.Answers<T>> {
+    this.pause();
+    try {
+      return await prompts(questions, { onCancel: () => process.emit('SIGINT' as any) });
+    } finally {
+      this.resume();
+    }
+  }
+
+  async stop() {
+    // Capture reference before async operations to avoid race conditions
+    const instance = this.inkInstance;
+    if (instance) {
+      // Wait a moment to ensure the final state (including summary) is rendered
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      instance.unmount();
+      this.inkInstance = null;
+    }
+    if (this.nonTTYUnsubscribe) {
+      this.nonTTYUnsubscribe();
+      this.nonTTYUnsubscribe = null;
+    }
     this._isEnabled = false;
+    this._isPaused = false;
     nonTTYRenderer.reset();
   }
 
@@ -125,7 +183,7 @@ class TuiManager {
   }
 
   warn(message: string) {
-    tuiState.addWarning(message);
+    this.writeWarn('warn', message);
   }
 
   setComplete(success: boolean, message: string, links: TuiLink[] = [], consoleUrl?: string) {
@@ -196,7 +254,29 @@ class TuiManager {
   }
 
   private writeMessage(name: string, type: TuiMessageType, message: string, data?: Record<string, any>) {
+    // When paused or not using Ink, print directly to console
+    if (this._isPaused || !this.isTTY || !this._isEnabled) {
+      this.printMessageToConsole(type, message);
+      logCollectorStream.write(message);
+      return;
+    }
     tuiState.addMessage(name, type, message, data);
+  }
+
+  private printMessageToConsole(type: TuiMessageType, message: string) {
+    const symbols: Record<TuiMessageType, { symbol: string; color: string }> = {
+      info: { symbol: 'ℹ', color: 'cyan' },
+      success: { symbol: '✔', color: 'green' },
+      error: { symbol: '✖', color: 'red' },
+      warn: { symbol: '⚠', color: 'yellow' },
+      debug: { symbol: '⚙', color: 'gray' },
+      hint: { symbol: '💡', color: 'blue' },
+      start: { symbol: '▶', color: 'magenta' },
+      announcement: { symbol: '★', color: 'magenta' }
+    };
+    const { symbol, color } = symbols[type];
+    const coloredSymbol = this.colorize(color, symbol);
+    console.info(`${coloredSymbol} ${message}`);
   }
 
   // Simple logging methods that delegate to write* methods
@@ -288,6 +368,7 @@ class TuiManager {
   /**
    * Print a structured error with optional hints and stack trace.
    * Handles both ExpectedError and UnexpectedError types.
+   * Uses the ErrorDisplay React component for TTY mode.
    */
   error(error: UnexpectedError | ExpectedError) {
     const { hint } = error as ExpectedError;
@@ -296,9 +377,29 @@ class TuiManager {
     const errorMessage =
       !IS_DEV && !error.isExpected
         ? `An unexpected error occurred. Last captured event: ${eventManager.lastEvent?.eventType || '-'}.`
-        : error.isExpected
-          ? `${errorType.replace('_ERROR', '')}: ${error.message}`
-          : error.message;
+        : error.message;
+
+    // Prepare hints array
+    const hints: string[] = [];
+    if (hint) {
+      hints.push(...(Array.isArray(hint) ? hint : [hint]));
+    }
+    if (sentryEventId) {
+      hints.push(
+        `This error has been anonymously reported to our error monitoring service with id ${sentryEventId}. ` +
+          `You can create an issue with more details at https://github.com/stacktape/stacktape/issues. Please include error id in your issue.`
+      );
+    }
+    hints.push(`To get help, reach out to our team at support@stacktape.com`);
+
+    const errorData: ErrorDisplayData = {
+      errorType: errorType.replace('_ERROR', ''),
+      message: errorMessage,
+      hints: this.logLevel !== 'error' ? hints : undefined,
+      stackTrace: prettyStackTrace || undefined,
+      sentryEventId: sentryEventId || undefined,
+      isExpected: error.isExpected
+    };
 
     if (this.logFormat === 'json') {
       this.printStacktapeLog({
@@ -306,26 +407,34 @@ class TuiManager {
         data: { errorType, message: errorMessage, reportedErrorId: sentryEventId, stack: prettyStackTrace }
       });
     } else {
-      const fullMessage = `${errorMessage}${prettyStackTrace ? `\n${prettyStackTrace}` : ''}`;
-      this.writeError('error', fullMessage);
+      this.displayError(errorData);
     }
+  }
 
-    if (sentryEventId) {
-      this.hint(
-        `This error has been anonymously reported to our error monitoring service with id ${sentryEventId}.\n` +
-          `You can create an issue with more details at ${this.getLink('newIssue', 'New issue')}. Please include error id in your issue.`
-      );
+  /**
+   * Display an error. Errors are terminal events, so this stops the TUI
+   * and renders directly to console.
+   */
+  displayError(errorData: ErrorDisplayData) {
+    // Mark all running events as errored to show red X in the UI
+    tuiState.markAllRunningAsErrored();
+
+    // Stop the TUI if running - errors are terminal events
+    if (this.inkInstance) {
+      // Give Ink one frame to render the error states before unmounting
+      this.inkInstance.waitUntilExit().catch(() => {});
+      this.inkInstance.unmount();
+      this.inkInstance = null;
     }
+    this._isEnabled = false;
+    this._isPaused = false;
 
-    const canPrintHint = this.logLevel !== 'error';
-    if (hint && canPrintHint) {
-      const hints = Array.isArray(hint) ? hint : [hint];
-      for (const hintMsg of hints) {
-        this.hint(hintMsg);
-      }
-    }
+    // Always render to console for errors (not through Ink)
+    const errorString = renderErrorToString(errorData, this.colorize.bind(this), this.makeBold.bind(this));
+    console.error(errorString);
 
-    this.hint(`To get help, you can join our ${this.makeBold('Discord')} community: https://discord.gg/gSvzRWe3YD`);
+    // Log to collector
+    logCollectorStream.write(`[${errorData.errorType}] ${errorData.message}`);
   }
 
   /**

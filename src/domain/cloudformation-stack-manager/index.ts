@@ -2,6 +2,7 @@ import type { Capability, StackEvent, StackResourceSummary } from '@aws-sdk/clie
 import type { Tag } from '@aws-sdk/client-ecs';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { OnFailure, ResourceStatus, StackStatus } from '@aws-sdk/client-cloudformation';
 import { DeploymentRolloutState } from '@aws-sdk/client-ecs';
 import { MONITORING_FREQUENCY_SECONDS } from '@config';
@@ -33,7 +34,6 @@ import compose from '@utils/basic-compose-shim';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
 import { ExpectedError } from '@utils/errors';
 import { getAwsSynchronizedTime } from '@utils/time';
-import { tuiManager } from '@utils/tui';
 import { getNextVersionString } from '@utils/versioning';
 import uniqBy from 'lodash/uniqBy';
 import { getEstimatedRemainingPercent, getStackDeploymentEstimate } from './duration-estimation';

@@ -2,11 +2,11 @@ import { announcementsManager } from '@application-services/announcements-manage
 import { applicationManager } from '@application-services/application-manager';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { commandsWithDisabledAnnouncements } from '@cli-config';
 import { notificationManager } from '@domain-services/notification-manager';
 import { initializeSentry, setSentryTags } from '@utils/sentry';
 import { deleteTempFolder } from '@utils/temp-files';
-import { tuiManager } from '@utils/tui';
 import { commandAwsProfileCreate } from './commands/aws-profile-create';
 import { commandAwsProfileDelete } from './commands/aws-profile-delete';
 import { commandAwsProfileList } from './commands/aws-profile-list';

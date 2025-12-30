@@ -1,12 +1,11 @@
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { DesiredStatus } from '@aws-sdk/client-ecs';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { stpErrors } from '@errors';
-import { userPrompt } from '@shared/utils/user-prompt';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { runEcsExecSsmShellSession } from '@utils/ssm-session';
-import { tuiManager } from '@utils/tui';
 import { initializeStackServicesForWorkingWithDeployedStack } from '../_utils/initialization';
 
 export const commandContainerSession = async () => {
@@ -64,7 +63,7 @@ const resolveTargetContainer = async () => {
 
   let taskArn = tasks[0]?.taskArn;
   if (tasks.length > 1) {
-    ({ taskArn } = await userPrompt({
+    ({ taskArn } = await tuiManager.prompt({
       type: 'select',
       name: 'taskArn',
       message: 'There are multiple instances running. Please select the one you want to connect to.',

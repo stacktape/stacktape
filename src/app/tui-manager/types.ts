@@ -75,6 +75,33 @@ export type TuiDeploymentHeader = {
   action: 'DEPLOYING' | 'DELETING' | 'UPDATING';
 };
 
+export type TuiSelectOption = {
+  label: string;
+  value: string;
+};
+
+export type TuiPromptSelect = {
+  type: 'select';
+  message: string;
+  options: TuiSelectOption[];
+  resolve: (value: string) => void;
+};
+
+export type TuiPromptConfirm = {
+  type: 'confirm';
+  message: string;
+  resolve: (value: boolean) => void;
+};
+
+export type TuiPromptText = {
+  type: 'text';
+  message: string;
+  placeholder?: string;
+  resolve: (value: string) => void;
+};
+
+export type TuiPrompt = TuiPromptSelect | TuiPromptConfirm | TuiPromptText;
+
 export type TuiState = {
   header?: TuiDeploymentHeader;
   phases: TuiPhase[];
@@ -85,6 +112,8 @@ export type TuiState = {
   summary?: TuiSummary;
   isComplete: boolean;
   startTime: number;
+  /** Active prompt waiting for user input */
+  activePrompt?: TuiPrompt;
 };
 
 export const PHASE_NAMES: Record<DeploymentPhase, string> = {

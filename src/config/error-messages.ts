@@ -1,3 +1,4 @@
+import { tuiManager } from '@application-services/tui-manager';
 import { StackStatus } from '@aws-sdk/client-cloudformation';
 import { VALID_CONFIG_PATHS } from '@config';
 import {
@@ -7,7 +8,6 @@ import {
 import { consoleLinks } from '@shared/naming/console-links';
 import { getError } from '@shared/utils/misc';
 import { getApexDomain } from '@utils/domains';
-import { tuiManager } from '@utils/tui';
 
 const wrap = (
   errorsObj: typeof errors
