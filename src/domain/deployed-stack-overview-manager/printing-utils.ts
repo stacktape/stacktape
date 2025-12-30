@@ -1,5 +1,5 @@
 import { globalStateManager } from '@application-services/global-state-manager';
-import { printer } from '@utils/printer';
+import { tuiManager } from '@utils/tui';
 
 const getTypedOutputsForResource = <T extends StpResourceType>(resource: {
   resourceType: T;
@@ -24,9 +24,9 @@ export const getResourceTypeSpecificInfoLines = ({
     const typedOutputs = getTypedOutputsForResource({ resourceType, outputs });
     if (typedOutputs?.integrations?.length) {
       typedOutputs.integrations.forEach(({ url, method, resourceName }, index, arr) => {
-        const methodPart = `[${printer.colorize('yellow', method)}]`;
-        const resourceNamePart = `(${printer.colorize('cyan', resourceName)})`;
-        const urlPart = printer.colorize('green', url.toString());
+        const methodPart = `[${tuiManager.colorize('yellow', method)}]`;
+        const resourceNamePart = `(${tuiManager.colorize('cyan', resourceName)})`;
+        const urlPart = tuiManager.colorize('green', url.toString());
         const startLineDecorator = `${arr.length - 1 === index ? '└' : '├'}`;
         linesToPrint.push(`  ${startLineDecorator} ${methodPart} ${urlPart} ${resourceNamePart}`);
       });
@@ -43,17 +43,17 @@ export const getResourceTypeSpecificInfoLines = ({
         ) => {
           const lineConnectingIntegrations = arr.length - 1 === index ? ' ' : '│';
           linesToPrint.push(
-            `  ${arr.length - 1 === index ? '└' : '├'} Port ${printer.colorize(
+            `  ${arr.length - 1 === index ? '└' : '├'} Port ${tuiManager.colorize(
               'magenta',
               `${listenerPort}`
-            )} priority ${printer.colorize('magenta', `${priority}`)} (${printer.colorize('cyan', `${resourceName}`)})`
+            )} priority ${tuiManager.colorize('magenta', `${priority}`)} (${tuiManager.colorize('cyan', `${resourceName}`)})`
           );
           linesToPrint = linesToPrint
             .concat(
               methods?.length
                 ? [
-                    `  ${lineConnectingIntegrations} ├ ${printer.colorize('blue', 'methods')} - ${methods
-                      .map((method) => printer.colorize('gray', method))
+                    `  ${lineConnectingIntegrations} ├ ${tuiManager.colorize('blue', 'methods')} - ${methods
+                      .map((method) => tuiManager.colorize('gray', method))
                       .join(' || ')}`
                   ]
                 : []
@@ -61,12 +61,12 @@ export const getResourceTypeSpecificInfoLines = ({
             .concat(
               headers?.length
                 ? [
-                    `  ${lineConnectingIntegrations} ├ ${printer.colorize('blue', 'headers')}`,
+                    `  ${lineConnectingIntegrations} ├ ${tuiManager.colorize('blue', 'headers')}`,
                     ...headers.map(
                       ({ headerName, values }, hIndex, hArr) =>
                         `    ${lineConnectingIntegrations} │ ${
                           hArr.length - 1 === hIndex ? '└' : '├'
-                        } ${headerName} - ${values.map((hValue) => printer.colorize('gray', hValue)).join(' || ')}`
+                        } ${headerName} - ${values.map((hValue) => tuiManager.colorize('gray', hValue)).join(' || ')}`
                     )
                   ]
                 : []
@@ -74,12 +74,12 @@ export const getResourceTypeSpecificInfoLines = ({
             .concat(
               queryParams?.length
                 ? [
-                    `  ${lineConnectingIntegrations} ├ ${printer.colorize('blue', 'query-params')}`,
+                    `  ${lineConnectingIntegrations} ├ ${tuiManager.colorize('blue', 'query-params')}`,
                     ...queryParams.map(
                       ({ paramName, values }, hIndex, hArr) =>
                         `    ${lineConnectingIntegrations} │ ${
                           hArr.length - 1 === hIndex ? '└' : '├'
-                        } ${paramName} - ${values.map((hValue) => printer.colorize('gray', hValue)).join(' || ')}`
+                        } ${paramName} - ${values.map((hValue) => tuiManager.colorize('gray', hValue)).join(' || ')}`
                     )
                   ]
                 : []
@@ -87,12 +87,12 @@ export const getResourceTypeSpecificInfoLines = ({
             .concat(
               hosts?.length
                 ? [
-                    `  ${lineConnectingIntegrations} ├ ${printer.colorize('blue', 'hosts')}`,
+                    `  ${lineConnectingIntegrations} ├ ${tuiManager.colorize('blue', 'hosts')}`,
                     ...hosts.map(
                       (host, hIndex, hArr) =>
                         `    ${lineConnectingIntegrations} │ ${
                           hArr.length - 1 === hIndex ? '└' : '├'
-                        } ${printer.colorize('gray', host)}`
+                        } ${tuiManager.colorize('gray', host)}`
                     )
                   ]
                 : []
@@ -100,21 +100,21 @@ export const getResourceTypeSpecificInfoLines = ({
             .concat(
               sourceIps?.length
                 ? [
-                    `  ${lineConnectingIntegrations} ├ ${printer.colorize('blue', 'source-ips')}`,
+                    `  ${lineConnectingIntegrations} ├ ${tuiManager.colorize('blue', 'source-ips')}`,
                     ...sourceIps.map(
                       (sourceIp, hIndex, hArr) =>
                         `    ${lineConnectingIntegrations} │ ${
                           hArr.length - 1 === hIndex ? '└' : '├'
-                        } ${printer.colorize('gray', sourceIp)}`
+                        } ${tuiManager.colorize('gray', sourceIp)}`
                     )
                   ]
                 : []
             )
             .concat([
-              `  ${lineConnectingIntegrations} └ ${printer.colorize('blue', 'urls')}`,
+              `  ${lineConnectingIntegrations} └ ${tuiManager.colorize('blue', 'urls')}`,
               ...urls.map(
                 (url, hIndex, hArr) =>
-                  `  ${lineConnectingIntegrations}   ${hArr.length - 1 === hIndex ? '└' : '├'} ${printer.colorize(
+                  `  ${lineConnectingIntegrations}   ${hArr.length - 1 === hIndex ? '└' : '├'} ${tuiManager.colorize(
                     'yellow',
                     url as string
                   )}`
@@ -145,7 +145,7 @@ export const getResourceInfoLines = ({
   showSensitiveValues: boolean;
 }): { lines: string[]; containsSensitiveValues: boolean } => {
   const linesToPrint = [];
-  linesToPrint.push(printer.colorize('cyan', nameChain.join('.')));
+  linesToPrint.push(tuiManager.colorize('cyan', nameChain.join('.')));
   let containsSensitiveValues = false;
   const referencableParamLines = Object.entries(referencableParams)
     .filter(
@@ -157,12 +157,14 @@ export const getResourceInfoLines = ({
       if (ssmParameterName) {
         containsSensitiveValues = true;
       }
-      return `${printer.colorize('blue', `${paramName}`)}: ${
-        !ssmParameterName || (ssmParameterName && showSensitiveValues) ? value : printer.colorize('gray', '<<HIDDEN>>')
+      return `${tuiManager.colorize('blue', `${paramName}`)}: ${
+        !ssmParameterName || (ssmParameterName && showSensitiveValues)
+          ? value
+          : tuiManager.colorize('gray', '<<HIDDEN>>')
       }`;
     });
   const linksLines = Object.entries(links).map(
-    ([linkName, link]) => `${printer.colorize('green', `${linkName}`)}: ${link}`
+    ([linkName, link]) => `${tuiManager.colorize('green', `${linkName}`)}: ${link}`
   );
 
   referencableParamLines.forEach((line, index, arr) =>

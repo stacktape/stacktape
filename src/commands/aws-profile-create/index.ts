@@ -3,7 +3,7 @@ import { getIniFileContent } from '@shared/utils/fs-utils';
 import { userPrompt } from '@shared/utils/user-prompt';
 import { upsertAwsProfile } from '@utils/aws-config';
 import { ExpectedError } from '@utils/errors';
-import { printer } from '@utils/printer';
+import { tuiManager } from '@utils/tui';
 
 export const commandAwsProfileCreate = async (): Promise<AwsProfileCreateReturnValue> => {
   const promptResult = await userPrompt({
@@ -39,7 +39,7 @@ export const commandAwsProfileCreate = async (): Promise<AwsProfileCreateReturnV
   });
 
   await upsertAwsProfile(profile, awsAccessKeyId, awsSecretAccessKey);
-  printer.success(`Successfully saved credentials for profile ${profile}.`);
+  tuiManager.success(`Successfully saved credentials for profile ${profile}.`);
 
   return null;
 };

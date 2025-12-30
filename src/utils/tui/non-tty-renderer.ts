@@ -5,20 +5,20 @@ import { formatDuration } from './utils';
 
 // ASCII-safe symbols for non-TTY output (Unicode doesn't render well when piped)
 const SYMBOLS = {
-  success: '[ok]',
-  error: '[err]',
-  running: '[-]',
+  success: '[+]',
+  error: '[x]',
+  running: '[~]',
   parent: '>',
   warning: '[!]'
 };
 
 const MESSAGE_TYPE_PREFIXES: Record<TuiMessageType, string> = {
-  info: '[INFO]',
-  success: '[ok]',
-  error: '[err]',
+  info: '[i]',
+  success: '[+]',
+  error: '[x]',
   warn: '[!]',
-  debug: '[DBG]',
-  hint: '[HINT]',
+  debug: '[.]',
+  hint: '[?]',
   start: '[>]',
   announcement: '[*]'
 };
@@ -61,12 +61,12 @@ class NonTTYRenderer {
       this.printedItems.add('header');
     }
 
-    // Render any messages that came before phases
-    this.renderMessages(state);
-
     for (const phase of state.phases) {
       this.renderPhase(phase, state);
     }
+
+    // Render messages after phases (hints, errors, etc.)
+    this.renderMessages(state);
 
     if (state.summary && !this.printedItems.has('summary')) {
       this.printSummary(state);
@@ -77,7 +77,10 @@ class NonTTYRenderer {
   }
 
   private renderMessages(state: TuiState) {
-    for (const msg of state.messages) {
+    // Only render global messages (without a phase) here
+    // Phase-specific messages are rendered inline by renderPhase
+    const globalMessages = state.messages.filter((m) => !m.phase);
+    for (const msg of globalMessages) {
       const msgKey = `message-${msg.id}`;
       if (!this.printedItems.has(msgKey)) {
         const prefix = MESSAGE_TYPE_PREFIXES[msg.type];
@@ -104,8 +107,10 @@ class NonTTYRenderer {
     const phaseNumber = PHASE_ORDER.indexOf(phase.id) + 1;
 
     if (phase.status !== 'pending' && !this.printedItems.has(phaseKey)) {
+      this.log('');
       this.log(`${SYMBOLS.parent} PHASE ${phaseNumber} - ${PHASE_NAMES[phase.id]}`);
       this.log('--------------------------------------------------------------------');
+      this.log('');
       this.printedItems.add(phaseKey);
     }
 
@@ -119,6 +124,17 @@ class NonTTYRenderer {
       if (!this.printedItems.has(warningKey)) {
         this.log(`  ${SYMBOLS.warning} ${warning.message}`);
         this.printedItems.add(warningKey);
+      }
+    }
+
+    // Render phase-specific messages inline
+    const phaseMessages = state.messages.filter((m) => m.phase === phase.id);
+    for (const msg of phaseMessages) {
+      const msgKey = `message-${msg.id}`;
+      if (!this.printedItems.has(msgKey)) {
+        const prefix = MESSAGE_TYPE_PREFIXES[msg.type];
+        this.log(`  ${prefix} ${msg.message}`);
+        this.printedItems.add(msgKey);
       }
     }
   }

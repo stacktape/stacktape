@@ -1,7 +1,7 @@
 import { isJson } from '@shared/utils/misc';
 import { userPrompt } from '@shared/utils/user-prompt';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
-import { printer } from '@utils/printer';
+import { tuiManager } from '@utils/tui';
 import { loadUserCredentials } from '../_utils/initialization';
 
 export const commandSecretGet = async () => {
@@ -20,7 +20,7 @@ export const commandSecretGet = async () => {
     created: secretValue.CreatedDate.toLocaleString(),
     arn: secretValue.ARN
   };
-  printer.info('Secret details:');
+  tuiManager.info('Secret details:');
   // eslint-disable-next-line no-console
   console.dir(formattedSecret, { depth: 5 });
 

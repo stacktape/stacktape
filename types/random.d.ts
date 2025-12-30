@@ -548,4 +548,4 @@ type ResourcePropsFromConfig<T extends StpResourceType> = T extends 'application
 type StarterProjectDeploymentType = 'local-machine' | 'github' | 'gitlab';
 type StarterProjectInstallDepsType = SupportedEsPackageManager | 'bundler' | 'poetry' | 'none';
 
-type Printer = import('@utils/printer').Printer;
+type Printer = import('@utils/tui').TuiManager;

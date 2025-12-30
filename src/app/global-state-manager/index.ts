@@ -18,8 +18,8 @@ import { listAwsProfiles, loadAwsConfigFileContent } from '@utils/aws-config';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { memoizeGetters } from '@utils/decorators';
 import { loadHelperLambdaDetails } from '@utils/helper-lambdas';
-import { printer } from '@utils/printer';
 import { getAwsSynchronizedTime } from '@utils/time';
+import { tuiManager } from '@utils/tui';
 import { generateShortUuid, generateUuid } from '@utils/uuid';
 import {
   validateArgs,
@@ -131,7 +131,7 @@ export class GlobalStateManager {
         const res = await userPrompt({
           type: 'password',
           name: 'apiKey',
-          message: `Your Stacktape API key (available in the ${printer.getLink('apiKeys', 'console')})`
+          message: `Your Stacktape API key (available in the ${tuiManager.getLink('apiKeys', 'console')})`
         });
         this.apiKey = res.apiKey;
         await this.saveApiKey({ apiKey: res.apiKey });
@@ -421,7 +421,7 @@ export class GlobalStateManager {
     }[this.credentials.source];
     await eventManager.finishEvent({
       eventType: 'LOAD_AWS_CREDENTIALS',
-      finalMessage: `Loaded from ${printer.makeBold(loadedFrom)}.`
+      finalMessage: `Loaded from ${tuiManager.makeBold(loadedFrom)}.`
     });
     return this.credentials;
   };
@@ -515,8 +515,8 @@ export class GlobalStateManager {
       return this.projects.find(({ name }) => name === existingProjectName);
     };
     if (configManager.configResolver.rawConfig?.serviceName) {
-      printer.warn(
-        `Using ${printer.prettyConfigProperty('serviceName')} property in config is deprecated. Use "--projectName <<serviceName>>" (${printer.colorize('gray', `--projectName ${configManager.configResolver.rawConfig?.serviceName}`)}) option instead.`
+      tuiManager.warn(
+        `Using ${tuiManager.prettyConfigProperty('serviceName')} property in config is deprecated. Use "--projectName <<serviceName>>" (${tuiManager.colorize('gray', `--projectName ${configManager.configResolver.rawConfig?.serviceName}`)}) option instead.`
       );
     }
     const projectName =
@@ -532,7 +532,7 @@ export class GlobalStateManager {
         const { newOrExisting } = await userPrompt({
           type: 'select',
           name: 'newOrExisting',
-          message: `Which project do you want to use? (You can also specify it using ${printer.prettyOption('projectName')}).`,
+          message: `Which project do you want to use? (You can also specify it using ${tuiManager.prettyOption('projectName')}).`,
           choices: [
             {
               title: 'Create new project',
@@ -580,10 +580,10 @@ export class GlobalStateManager {
       const { newOrExisting } = await userPrompt({
         type: 'select',
         name: 'newOrExisting',
-        message: `Project with name ${printer.colorize('gray', projectName)} does not exist.`,
+        message: `Project with name ${tuiManager.colorize('gray', projectName)} does not exist.`,
         choices: [
           {
-            title: `Create project with name ${printer.colorize('gray', `"${projectName}"`)}.`,
+            title: `Create project with name ${tuiManager.colorize('gray', `"${projectName}"`)}.`,
             value: 'new'
           },
           {

@@ -2,7 +2,7 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import { configurableGlobalDefaultCliArgs, configurableGlobalDefaultOtherProps } from '@config';
 import { fsPaths } from '@shared/naming/fs-paths';
 import { userPrompt } from '@shared/utils/user-prompt';
-import { printer } from '@utils/printer';
+import { tuiManager } from '@utils/tui';
 
 const getDefaults = async (
   persistedData: PersistedState['cliArgsDefaults'] | PersistedState['otherDefaults'],
@@ -45,7 +45,7 @@ export const commandDefaultsConfigure = async () => {
   await globalStateManager.saveDefaults({ cliArgsDefaults, otherDefaults });
   await globalStateManager.reloadPersistedState();
 
-  printer.success(`Defaults successfully saved to ${fsPaths.persistedStateFilePath()}.`);
+  tuiManager.success(`Defaults successfully saved to ${fsPaths.persistedStateFilePath()}.`);
 };
 
 const maskString = (input: string): string => {

@@ -1,5 +1,5 @@
 import { globalStateManager } from '@application-services/global-state-manager';
-import { printer } from '@utils/printer';
+import { tuiManager } from '@utils/tui';
 
 export const commandDefaultsList = async () => {
   const defaults = {
@@ -8,12 +8,12 @@ export const commandDefaultsList = async () => {
   };
 
   if (!Object.keys(defaults)) {
-    printer.info('No defaults are configured on this system');
+    tuiManager.info('No defaults are configured on this system');
   }
 
   console.info(
-    `${printer.makeBold('Configured defaults')}:\n  ${Object.entries(defaults)
-      .map(([name, value]) => `${name}: ${printer.colorize('cyan', value)}`)
+    `${tuiManager.makeBold('Configured defaults')}:\n  ${Object.entries(defaults)
+      .map(([name, value]) => `${name}: ${tuiManager.colorize('cyan', value)}`)
       .join('\n  ')}`
   );
 };

@@ -1,9 +1,9 @@
-import { readFileSync, writeFileSync, readdirSync, mkdirSync, rmSync, createWriteStream } from "fs";
-import { Readable } from "stream";
-import { join, basename } from "path";
-import { Parse } from "unzipper";
+import { createWriteStream, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { basename, join } from 'node:path';
+import { Readable } from 'node:stream';
+import { Parse } from 'unzipper';
 
-const SCHEMA_ZIP_URL = "https://schema.cloudformation.us-east-1.amazonaws.com/CloudformationSchema.zip";
+const SCHEMA_ZIP_URL = 'https://schema.cloudformation.us-east-1.amazonaws.com/CloudformationSchema.zip';
 
 interface JsonSchemaProperty {
   description?: string;
@@ -40,27 +40,27 @@ interface CloudFormationSchema {
 
 function convertTypeName(typeName: string): string {
   return typeName
-    .split("::")
+    .split('::')
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
-    .join("");
+    .join('');
 }
 
-function generateJsDoc(prop: JsonSchemaProperty, indent: string = ""): string {
+function generateJsDoc(prop: JsonSchemaProperty, indent: string = ''): string {
   const lines: string[] = [];
 
   if (prop.description) {
     // Split description into multiple lines if too long
-    const descLines = prop.description.split("\n");
+    const descLines = prop.description.split('\n');
     for (const line of descLines) {
       // Wrap long lines
-      const words = line.split(" ");
-      let currentLine = "";
+      const words = line.split(' ');
+      let currentLine = '';
       for (const word of words) {
         if (currentLine.length + word.length + 1 > 100) {
           lines.push(currentLine.trim());
-          currentLine = word + " ";
+          currentLine = `${word} `;
         } else {
-          currentLine += word + " ";
+          currentLine += `${word} `;
         }
       }
       if (currentLine.trim()) {
@@ -102,14 +102,14 @@ function generateJsDoc(prop: JsonSchemaProperty, indent: string = ""): string {
   }
 
   if (lines.length === 0) {
-    return "";
+    return '';
   }
 
   if (lines.length === 1) {
     return `${indent}/** ${lines[0]} */\n`;
   }
 
-  return `${indent}/**\n${lines.map((line) => `${indent} * ${line}`).join("\n")}\n${indent} */\n`;
+  return `${indent}/**\n${lines.map((line) => `${indent} * ${line}`).join('\n')}\n${indent} */\n`;
 }
 
 function resolveRefName(ref: string): string | null {
@@ -121,23 +121,23 @@ function resolveRefName(ref: string): string | null {
 function propertyToTypeScript(
   prop: JsonSchemaProperty,
   definitions: Record<string, JsonSchemaProperty>,
-  indent: string = "  ",
+  indent: string = '  ',
   expandingRefs: Set<string> = new Set()
 ): string {
   if (prop.$ref) {
     const refName = resolveRefName(prop.$ref);
     if (!refName) {
-      return "unknown";
+      return 'unknown';
     }
 
     // Check for circular reference
     if (expandingRefs.has(refName)) {
-      return "unknown"; // Break circular reference
+      return 'unknown'; // Break circular reference
     }
 
     const refDef = definitions[refName];
     if (!refDef) {
-      return "unknown";
+      return 'unknown';
     }
 
     // Track this ref to detect circular references
@@ -149,43 +149,43 @@ function propertyToTypeScript(
   }
 
   if (prop.enum) {
-    return prop.enum.map((v) => JSON.stringify(v)).join(" | ");
+    return prop.enum.map((v) => JSON.stringify(v)).join(' | ');
   }
 
   if (prop.oneOf || prop.anyOf) {
     const variants = prop.oneOf || prop.anyOf || [];
-    return variants.map((v) => propertyToTypeScript(v, definitions, indent, expandingRefs)).join(" | ");
+    return variants.map((v) => propertyToTypeScript(v, definitions, indent, expandingRefs)).join(' | ');
   }
 
   if (prop.allOf) {
-    return prop.allOf.map((v) => propertyToTypeScript(v, definitions, indent, expandingRefs)).join(" & ");
+    return prop.allOf.map((v) => propertyToTypeScript(v, definitions, indent, expandingRefs)).join(' & ');
   }
 
   const type = prop.type;
 
   if (Array.isArray(type)) {
-    return type.map((t) => jsonTypeToTs(t)).join(" | ");
+    return type.map((t) => jsonTypeToTs(t)).join(' | ');
   }
 
   switch (type) {
-    case "string":
-      return "string";
-    case "integer":
-    case "number":
-      return "number";
-    case "boolean":
-      return "boolean";
-    case "null":
-      return "null";
-    case "array":
+    case 'string':
+      return 'string';
+    case 'integer':
+    case 'number':
+      return 'number';
+    case 'boolean':
+      return 'boolean';
+    case 'null':
+      return 'null';
+    case 'array':
       if (prop.items) {
         const itemType = propertyToTypeScript(prop.items, definitions, indent, expandingRefs);
         // Wrap union types in parentheses for correct precedence
-        const needsParens = itemType.includes(" | ") || itemType.includes(" & ");
+        const needsParens = itemType.includes(' | ') || itemType.includes(' & ');
         return needsParens ? `(${itemType})[]` : `${itemType}[]`;
       }
-      return "unknown[]";
-    case "object":
+      return 'unknown[]';
+    case 'object':
       if (prop.properties) {
         return generateInlineObject(prop, definitions, indent, expandingRefs);
       }
@@ -198,35 +198,35 @@ function propertyToTypeScript(
         }
       }
       if (prop.additionalProperties === true) {
-        return "Record<string, unknown>";
+        return 'Record<string, unknown>';
       }
-      if (typeof prop.additionalProperties === "object") {
+      if (typeof prop.additionalProperties === 'object') {
         const valueType = propertyToTypeScript(prop.additionalProperties, definitions, indent, expandingRefs);
         return `Record<string, ${valueType}>`;
       }
-      return "Record<string, unknown>";
+      return 'Record<string, unknown>';
     default:
-      return "unknown";
+      return 'unknown';
   }
 }
 
 function jsonTypeToTs(type: string): string {
   switch (type) {
-    case "string":
-      return "string";
-    case "integer":
-    case "number":
-      return "number";
-    case "boolean":
-      return "boolean";
-    case "null":
-      return "null";
-    case "array":
-      return "unknown[]";
-    case "object":
-      return "Record<string, unknown>";
+    case 'string':
+      return 'string';
+    case 'integer':
+    case 'number':
+      return 'number';
+    case 'boolean':
+      return 'boolean';
+    case 'null':
+      return 'null';
+    case 'array':
+      return 'unknown[]';
+    case 'object':
+      return 'Record<string, unknown>';
     default:
-      return "unknown";
+      return 'unknown';
   }
 }
 
@@ -237,18 +237,18 @@ function generateInlineObject(
   expandingRefs: Set<string> = new Set()
 ): string {
   if (!prop.properties) {
-    return "Record<string, unknown>";
+    return 'Record<string, unknown>';
   }
 
   const requiredProps = new Set(prop.required || []);
-  const lines: string[] = ["{"];
-  const innerIndent = indent + "  ";
+  const lines: string[] = ['{'];
+  const innerIndent = `${indent}  `;
 
   for (const [propName, propDef] of Object.entries(prop.properties)) {
     const jsDoc = generateJsDoc(propDef, innerIndent);
     const isRequired = requiredProps.has(propName);
     const tsType = propertyToTypeScript(propDef, definitions, innerIndent, expandingRefs);
-    const optionalMark = isRequired ? "" : "?";
+    const optionalMark = isRequired ? '' : '?';
 
     if (jsDoc) {
       lines.push(jsDoc.trimEnd());
@@ -257,7 +257,7 @@ function generateInlineObject(
   }
 
   lines.push(`${indent}}`);
-  return lines.join("\n");
+  return lines.join('\n');
 }
 
 function generateMainType(
@@ -268,19 +268,19 @@ function generateMainType(
   const safeName = convertTypeName(typeName);
   const requiredProps = new Set(schema.required || []);
 
-  let jsDoc = "";
+  let jsDoc = '';
   if (schema.description) {
-    jsDoc = generateJsDoc({ description: schema.description }, "");
+    jsDoc = generateJsDoc({ description: schema.description }, '');
   }
 
   const propLines: string[] = [];
 
   if (schema.properties) {
     for (const [propName, propDef] of Object.entries(schema.properties)) {
-      const propJsDoc = generateJsDoc(propDef, "  ");
+      const propJsDoc = generateJsDoc(propDef, '  ');
       const isRequired = requiredProps.has(propName);
-      const tsType = propertyToTypeScript(propDef, definitions, "  ");
-      const optionalMark = isRequired ? "" : "?";
+      const tsType = propertyToTypeScript(propDef, definitions, '  ');
+      const optionalMark = isRequired ? '' : '?';
 
       if (propJsDoc) {
         propLines.push(propJsDoc.trimEnd());
@@ -289,24 +289,24 @@ function generateMainType(
     }
   }
 
-  return `${jsDoc}export type ${safeName} = {\n${propLines.join("\n")}\n};\n`;
+  return `${jsDoc}export type ${safeName} = {\n${propLines.join('\n')}\n};\n`;
 }
 
 export function generateCloudFormationTypes(schemaPath: string, outputPath: string): void {
-  const schemaContent = readFileSync(schemaPath, "utf-8");
+  const schemaContent = readFileSync(schemaPath, 'utf-8');
   const schema: CloudFormationSchema = JSON.parse(schemaContent);
 
   const definitions = schema.definitions || {};
   const output: string[] = [];
 
-  output.push("// This file is auto-generated. Do not edit manually.");
+  output.push('// This file is auto-generated. Do not edit manually.');
   output.push(`// Source: ${basename(schemaPath)}`);
-  output.push("");
+  output.push('');
 
   // Generate main type with all types inlined
   output.push(generateMainType(schema.typeName, schema, definitions));
 
-  writeFileSync(outputPath, output.join("\n"), "utf-8");
+  writeFileSync(outputPath, output.join('\n'), 'utf-8');
 }
 
 /**
@@ -314,11 +314,11 @@ export function generateCloudFormationTypes(schemaPath: string, outputPath: stri
  * e.g., "aws-lambda-function.json" -> "AwsLambdaFunction.ts"
  */
 function schemaFileToTsFile(schemaFile: string): string {
-  const baseName = basename(schemaFile, ".json");
+  const baseName = basename(schemaFile, '.json');
   const typeName = baseName
-    .split("-")
+    .split('-')
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join("");
+    .join('');
   return `${typeName}.ts`;
 }
 
@@ -333,7 +333,7 @@ async function downloadAndExtractSchemas(tempDir: string): Promise<void> {
     throw new Error(`Failed to download: ${response.status} ${response.statusText}`);
   }
 
-  console.log("Extracting schemas...");
+  console.log('Extracting schemas...');
 
   // Create temp directory
   mkdirSync(tempDir, { recursive: true });
@@ -341,7 +341,7 @@ async function downloadAndExtractSchemas(tempDir: string): Promise<void> {
   // Extract ZIP contents
   const zipStream = response.body;
   if (!zipStream) {
-    throw new Error("No response body");
+    throw new Error('No response body');
   }
 
   await new Promise<void>((resolve, reject) => {
@@ -351,27 +351,30 @@ async function downloadAndExtractSchemas(tempDir: string): Promise<void> {
 
     nodeStream
       .pipe(Parse())
-      .on("entry", (entry: { path: string; type: string; pipe: (dest: NodeJS.WritableStream) => void; autodrain: () => void }) => {
-        const fileName = entry.path;
-        const type = entry.type;
+      .on(
+        'entry',
+        (entry: { path: string; type: string; pipe: (dest: NodeJS.WritableStream) => void; autodrain: () => void }) => {
+          const fileName = entry.path;
+          const type = entry.type;
 
-        if (type === "File" && fileName.endsWith(".json")) {
-          const outputPath = join(tempDir, basename(fileName));
-          const writeStream = createWriteStream(outputPath);
+          if (type === 'File' && fileName.endsWith('.json')) {
+            const outputPath = join(tempDir, basename(fileName));
+            const writeStream = createWriteStream(outputPath);
 
-          // Track when this file finishes writing
-          const writePromise = new Promise<void>((resolveWrite, rejectWrite) => {
-            writeStream.on("finish", resolveWrite);
-            writeStream.on("error", rejectWrite);
-          });
-          writePromises.push(writePromise);
+            // Track when this file finishes writing
+            const writePromise = new Promise<void>((resolveWrite, rejectWrite) => {
+              writeStream.on('finish', resolveWrite);
+              writeStream.on('error', rejectWrite);
+            });
+            writePromises.push(writePromise);
 
-          entry.pipe(writeStream);
-        } else {
-          entry.autodrain();
+            entry.pipe(writeStream);
+          } else {
+            entry.autodrain();
+          }
         }
-      })
-      .on("close", async () => {
+      )
+      .on('close', async () => {
         // Wait for all files to finish writing
         try {
           await Promise.all(writePromises);
@@ -380,17 +383,17 @@ async function downloadAndExtractSchemas(tempDir: string): Promise<void> {
           reject(err);
         }
       })
-      .on("error", reject);
+      .on('error', reject);
   });
 
-  console.log("Extraction complete.");
+  console.log('Extraction complete.');
 }
 
 /**
  * Processes all JSON schema files from a directory and generates TypeScript types
  */
 function generateTypesFromDirectory(schemasDir: string, outputDir: string): { success: number; errors: number } {
-  const files = readdirSync(schemasDir).filter((file: string) => file.endsWith(".json"));
+  const files = readdirSync(schemasDir).filter((file: string) => file.endsWith('.json'));
 
   console.log(`Found ${files.length} schema files`);
 
@@ -421,8 +424,8 @@ function generateTypesFromDirectory(schemasDir: string, outputDir: string): { su
  * Main function: downloads schemas, generates types, and cleans up
  */
 async function generateCloudformationTypes(): Promise<void> {
-  const tempDir = join(process.cwd(), ".temp-cf-schemas");
-  const outputDir = "@generated/cloudformation-ts-types";
+  const tempDir = join(process.cwd(), '.temp-cf-schemas');
+  const outputDir = '@generated/cloudformation-ts-types';
 
   try {
     // Download and extract schemas
@@ -434,11 +437,11 @@ async function generateCloudformationTypes(): Promise<void> {
     console.log(`\nGeneration complete: ${result.success} succeeded, ${result.errors} failed`);
   } finally {
     // Clean up temporary files
-    console.log("Cleaning up temporary files...");
+    console.log('Cleaning up temporary files...');
     try {
       rmSync(tempDir, { recursive: true, force: true });
     } catch {
-      console.warn("Warning: Could not clean up temporary directory");
+      console.warn('Warning: Could not clean up temporary directory');
     }
   }
 }

@@ -1,5 +1,5 @@
 import { getFirstAndLastItem, groupBy, orderPropertiesOfObjectAccordingToKeys } from '@shared/utils/misc';
-import { printer } from '@utils/printer';
+import { tuiManager } from '@utils/tui';
 import { getGroupedEventsWithDetails } from './utils';
 
 export type ChildEventLogEntry = Omit<EventLogEntry, 'childEvents'>;
@@ -77,16 +77,16 @@ export class EventLog {
       let printableText = `${event.message}${event.additionalMessage ? `. ${event.additionalMessage}` : ''}`;
       if (event.duration) {
         printableText += event.duration
-          ? ` done in ${printer.getTime(event.duration)}. ${event.finalMessage || ''}`
+          ? ` done in ${tuiManager.getTime(event.duration)}. ${event.finalMessage || ''}`
           : '...';
       }
 
       event.childEvents.forEach(({ instanceId, finalMessage, duration, events }) => {
         const { last } = getFirstAndLastItem(events);
         const idSplit = instanceId.split('.');
-        printableText += `\n${' '.repeat(idSplit.length)}└ ${printer.colorize('yellow', idSplit[idSplit.length - 1])}`;
+        printableText += `\n${' '.repeat(idSplit.length)}└ ${tuiManager.colorize('yellow', idSplit[idSplit.length - 1])}`;
         if (duration) {
-          printableText += `: done in ${printer.getTime(duration)}. ${finalMessage || ''}`;
+          printableText += `: done in ${tuiManager.getTime(duration)}. ${finalMessage || ''}`;
         } else {
           printableText += ` ${last.message}... ${last.additionalMessage || ''}`;
         }

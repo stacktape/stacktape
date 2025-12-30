@@ -3,7 +3,7 @@ import { consoleLinks } from '@shared/naming/console-links';
 import { userPrompt } from '@shared/utils/user-prompt';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { loadRawFileContent } from '@utils/file-loaders';
-import { printer } from '@utils/printer';
+import { tuiManager } from '@utils/tui';
 import { loadUserCredentials } from '../_utils/initialization';
 
 const provideOptions = ['Interactively using CLI', 'From file'];
@@ -57,13 +57,13 @@ const createNamedSecret = async (secretName: string, secretValue: string) => {
     });
     if (shouldUpdate) {
       await awsSdkManager.updateExistingSecret(matchingSecret.ARN, secretValue);
-      printer.success(`Secret "${secretName}" successfully updated.`);
+      tuiManager.success(`Secret "${secretName}" successfully updated.`);
     } else {
-      printer.info('Aborting secret update.');
+      tuiManager.info('Aborting secret update.');
     }
     return;
   }
   await awsSdkManager.createNewSecret(secretName, secretValue);
-  printer.success(`Secret "${secretName}" created successfully.`);
-  printer.info(`You can view your secret at ${consoleLinks.secretUrl(globalStateManager.region, secretName)}`);
+  tuiManager.success(`Secret "${secretName}" created successfully.`);
+  tuiManager.info(`You can view your secret at ${consoleLinks.secretUrl(globalStateManager.region, secretName)}`);
 };

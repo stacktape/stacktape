@@ -1,6 +1,6 @@
 import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from '../../__release-npm';
 
-const getConfgFn = defineConfig(() => {
+const getConfigFn = defineConfig(() => {
   const lambda = new LambdaFunction({
     packaging: new StacktapeLambdaBuildpackPackaging({
       entryfilePath: './src/simple-lambda.ts'
@@ -42,7 +42,7 @@ const getConfgFn = defineConfig(() => {
 });
 
 console.dir(
-  getConfgFn({
+  getConfigFn({
     stage: 'dev',
     projectName: 'test',
     region: 'us-east-1',
@@ -54,4 +54,4 @@ console.dir(
   { depth: null }
 );
 
-export default getConfgFn;
+export default getConfigFn;

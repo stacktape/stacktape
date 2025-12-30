@@ -1,12 +1,15 @@
-import type { TuiEvent, TuiPhase, TuiWarning } from '../types';
+/* eslint-disable no-control-regex */
+import type { TuiEvent, TuiMessage, TuiPhase, TuiWarning } from '../types';
 import { Box, Text } from 'ink';
 import React from 'react';
 import { formatPhaseTimer } from '../utils';
+import { Message } from './Message';
 
 type DeployPhaseProps = {
   phase: TuiPhase;
   phaseNumber: number;
   warnings: TuiWarning[];
+  messages: TuiMessage[];
 };
 
 const DEPLOY_EVENT_TYPES: LoggableEventType[] = [
@@ -18,13 +21,15 @@ const DEPLOY_EVENT_TYPES: LoggableEventType[] = [
 ];
 
 const getActiveDeployEvent = (events: TuiEvent[]) => {
-  const runningEvent = events.find((event) => DEPLOY_EVENT_TYPES.includes(event.eventType) && event.status === 'running');
+  const runningEvent = events.find(
+    (event) => DEPLOY_EVENT_TYPES.includes(event.eventType) && event.status === 'running'
+  );
   return runningEvent || events.find((event) => DEPLOY_EVENT_TYPES.includes(event.eventType)) || events[0];
 };
 
 const stripAnsi = (message?: string) => {
   if (!message) return message;
-  return message.replace(/\x1b\[[0-9;]*m/g, '');
+  return message.replace(/\x1B\[[0-9;]*m/g, '');
 };
 
 const parseRemainingPercent = (message?: string) => {
@@ -59,7 +64,7 @@ const parseResourceState = (message?: string) => {
   const cleaned = stripAnsi(message);
   if (!cleaned) return { active: null, waiting: null };
   const activeMatch = cleaned.match(/Currently updating:\s*([^.|]+)\./i);
-  const waitingMatch = cleaned.match(/Waiting to start update:\s*([^.|]+)\./i);
+  const waitingMatch = cleaned.match(/Waiting:\s*([^.|]+)\./i);
   return {
     active: activeMatch ? activeMatch[1].trim() : null,
     waiting: waitingMatch ? waitingMatch[1].trim() : null
@@ -119,8 +124,10 @@ const renderResourceList = (label: string, items: string) => {
   );
 };
 
-export const DeployPhase: React.FC<DeployPhaseProps> = ({ phase, phaseNumber, warnings }) => {
+export const DeployPhase: React.FC<DeployPhaseProps> = ({ phase, phaseNumber, warnings, messages }) => {
   const phaseWarnings = warnings.filter((w) => w.phase === phase.id);
+  const phaseMessages = messages.filter((m) => m.phase === phase.id);
+  // eslint-disable-next-line react-hooks/purity
   const duration = phase.duration || (phase.startTime ? Date.now() - phase.startTime : 0);
   const deployEvent = getActiveDeployEvent(phase.events);
   const remainingPercent = parseRemainingPercent(deployEvent?.additionalMessage);
@@ -156,7 +163,10 @@ export const DeployPhase: React.FC<DeployPhaseProps> = ({ phase, phaseNumber, wa
             <Text color="gray">]</Text>
             <Text color="gray"> {progressBar.label}</Text>
             {progressCounts.done !== null && progressCounts.total !== null && (
-              <Text color="gray">  {progressCounts.done}/{progressCounts.total} done</Text>
+              <Text color="gray">
+                {' '}
+                {progressCounts.done}/{progressCounts.total} done
+              </Text>
             )}
           </Box>
         )}
@@ -168,7 +178,7 @@ export const DeployPhase: React.FC<DeployPhaseProps> = ({ phase, phaseNumber, wa
                 'Currently updating:',
                 resourceState.active === 'none' ? 'waiting for resources' : resourceState.active
               )}
-            {resourceState.waiting && renderResourceList('Waiting to start update:', resourceState.waiting)}
+            {resourceState.waiting && renderResourceList('Waiting:', resourceState.waiting)}
           </Box>
         )}
 
@@ -178,30 +188,21 @@ export const DeployPhase: React.FC<DeployPhaseProps> = ({ phase, phaseNumber, wa
               <Text color="green">✓</Text>
               <Text> Created: {summaryCounts.created}</Text>
               {formatListSummary(detailLists.created, summaryCounts.created, 4) && (
-                <Text color="gray">
-                  {' '}
-                  ({formatListSummary(detailLists.created, summaryCounts.created, 4)})
-                </Text>
+                <Text color="gray"> ({formatListSummary(detailLists.created, summaryCounts.created, 4)})</Text>
               )}
             </Box>
             <Box>
               <Text color="green">✓</Text>
               <Text> Updated: {summaryCounts.updated}</Text>
               {formatListSummary(detailLists.updated, summaryCounts.updated, 4) && (
-                <Text color="gray">
-                  {' '}
-                  ({formatListSummary(detailLists.updated, summaryCounts.updated, 4)})
-                </Text>
+                <Text color="gray"> ({formatListSummary(detailLists.updated, summaryCounts.updated, 4)})</Text>
               )}
             </Box>
             <Box>
               <Text color="green">✓</Text>
               <Text> Deleted: {summaryCounts.deleted}</Text>
               {formatListSummary(detailLists.deleted, summaryCounts.deleted, 4) && (
-                <Text color="gray">
-                  {' '}
-                  ({formatListSummary(detailLists.deleted, summaryCounts.deleted, 4)})
-                </Text>
+                <Text color="gray"> ({formatListSummary(detailLists.deleted, summaryCounts.deleted, 4)})</Text>
               )}
             </Box>
           </Box>
@@ -212,6 +213,10 @@ export const DeployPhase: React.FC<DeployPhaseProps> = ({ phase, phaseNumber, wa
         <Box key={warning.id}>
           <Text color="yellow">! {warning.message}</Text>
         </Box>
+      ))}
+
+      {phaseMessages.map((msg) => (
+        <Message key={msg.id} message={msg} />
       ))}
     </Box>
   );

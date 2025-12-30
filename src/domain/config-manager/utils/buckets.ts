@@ -1,6 +1,5 @@
 // import { stpErrors } from '@errors';
 // import { ExpectedError } from '@utils/errors';
-// import { printer } from '@utils/printer';
 import { configManager } from '../index';
 import { getPropsOfResourceReferencedInConfig } from './resource-references';
 

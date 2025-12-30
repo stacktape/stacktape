@@ -5,7 +5,7 @@ import { IS_DEV } from '@config';
 import { stpErrors } from '@errors';
 import { getTypescriptConfig } from '@shared/utils/stacktape-config';
 import { userPrompt } from '@shared/utils/user-prompt';
-import { printer } from '@utils/printer';
+import { tuiManager } from '@utils/tui';
 import { outputFile } from 'fs-extra';
 
 export const initUsingExistingConfig = async () => {
@@ -43,5 +43,5 @@ export const initUsingExistingConfig = async () => {
 
   await outputFile(templatePath, template.content);
 
-  printer.success(`Template successfully initialized to ${printer.prettyFilePath(templatePath)}`);
+  tuiManager.success(`Template successfully initialized to ${tuiManager.prettyFilePath(templatePath)}`);
 };

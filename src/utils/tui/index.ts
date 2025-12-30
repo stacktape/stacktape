@@ -1,23 +1,32 @@
-import type { Instance } from 'ink';
 import type { ExpectedError, UnexpectedError } from '@utils/errors';
+import type { Instance } from 'ink';
 import type { TuiDeploymentHeader, TuiEventStatus, TuiLink, TuiMessageType } from './types';
 import { eventManager } from '@application-services/event-manager';
-import { IS_DEV, INVOKED_FROM_ENV_VAR_NAME, linksMap } from '@config';
+import { INVOKED_FROM_ENV_VAR_NAME, IS_DEV, linksMap } from '@config';
 import { getRelativePath, transformToUnixPath } from '@shared/utils/fs-utils';
-import { splitStringIntoLines } from '@shared/utils/misc';
 import { logCollectorStream } from '@utils/log-collector';
 import ci from 'ci-info';
 import { render } from 'ink';
 import kleur from 'kleur';
 import React from 'react';
 import terminalLink from 'terminal-link';
-import { Table, TuiApp } from './components';
+import { renderStackErrorsToString, Table, TuiApp } from './components';
 import { nonTTYRenderer } from './non-tty-renderer';
 import { tuiState } from './state';
 import { formatDuration, stripAnsi } from './utils';
 
 export { tuiState } from './state';
-export type { TuiDeploymentHeader, TuiEvent, TuiLink, TuiMessage, TuiPhase, TuiState, TuiSummary, TuiWarning } from './types';
+
+export type {
+  TuiDeploymentHeader,
+  TuiEvent,
+  TuiLink,
+  TuiMessage,
+  TuiPhase,
+  TuiState,
+  TuiSummary,
+  TuiWarning
+} from './types';
 
 class TuiManager {
   private inkInstance: Instance | null = null;
@@ -50,7 +59,7 @@ class TuiManager {
 
     if (this.isTTY) {
       this.inkInstance = render(React.createElement(TuiApp, { isTTY: true }), {
-        patchConsole: false // Prevent console patching that can cause flickering
+        patchConsole: false
       });
       tuiState.subscribe(() => {
         // Ink automatically re-renders on state changes
@@ -74,17 +83,14 @@ class TuiManager {
   }
 
   setHeader(header: TuiDeploymentHeader) {
-    if (!this._isEnabled) return;
     tuiState.setHeader(header);
   }
 
   setPhase(phase: DeploymentPhase) {
-    if (!this._isEnabled) return;
     tuiState.setCurrentPhase(phase);
   }
 
   finishPhase() {
-    if (!this._isEnabled) return;
     tuiState.finishCurrentPhase();
   }
 
@@ -95,7 +101,6 @@ class TuiManager {
     parentEventType?: LoggableEventType;
     instanceId?: string;
   }) {
-    if (!this._isEnabled) return;
     tuiState.startEvent(params);
   }
 
@@ -105,7 +110,6 @@ class TuiManager {
     parentEventType?: LoggableEventType;
     instanceId?: string;
   }) {
-    if (!this._isEnabled) return;
     tuiState.updateEvent(params);
   }
 
@@ -117,55 +121,15 @@ class TuiManager {
     instanceId?: string;
     status?: TuiEventStatus;
   }) {
-    if (!this._isEnabled) return;
     tuiState.finishEvent(params);
   }
 
   warn(message: string) {
-    if (!this._isEnabled) {
-      this.fallbackLog('WARN', message, 'yellow');
-      return;
-    }
     tuiState.addWarning(message);
   }
 
   setComplete(success: boolean, message: string, links: TuiLink[] = [], consoleUrl?: string) {
-    if (!this._isEnabled) return;
     tuiState.setComplete(success, message, links, consoleUrl);
-  }
-
-  // Fallback methods for non-TUI logging (debug, info, etc.)
-  private fallbackLog(type: string, message: string, color?: string) {
-    if (this.logFormat === 'json') {
-      console.info(JSON.stringify({ type, message, timestamp: Date.now() }));
-      return;
-    }
-
-    const colorize = (text: string) => {
-      if (!color || this.logFormat !== 'fancy') return text;
-      return (kleur[color as keyof typeof kleur] as (text: string) => string)?.(text) ?? text;
-    };
-
-    const prefix = `[${colorize(type)}]`;
-    console.info(`${prefix} ${message}`);
-    logCollectorStream.write(`${prefix} ${message}`);
-  }
-
-  info(message: string) {
-    this.fallbackLog('INFO', message, 'cyan');
-  }
-
-  debug(message: string) {
-    if (this.logLevel !== 'debug') return;
-    this.fallbackLog('DEBUG', message, 'gray');
-  }
-
-  success(message: string) {
-    this.fallbackLog('SUCCESS', message, 'green');
-  }
-
-  hint(message: string) {
-    this.fallbackLog('HINT', message, 'blue');
   }
 
   colorize(color: string, text: string): string {
@@ -232,23 +196,30 @@ class TuiManager {
   }
 
   private writeMessage(name: string, type: TuiMessageType, message: string, data?: Record<string, any>) {
-    // Add to state for React rendering
     tuiState.addMessage(name, type, message, data);
+  }
 
-    // Also do fallback logging for non-TUI modes
-    if (!this._isEnabled) {
-      const typeToColor: Record<TuiMessageType, string> = {
-        info: 'cyan',
-        success: 'green',
-        error: 'red',
-        warn: 'yellow',
-        debug: 'gray',
-        hint: 'blue',
-        start: 'magenta',
-        announcement: 'magenta'
-      };
-      this.fallbackLog(type.toUpperCase(), message, typeToColor[type]);
-    }
+  // Simple logging methods that delegate to write* methods
+  info(message: string) {
+    this.writeInfo('info', message);
+  }
+
+  debug(message: string) {
+    if (this.logLevel !== 'debug') return;
+    this.writeDebug('debug', message);
+  }
+
+  success(message: string) {
+    this.writeSuccess('success', message);
+  }
+
+  hint(message: string) {
+    this.writeHint('hint', message);
+  }
+
+  announcement(message: string, highlight?: boolean) {
+    const formattedMessage = highlight ? `★  ${this.makeBold(message)}` : message;
+    this.writeAnnouncement('announcement', formattedMessage);
   }
 
   // ============================================================
@@ -294,27 +265,20 @@ class TuiManager {
     return underlined.startsWith('./') ? underlined : `./${underlined}`;
   }
 
-  /**
-   * Format complex stack errors with hints for display.
-   */
   formatComplexStackErrors(
     processedErrors: { errorMessage: string; hints?: string[] }[],
     whitespacePadding = 0
   ): string {
-    const outputLines: string[] = [];
-    processedErrors.forEach(({ errorMessage, hints }, index) => {
-      const errorMessageLines = splitStringIntoLines(errorMessage, 160, 40);
-      outputLines.push(
-        `${' '.repeat(whitespacePadding)}${this.colorize('red', `Error ${index + 1}: `)}${errorMessageLines.shift()}`
-      );
-      errorMessageLines.forEach((line) => {
-        outputLines.push(`${' '.repeat(whitespacePadding)}   ${line.trim()}`);
-      });
-      (hints || []).forEach((hintString) => {
-        outputLines.push(`${' '.repeat(whitespacePadding + 2)}[${this.colorize('blue', 'HINT')}]: ${hintString}`);
-      });
-    });
-    return outputLines.join('\n');
+    const rendered = renderStackErrorsToString(processedErrors, this.colorize.bind(this));
+    // Apply whitespace padding to each line if needed
+    if (whitespacePadding > 0) {
+      const padding = ' '.repeat(whitespacePadding);
+      return rendered
+        .split('\n')
+        .map((line) => padding + line)
+        .join('\n');
+    }
+    return rendered;
   }
 
   // ============================================================
@@ -333,7 +297,7 @@ class TuiManager {
       !IS_DEV && !error.isExpected
         ? `An unexpected error occurred. Last captured event: ${eventManager.lastEvent?.eventType || '-'}.`
         : error.isExpected
-          ? `${this.colorize('red', errorType.replace('_ERROR', ''))}: ${error.message}`
+          ? `${errorType.replace('_ERROR', '')}: ${error.message}`
           : error.message;
 
     if (this.logFormat === 'json') {
@@ -343,9 +307,7 @@ class TuiManager {
       });
     } else {
       const fullMessage = `${errorMessage}${prettyStackTrace ? `\n${prettyStackTrace}` : ''}`;
-      const prefix = `[${this.colorize('red', errorType === 'UNEXPECTED_ERROR' ? 'UNEXPECTED_ERROR' : 'ERROR')}]`;
-      console.error(`${prefix} ${fullMessage}`);
-      logCollectorStream.write(`${prefix} ${fullMessage}`);
+      this.writeError('error', fullMessage);
     }
 
     if (sentryEventId) {
@@ -369,7 +331,7 @@ class TuiManager {
   /**
    * Print a structured log message (used for SDK mode and JSON logging).
    */
-  private printStacktapeLog(stacktapeLog: { type: string; data: Record<string, any> }) {
+  printStacktapeLog(stacktapeLog: { type: string; data: Record<string, any> }) {
     const message = { ...stacktapeLog, timestamp: Date.now() };
     if (process.env[INVOKED_FROM_ENV_VAR_NAME] === 'sdk') {
       process.send?.(message);
@@ -422,14 +384,14 @@ class TuiManager {
     }
 
     // Build table
-    const horizontalLine = '+' + widths.map((w) => '-'.repeat(w + 2)).join('+') + '+';
+    const horizontalLine = `+${widths.map((w) => '-'.repeat(w + 2)).join('+')}+`;
     const formatRow = (cells: string[]) => {
       const paddedCells = cells.map((cell, i) => {
         const visibleLength = stripAnsi(cell || '').length;
         const padding = (widths[i] || 0) - visibleLength;
         return (cell || '') + ' '.repeat(Math.max(0, padding));
       });
-      return '| ' + paddedCells.join(' | ') + ' |';
+      return `| ${paddedCells.join(' | ')} |`;
     };
 
     console.info(horizontalLine);
@@ -495,3 +457,4 @@ class TuiManager {
 }
 
 export const tuiManager = new TuiManager();
+export { TuiManager };

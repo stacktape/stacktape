@@ -62,6 +62,8 @@ export type TuiMessage = {
   type: TuiMessageType;
   message: string;
   timestamp: number;
+  /** Phase this message belongs to (if any) - messages with phase render inline */
+  phase?: DeploymentPhase;
   /** Optional data for structured logging */
   data?: Record<string, any>;
 };

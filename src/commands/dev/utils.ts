@@ -9,8 +9,8 @@ import { deployedStackOverviewManager } from '@domain-services/deployed-stack-ov
 import { inspectDockerContainer, listDockerContainers, stopDockerContainer } from '@shared/utils/docker';
 import { userPrompt } from '@shared/utils/user-prompt';
 import { getAugmentedEnvironment } from '@utils/environment';
-import { printer } from '@utils/printer';
 import { startPortForwardingSessions, substituteTunneledEndpointsInEnvironmentVars } from '@utils/ssm-session';
+import { tuiManager } from '@utils/tui';
 import chokidar from 'chokidar';
 import { getLocalInvokeAwsCredentials, SESSION_DURATION_SECONDS } from '../_utils/assume-role';
 
@@ -158,7 +158,7 @@ export const getWorkloadEnvironmentVars = async (jobDetails: {
 
   setTimeout(
     () => {
-      printer.warn(
+      tuiManager.warn(
         "Temporary AWS credentials used for the workload have expired. The workload won't have the IAM permissions that it has when running on AWS. To reload the credentials, please restart the dev command."
       );
     },
@@ -210,7 +210,7 @@ export const resolveRunningContainersWithSamePort = async ({
       )}`
     });
     if (shouldStopConflictingContainers) {
-      printer.info('Stopping containers with conflicting ports...');
+      tuiManager.info('Stopping containers with conflicting ports...');
       await Promise.all(containersWithConflictingPorts.map((container) => gracefullyStopContainer(container.Id)));
     }
     if (onContainerStopped) {
@@ -222,7 +222,7 @@ export const resolveRunningContainersWithSamePort = async ({
 export const gracefullyStopContainer = async (containerName: string) => {
   const containerInfo = await inspectDockerContainer(containerName);
   if (containerInfo?.State?.Running) {
-    printer.info('Stopping last container...');
+    tuiManager.info('Stopping last container...');
     await stopDockerContainer(containerName, getContainerStopWaitTime());
   }
 };

@@ -2,7 +2,6 @@ import type { HookType, ScriptFn } from '@utils/scripts';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { configManager } from '@domain-services/config-manager';
 import { stpErrors } from '@errors';
-import { printer } from '@utils/printer';
 import { tuiManager } from '@utils/tui';
 import { camelCase } from 'change-case';
 import ci from 'ci-info';
@@ -274,16 +273,29 @@ export class EventManager implements ProgressLogger {
     }
   };
 
+  private printedEvents: Set<string> = new Set();
+
   printProgress = () => {
     for (const event of this.formattedEventLogData) {
       const identifier = event.eventType;
-      const eventStatus = printer.getEventStatus(identifier);
-      if (eventStatus === 'finished') {
+      const isEventFinished = event.duration !== null;
+
+      // Skip if already printed as finished
+      if (this.printedEvents.has(`${identifier}-finished`)) {
         continue;
       }
-      const isEventFinished = event.duration !== null;
-      const progressType = eventStatus === null ? 'START' : isEventFinished ? 'FINISH' : 'UPDATE';
-      printer.progress({ message: event.printableText, identifier, type: progressType });
+
+      // Print start
+      if (!this.printedEvents.has(`${identifier}-started`)) {
+        tuiManager.info(event.printableText);
+        this.printedEvents.add(`${identifier}-started`);
+      }
+
+      // Print finish
+      if (isEventFinished) {
+        tuiManager.success(event.printableText);
+        this.printedEvents.add(`${identifier}-finished`);
+      }
     }
   };
 
@@ -301,7 +313,7 @@ export class EventManager implements ProgressLogger {
 
   reset = () => {
     this.eventLog.reset();
-    printer.removeAllFinishedEvents();
+    this.printedEvents.clear();
   };
 }
 

@@ -9,7 +9,7 @@ import { templateManager } from '@domain-services/template-manager';
 import { awsResourceNames } from '@shared/naming/aws-resource-names';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import { ExpectedError } from '@utils/errors';
-import { printer } from '@utils/printer';
+import { tuiManager } from '@utils/tui';
 import {
   getHttpApiAuthorizerResource,
   getHttpApiLambdaPermission,
@@ -47,9 +47,9 @@ export const resolveHttpApiEvents = (definition: StpContainerWorkload) => {
       if (targetedPort && targetedPort !== targetContainerPort) {
         throw new ExpectedError(
           'CONFIG_VALIDATION',
-          `All http-api-gateway event integrations in ${printer.prettyResourceType(
+          `All http-api-gateway event integrations in ${tuiManager.prettyResourceType(
             definition.type
-          )} ${printer.prettyResourceName(definition.name)} must use the same container port.`,
+          )} ${tuiManager.prettyResourceName(definition.name)} must use the same container port.`,
           `This is an AWS limitation (only one Cloud Map service registry item per ECS service) and can change in the future.
     When using http-api-gateway event integration, you should use only a single container with a single port as an "entry point" to your ${definition.type}.
     This container can then route requests to other containers within your ${definition.type}.

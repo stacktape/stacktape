@@ -287,6 +287,7 @@ class TuiStateManager {
       type,
       message,
       timestamp: Date.now(),
+      phase: this.state.currentPhase, // Attach to current phase for inline rendering
       data
     };
     this.state = { ...this.state, messages: [...this.state.messages, tuiMessage] };

@@ -1,7 +1,7 @@
 import { userPrompt } from '@shared/utils/user-prompt';
 import { getAvailableAwsProfiles, upsertAwsProfile } from '@utils/aws-config';
 import { ExpectedError } from '@utils/errors';
-import { printer } from '@utils/printer';
+import { tuiManager } from '@utils/tui';
 
 export const commandAwsProfileUpdate = async (): Promise<AwsProfileUpdateReturnValue> => {
   const availableProfiles = await getAvailableAwsProfiles();
@@ -28,7 +28,7 @@ export const commandAwsProfileUpdate = async (): Promise<AwsProfileUpdateReturnV
   });
 
   await upsertAwsProfile(profile, awsAccessKeyId, awsSecretAccessKey);
-  printer.success(`Successfully updated credentials for profile ${profile}.`);
+  tuiManager.success(`Successfully updated credentials for profile ${profile}.`);
 
   // @todo-return-value
   return null;

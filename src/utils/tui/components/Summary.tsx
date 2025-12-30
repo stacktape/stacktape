@@ -31,9 +31,8 @@ export const Summary: React.FC<SummaryProps> = ({ summary }) => {
 
       {consoleUrl && (
         <Box marginTop={1}>
-          <Text>Stack details: </Text>
           <Link url={consoleUrl}>
-            <Text color="cyan">{consoleUrl}</Text>
+            <Text color="cyan">Stack details</Text>
           </Link>
         </Box>
       )}

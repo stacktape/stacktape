@@ -27,7 +27,6 @@ import { settleAllBeforeThrowing } from '@shared/utils/misc';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { getErrorHandler, loggingPlugin } from '@utils/aws-sdk-manager/utils';
 import { logCollectorStream } from '@utils/log-collector';
-import { printer } from '@utils/printer';
 import { tuiManager } from '@utils/tui';
 
 export const initializeAllStackServices = async ({
@@ -280,11 +279,11 @@ export const loadUserCredentials = async () => {
     region: globalStateManager.region,
     getErrorHandlerFn: getErrorHandler,
     plugins: [loggingPlugin, retryPlugin, redirectPlugin],
-    printer
+    printer: tuiManager
   });
   await eventManager.finishEvent({
     eventType: 'LOAD_USER_DATA',
-    finalMessage: `User: ${printer.makeBold(globalStateManager.userData.name)}. Organization: ${printer.makeBold(
+    finalMessage: `User: ${tuiManager.makeBold(globalStateManager.userData.name)}. Organization: ${tuiManager.makeBold(
       globalStateManager.organizationData.name
     )}.`
   });

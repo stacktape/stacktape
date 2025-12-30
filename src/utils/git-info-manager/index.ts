@@ -1,6 +1,6 @@
 import { memoizeGetters } from '@utils/decorators';
 import { getGitVariable } from '@utils/git';
-import { printer } from '@utils/printer';
+import { tuiManager } from '@utils/tui';
 
 @memoizeGetters
 export class GitInfoManager {
@@ -15,7 +15,7 @@ export class GitInfoManager {
     let commit: string;
     let gitUrl: string;
     const start = Date.now();
-    printer.debug('Getting git info');
+    tuiManager.debug('Getting git info');
     try {
       const changes = await getGitVariable('changes');
       hasUncommitedChanges = changes.length > 0;
@@ -63,7 +63,7 @@ export class GitInfoManager {
         null;
     }
 
-    printer.debug(`Getting git info done. Took ${Date.now() - start}ms`);
+    tuiManager.debug(`Getting git info done. Took ${Date.now() - start}ms`);
     return {
       hasUncommitedChanges,
       username,

@@ -3,7 +3,7 @@ import { deployedStackOverviewManager } from '@domain-services/deployed-stack-ov
 import { arns } from '@shared/naming/arns';
 import { getRoleArnFromSessionArn } from '@shared/naming/utils';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
-import { printer } from '@utils/printer';
+import { tuiManager } from '@utils/tui';
 
 export const SESSION_DURATION_SECONDS = 3600;
 
@@ -19,7 +19,7 @@ export const addCallerToAssumeRolePolicy = async ({ roleName }: { roleName: stri
 };
 
 export const getLocalInvokeAwsCredentials = async ({ assumeRoleOfWorkload }: { assumeRoleOfWorkload: string }) => {
-  printer.info(`Assuming role of "${assumeRoleOfWorkload}"...`);
+  tuiManager.info(`Assuming role of "${assumeRoleOfWorkload}"...`);
   const workloadRoleName = deployedStackOverviewManager.getIamRoleNameOfDeployedResource(assumeRoleOfWorkload);
 
   await addCallerToAssumeRolePolicy({ roleName: workloadRoleName });

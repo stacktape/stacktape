@@ -1,7 +1,7 @@
 import { stpErrors } from '@errors';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import { ExpectedError } from '@utils/errors';
-import { printer } from '@utils/printer';
+import { tuiManager } from '@utils/tui';
 import { configManager } from '../index';
 
 export const getReferencableParamsError = ({
@@ -17,13 +17,13 @@ export const getReferencableParamsError = ({
 }): ExpectedError => {
   return new ExpectedError(
     'DIRECTIVE',
-    `Error in ${directiveType} directive. Parameter ${printer.colorize(
+    `Error in ${directiveType} directive. Parameter ${tuiManager.colorize(
       'red',
       referencedParam
-    )} is not referencable on resource ${printer.colorize('red', resourceName)}`,
+    )} is not referencable on resource ${tuiManager.colorize('red', resourceName)}`,
     [
-      `Referencable parameters of the resource ${printer.colorize('blue', resourceName)} are: ${referencableParams
-        .map((referencableParam) => printer.colorize('blue', referencableParam))
+      `Referencable parameters of the resource ${tuiManager.colorize('blue', resourceName)} are: ${referencableParams
+        .map((referencableParam) => tuiManager.colorize('blue', referencableParam))
         .join(', ')}`
     ]
   );
@@ -38,12 +38,12 @@ export const getNonExistingResourceError = ({
 }): ExpectedError => {
   return new ExpectedError(
     'DIRECTIVE',
-    `Could not resolve resource ${printer.colorize('yellow', resourceName)} referenced by ${printer.colorize(
+    `Could not resolve resource ${tuiManager.colorize('yellow', resourceName)} referenced by ${tuiManager.colorize(
       'cyan',
       directiveType
     )} directive.`,
     [
-      `Directive ${printer.colorize('yellow', directiveType)} only works for ${
+      `Directive ${tuiManager.colorize('yellow', directiveType)} only works for ${
         directiveType === '$CfResourceParam'
           ? 'user defined cloudformation resources and child cloudformation resources of stacktape resources.'
           : 'stacktape resources (configured in "resources" section of the configuration file).'
@@ -52,7 +52,7 @@ export const getNonExistingResourceError = ({
         directiveType === '$ResourceParam'
           ? 'CloudFormation resource'
           : 'Stacktape resource (configured in "resources" section of the configuration file)'
-      }, use ${printer.colorize(
+      }, use ${tuiManager.colorize(
         'yellow',
         directiveType === '$ResourceParam' ? '$CfResourceParam' : '$ResourceParam'
       )} directive.`
@@ -156,7 +156,7 @@ export const resolveConnectToList = ({
     // if (!resource) {
     //   throw new ExpectedError(
     //     'CONFIG_VALIDATION',
-    //     `Error in ${checkingDefaults ? '' : 'resource '}${printer.makeBold(
+    //     `Error in ${checkingDefaults ? '' : 'resource '}${tuiManager.makeBold(
     //       stpResourceNameOfReferencer
     //     )}. Property connectTo references non-existent resource ${referencedName}`
     //   );
@@ -192,7 +192,7 @@ export const resolveConnectToList = ({
     }
     throw new ExpectedError(
       'CONFIG_VALIDATION',
-      `Error in ${checkingDefaults ? '' : 'resource '}${printer.makeBold(
+      `Error in ${checkingDefaults ? '' : 'resource '}${tuiManager.makeBold(
         stpResourceNameOfReferencer
       )}. ConnectTo section contains resource "${resource.name}" of type "${resource.type}".
   Resource type "${resource.type}" cannot be scoped by connectTo.`

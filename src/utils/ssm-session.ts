@@ -14,7 +14,7 @@ import findFreePorts from 'find-free-ports';
 import pRetry from 'p-retry';
 import { awsSdkManager } from './aws-sdk-manager';
 import { SsmExecuteScriptCloudwatchLogPrinter } from './cloudwatch-logs';
-import { printer } from './printer';
+import { tuiManager } from './tui';
 
 export class SsmPortForwardingTunnel {
   #instanceId: string;
@@ -93,7 +93,7 @@ export class SsmPortForwardingTunnel {
             if (!`${error}`.includes('TargetNotConnected')) {
               throw error;
             }
-            printer.debug(`Tunneling through ${this.#instanceId} failed. Attempting reconnect`);
+            tuiManager.debug(`Tunneling through ${this.#instanceId} failed. Attempting reconnect`);
           }
         }
       ).catch((error) => reject(error));

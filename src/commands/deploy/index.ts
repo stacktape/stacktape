@@ -17,7 +17,6 @@ import { packagingManager } from '@domain-services/packaging-manager';
 import { templateManager } from '@domain-services/template-manager';
 import { fsPaths } from '@shared/naming/fs-paths';
 import { obfuscatedNamesStateHolder } from '@shared/naming/utils';
-import { printer } from '@utils/printer';
 import { getDetailedStackInfoMap } from '@utils/stack-info-map-diff';
 import { tuiManager } from '@utils/tui';
 import {
@@ -67,7 +66,7 @@ export const commandDeploy = async (): Promise<DeployReturnValue> => {
     useHotswap = isHotswapPossible;
     if (!useHotswap) {
       // in this case we are falling back to standard Cloudformation deploy
-      printer.warn('Stack changes are not hot-swappable. Performing CloudFormation deployment.');
+      tuiManager.warn('Stack changes are not hot-swappable. Performing CloudFormation deployment.');
       // this means we might need to create new versions for some packages(jobs) that were previously skipped
       // otherwise Cloudformation might not detect the change
       // currently we are only able to create new versions by uploading new artifacts.
@@ -172,7 +171,7 @@ export const prepareArtifactsForStackDeployment = async (): Promise<{
   const packagedWorkloads = await packagingManager.packageAllWorkloads({ commandCanUseCache: true });
   await calculatedStackOverviewManager.resolveAllResources();
   if (obfuscatedNamesStateHolder.usingObfuscateNames) {
-    printer.warn(
+    tuiManager.warn(
       'The combination of stack name (made of service name and stage) and some of the resource name(s) is too long. Some resources will have obfuscated names.'
     );
   }
@@ -190,7 +189,7 @@ const performFullDeploy = async () => {
   try {
     const { warningMessages } = await stackManager.deployStack(deploymentArtifactManager.cloudformationTemplateUrl);
     warningMessages?.forEach((msg) => {
-      printer.warn(msg);
+      tuiManager.warn(msg);
     });
   } catch (err) {
     // cleanup in case error happened during deploy

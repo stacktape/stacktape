@@ -8,7 +8,7 @@ import { templateManager } from '@domain-services/template-manager';
 import { awsResourceNames } from '@shared/naming/aws-resource-names';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import { ExpectedError } from '@utils/errors';
-import { printer } from '@utils/printer';
+import { tuiManager } from '@utils/tui';
 import {
   getHttpApiAuthorizerResource,
   getHttpApiLambdaPermission,
@@ -38,9 +38,9 @@ export const resolveHttpApiEvents = ({
       if (integrationPayloadFormat && integrationPayloadFormat !== routePayloadFormat) {
         throw new ExpectedError(
           'CONFIG_VALIDATION',
-          `Error in function compute resource ${printer.prettyResourceName(name)}. All http-api-gateway events for a function must use the same ${printer.prettyConfigProperty('payloadFormat')}.`,
+          `Error in function compute resource ${tuiManager.prettyResourceName(name)}. All http-api-gateway events for a function must use the same ${tuiManager.prettyConfigProperty('payloadFormat')}.`,
           [
-            `You can set payload format globally for entire ${printer.prettyResourceType('http-api-gateway')} by setting ${printer.prettyConfigProperty('payloadFormat')} property in the ${printer.prettyResourceType('http-api-gateway')}  config.`
+            `You can set payload format globally for entire ${tuiManager.prettyResourceType('http-api-gateway')} by setting ${tuiManager.prettyConfigProperty('payloadFormat')} property in the ${tuiManager.prettyResourceType('http-api-gateway')}  config.`
           ]
         );
       }
@@ -159,7 +159,7 @@ const getHttpApiLambdaIntegration = ({
   httpApiGatewayInfo: StpHttpApiGateway & { name: string };
 }) => {
   if (functionTimeout > 29) {
-    printer.warn(
+    tuiManager.warn(
       `Function compute resource (${workloadName}) timeout setting (${functionTimeout}) is greater than ` +
         'maximum allowed timeout for HTTP API endpoint (29s).\n' +
         'This may introduce a situation where endpoint times out ' +
@@ -167,7 +167,7 @@ const getHttpApiLambdaIntegration = ({
     );
   }
   if (functionTimeout === 29) {
-    printer.warn(
+    tuiManager.warn(
       `Function compute resource (${workloadName}) timeout setting (${functionTimeout}) may not provide ` +
         'enough room to process an HTTP API request (of which timeout is limited to 29s). ' +
         'This may introduce a situation where endpoint times out ' +

@@ -9,8 +9,8 @@ import { deployedStackOverviewManager } from '@domain-services/deployed-stack-ov
 import { stpErrors } from '@errors';
 import { fsPaths } from '@shared/naming/fs-paths';
 import { getIsConfigPotentiallyUsable } from '@utils/file-loaders';
-import { printer } from '@utils/printer';
 import { getDetailedStackInfoMap } from '@utils/stack-info-map-diff';
+import { tuiManager } from '@utils/tui';
 import { saveDetailedStackInfoMap } from '../_utils/common';
 import {
   initializeAllStackServices,
@@ -54,7 +54,7 @@ export const commandStackInfo = async (): Promise<StackInfoReturnValue> => {
     });
   }
   if (existingStackDetails?.StackStatus === StackStatus.UPDATE_FAILED) {
-    printer.warn(
+    tuiManager.warn(
       'Stack is in UPDATE_FAILED state. Shown values might be different from actual deployed infrastructure values.'
     );
   }

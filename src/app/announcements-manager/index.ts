@@ -1,6 +1,6 @@
 import { ANNOUNCEMENTS_ENDPOINT, IS_DEV } from '@config';
 import { jsonFetch } from '@utils/http-client';
-import { printer } from '@utils/printer';
+import { tuiManager } from '@utils/tui';
 import { getLatestStacktapeVersion, getStacktapeVersion } from '@utils/versioning';
 import { gt } from 'semver';
 
@@ -13,7 +13,7 @@ export class AnnouncementsManager {
     try {
       const announcements: Announcement[] = await jsonFetch(`${ANNOUNCEMENTS_ENDPOINT}/messages.json`);
       announcements.forEach((announcement) => {
-        printer.announcement(announcement.message, announcement.highlight || true);
+        tuiManager.announcement(announcement.message, announcement.highlight || true);
       });
     } catch {}
   };
@@ -31,11 +31,11 @@ export class AnnouncementsManager {
     const isNewerVersionAvailable = gt(latestVersion, normalizedCurrentVersion);
 
     if (isNewerVersionAvailable) {
-      printer.info(
-        `You are currently using Stacktape version ${printer.makeBold(
+      tuiManager.info(
+        `You are currently using Stacktape version ${tuiManager.makeBold(
           currentVersion
-        )}, but a newer version (${printer.makeBold(latestVersion)}) is available.\n` +
-          `To upgrade, run: ${printer.makeBold(printer.colorize('yellow', 'stacktape upgrade'))}`
+        )}, but a newer version (${tuiManager.makeBold(latestVersion)}) is available.\n` +
+          `To upgrade, run: ${tuiManager.makeBold(tuiManager.colorize('yellow', 'stacktape upgrade'))}`
       );
     }
   };

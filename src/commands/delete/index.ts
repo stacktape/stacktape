@@ -7,7 +7,7 @@ import { deploymentArtifactManager } from '@domain-services/deployment-artifact-
 import { notificationManager } from '@domain-services/notification-manager';
 import { templateManager } from '@domain-services/template-manager';
 import { ExpectedError } from '@utils/errors';
-import { printer } from '@utils/printer';
+import { tuiManager } from '@utils/tui';
 import { potentiallyPromptBeforeOperation } from '../_utils/common';
 import { initializeStackServicesForWorkingWithDeployedStack } from '../_utils/initialization';
 
@@ -62,8 +62,8 @@ export const commandDelete = async (): Promise<DeleteReturnValue> => {
   if (stackManager.existingStackDetails.EnableTerminationProtection) {
     throw new ExpectedError(
       'STACK',
-      `Unable to delete stack "${printer.colorize('red', stackName)}". Termination protection is enabled on the stack.`,
-      `To disable termination protection, you first need to deploy(update) stack with ${printer.colorize(
+      `Unable to delete stack "${tuiManager.colorize('red', stackName)}". Termination protection is enabled on the stack.`,
+      `To disable termination protection, you first need to deploy(update) stack with ${tuiManager.colorize(
         'blue',
         'terminationProtection'
       )} property set to false.`
@@ -85,7 +85,7 @@ export const commandDelete = async (): Promise<DeleteReturnValue> => {
     message: { text: `Stack ${stackName} deleted successfully.`, type: 'success' }
   });
 
-  printer.success(`Successfully deleted stack ${stackName}.`);
+  tuiManager.success(`Successfully deleted stack ${stackName}.`);
 
   // @todo-return-value
   return null;

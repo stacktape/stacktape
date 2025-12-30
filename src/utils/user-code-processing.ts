@@ -2,7 +2,7 @@ import { isAbsolute, join } from 'node:path';
 import { getFileExtension, getPathRelativeTo } from '@shared/utils/fs-utils';
 import { ExpectedError, UserCodeError } from './errors';
 import { getCallablePythonFunc, getJavascriptExport, getTypescriptExport, isFile } from './file-loaders';
-import { printer } from './printer';
+import { tuiManager } from './tui';
 
 export const parseUserCodeFilepath = ({
   codeType,
@@ -39,8 +39,8 @@ export const parseUserCodeFilepath = ({
   if (!isFile(filePath)) {
     throw new ExpectedError(
       'CONFIG',
-      `${codeType} at ${printer.prettyFilePath(filePath)} doesn't exist or is not accessible.`,
-      `The path is resolved relative to the directory specified using ${printer.prettyOption(
+      `${codeType} at ${tuiManager.prettyFilePath(filePath)} doesn't exist or is not accessible.`,
+      `The path is resolved relative to the directory specified using ${tuiManager.prettyOption(
         'currentWorkingDirectory'
       )} or the directory containing Stacktape configuration file.`
     );
@@ -115,7 +115,7 @@ export const getUserCodeAsFn = ({
       return res;
     } catch (err) {
       throw new UserCodeError(
-        `Failed to process ${printer.makeBold(codeType)} at ${printer.prettyFilePath(userPrintableFilePath)}`,
+        `Failed to process ${tuiManager.makeBold(codeType)} at ${tuiManager.prettyFilePath(userPrintableFilePath)}`,
         err
       );
     }

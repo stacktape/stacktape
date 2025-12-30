@@ -15,8 +15,8 @@ import { awsSdkManager } from '@utils/aws-sdk-manager';
 import compose from '@utils/basic-compose-shim';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
 import { ExpectedError } from '@utils/errors';
-import { printer } from '@utils/printer';
 import { saveToCfTemplateFile, saveToInitialCfTemplateFile, saveToStpTemplateFile } from '@utils/temp-files';
+import { tuiManager } from '@utils/tui';
 import { validateStackOutput, validateUniqueness } from '@utils/validator';
 import set from 'lodash/set';
 import { getInitialCfTemplate } from './utils';
@@ -50,7 +50,7 @@ export class TemplateManager {
     const amountOfResources = Object.keys(this.template.Resources).length;
     if (amountOfResources > 470) {
       // @later-dodo: print options to solve this issue
-      printer.warn(
+      tuiManager.warn(
         `You are approaching limit of 500 resources per cloudformation stack. Resources used: ${amountOfResources}`
       );
     }

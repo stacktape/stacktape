@@ -4,7 +4,7 @@ import { deployedStackOverviewManager } from '@domain-services/deployed-stack-ov
 import { stpErrors } from '@errors';
 import { tagNames } from '@shared/naming/tag-names';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
-import { printer } from '@utils/printer';
+import { tuiManager } from '@utils/tui';
 import { buildAndUpdateFunctionCode } from '../_utils/fn-deployment';
 import { initializeStackServicesForHotSwapDeploy } from '../_utils/initialization';
 
@@ -33,7 +33,7 @@ export const commandDeploymentScriptRun = async (): Promise<DeploymentScriptRunR
     })
   ]);
 
-  printer.info(`Running deployment-script ${printer.colorize('cyan', resourceName)}`);
+  tuiManager.info(`Running deployment-script ${tuiManager.colorize('cyan', resourceName)}`);
   const response = await awsSdkManager.invokeLambdaFunction({
     lambdaResourceName: lambdaArn,
     payload: scriptParametersResolvedLocally
@@ -59,17 +59,17 @@ const printInformationAboutScriptResult = ({
   }
 
   if (response.FunctionError) {
-    printer.info(
-      `${printer.colorize(
+    tuiManager.info(
+      `${tuiManager.colorize(
         'red',
         'Deployment-script FAILED.\nERROR'
-      )} returned from deployment-script ${printer.colorize('cyan', stpResourceName)}:\n${
+      )} returned from deployment-script ${tuiManager.colorize('cyan', stpResourceName)}:\n${
         formattedJsonResponse || response.Payload
       }`
     );
   } else {
-    printer.success(
-      `Deployment-script ${printer.colorize('cyan', stpResourceName)} finished successfully. Returned payload:\n${
+    tuiManager.success(
+      `Deployment-script ${tuiManager.colorize('cyan', stpResourceName)} finished successfully. Returned payload:\n${
         formattedJsonResponse || response.Payload
       }`
     );

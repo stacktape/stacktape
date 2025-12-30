@@ -1,7 +1,7 @@
 import { stpErrors } from '@errors';
 import { ALLOWED_MEMORY_VALUES_FOR_CPU } from '@shared/aws/fargate';
 import { ExpectedError } from '@utils/errors';
-import { printer } from '@utils/printer';
+import { tuiManager } from '@utils/tui';
 import { configManager } from '../index';
 
 const validateContainerNamesConsistency = (workload: StpContainerWorkload) => {
@@ -99,13 +99,13 @@ const validatePortOverlapOfContainerWorkload = (workload: StpContainerWorkload) 
           ) {
             throw new ExpectedError(
               'CONFIG_VALIDATION',
-              `Port overlap detected within ${workload.configParentResourceType} ${printer.colorize(
+              `Port overlap detected within ${workload.configParentResourceType} ${tuiManager.colorize(
                 'cyan',
                 workload.name
-              )}. Container ${printer.colorize('cyan', container1)} and container ${printer.colorize(
+              )}. Container ${tuiManager.colorize('cyan', container1)} and container ${tuiManager.colorize(
                 'cyan',
                 container2
-              )} are using the same port number ${printer.colorize('cyan', containerPort.toString())}.
+              )} are using the same port number ${tuiManager.colorize('cyan', containerPort.toString())}.
   Each container port mapped using 'events' must be unique withing the ${workload.configParentResourceType}.`
             );
           }

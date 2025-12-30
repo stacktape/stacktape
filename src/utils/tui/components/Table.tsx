@@ -73,12 +73,10 @@ export const Table: React.FC<TableProps> = ({ header, rows, alignments = [] }) =
   const topT = '┬';
   const bottomT = '┴';
 
-  const topBorder =
-    topLeft + columnWidths.map((w) => horizontalBorder.repeat(w + 2)).join(topT) + topRight;
+  const topBorder = topLeft + columnWidths.map((w) => horizontalBorder.repeat(w + 2)).join(topT) + topRight;
   const headerSeparator =
     headerSepLeft + columnWidths.map((w) => horizontalBorder.repeat(w + 2)).join(cross) + headerSepRight;
-  const bottomBorder =
-    bottomLeft + columnWidths.map((w) => horizontalBorder.repeat(w + 2)).join(bottomT) + bottomRight;
+  const bottomBorder = bottomLeft + columnWidths.map((w) => horizontalBorder.repeat(w + 2)).join(bottomT) + bottomRight;
 
   const renderRow = (cells: string[], isBold: boolean = false) => {
     const paddedCells = cells.map((cell, i) => {
@@ -92,7 +90,11 @@ export const Table: React.FC<TableProps> = ({ header, rows, alignments = [] }) =
         {paddedCells.map((cell, i) => (
           <React.Fragment key={i}>
             <Text bold={isBold}>{cell}</Text>
-            <Text> {verticalBorder}{i < columnCount - 1 ? ' ' : ''}</Text>
+            <Text>
+              {' '}
+              {verticalBorder}
+              {i < columnCount - 1 ? ' ' : ''}
+            </Text>
           </React.Fragment>
         ))}
       </Box>

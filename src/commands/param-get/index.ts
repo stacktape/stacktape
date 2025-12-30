@@ -1,7 +1,7 @@
 import { globalStateManager } from '@application-services/global-state-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { stpErrors } from '@errors';
-import { printer } from '@utils/printer';
+import { tuiManager } from '@utils/tui';
 import { initializeStackServicesForWorkingWithDeployedStack } from '../_utils/initialization';
 
 export const commandParamGet = async (): Promise<ParamGetReturnValue> => {
@@ -31,12 +31,12 @@ export const commandParamGet = async (): Promise<ParamGetReturnValue> => {
   }
   const paramValue = param.value;
   if (globalStateManager.invokedFrom === 'cli') {
-    printer.success(
-      `Successfully retrieved parameter ${printer.prettyResourceName(resourceName)}.${printer.prettyResourceParamName(
+    tuiManager.success(
+      `Successfully retrieved parameter ${tuiManager.prettyResourceName(resourceName)}.${tuiManager.prettyResourceParamName(
         paramName
       )}\n`
     );
-    console.info(`${printer.makeBold(`${paramValue}`)}\n`);
+    console.info(`${tuiManager.makeBold(`${paramValue}`)}\n`);
   }
   return `${paramValue}`;
 };

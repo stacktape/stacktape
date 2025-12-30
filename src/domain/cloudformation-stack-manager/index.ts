@@ -32,8 +32,8 @@ import { awsSdkManager } from '@utils/aws-sdk-manager';
 import compose from '@utils/basic-compose-shim';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
 import { ExpectedError } from '@utils/errors';
-import { printer } from '@utils/printer';
 import { getAwsSynchronizedTime } from '@utils/time';
+import { tuiManager } from '@utils/tui';
 import { getNextVersionString } from '@utils/versioning';
 import uniqBy from 'lodash/uniqBy';
 import { getEstimatedRemainingPercent, getStackDeploymentEstimate } from './duration-estimation';
@@ -362,7 +362,7 @@ export class StackManager {
       while (STACK_OPERATION_IN_PROGRESS_STATUS.includes(stackDetails?.StackStatus as any)) {
         progressLogger.updateEvent({
           eventType: 'FETCH_STACK_DATA',
-          additionalMessage: `Waiting for stack to reach stable state before proceeding. Current stack state: ${printer.makeBold(
+          additionalMessage: `Waiting for stack to reach stable state before proceeding. Current stack state: ${tuiManager.makeBold(
             stackDetails?.StackStatus
           )}`
         });
@@ -658,13 +658,13 @@ export class StackManager {
               3
             )
           : 'none';
-      const summaryPart = `Summary: ${printer.makeBold('created')}=${changeSummary.counts.created} ${printer.makeBold(
+      const summaryPart = `Summary: ${tuiManager.makeBold('created')}=${changeSummary.counts.created} ${tuiManager.makeBold(
         'updated'
-      )}=${changeSummary.counts.updated} ${printer.makeBold('deleted')}=${changeSummary.counts.deleted}.`;
-      const detailPart = `Details: ${printer.makeBold('created')}=${formatResourceList(
+      )}=${changeSummary.counts.updated} ${tuiManager.makeBold('deleted')}=${changeSummary.counts.deleted}.`;
+      const detailPart = `Details: ${tuiManager.makeBold('created')}=${formatResourceList(
         changeSummary.lists.created,
         4
-      )}; ${printer.makeBold('updated')}=${formatResourceList(changeSummary.lists.updated, 4)}; ${printer.makeBold(
+      )}; ${tuiManager.makeBold('updated')}=${formatResourceList(changeSummary.lists.updated, 4)}; ${tuiManager.makeBold(
         'deleted'
       )}=${formatResourceList(changeSummary.lists.deleted, 4)}.`;
       const progressMessage = `${inProgressPart}. ${finishedPart}.${remainingPart}`.trim();
@@ -682,7 +682,7 @@ export class StackManager {
           const handledStackErrors = await this.#handleFailedEvents({
             potentialErrorCausingEvents
           });
-          const formattedStackErrorText = printer.formatComplexStackErrors(handledStackErrors, 2);
+          const formattedStackErrorText = tuiManager.formatComplexStackErrors(handledStackErrors, 2);
           return resolve({
             warningMessages: [
               `Stack was successfully updated, but errors occurred during old resources CLEANUP:\n${formattedStackErrorText}`
@@ -696,7 +696,8 @@ export class StackManager {
         cleanupMonitoring();
 
         const handledFailedEvents = await this.#handleFailedEvents({ potentialErrorCausingEvents });
-        const formattedStackErrorText = printer.formatComplexStackErrors(handledFailedEvents, 2);
+        tuiManager.writeInfo('handledFailedEvents', JSON.stringify(handledFailedEvents, null, 2));
+        const formattedStackErrorText = tuiManager.formatComplexStackErrors(handledFailedEvents, 2);
         const hints = getHintsAfterStackFailureOperation({
           cfStackAction,
           stackId,
@@ -705,7 +706,7 @@ export class StackManager {
         return reject(
           new ExpectedError(
             'STACK',
-            `Stack action ${this.stackActionType} failed.\nReasons:\n${formattedStackErrorText}`,
+            `Stack action ${this.stackActionType} failed.\n\n${formattedStackErrorText}\n`,
             hints
           )
         );

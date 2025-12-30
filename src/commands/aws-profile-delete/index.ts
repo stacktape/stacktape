@@ -3,7 +3,7 @@ import { getIniFileContent } from '@shared/utils/fs-utils';
 import { userPrompt } from '@shared/utils/user-prompt';
 import { deleteAwsProfile } from '@utils/aws-config';
 import { ExpectedError } from '@utils/errors';
-import { printer } from '@utils/printer';
+import { tuiManager } from '@utils/tui';
 import uniq from 'lodash/uniq';
 
 export const commandAwsProfileDelete = async (): Promise<AwsProfileDeleteReturnValue> => {
@@ -29,7 +29,7 @@ export const commandAwsProfileDelete = async (): Promise<AwsProfileDeleteReturnV
   });
 
   await deleteAwsProfile(profile);
-  printer.success(`Successfully deleted credentials for profile ${profile}.`);
+  tuiManager.success(`Successfully deleted credentials for profile ${profile}.`);
 
   return null;
 };

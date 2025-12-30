@@ -31,7 +31,7 @@ import { awsSdkManager } from '@utils/aws-sdk-manager';
 import compose from '@utils/basic-compose-shim';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
 import { ExpectedError } from '@utils/errors';
-import { printer } from '@utils/printer';
+import { tuiManager } from '@utils/tui';
 import { getHotSwapDeployVersionString } from '@utils/versioning';
 import { getDeploymentBucketObjectType, parseBucketObjectS3Key, parseImageTag } from './utils';
 
@@ -538,7 +538,9 @@ export class DeploymentArtifactManager {
       objects = await awsSdkManager.listAllObjectsInBucket(deploymentBucketName);
     } catch (err) {
       if (stackActionType === 'delete' && err.toString().includes('NoSuchBucket')) {
-        printer.debug(`Deployment bucket ${deploymentBucketName} not found. Skipping loading of deployment artifacts.`);
+        tuiManager.debug(
+          `Deployment bucket ${deploymentBucketName} not found. Skipping loading of deployment artifacts.`
+        );
         return;
       }
       throw err;
@@ -562,7 +564,7 @@ export class DeploymentArtifactManager {
       imagesInRepo = await awsSdkManager.listAllImagesInEcrRepo(repositoryName);
     } catch (err) {
       if (stackActionType === 'delete' && err.toString().includes('RepositoryNotFoundException')) {
-        printer.debug(`ECR image repo ${repositoryName} not found. Skipping loading of images.`);
+        tuiManager.debug(`ECR image repo ${repositoryName} not found. Skipping loading of images.`);
         return;
       }
       throw err;

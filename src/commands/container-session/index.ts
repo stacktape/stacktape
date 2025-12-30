@@ -5,8 +5,8 @@ import { deployedStackOverviewManager } from '@domain-services/deployed-stack-ov
 import { stpErrors } from '@errors';
 import { userPrompt } from '@shared/utils/user-prompt';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
-import { printer } from '@utils/printer';
 import { runEcsExecSsmShellSession } from '@utils/ssm-session';
+import { tuiManager } from '@utils/tui';
 import { initializeStackServicesForWorkingWithDeployedStack } from '../_utils/initialization';
 
 export const commandContainerSession = async () => {
@@ -76,7 +76,7 @@ const resolveTargetContainer = async () => {
         }))
     }));
   }
-  printer.debug(JSON.stringify(tasks, null, 2));
+  tuiManager.debug(JSON.stringify(tasks, null, 2));
   const task = tasks.find(({ taskArn: tArn }) => tArn === taskArn);
   return { task, containerName: container || containersInTaskDefinition[0] };
 };

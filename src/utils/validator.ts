@@ -10,7 +10,7 @@ import cliSchema from '../../@generated/schemas/cli-schema.json' with { type: 'j
 import sdkSchema from '../../@generated/schemas/sdk-schema.json' with { type: 'json' };
 import { allowedCliArgs, cliArgsAliases, cliCommands } from '../config/cli';
 import { getAwsCredentialsIdentity } from './aws-sdk-manager/utils';
-import { printer } from './printer';
+import { tuiManager } from './tui';
 import { getCommandShortDescription, getPrettyCommand } from './validation-utils';
 
 export const validateDomain = (domain: string) => {
@@ -59,11 +59,11 @@ export const validateScript = ({ type, properties, scriptName }: Script) => {
   if (!exactlyOneDefined) {
     throw new ExpectedError(
       'CONFIG_VALIDATION',
-      `Script ${printer.makeBold(scriptName)} must have exactly one of ${printer.prettyConfigProperty(
+      `Script ${tuiManager.makeBold(scriptName)} must have exactly one of ${tuiManager.prettyConfigProperty(
         'executeCommand'
-      )}, ${printer.prettyConfigProperty('executeScript')}, ${printer.prettyConfigProperty(
+      )}, ${tuiManager.prettyConfigProperty('executeScript')}, ${tuiManager.prettyConfigProperty(
         'executeCommands'
-      )} or ${printer.prettyConfigProperty('executeScripts')} properties defined.`
+      )} or ${tuiManager.prettyConfigProperty('executeScripts')} properties defined.`
     );
   }
 };
@@ -72,9 +72,9 @@ export const validateCommand = ({ rawCommands }: { rawCommands: StacktapeCommand
   if (globalStateManager.invokedFrom !== 'cli') {
     return;
   }
-  const hint = `Use ${printer.prettyCommand(
+  const hint = `Use ${tuiManager.prettyCommand(
     'help'
-  )} to see all available commands and their options or visit ${printer.getLink('docsCli', 'CLI documentation')}`;
+  )} to see all available commands and their options or visit ${tuiManager.getLink('docsCli', 'CLI documentation')}`;
   if (rawCommands.length > 1) {
     throw getError({
       type: 'CLI',
@@ -89,7 +89,7 @@ export const validateCommand = ({ rawCommands }: { rawCommands: StacktapeCommand
       message: `No command specified. Must be one of:\n${cliCommands
         .map(
           (availableCommand) =>
-            `- ${printer.makeBold(availableCommand)} - ${getCommandShortDescription(availableCommand)}`
+            `- ${tuiManager.makeBold(availableCommand)} - ${getCommandShortDescription(availableCommand)}`
         )
         .join('\n')}.`,
       hint
@@ -98,10 +98,10 @@ export const validateCommand = ({ rawCommands }: { rawCommands: StacktapeCommand
   if (!cliCommands.includes(command)) {
     throw getError({
       type: 'CLI',
-      message: `Invalid command ${printer.makeBold(command)}. Must be one of:\n${cliCommands
+      message: `Invalid command ${tuiManager.makeBold(command)}. Must be one of:\n${cliCommands
         .map(
           (availableCommand) =>
-            `- ${printer.makeBold(availableCommand)} - ${getCommandShortDescription(availableCommand)}`
+            `- ${tuiManager.makeBold(availableCommand)} - ${getCommandShortDescription(availableCommand)}`
         )
         .join('\n')}.`,
       hint
@@ -139,7 +139,7 @@ export const validateArgs = ({
   const argsSchema = globalStateManager.invokedFrom === 'cli' ? cliSchema[command].args : sdkSchema[command].args;
   const helpHint = `Use ${getPrettyCommand(
     `stacktape ${command} --help`
-  )} to show available options and their meaning or visit ${printer.terminalLink(getLink(command), 'docs')}.`;
+  )} to show available options and their meaning or visit ${tuiManager.terminalLink(getLink(command), 'docs')}.`;
   const multiCharacterHint =
     'Note that multi-character aliases for options must be supplied with -- (two dashes) instead of one.';
   for (const cliArg in rawArgs) {
@@ -231,7 +231,7 @@ const validateStage = (stage: string) => {
     throw new ExpectedError(
       'CONFIG_VALIDATION',
       'stage is not set.',
-      `To set stage, use --stage option or configure default stage globally for your system using ${printer.prettyCommand(
+      `To set stage, use --stage option or configure default stage globally for your system using ${tuiManager.prettyCommand(
         'defaults:configure'
       )}.`
     );
@@ -248,7 +248,7 @@ const validateStage = (stage: string) => {
 };
 
 export const validateRegion = (region: string) => {
-  const hint = `To set region, use --region option, AWS_DEFAULT_REGION env variable or configure it globally for your system using ${printer.prettyCommand(
+  const hint = `To set region, use --region option, AWS_DEFAULT_REGION env variable or configure it globally for your system using ${tuiManager.prettyCommand(
     'defaults:configure'
   )}.`;
   if (region === null || region === undefined) {
@@ -355,10 +355,10 @@ export const validateAwsProfile = ({
       hint: [
         `Available profiles are: ${
           availableAwsProfiles.map((p) => p.profile).join(', ') || 'NONE'
-        }. You can create a new AWS profile using ${printer.prettyCommand(
+        }. You can create a new AWS profile using ${tuiManager.prettyCommand(
           'aws-profile:create'
         )} command or configure AWS credentials using \`AWS_ACCESS_KEY_ID\` and \`AWS_SECRET_ACCESS_KEY\` environment variables.`,
-        `To obtain your AWS credentials, you can follow ${printer.terminalLink(
+        `To obtain your AWS credentials, you can follow ${tuiManager.terminalLink(
           'https://docs.stacktape.com/user-guides/configure-aws-profile/',
           'our detailed guide'
         )}`

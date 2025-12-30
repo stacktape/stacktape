@@ -39,18 +39,36 @@ export const TuiApp: React.FC<TuiAppProps> = ({ isTTY }) => {
     });
   }, [state.phases, isTTY]);
 
+  // Messages without a phase are rendered at the bottom (global messages)
+  const globalMessages = useMemo(() => {
+    return state.messages.filter((m) => !m.phase);
+  }, [state.messages]);
+
   return (
     <Box flexDirection="column">
       {state.header && <Header header={state.header} />}
 
-      {state.messages.map((msg) => (
-        <Message key={msg.id} message={msg} />
-      ))}
-
       {visiblePhases.map((phase) => {
         const phaseNumber = PHASE_ORDER.indexOf(phase.id) + 1;
-        return <Phase key={phase.id} phase={phase} phaseNumber={phaseNumber} warnings={state.warnings} isTTY={isTTY} />;
+        return (
+          <Phase
+            key={phase.id}
+            phase={phase}
+            phaseNumber={phaseNumber}
+            warnings={state.warnings}
+            messages={state.messages}
+            isTTY={isTTY}
+          />
+        );
       })}
+
+      {globalMessages.length > 0 && (
+        <Box flexDirection="column" marginTop={1}>
+          {globalMessages.map((msg) => (
+            <Message key={msg.id} message={msg} />
+          ))}
+        </Box>
+      )}
 
       {state.summary && <Summary summary={state.summary} />}
     </Box>

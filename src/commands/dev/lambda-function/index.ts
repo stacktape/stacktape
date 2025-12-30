@@ -7,8 +7,8 @@ import { deployedStackOverviewManager } from '@domain-services/deployed-stack-ov
 import { packagingManager } from '@domain-services/packaging-manager';
 import { getRelativePath } from '@shared/utils/fs-utils';
 import { LambdaCloudwatchLogPrinter } from '@utils/cloudwatch-logs';
-import { printer } from '@utils/printer';
 import { getAwsSynchronizedTime } from '@utils/time';
+import { tuiManager } from '@utils/tui';
 import { buildAndUpdateFunctionCode } from '../../_utils/fn-deployment';
 import { getLogGroupInfoForStacktapeResource } from '../../_utils/logs';
 import { hookToRestartStdinInput, SourceCodeWatcher } from '../utils';
@@ -31,7 +31,7 @@ export const runDevLambdaFunction = async (): Promise<DevReturnValue> => {
       filesToWatch: sourceFiles.map((p) => p.path),
       onChangeFn: async ({ changedFile }) => {
         sourceCodeWatcher.unwatchAllFiles();
-        printer.info(`File at ${getRelativePath(changedFile)} has changed. Rebuilding and redeploying function...`);
+        tuiManager.info(`File at ${getRelativePath(changedFile)} has changed. Rebuilding and redeploying function...`);
         // @todo we need to remove more, because timings are inaccurate
         const newPackage = await buildAndDeployFunction();
         sourceCodeWatcher.addFilesToWatch(newPackage.packagingOutput.sourceFiles.map((p) => p.path));
@@ -40,7 +40,7 @@ export const runDevLambdaFunction = async (): Promise<DevReturnValue> => {
     });
   } else {
     hookToRestartStdinInput(async () => {
-      printer.info('Received restart signal. Rebuilding and redeploying function...');
+      tuiManager.info('Received restart signal. Rebuilding and redeploying function...');
       await buildAndDeployFunction();
       await cloudwatchLogPrinter.startUsingNewLogStream();
     });
@@ -51,7 +51,7 @@ export const runDevLambdaFunction = async (): Promise<DevReturnValue> => {
     try {
       await cloudwatchLogPrinter.printLogs();
     } catch (err) {
-      printer.warn('Failed to print logs.');
+      tuiManager.warn('Failed to print logs.');
       if (IS_DEV) {
         console.error(err);
       }
@@ -83,8 +83,8 @@ const printLambdaFunctionInfo = (resourceName: string) => {
     resource: StpLambdaFunction;
   };
   const { watch } = globalStateManager.args;
-  const restartMessage = printer.makeBold(
-    printer.colorize(
+  const restartMessage = tuiManager.makeBold(
+    tuiManager.colorize(
       'gray',
       watch
         ? '(watching for source files changes to rebuild and redeploy)'
@@ -101,10 +101,10 @@ const printLambdaFunctionInfo = (resourceName: string) => {
         nameChain: httpApiGatewayInfo.name,
         referencableParamName: 'url'
       });
-      eventsInfo.push(`(${printer.makeBold(`${event.type} event`)}) [${printer.makeBold(method)}] ${url}${path}`);
+      eventsInfo.push(`(${tuiManager.makeBold(`${event.type} event`)}) [${tuiManager.makeBold(method)}] ${url}${path}`);
     }
   });
-  printer.success(
+  tuiManager.success(
     `New version deployed successfully. ${restartMessage}.\n○ Function logs are continuously printed to the terminal (with a few seconds delay).${
       eventsInfo.length ? '\n○ Events:\n' : ''
     }    ${eventsInfo.join('\n    ')}`

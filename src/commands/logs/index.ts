@@ -2,7 +2,7 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
-import { printer } from '@utils/printer';
+import { tuiManager } from '@utils/tui';
 import { loadUserCredentials } from '../_utils/initialization';
 import { getLogGroupInfoForStacktapeResource } from '../_utils/logs';
 
@@ -33,7 +33,7 @@ export const commandLogs = async (): Promise<LogsReturnValue> => {
   const logStreams = await awsSdkManager.getLogStreams({ logGroupName });
 
   if (!logStreams.length) {
-    printer.info(`No log streams found for log group ${logGroupName}`);
+    tuiManager.info(`No log streams found for log group ${logGroupName}`);
     return;
   }
 
@@ -51,7 +51,7 @@ export const commandLogs = async (): Promise<LogsReturnValue> => {
       events
         .map(
           (event) =>
-            `${printer.colorize('yellow', new Date(event.timestamp).toLocaleString())}\t${event.logStreamName}\n${
+            `${tuiManager.colorize('yellow', new Date(event.timestamp).toLocaleString())}\t${event.logStreamName}\n${
               event.message
             }`
         )

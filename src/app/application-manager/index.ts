@@ -4,10 +4,10 @@ import { IS_DEV, IS_TELEMETRY_DISABLED } from '@config';
 import { propertyFromObjectOrNull } from '@shared/utils/misc';
 import { attemptToGetUsefulExpectedError, getErrorDetails, getReturnableError, UnexpectedError } from '@utils/errors';
 import { killPythonBridge } from '@utils/file-loaders';
-import { printer } from '@utils/printer';
 import { reportErrorToSentry } from '@utils/sentry';
 import { reportTelemetryEvent } from '@utils/telemetry';
 import { deleteTempFolder } from '@utils/temp-files';
+import { tuiManager } from '@utils/tui';
 import kill from 'tree-kill';
 
 const getStacktapeError = (err: any) => {
@@ -61,9 +61,9 @@ export class ApplicationManager {
 
   gracefullyHandleError = (err: any) => {
     const stacktapeError = getStacktapeError(err);
-    printer.stopAllSpinners();
+    tuiManager.stop();
     this.cancelPendingPromises(stacktapeError);
-    printer.error(stacktapeError);
+    tuiManager.error(stacktapeError);
   };
 
   handleError = async (err: any, skipCleanup = false) => {
@@ -71,14 +71,14 @@ export class ApplicationManager {
       return;
     }
     const stacktapeError = getStacktapeError(err);
-    printer.stopAllSpinners();
+    tuiManager.stop();
     this.cancelPendingPromises(stacktapeError);
     await this.reportTelemetryEvent({ outcome: stacktapeError.details.code });
     if (!IS_DEV && !stacktapeError.isExpected && !IS_TELEMETRY_DISABLED) {
       const sentryEventId = await reportErrorToSentry(stacktapeError);
       stacktapeError.details.sentryEventId = sentryEventId;
     }
-    printer.error(stacktapeError);
+    tuiManager.error(stacktapeError);
     if (!skipCleanup) {
       await this.cleanUp({ success: false, err });
     }
@@ -97,15 +97,13 @@ export class ApplicationManager {
       return;
     }
     this.isInterrupted = true;
-    printer.stopAllSpinners();
-    printer.info(`Received ${signal} signal. Exiting...`);
+    tuiManager.stop();
+    tuiManager.info(`Received ${signal} signal. Exiting...`);
     if (globalStateManager.invokedFrom === 'cli') {
       await this.reportTelemetryEvent({ outcome: 'USER_INTERRUPTION' });
     }
     if (this.usesStdinWatch) {
       process.stdin.destroy();
-    } else {
-      printer.cleanUpAfterExitSignal();
     }
     await this.cleanUp({ success: false, interrupted: true });
     process.removeAllListeners();
@@ -170,7 +168,7 @@ export class ApplicationManager {
       return;
     }
     if (IS_DEV) {
-      printer.warn(`[shown-only-in-dev-mode] ${type} ${err.stack}`);
+      tuiManager.warn(`[shown-only-in-dev-mode] ${type} ${err.stack}`);
     }
     this.isErrored = true;
     this.cancelPendingPromises(err);

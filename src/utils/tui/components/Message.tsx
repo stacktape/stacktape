@@ -6,37 +6,24 @@ type MessageProps = {
   message: TuiMessage;
 };
 
-const MESSAGE_COLORS: Record<TuiMessageType, string> = {
-  info: 'cyan',
-  success: 'green',
-  error: 'red',
-  warn: 'yellow',
-  debug: 'gray',
-  hint: 'blue',
-  start: 'magenta',
-  announcement: 'magenta'
-};
-
-const MESSAGE_PREFIXES: Record<TuiMessageType, string> = {
-  info: 'INFO',
-  success: 'SUCCESS',
-  error: 'ERROR',
-  warn: 'WARN',
-  debug: 'DEBUG',
-  hint: 'HINT',
-  start: 'START',
-  announcement: 'ANNOUNCEMENT'
+const MESSAGE_ICONS: Record<TuiMessageType, { symbol: string; color: string }> = {
+  info: { symbol: 'ℹ', color: 'cyan' },
+  success: { symbol: '✔', color: 'green' },
+  error: { symbol: '✖', color: 'red' },
+  warn: { symbol: '⚠', color: 'yellow' },
+  debug: { symbol: '⚙', color: 'gray' },
+  hint: { symbol: '💡', color: 'blue' },
+  start: { symbol: '▶', color: 'magenta' },
+  announcement: { symbol: '★', color: 'magenta' }
 };
 
 export const Message: React.FC<MessageProps> = ({ message }) => {
-  const color = MESSAGE_COLORS[message.type];
-  const prefix = MESSAGE_PREFIXES[message.type];
+  const { symbol, color } = MESSAGE_ICONS[message.type];
 
   return (
     <Box>
-      <Text>[</Text>
-      <Text color={color}>{prefix}</Text>
-      <Text>] {message.message}</Text>
+      <Text color={color}>{symbol}</Text>
+      <Text> {message.message}</Text>
     </Box>
   );
 };

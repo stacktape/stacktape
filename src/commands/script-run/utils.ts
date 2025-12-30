@@ -5,13 +5,13 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import { configManager } from '@domain-services/config-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { ExpectedError } from '@utils/errors';
-import { printer } from '@utils/printer';
 import { executeCommandHook, executeScriptHook, getScriptEnv } from '@utils/scripts';
 import {
   runSsmShellScript,
   startPortForwardingSessions,
   substituteTunneledEndpointsInEnvironmentVars
 } from '@utils/ssm-session';
+import { tuiManager } from '@utils/tui';
 import { validateScript } from '@utils/validator';
 import { getLocalInvokeAwsCredentials } from '../_utils/assume-role';
 
@@ -71,11 +71,11 @@ const getBastionScriptExecutionFn = ({
       resolvedScriptDefinition.properties.bastionResource
     );
 
-    printer.info(
-      `Executing ${hookTrigger ? `(${hookTrigger} hook) ` : ''}script ${printer.colorize(
+    tuiManager.info(
+      `Executing ${hookTrigger ? `(${hookTrigger} hook) ` : ''}script ${tuiManager.colorize(
         'blue',
         resolvedScriptDefinition.scriptName
-      )} on bastion ${printer.makeBold(bastionResourceStpName)}...`
+      )} on bastion ${tuiManager.makeBold(bastionResourceStpName)}...`
     );
     try {
       const env = getScriptEnv({
@@ -97,10 +97,10 @@ const getBastionScriptExecutionFn = ({
     } catch (err) {
       throw new ExpectedError(
         'SCRIPT',
-        `Failed to execute ${hookTrigger ? `(${hookTrigger} hook) ` : ''}script ${printer.colorize(
+        `Failed to execute ${hookTrigger ? `(${hookTrigger} hook) ` : ''}script ${tuiManager.colorize(
           'blue',
           resolvedScriptDefinition.scriptName
-        )} on bastion ${printer.makeBold(bastionResourceStpName)}. Error:\n${err}`
+        )} on bastion ${tuiManager.makeBold(bastionResourceStpName)}. Error:\n${err}`
       );
     }
   };
@@ -170,8 +170,8 @@ const getLocalScriptExecutionFn = ({
         ? resolvedScriptDefinition.properties.pipeStdio
         : true;
 
-    printer.info(
-      `Executing ${hookTrigger ? `(${hookTrigger} hook) ` : ''}script ${printer.colorize(
+    tuiManager.info(
+      `Executing ${hookTrigger ? `(${hookTrigger} hook) ` : ''}script ${tuiManager.colorize(
         'blue',
         resolvedScriptDefinition.scriptName
       )}...`
@@ -179,9 +179,9 @@ const getLocalScriptExecutionFn = ({
     for (const commandOrScriptToExecute of executeSequence) {
       const scriptDescription =
         commandOrScript === 'script'
-          ? `script at ${printer.prettyFilePath(join(globalStateManager.workingDir, commandOrScriptToExecute))}`
-          : `command '${printer.makeBold(commandOrScriptToExecute)}'`;
-      printer.info(`Executing ${scriptDescription}...`);
+          ? `script at ${tuiManager.prettyFilePath(join(globalStateManager.workingDir, commandOrScriptToExecute))}`
+          : `command '${tuiManager.makeBold(commandOrScriptToExecute)}'`;
+      tuiManager.info(`Executing ${scriptDescription}...`);
       try {
         const env = getScriptEnv({
           userDefinedEnv: resolvedScriptDefinition.properties.environment,

@@ -77,18 +77,18 @@ export type AwsEcsService = {
    * You must set this to a value other than ``NONE`` when you use Cost Explorer. For more information,
    * see [Amazon ECS usage
    * reports](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/usage-reports.html) in the
-   * *Amazon Elastic Container Service Developer Guide*.
+   * Amazon Elastic Container Service Developer Guide*.
    * The default is ``NONE``.
    * @enum ["SERVICE","TASK_DEFINITION"]
    */
-  PropagateTags?: "SERVICE" | "TASK_DEFINITION";
+  PropagateTags?: 'SERVICE' | 'TASK_DEFINITION';
   ServiceArn?: string;
   /**
    * The placement strategy objects to use for tasks in your service. You can specify a maximum of 5
    * strategy rules for each service.
    * To remove this property from your service resource, specify an empty ``PlacementStrategy`` array.
    */
-  PlacementStrategies?: ({
+  PlacementStrategies?: {
     /**
      * The field to apply the placement strategy against. For the ``spread`` placement strategy, valid
      * values are ``instanceId`` (or ``host``, which has the same effect), or any platform or custom
@@ -106,8 +106,8 @@ export type AwsEcsService = {
      * the least amount of remaining memory but still enough to run the task.
      * @enum ["binpack","random","spread"]
      */
-    Type: "binpack" | "random" | "spread";
-  })[];
+    Type: 'binpack' | 'random' | 'spread';
+  }[];
   /**
    * The details of the service discovery registry to associate with this service. For more information,
    * see [Service
@@ -153,7 +153,7 @@ export type AwsEcsService = {
    * To remove this property from your service resource, specify an empty
    * ``ServiceVolumeConfiguration`` array.
    */
-  VolumeConfigurations?: ({
+  VolumeConfigurations?: {
     /**
      * The configuration for the Amazon EBS volume that Amazon ECS creates and manages on your behalf.
      * These settings are used to create each Amazon EBS volume, with one volume created for each task in
@@ -203,14 +203,14 @@ export type AwsEcsService = {
        * API](https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_CreateVolume.html) in the *Amazon
        * EC2 API Reference*.
        */
-      TagSpecifications?: ({
+      TagSpecifications?: {
         /**
          * Determines whether to propagate the tags from the task definition to  the Amazon EBS volume. Tags
          * can only propagate to a ``SERVICE`` specified in  ``ServiceVolumeConfiguration``. If no value is
          * specified, the tags aren't  propagated.
          * @enum ["SERVICE","TASK_DEFINITION"]
          */
-        PropagateTags?: "SERVICE" | "TASK_DEFINITION";
+        PropagateTags?: 'SERVICE' | 'TASK_DEFINITION';
         /** The type of volume resource. */
         ResourceType: string;
         /**
@@ -229,7 +229,7 @@ export type AwsEcsService = {
            */
           Key?: string;
         }[];
-      })[];
+      }[];
       /**
        * The filesystem type for the volume. For volumes created from a snapshot, you must specify the same
        * filesystem type that the volume was using when the snapshot was created. If there is a filesystem
@@ -310,7 +310,7 @@ export type AwsEcsService = {
      * task definition.
      */
     Name: string;
-  })[];
+  }[];
   /**
    * The capacity provider strategy to use for the service.
    * If a ``capacityProviderStrategy`` is specified, the ``launchType`` parameter must be omitted. If
@@ -369,18 +369,18 @@ export type AwsEcsService = {
   /**
    * The launch type on which to run your service. For more information, see [Amazon ECS Launch
    * Types](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/launch_types.html) in the
-   * *Amazon Elastic Container Service Developer Guide*.
+   * Amazon Elastic Container Service Developer Guide*.
    * If you want to use Managed Instances, you must use the ``capacityProviderStrategy`` request
    * parameter
    * @enum ["EC2","FARGATE","EXTERNAL"]
    */
-  LaunchType?: "EC2" | "FARGATE" | "EXTERNAL";
+  LaunchType?: 'EC2' | 'FARGATE' | 'EXTERNAL';
   Name?: string;
   /**
    * Indicates whether to use Availability Zone rebalancing for the service.
    * For more information, see [Balancing an Amazon ECS service across Availability
    * Zones](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/service-rebalancing.html) in the
-   * *Amazon Elastic Container Service Developer Guide*.
+   * Amazon Elastic Container Service Developer Guide*.
    * The default behavior of ``AvailabilityZoneRebalancing`` differs between create and update
    * requests:
    * +  For create service requests, when no value is specified for ``AvailabilityZoneRebalancing``,
@@ -391,7 +391,7 @@ export type AwsEcsService = {
    * @default "ENABLED"
    * @enum ["ENABLED","DISABLED"]
    */
-  AvailabilityZoneRebalancing?: "ENABLED" | "DISABLED";
+  AvailabilityZoneRebalancing?: 'ENABLED' | 'DISABLED';
   /**
    * The scheduling strategy to use for the service. For more information, see
    * [Services](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs_services.html).
@@ -410,7 +410,7 @@ export type AwsEcsService = {
    * types don't support the ``DAEMON`` scheduling strategy.
    * @enum ["DAEMON","REPLICA"]
    */
-  SchedulingStrategy?: "DAEMON" | "REPLICA";
+  SchedulingStrategy?: 'DAEMON' | 'REPLICA';
   /**
    * The network configuration for the service. This parameter is required for task definitions that use
    * the ``awsvpc`` network mode to receive their own elastic network interface, and it is not supported
@@ -444,7 +444,7 @@ export type AwsEcsService = {
        * +  When the service ``deploymentController`` is ``ECS``, the value must be ``DISABLED``.
        * @enum ["DISABLED","ENABLED"]
        */
-      AssignPublicIp?: "DISABLED" | "ENABLED";
+      AssignPublicIp?: 'DISABLED' | 'ENABLED';
     };
   };
   /**
@@ -514,7 +514,7 @@ export type AwsEcsService = {
    * Specifies whether to turn on Amazon ECS managed tags for the tasks within the service. For more
    * information, see [Tagging your Amazon ECS
    * resources](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-using-tags.html) in the
-   * *Amazon Elastic Container Service Developer Guide*.
+   * Amazon Elastic Container Service Developer Guide*.
    * When you use Amazon ECS managed tags, you must set the ``propagateTags`` request parameter.
    */
   EnableECSManagedTags?: boolean;
@@ -530,14 +530,14 @@ export type AwsEcsService = {
    * To remove this property from your service resource, specify an empty ``PlacementConstraint``
    * array.
    */
-  PlacementConstraints?: ({
+  PlacementConstraints?: {
     /**
      * The type of constraint. Use ``distinctInstance`` to ensure that each task in a particular group is
      * running on a different container instance. Use ``memberOf`` to restrict the selection to a group of
      * valid candidates.
      * @enum ["distinctInstance","memberOf"]
      */
-    Type: "distinctInstance" | "memberOf";
+    Type: 'distinctInstance' | 'memberOf';
     /**
      * A cluster query language expression to apply to the constraint. The expression can have a maximum
      * length of 2000 characters. You can't specify an expression if the constraint type is
@@ -546,7 +546,7 @@ export type AwsEcsService = {
      * in the *Amazon Elastic Container Service Developer Guide*.
      */
     Expression?: string;
-  })[];
+  }[];
   /**
    * The short name or full Amazon Resource Name (ARN) of the cluster that you run your service on. If
    * you do not specify a cluster, the default cluster is assumed.
@@ -726,7 +726,7 @@ export type AwsEcsService = {
          * To avoid changing your applications in client Amazon ECS services, set this to the same port that
          * the client application uses by default. For more information, see [Service
          * Connect](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/service-connect.html) in the
-         * *Amazon Elastic Container Service Developer Guide*.
+         * Amazon Elastic Container Service Developer Guide*.
          */
         Port: number;
       }[];
@@ -771,7 +771,7 @@ export type AwsEcsService = {
        * structured data that integrates well with log analysis tools.
        * @enum ["TEXT","JSON"]
        */
-      Format: "TEXT" | "JSON";
+      Format: 'TEXT' | 'JSON';
       /**
        * Specifies whether to include query parameters in Service Connect access logs.
        * When enabled, query parameters from HTTP requests are included in the access logs. Consider
@@ -779,7 +779,7 @@ export type AwsEcsService = {
        * sensitive information such as request IDs and tokens. By default, this parameter is ``DISABLED``.
        * @enum ["DISABLED","ENABLED"]
        */
-      IncludeQueryParameters?: "DISABLED" | "ENABLED";
+      IncludeQueryParameters?: 'DISABLED' | 'ENABLED';
     };
     /** Specifies whether to use Service Connect with this service. */
     Enabled: boolean;
@@ -929,7 +929,7 @@ export type AwsEcsService = {
        * ``gelf``, ``json-file``, ``journald``, ``syslog``, ``splunk``, and ``awsfirelens``.
        * For more information about using the ``awslogs`` log driver, see [Send Amazon ECS logs to
        * CloudWatch](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/using_awslogs.html) in the
-       * *Amazon Elastic Container Service Developer Guide*.
+       * Amazon Elastic Container Service Developer Guide*.
        * For more information about using the ``awsfirelens`` log driver, see [Send Amazon ECS logs to an
        * service or
        * Partner](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/using_firelens.html).
@@ -948,7 +948,7 @@ export type AwsEcsService = {
      * cluster. The type of namespace doesn't affect Service Connect. For more information about CMAPlong,
      * see [Working with
      * Services](https://docs.aws.amazon.com/cloud-map/latest/dg/working-with-services.html) in the
-     * *Developer Guide*.
+     * Developer Guide*.
      */
     Namespace?: string;
   };
@@ -1053,7 +1053,7 @@ export type AwsEcsService = {
      * in the ECSlong API Reference.
      * @enum ["CODE_DEPLOY","ECS","EXTERNAL"]
      */
-    Type?: "CODE_DEPLOY" | "ECS" | "EXTERNAL";
+    Type?: 'CODE_DEPLOY' | 'ECS' | 'EXTERNAL';
   };
   /**
    * The name or full Amazon Resource Name (ARN) of the IAM role that allows Amazon ECS to make calls to
@@ -1138,7 +1138,7 @@ export type AwsEcsService = {
      * An array of deployment lifecycle hook objects to run custom logic at specific stages of the
      * deployment lifecycle.
      */
-    LifecycleHooks?: ({
+    LifecycleHooks?: {
       /**
        * The lifecycle stages at which to run the hook. Choose from these valid values:
        * +  RECONCILE_SERVICE
@@ -1170,7 +1170,15 @@ export type AwsEcsService = {
        * You must provide this parameter when configuring a deployment lifecycle hook.
        * @minItems 1
        */
-      LifecycleStages: ("RECONCILE_SERVICE" | "PRE_SCALE_UP" | "POST_SCALE_UP" | "TEST_TRAFFIC_SHIFT" | "POST_TEST_TRAFFIC_SHIFT" | "PRODUCTION_TRAFFIC_SHIFT" | "POST_PRODUCTION_TRAFFIC_SHIFT")[];
+      LifecycleStages: (
+        | 'RECONCILE_SERVICE'
+        | 'PRE_SCALE_UP'
+        | 'POST_SCALE_UP'
+        | 'TEST_TRAFFIC_SHIFT'
+        | 'POST_TEST_TRAFFIC_SHIFT'
+        | 'PRODUCTION_TRAFFIC_SHIFT'
+        | 'POST_PRODUCTION_TRAFFIC_SHIFT'
+      )[];
       /**
        * The Amazon Resource Name (ARN) of the hook target. Currently, only Lambda function ARNs are
        * supported.
@@ -1191,7 +1199,7 @@ export type AwsEcsService = {
        * in the *Amazon Elastic Container Service Developer Guide*.
        */
       RoleArn: string;
-    })[];
+    }[];
     /** Information about the CloudWatch alarms. */
     Alarms?: {
       /** One or more CloudWatch alarm names. Use a "," to separate the alarms. */
@@ -1218,7 +1226,7 @@ export type AwsEcsService = {
      * ability to quickly roll back if needed.
      * @enum ["ROLLING","BLUE_GREEN","LINEAR","CANARY"]
      */
-    Strategy?: "ROLLING" | "BLUE_GREEN" | "LINEAR" | "CANARY";
+    Strategy?: 'ROLLING' | 'BLUE_GREEN' | 'LINEAR' | 'CANARY';
     /**
      * The deployment circuit breaker can only be used for services using the rolling update (``ECS``)
      * deployment type.

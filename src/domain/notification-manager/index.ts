@@ -5,15 +5,15 @@ import compose from '@utils/basic-compose-shim';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
 import { getPrettyPrintedFlatObject } from '@utils/formatting';
 import { jsonFetch } from '@utils/http-client';
-import { printer } from '@utils/printer';
+import { tuiManager } from '@utils/tui';
 
 const getWarnOnFailedNotificationHandler =
   (args: { type: DeploymentNotificationUserIntegration['type']; [arg: string]: any }) => (err) => {
     const { type, ...restArgs } = args;
-    printer.warn(
-      `Failed to send notification to ${printer.colorize('cyan', type)}. Details:\n${getPrettyPrintedFlatObject(
+    tuiManager.warn(
+      `Failed to send notification to ${tuiManager.colorize('cyan', type)}. Details:\n${getPrettyPrintedFlatObject(
         restArgs
-      )}\n${printer.colorize('red', 'Error')}: ${err}`
+      )}\n${tuiManager.colorize('red', 'Error')}: ${err}`
     );
   };
 

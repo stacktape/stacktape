@@ -9,7 +9,7 @@ import { stpErrors } from '@errors';
 import { getRelativePath, isDirAccessible, transformToUnixPath } from '@shared/utils/fs-utils';
 import { getCloudformationChildResources } from '@shared/utils/stack-info-map';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
-import { printer } from '@utils/printer';
+import { tuiManager } from '@utils/tui';
 import { initializeStackServicesForWorkingWithDeployedStack, loadUserCredentials } from '../_utils/initialization';
 
 export const commandBucketSync = async (): Promise<BucketSyncReturnValue> => {
@@ -28,7 +28,7 @@ export const commandBucketSync = async (): Promise<BucketSyncReturnValue> => {
   const absoluteSourcePath = getDirectoryPath();
   const prettyDirPath = `./${transformToUnixPath(getRelativePath(absoluteSourcePath))}`;
 
-  printer.info(`Syncing directory ${prettyDirPath} to bucket ${bucketName}.`);
+  tuiManager.info(`Syncing directory ${prettyDirPath} to bucket ${bucketName}.`);
   await notificationManager.sendDeploymentNotification({
     message: { text: `Syncing directory ${prettyDirPath} to bucket ${bucketName}.`, type: 'progress' }
   });

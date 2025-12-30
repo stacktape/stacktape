@@ -6,7 +6,7 @@ import { downloadFile } from '@shared/utils/download-file';
 import { deleteDirectoryContent } from '@shared/utils/fs-utils';
 import { unzip } from '@shared/utils/unzip';
 import { userPrompt } from '@shared/utils/user-prompt';
-import { printer } from '@utils/printer';
+import { tuiManager } from '@utils/tui';
 import { existsSync, move, readdir, readdirSync, remove, statSync } from 'fs-extra';
 import {
   addEslintPrettier,
@@ -53,8 +53,8 @@ export const initUsingStarterProject = async () => {
     if (statSync(absoluteProjectPath).isDirectory()) {
       const contents = readdirSync(absoluteProjectPath);
       if (contents.length) {
-        printer.warn(
-          `Directory ${printer.prettyFilePath(absoluteProjectPath)} already exists and is not empty. Initiating starter project into this directory will overwrite contents of this directory.`
+        tuiManager.warn(
+          `Directory ${tuiManager.prettyFilePath(absoluteProjectPath)} already exists and is not empty. Initiating starter project into this directory will overwrite contents of this directory.`
         );
         const { confirmed } = await userPrompt({
           type: 'confirm',
@@ -67,8 +67,8 @@ export const initUsingStarterProject = async () => {
         await deleteDirectoryContent(absoluteProjectPath);
       }
     } else {
-      printer.warn(
-        `The path you have entered: ${printer.prettyFilePath(absoluteProjectPath)} is a path to a file on your system. Please choose empty directory for your starter project`
+      tuiManager.warn(
+        `The path you have entered: ${tuiManager.prettyFilePath(absoluteProjectPath)} is a path to a file on your system. Please choose empty directory for your starter project`
       );
       return;
     }
@@ -92,19 +92,19 @@ export const initUsingStarterProject = async () => {
 
   const readmePath = join(absoluteProjectPath, 'README.md');
 
-  printer.success(`Project successfully initialized to ${printer.prettyFilePath(absoluteProjectPath)}.`);
-  console.info(`\n   ○ ${printer.colorize('yellow', 'cd')} ${targetDirectory}
-   ○ ${printer.makeBold('To deploy your stack from local machine')}, run ${getDeployStackLine('deploy')}
-   ○ ${printer.makeBold('To deploy your stack from AWS codebuild pipeline')}, run ${getDeployStackLine(
+  tuiManager.success(`Project successfully initialized to ${tuiManager.prettyFilePath(absoluteProjectPath)}.`);
+  console.info(`\n   ○ ${tuiManager.colorize('yellow', 'cd')} ${targetDirectory}
+   ○ ${tuiManager.makeBold('To deploy your stack from local machine')}, run ${getDeployStackLine('deploy')}
+   ○ ${tuiManager.makeBold('To deploy your stack from AWS codebuild pipeline')}, run ${getDeployStackLine(
      'codebuild:deploy'
    )}
-   ○ ${printer.makeBold('For next steps and detailed description of the stack')}, refer to:
+   ○ ${tuiManager.makeBold('For next steps and detailed description of the stack')}, refer to:
    https://github.com/stacktape/stacktape/tree/master/starter-projects/${projectToUse.starterProjectId}
-      or the project's README ${printer.prettyFilePath(readmePath)}\n`);
+      or the project's README ${tuiManager.prettyFilePath(readmePath)}\n`);
 };
 
 const getDeployStackLine = (deploymentType: 'deploy' | 'codebuild:deploy') => {
-  return `${printer.prettyCommand(deploymentType)} ${printer.makeBold('--region')} <<region>> ${printer.makeBold(
+  return `${tuiManager.prettyCommand(deploymentType)} ${tuiManager.makeBold('--region')} <<region>> ${tuiManager.makeBold(
     '--stage'
   )} <<stage>>`;
 

@@ -76,7 +76,15 @@ const sdkArgsForConfigDependentCommands: StacktapeSdkArg[] = [
 
 export const commandsWithDisabledAnnouncements: StacktapeCommand[] = ['dev', 'version', 'upgrade'];
 
-export const commandsNotRequiringApiKey = ['login', 'logout', 'version', 'help', 'defaults:list', 'defaults:configure', 'upgrade'];
+export const commandsNotRequiringApiKey = [
+  'login',
+  'logout',
+  'version',
+  'help',
+  'defaults:list',
+  'defaults:configure',
+  'upgrade'
+];
 
 export const allowedCliArgs: { [_command in StacktapeCliCommand]: StacktapeCliArg[] } = {
   deploy: [

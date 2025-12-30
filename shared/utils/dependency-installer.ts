@@ -49,7 +49,11 @@ class DependencyInstaller {
 
     const installScript = getEsInstallScript(packageManager, useCiInstall ? 'CI' : 'normal');
     this.pendingInstalls[packageManager] = (async () => {
-      await progressLogger.startEvent({ eventType: 'INSTALL_DEPENDENCIES', description: 'Installing dependencies', phase: 'BUILD_AND_PACKAGE' });
+      await progressLogger.startEvent({
+        eventType: 'INSTALL_DEPENDENCIES',
+        description: 'Installing dependencies',
+        phase: 'BUILD_AND_PACKAGE'
+      });
       let result: ExecaReturnValue<string>;
       try {
         result = await exec(installScript[0], installScript.slice(1), {

@@ -14,7 +14,7 @@ import { dockerRun } from '@shared/utils/docker';
 import { getRelativePath } from '@shared/utils/fs-utils';
 import { isJson } from '@shared/utils/misc';
 import { getErrorFromString } from '@utils/errors';
-import { printer } from '@utils/printer';
+import { tuiManager } from '@utils/tui';
 import { addCallerToAssumeRolePolicy } from 'src/commands/_utils/assume-role';
 import {
   getBastionTunnelsForResource,
@@ -105,7 +105,7 @@ export const runDevContainer = async (): Promise<DevReturnValue> => {
       filesToWatch: sourceFiles,
       onChangeFn: async ({ changedFile }) => {
         sourceCodeWatcher.unwatchAllFiles();
-        printer.info(`File at ${getRelativePath(changedFile)} has changed. Rebuilding and restarting container...`);
+        tuiManager.info(`File at ${getRelativePath(changedFile)} has changed. Rebuilding and restarting container...`);
         // @todo we need to remove more, because timings are inaccurate
         const newImage = await prepareImage(containerDefinition);
         sourceCodeWatcher.addFilesToWatch(newImage.sourceFiles);
@@ -124,7 +124,7 @@ const hookToRestartContainer = (
   run: AnyFunction
 ) => {
   hookToRestartStdinInput(async () => {
-    printer.info('Received restart signal. Rebuilding and restarting container...');
+    tuiManager.info('Received restart signal. Rebuilding and restarting container...');
     await prepareImage(containerDefinition);
     await run();
   });
@@ -152,7 +152,7 @@ const runDockerContainer = async (
   });
 
   const { watch } = globalStateManager.args;
-  const restartMessage = printer.colorize(
+  const restartMessage = tuiManager.colorize(
     'gray',
     watch ? '(watching for files changes)' : "(type 'rs' + enter to rebuild and restart)"
   );
@@ -166,8 +166,8 @@ const runDockerContainer = async (
     transformStderrPut: transformContainerWorkloadStdout,
     transformStdoutPut: transformContainerWorkloadStdout,
     onStart: () => {
-      printer.success(`Container started successfully ${restartMessage}.`);
-      printer.info(`Exposed ports: ${ports.map((port) => `http://localhost:${port}`)}`);
+      tuiManager.success(`Container started successfully ${restartMessage}.`);
+      tuiManager.info(`Exposed ports: ${ports.map((port) => `http://localhost:${port}`)}`);
     },
     args: globalStateManager.args
   }).catch((res) => {
@@ -175,7 +175,7 @@ const runDockerContainer = async (
   });
   if (exitCode !== 0 && !(isNewContainerRunStarted && exitCode === 143)) {
     console.error(
-      `\n[${printer.colorize('red', 'CONTAINER_ERROR')}] Container ${printer.makeBold(
+      `\n[${tuiManager.colorize('red', 'CONTAINER_ERROR')}] Container ${tuiManager.makeBold(
         userDefinedContainerName
       )} has exited with error. Exit code: ${exitCode}.` //  Error:\n${err}
     );

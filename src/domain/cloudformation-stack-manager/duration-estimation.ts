@@ -161,7 +161,13 @@ const resourceTypeEstimateSeconds: {
     const shardCount = nodeGroups || 1;
     const replicas = replicasPerNodeGroup ?? (cacheClusters ? Math.max(cacheClusters - 1, 0) : 0);
     const baseSeconds = 600 + clamp(shardCount * 180, 0, 1200) + clamp(replicas * 120, 0, 1200);
-    return applyActionMultiplier({ baseSeconds, action, updateMultiplier: 1.2, deleteMultiplier: 0.35, minSeconds: 120 });
+    return applyActionMultiplier({
+      baseSeconds,
+      action,
+      updateMultiplier: 1.2,
+      deleteMultiplier: 0.35,
+      minSeconds: 120
+    });
   },
   'AWS::EFS::FileSystem': ({ action }) => applyActionMultiplier({ baseSeconds: 300, action, updateMultiplier: 1.1 }),
   'AWS::EFS::MountTarget': ({ action }) => applyActionMultiplier({ baseSeconds: 120, action }),
@@ -169,12 +175,24 @@ const resourceTypeEstimateSeconds: {
   'AWS::DynamoDB::GlobalTable': ({ resourceProps, action }) => {
     const replicaCount = getArrayLength(resourceProps?.Replicas) || 1;
     const baseSeconds = 240 + clamp((replicaCount - 1) * 120, 0, 600);
-    return applyActionMultiplier({ baseSeconds, action, updateMultiplier: 1.1, deleteMultiplier: 0.35, minSeconds: 60 });
+    return applyActionMultiplier({
+      baseSeconds,
+      action,
+      updateMultiplier: 1.1,
+      deleteMultiplier: 0.35,
+      minSeconds: 60
+    });
   },
   'AWS::DynamoDB::Table': ({ resourceProps, action }) => {
     const billingMode = resourceProps?.BillingMode;
     const baseSeconds = 90 + (billingMode === 'PROVISIONED' ? 30 : 0);
-    return applyActionMultiplier({ baseSeconds, action, updateMultiplier: 1.1, deleteMultiplier: 0.35, minSeconds: 30 });
+    return applyActionMultiplier({
+      baseSeconds,
+      action,
+      updateMultiplier: 1.1,
+      deleteMultiplier: 0.35,
+      minSeconds: 30
+    });
   },
   'AWS::ECS::Service': ({ resourceProps, action }) => {
     const desired = getNumberOrUndefined(resourceProps?.DesiredCount) || 1;
@@ -197,7 +215,8 @@ const resourceTypeEstimateSeconds: {
       (deploymentController === 'CODE_DEPLOY' ? 300 : 0);
     if (action === 'update') {
       const imagePullSeconds = usesFargate ? 90 : 45;
-      const minHealthyPercent = getNumberOrUndefined(resourceProps?.DeploymentConfiguration?.MinimumHealthyPercent) || 100;
+      const minHealthyPercent =
+        getNumberOrUndefined(resourceProps?.DeploymentConfiguration?.MinimumHealthyPercent) || 100;
       const deploymentWaves = minHealthyPercent >= 100 ? 2 : 1;
       const waveSeconds = gracePeriod + imagePullSeconds + 60;
       const estimated = 180 + clamp(desired * waveSeconds * deploymentWaves, 0, 3000);
@@ -263,8 +282,7 @@ const resourceTypeEstimateSeconds: {
   'AWS::CloudFront::Function': ({ action }) => applyActionMultiplier({ baseSeconds: 45, action }),
   'AWS::CloudFront::CachePolicy': ({ action }) => applyActionMultiplier({ baseSeconds: 30, action }),
   'AWS::CloudFront::OriginRequestPolicy': ({ action }) => applyActionMultiplier({ baseSeconds: 30, action }),
-  'AWS::CloudFront::CloudFrontOriginAccessIdentity': ({ action }) =>
-    applyActionMultiplier({ baseSeconds: 30, action }),
+  'AWS::CloudFront::CloudFrontOriginAccessIdentity': ({ action }) => applyActionMultiplier({ baseSeconds: 30, action }),
   'AWS::Lambda::Function': ({ resourceProps, action }) => {
     const memory = getNumberOrUndefined(resourceProps?.MemorySize) || 128;
     const vpcConfig = resourceProps?.VpcConfig;
@@ -397,13 +415,7 @@ const collectDependencies = (value: any, resourceNames: Set<string>, result: Set
   Object.values(value).forEach((child) => collectDependencies(child, resourceNames, result));
 };
 
-const getResourceDependencies = ({
-  resourceDef,
-  resourceNames
-}: {
-  resourceDef: any;
-  resourceNames: Set<string>;
-}) => {
+const getResourceDependencies = ({ resourceDef, resourceNames }: { resourceDef: any; resourceNames: Set<string> }) => {
   if (!resourceDef) return [];
   const deps = new Set<string>();
   const dependsOn = resourceDef.DependsOn;
@@ -464,13 +476,16 @@ const getImplicitEcsServiceUpdates = ({
   const resourceNames = new Set(Object.keys(allResources));
   const updatedSet = new Set(updatedResourceLogicalNames);
   const changedTaskDefinitions = new Set(
-    updatedResourceLogicalNames.filter((logicalName) => allResources?.[logicalName]?.Type === 'AWS::ECS::TaskDefinition')
+    updatedResourceLogicalNames.filter(
+      (logicalName) => allResources?.[logicalName]?.Type === 'AWS::ECS::TaskDefinition'
+    )
   );
   if (!changedTaskDefinitions.size) return [];
   return Object.entries(allResources)
     .filter(([logicalName, resource]) => {
       if (updatedSet.has(logicalName)) return false;
-      if (resource?.Type !== 'AWS::ECS::Service' && resource?.Type !== 'Stacktape::ECSBlueGreenV1::Service') return false;
+      if (resource?.Type !== 'AWS::ECS::Service' && resource?.Type !== 'Stacktape::ECSBlueGreenV1::Service')
+        return false;
       const deps = getResourceDependencies({ resourceDef: resource, resourceNames });
       return deps.some((dep) => changedTaskDefinitions.has(dep));
     })
@@ -512,15 +527,16 @@ export const getStackDeploymentEstimate = ({
         )
       : template?.Resources || {};
 
-  const resources: { [logicalName: string]: { Type?: string; Properties?: any } } = resourceLogicalNamesForEstimate?.length
-    ? Object.fromEntries(
-        resourceLogicalNamesForEstimate.map((logicalName) => {
-          const fromNew = template?.Resources?.[logicalName];
-          const fromOld = oldTemplate?.Resources?.[logicalName];
-          return [logicalName, fromNew || fromOld || allResources[logicalName] || {}];
-        })
-      )
-    : allResources;
+  const resources: { [logicalName: string]: { Type?: string; Properties?: any } } =
+    resourceLogicalNamesForEstimate?.length
+      ? Object.fromEntries(
+          resourceLogicalNamesForEstimate.map((logicalName) => {
+            const fromNew = template?.Resources?.[logicalName];
+            const fromOld = oldTemplate?.Resources?.[logicalName];
+            return [logicalName, fromNew || fromOld || allResources[logicalName] || {}];
+          })
+        )
+      : allResources;
 
   const resourceEstimatesSeconds: { [logicalName: string]: number } = {};
   const allResourceEstimatesSeconds: { [logicalName: string]: number } = {};
