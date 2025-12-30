@@ -549,6 +549,43 @@ export class DeployedStackOverviewManager {
     printer.info(linesToPrint.join('\n'), { disableWhitespacePrefixing: true });
   };
 
+  /**
+   * Get resource links for TUI summary display
+   */
+  getResourceLinks = (): { label: string; url: string }[] => {
+    const { resources } = this.stackInfoMap;
+    const links: { label: string; url: string }[] = [];
+
+    for (const resourceName in resources) {
+      const resource = resources[resourceName];
+      if (
+        [
+          'http-api-gateway',
+          'bucket',
+          'application-load-balancer',
+          'network-load-balancer',
+          'web-service',
+          'hosting-bucket',
+          'function',
+          'nextjs-web'
+        ].includes(resource.resourceType)
+      ) {
+        const urlParams = [
+          resource.referencableParams.cdnCustomDomainUrls,
+          resource.referencableParams.cdnUrl,
+          resource.referencableParams.customDomainUrls,
+          resource.referencableParams.url
+        ];
+        const url = urlParams.filter(Boolean)[0]?.value;
+        if (url) {
+          links.push({ label: `${resourceName} URL`, url: url.toString() });
+        }
+      }
+    }
+
+    return links;
+  };
+
   printEntireStackInfo = () => {
     const {
       resources,

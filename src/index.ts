@@ -7,6 +7,7 @@ import { notificationManager } from '@domain-services/notification-manager';
 import { printer } from '@utils/printer';
 import { initializeSentry, setSentryTags } from '@utils/sentry';
 import { deleteTempFolder } from '@utils/temp-files';
+import { tuiManager } from '@utils/tui';
 import { commandAwsProfileCreate } from './commands/aws-profile-create';
 import { commandAwsProfileDelete } from './commands/aws-profile-delete';
 import { commandAwsProfileList } from './commands/aws-profile-list';
@@ -43,6 +44,8 @@ import { commandStackList } from './commands/stack-list';
 import { commandUpgrade } from './commands/upgrade';
 import { commandVersion } from './commands/version';
 
+const COMMANDS_WITH_TUI: StacktapeCommand[] = ['deploy', 'delete', 'codebuild:deploy', 'rollback', 'preview-changes'];
+
 export const runCommand = async (opts: StacktapeProgrammaticOptions) => {
   try {
     initializeSentry();
@@ -52,10 +55,22 @@ export const runCommand = async (opts: StacktapeProgrammaticOptions) => {
     await announcementsManager.init();
     setSentryTags({ invocationId: globalStateManager.invocationId, command: globalStateManager.command });
     await deleteTempFolder();
+
+    const shouldUseTui = COMMANDS_WITH_TUI.includes(globalStateManager.command);
+    if (shouldUseTui) {
+      tuiManager.init({ logFormat: globalStateManager.logFormat, logLevel: globalStateManager.logLevel });
+      tuiManager.start();
+    }
+
     const executor = getCommandExecutor(globalStateManager.command);
     const commandResult = await executor();
     await eventManager.processHooks({ captureType: 'FINISH' });
     await eventManager.processFinalActions();
+
+    if (shouldUseTui) {
+      await tuiManager.stop();
+    }
+
     await applicationManager.cleanUpAfterSuccess();
     const result = { result: commandResult, eventLog: eventManager.formattedEventLogData };
     // console.dir(result.eventLog, { depth: 7 });
@@ -66,6 +81,7 @@ export const runCommand = async (opts: StacktapeProgrammaticOptions) => {
       await announcementsManager.printAnnouncements();
     }
   } catch (err) {
+    await tuiManager.stop();
     if (applicationManager.isInterrupted) {
       return;
     }

@@ -28,6 +28,7 @@ import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { getErrorHandler, loggingPlugin } from '@utils/aws-sdk-manager/utils';
 import { logCollectorStream } from '@utils/log-collector';
 import { printer } from '@utils/printer';
+import { tuiManager } from '@utils/tui';
 
 export const initializeAllStackServices = async ({
   commandModifiesStack,
@@ -40,6 +41,14 @@ export const initializeAllStackServices = async ({
   loadGlobalConfig?: boolean;
   requiresSubscription?: boolean;
 }) => {
+  tuiManager.setHeader({
+    action: globalStateManager.command === 'delete' ? 'DELETING' : 'DEPLOYING',
+    projectName: globalStateManager.args.projectName || globalStateManager.targetStack?.projectName || 'project',
+    stageName: globalStateManager.stage || 'stage',
+    region: globalStateManager.region || 'region'
+  });
+  eventManager.setPhase('INITIALIZE');
+
   await loadUserCredentials();
   await recordStackOperationStart();
 

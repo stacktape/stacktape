@@ -36,7 +36,64 @@ import { printer } from '@utils/printer';
 import { getAwsSynchronizedTime } from '@utils/time';
 import { getNextVersionString } from '@utils/versioning';
 import uniqBy from 'lodash/uniqBy';
+import { getEstimatedRemainingPercent, getStackDeploymentEstimate } from './duration-estimation';
 import { cfFailedEventHandlers, getHintsAfterStackFailureOperation } from './utils';
+
+const formatChangeSummary = ({
+  cfStackAction,
+  templateDiff,
+  createResourcesCount,
+  deleteResourcesCount
+}: {
+  cfStackAction: 'create' | 'update' | 'delete' | 'rollback';
+  templateDiff?: ReturnType<typeof templateManager.getOldTemplateDiff>;
+  createResourcesCount?: number;
+  deleteResourcesCount?: number;
+}) => {
+  const emptyLists = { created: [], updated: [], deleted: [] as string[] };
+  if (cfStackAction === 'create') {
+    return {
+      text: `Creating ${createResourcesCount || 0} resources`,
+      counts: { created: createResourcesCount || 0, updated: 0, deleted: 0 },
+      lists: emptyLists
+    };
+  }
+  if (cfStackAction === 'delete' || cfStackAction === 'rollback') {
+    return {
+      text: `Deleting ${deleteResourcesCount || 0} resources`,
+      counts: { created: 0, updated: 0, deleted: deleteResourcesCount || 0 },
+      lists: emptyLists
+    };
+  }
+  if (!templateDiff) {
+    return {
+      text: 'Updating resources',
+      counts: { created: 0, updated: 0, deleted: 0 },
+      lists: emptyLists
+    };
+  }
+
+  const added: string[] = [];
+  const removed: string[] = [];
+  const updated: string[] = [];
+  templateDiff.resources?.forEachDifference((logicalId, diff) => {
+    if (diff.isAddition) added.push(logicalId);
+    else if (diff.isRemoval) removed.push(logicalId);
+    else if (diff.isUpdate) updated.push(logicalId);
+  });
+  return {
+    text: 'Updating resources',
+    counts: { created: added.length, updated: updated.length, deleted: removed.length },
+    lists: { created: added, updated, deleted: removed }
+  };
+};
+
+const formatResourceList = (resources: string[], maxItems: number) => {
+  if (!resources.length) return 'none';
+  const visible = resources.slice(0, maxItems);
+  const overflow = resources.length - visible.length;
+  return `${visible.join(', ')}${overflow > 0 ? ` +${overflow}` : ''}`;
+};
 
 export class StackManager {
   callerIdentity: AwsCallerIdentity;
@@ -506,6 +563,7 @@ export class StackManager {
     const potentialErrorCausingEvents: { [logicalResourceId: string]: StackEvent } = {};
     const inProgressResources = new Set<string>();
     const completeResources = new Set<string>();
+    const seenResources = new Set<string>();
     let resourcesToHandleCount: number;
     let isResourceToHandleCountPossiblyInaccurate = false;
     if (cfStackAction === 'create') {
@@ -519,6 +577,16 @@ export class StackManager {
       isResourceToHandleCountPossiblyInaccurate = true;
       resourcesToHandleCount = Object.keys(templateManager.template.Resources).length;
     }
+    const templateDiff = cfStackAction === 'update' ? templateManager.getOldTemplateDiff() : undefined;
+    const updatedResourceLogicalNames =
+      cfStackAction === 'update' ? templateDiff?.resources?.logicalIds.filter(Boolean) : undefined;
+    const { totalSeconds } = getStackDeploymentEstimate({
+      cfStackAction,
+      template: cfStackAction === 'create' ? templateManager.initialTemplate : templateManager.template,
+      oldTemplate: templateManager.oldTemplate,
+      existingStackResources: this.existingStackResources,
+      resourceLogicalNames: updatedResourceLogicalNames
+    });
 
     let fetchSince = await getAwsSynchronizedTime();
     fetchSince.setSeconds(fetchSince.getSeconds() - 20);
@@ -543,10 +611,66 @@ export class StackManager {
           : `${
               cleanupAfterSuccessfulUpdateInProgress ? 'Cleaning up old resources in progress' : 'In progress'
             }: ${inProgressAmount}`;
-      const finishedPart = `Finished: ${completedAmount}/${isResourceToHandleCountPossiblyInaccurate ? '~' : ''}${
-        globalStateManager.command === 'rollback' ? 'unknown' : resourcesToHandleCount
-      }`;
-      onProgress(`${inProgressPart}. ${finishedPart}.`);
+      const finishedPart =
+        cfStackAction === 'create'
+          ? `Finished: ${completedAmount}/${isResourceToHandleCountPossiblyInaccurate ? '~' : ''}${resourcesToHandleCount}`
+          : `Finished: ${completedAmount}`;
+      const remainingPercent = getEstimatedRemainingPercent({
+        totalSeconds,
+        startTime: lastStackActionTimestamp,
+        now: new Date()
+      });
+      const remainingPart =
+        cleanupAfterSuccessfulUpdateInProgress || remainingPercent === null
+          ? ''
+          : ` Est. remaining: ~${remainingPercent === 0 ? '<1' : remainingPercent}%`;
+      const changeSummary = formatChangeSummary({
+        cfStackAction,
+        templateDiff,
+        createResourcesCount: resourcesToHandleCount,
+        deleteResourcesCount: resourcesToHandleCount
+      });
+      const plannedResources =
+        updatedResourceLogicalNames && updatedResourceLogicalNames.length > 0
+          ? new Set(updatedResourceLogicalNames)
+          : undefined;
+      const completedPlanned = plannedResources
+        ? Array.from(completeResources).filter((name) => plannedResources.has(name)).length
+        : completeResources.size;
+      const inProgressPlanned = plannedResources
+        ? Array.from(inProgressResources).filter((name) => plannedResources.has(name)).length
+        : inProgressResources.size;
+      const totalPlannedBase = plannedResources ? plannedResources.size : resourcesToHandleCount;
+      const totalSeen = seenResources.size;
+      const totalPlanned = Math.max(totalPlannedBase, totalSeen);
+      const waitingPlanned = Math.max(0, totalPlanned - completedPlanned - inProgressPlanned);
+      const activeList = formatResourceList(Array.from(inProgressResources), 3);
+      const waitingList =
+        waitingPlanned > 0
+          ? formatResourceList(
+              plannedResources
+                ? Array.from(plannedResources).filter(
+                    (name) => !inProgressResources.has(name) && !completeResources.has(name)
+                  )
+                : Array.from(seenResources).filter(
+                    (name) => !inProgressResources.has(name) && !completeResources.has(name)
+                  ),
+              3
+            )
+          : 'none';
+      const summaryPart = `Summary: ${printer.makeBold('created')}=${changeSummary.counts.created} ${printer.makeBold(
+        'updated'
+      )}=${changeSummary.counts.updated} ${printer.makeBold('deleted')}=${changeSummary.counts.deleted}.`;
+      const detailPart = `Details: ${printer.makeBold('created')}=${formatResourceList(
+        changeSummary.lists.created,
+        4
+      )}; ${printer.makeBold('updated')}=${formatResourceList(changeSummary.lists.updated, 4)}; ${printer.makeBold(
+        'deleted'
+      )}=${formatResourceList(changeSummary.lists.deleted, 4)}.`;
+      const progressMessage = `${inProgressPart}. ${finishedPart}.${remainingPart}`.trim();
+      onProgress(
+        `${progressMessage} Progress: ${completedPlanned}/${totalPlanned}. Currently updating: ${activeList}. Waiting to start update: ${waitingList}. ${summaryPart} ${detailPart}`
+      );
     };
 
     const { warningMessages }: { warningMessages?: string[] } = await new Promise((resolve, reject) => {
@@ -703,6 +827,7 @@ export class StackManager {
             // if the new event says that some resource is in progress, we add event into inProgressResources
             else if (status.endsWith('IN_PROGRESS')) {
               inProgressResources.add(LogicalResourceId);
+              seenResources.add(LogicalResourceId);
             }
             // if the new event says that some resource is complete, we add event into completedResources
             // however if some resource
@@ -714,6 +839,7 @@ export class StackManager {
             ) {
               completeResources.add(LogicalResourceId);
               inProgressResources.delete(LogicalResourceId);
+              seenResources.add(LogicalResourceId);
               delete potentialErrorCausingEvents[LogicalResourceId];
             }
             // if status of resource is failed, we should not fail entire operation

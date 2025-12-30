@@ -3,6 +3,7 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import { configManager } from '@domain-services/config-manager';
 import { stpErrors } from '@errors';
 import { printer } from '@utils/printer';
+import { tuiManager } from '@utils/tui';
 import { camelCase } from 'change-case';
 import ci from 'ci-info';
 import { getExecutableScriptFunction } from 'src/commands/script-run/utils';
@@ -48,16 +49,17 @@ export class EventManager implements ProgressLogger {
     this.finalActions = [];
   }
 
-  /**
-   * Returns the current event context.
-   * Used by child loggers to inherit and extend context.
-   */
   get eventContext(): EventContext {
     return this._eventContext;
   }
 
   setPhase = (phase: DeploymentPhase) => {
     this.currentPhase = phase;
+    tuiManager.setPhase(phase);
+  };
+
+  finishPhase = () => {
+    tuiManager.finishPhase();
   };
 
   get formattedEventLogData() {
@@ -241,7 +243,35 @@ export class EventManager implements ProgressLogger {
       parentEventType: resolvedParentEventType,
       parentInstanceId: resolvedParentInstanceId
     });
-    this.printProgress();
+
+    if (tuiManager.enabled) {
+      if (captureType === 'START') {
+        tuiManager.startEvent({
+          eventType,
+          description,
+          phase: phase || this.currentPhase,
+          parentEventType: resolvedParentEventType,
+          instanceId: resolvedInstanceId
+        });
+      } else if (captureType === 'UPDATE') {
+        tuiManager.updateEvent({
+          eventType,
+          additionalMessage,
+          parentEventType: resolvedParentEventType,
+          instanceId: resolvedInstanceId
+        });
+      } else if (captureType === 'FINISH') {
+        tuiManager.finishEvent({
+          eventType,
+          finalMessage,
+          data,
+          parentEventType: resolvedParentEventType,
+          instanceId: resolvedInstanceId
+        });
+      }
+    } else {
+      this.printProgress();
+    }
   };
 
   printProgress = () => {

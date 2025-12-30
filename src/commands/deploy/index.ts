@@ -19,6 +19,7 @@ import { fsPaths } from '@shared/naming/fs-paths';
 import { obfuscatedNamesStateHolder } from '@shared/naming/utils';
 import { printer } from '@utils/printer';
 import { getDetailedStackInfoMap } from '@utils/stack-info-map-diff';
+import { tuiManager } from '@utils/tui';
 import {
   injectEnvironmentToHostedHtmlFiles,
   potentiallyPromptBeforeOperation,
@@ -39,6 +40,7 @@ export const commandDeploy = async (): Promise<DeployReturnValue> => {
 
   validateGuardrails(configManager.guardrails);
 
+  eventManager.setPhase('BUILD_AND_PACKAGE');
   const [{ packagedWorkloads, abort, cfTemplateDiff }] = await Promise.all([
     prepareArtifactsForStackDeployment(),
     // @note this can take a long time, so we do it in parallel with other stack activities
@@ -84,6 +86,7 @@ export const commandDeploy = async (): Promise<DeployReturnValue> => {
   }
 
   // deploy all artifacts - use versions depending on whether this is hotswap or not
+  eventManager.setPhase('UPLOAD');
   await deploymentArtifactManager.uploadAllArtifacts({ useHotswap });
 
   await notificationManager.sendDeploymentNotification({
@@ -93,6 +96,7 @@ export const commandDeploy = async (): Promise<DeployReturnValue> => {
     }
   });
 
+  eventManager.setPhase('DEPLOY');
   if (useHotswap) {
     await performHotswapDeploy();
   } else {
@@ -152,6 +156,10 @@ export const commandDeploy = async (): Promise<DeployReturnValue> => {
       type: 'success'
     }
   });
+
+  const consoleUrl = `https://console.stacktape.com/projects/${globalStateManager.targetStack.projectName}/${globalStateManager.stage}/overview`;
+  const resourceLinks = deployedStackOverviewManager.getResourceLinks();
+  tuiManager.setComplete(true, 'DEPLOYMENT SUCCESSFUL', resourceLinks, consoleUrl);
 
   return { stackInfo: detailedStackInfoSensitive, packagedWorkloads };
 };
