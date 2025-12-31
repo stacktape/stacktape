@@ -66,7 +66,7 @@ export const commandDeploy = async (): Promise<DeployReturnValue> => {
     useHotswap = isHotswapPossible;
     if (!useHotswap) {
       // in this case we are falling back to standard Cloudformation deploy
-      tuiManager.warn('Stack changes are not hot-swappable. Performing CloudFormation deployment.');
+      tuiManager.warn('Hot-swap not possible; running full CloudFormation deploy.');
       // this means we might need to create new versions for some packages(jobs) that were previously skipped
       // otherwise Cloudformation might not detect the change
       // currently we are only able to create new versions by uploading new artifacts.
@@ -171,9 +171,7 @@ export const prepareArtifactsForStackDeployment = async (): Promise<{
   const packagedWorkloads = await packagingManager.packageAllWorkloads({ commandCanUseCache: true });
   await calculatedStackOverviewManager.resolveAllResources();
   if (obfuscatedNamesStateHolder.usingObfuscateNames) {
-    tuiManager.warn(
-      'Stack name (made of project name and stage) is too long. Some resources will have obfuscated names.'
-    );
+    tuiManager.warn('Stack name too long (project+stage). Some resource names will be obfuscated.');
   }
 
   await calculatedStackOverviewManager.populateStackMetadata();

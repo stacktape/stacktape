@@ -44,7 +44,7 @@ export const commandDefaultsConfigure = async () => {
   await globalStateManager.saveDefaults({ cliArgsDefaults, otherDefaults });
   await globalStateManager.reloadPersistedState();
 
-  tuiManager.success(`Defaults successfully saved to ${fsPaths.persistedStateFilePath()}.`);
+  tuiManager.success(`Defaults saved to ${tuiManager.prettyFilePath(fsPaths.persistedStateFilePath())}.`);
 };
 
 const maskString = (input: string): string => {

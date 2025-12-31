@@ -12,7 +12,7 @@ export const getAwsSynchronizedTime = async () => {
     return synced.now();
   } catch (err) {
     console.error(`Unable to get time synced with AWS: ${err.message}.\n Using local time`);
-    tuiManager.debug(`Unable to get time synced with AWS: ${err.message}.\n Using local time`);
+    tuiManager.debug(`Failed to sync time with AWS: ${err.message}. Using local time.`);
     return new Date();
   }
 };

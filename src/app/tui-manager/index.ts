@@ -1,8 +1,17 @@
 import type { ExpectedError, UnexpectedError } from '@utils/errors';
 import type { Instance } from 'ink';
 import type { PromptObject } from 'prompts';
-import type { ErrorDisplayData } from './components';
-import type { TuiDeploymentHeader, TuiEventStatus, TuiLink, TuiMessageType } from './types';
+import type { ErrorDisplayData, NextStep } from './components';
+import type {
+  TuiDeploymentHeader,
+  TuiEventStatus,
+  TuiLink,
+  TuiMessageType,
+  TuiPromptConfirm,
+  TuiPromptSelect,
+  TuiPromptText,
+  TuiSelectOption
+} from './types';
 import { eventManager } from '@application-services/event-manager';
 import { INVOKED_FROM_ENV_VAR_NAME, IS_DEV, linksMap } from '@config';
 import { getRelativePath, transformToUnixPath } from '@shared/utils/fs-utils';
@@ -10,10 +19,9 @@ import { logCollectorStream } from '@utils/log-collector';
 import ci from 'ci-info';
 import { render } from 'ink';
 import kleur from 'kleur';
-import prompts from 'prompts';
 import React from 'react';
 import terminalLink from 'terminal-link';
-import { renderErrorToString, renderStackErrorsToString, Table, TuiApp } from './components';
+import { renderErrorToString, renderNextStepsToString, renderStackErrorsToString, Table, TuiApp } from './components';
 import { nonTTYRenderer } from './non-tty-renderer';
 import { tuiState } from './state';
 import { formatDuration, stripAnsi } from './utils';
@@ -26,6 +34,7 @@ export type {
   TuiLink,
   TuiMessage,
   TuiPhase,
+  TuiSelectOption,
   TuiState,
   TuiSummary,
   TuiWarning
@@ -109,17 +118,153 @@ class TuiManager {
   }
 
   /**
-   * Show a user prompt. Automatically pauses the TUI during prompting.
-   * @param questions - prompts configuration object
-   * @returns Promise with the user's answers
+   * Show a user prompt.
+   * @deprecated Use promptSelect, promptConfirm, or promptText instead
    */
-  async prompt<T extends string = string>(questions: PromptObject<T>): Promise<prompts.Answers<T>> {
-    this.pause();
-    try {
-      return await prompts(questions, { onCancel: () => process.emit('SIGINT' as any) });
-    } finally {
-      this.resume();
+  async prompt<T extends string = string>(questions: PromptObject<T>): Promise<Record<T, any>> {
+    const question = Array.isArray(questions) ? questions[0] : questions;
+    const name = (question.name as string) || 'value';
+
+    if (question.type === 'select') {
+      const choices = question.choices as Array<{ title: string; value: string; description?: string }>;
+      const result = await this.promptSelect({
+        message: question.message as string,
+        options: choices.map((c) => ({ label: c.title, value: c.value, description: c.description }))
+      });
+      return { [name]: result } as Record<T, any>;
     }
+
+    if (question.type === 'confirm') {
+      const result = await this.promptConfirm({
+        message: question.message as string
+      });
+      return { [name]: result } as Record<T, any>;
+    }
+
+    if (question.type === 'text') {
+      const result = await this.promptText({
+        message: question.message as string,
+        placeholder: question.initial as string
+      });
+      return { [name]: result } as Record<T, any>;
+    }
+
+    throw new Error(
+      `Unsupported prompt type: ${question.type}. Use promptSelect, promptConfirm, or promptText instead.`
+    );
+  }
+
+  /**
+   * Show a select prompt using ink-ui Select component.
+   * In non-interactive mode, uses defaultValue if provided, otherwise throws.
+   */
+  async promptSelect(config: { message: string; options: TuiSelectOption[]; defaultValue?: string }): Promise<string> {
+    // For non-interactive mode, use default value or throw
+    if (!this.isTTY || this.logFormat !== 'fancy' || !this._isEnabled) {
+      if (config.defaultValue !== undefined) {
+        const selectedOption = config.options.find((o) => o.value === config.defaultValue);
+        this.info(`${config.message} ${this.colorize('cyan', selectedOption?.label || config.defaultValue)} (default)`);
+        return config.defaultValue;
+      }
+      throw new Error(
+        `Interactive prompt "${config.message}" is not supported in non-interactive mode. Please provide the value via command-line arguments.`
+      );
+    }
+
+    // Use ink-ui Select component
+    const result = await new Promise<string>((resolve) => {
+      const prompt: TuiPromptSelect = {
+        type: 'select',
+        message: config.message,
+        options: config.options,
+        resolve
+      };
+      tuiState.setActivePrompt(prompt);
+    });
+
+    // Show selected value
+    const selectedOption = config.options.find((o) => o.value === result);
+    this.info(`${config.message} ${this.colorize('cyan', selectedOption?.label || result)}`);
+
+    return result;
+  }
+
+  /**
+   * Show a confirm prompt using ink-ui ConfirmInput component.
+   * In non-interactive mode, uses defaultValue if provided, otherwise throws.
+   */
+  async promptConfirm(config: { message: string; defaultValue?: boolean }): Promise<boolean> {
+    // For non-interactive mode, use default value or throw
+    if (!this.isTTY || this.logFormat !== 'fancy' || !this._isEnabled) {
+      if (config.defaultValue !== undefined) {
+        const answer = config.defaultValue ? this.colorize('green', 'Yes') : this.colorize('red', 'No');
+        this.info(`${config.message} ${answer} (default)`);
+        return config.defaultValue;
+      }
+      throw new Error(
+        `Interactive prompt "${config.message}" is not supported in non-interactive mode. Please provide the value via command-line arguments.`
+      );
+    }
+
+    // Use ink-ui ConfirmInput component
+    const result = await new Promise<boolean>((resolve) => {
+      const prompt: TuiPromptConfirm = {
+        type: 'confirm',
+        message: config.message,
+        resolve
+      };
+      tuiState.setActivePrompt(prompt);
+    });
+
+    // Show confirmation result
+    const answer = result ? this.colorize('green', 'Yes') : this.colorize('red', 'No');
+    this.info(`${config.message} ${answer}`);
+
+    return result;
+  }
+
+  /**
+   * Show a text input prompt using ink-ui TextInput component.
+   * In non-interactive mode, uses defaultValue if provided, otherwise throws.
+   */
+  async promptText(config: {
+    message: string;
+    placeholder?: string;
+    isPassword?: boolean;
+    /** Description shown in gray next to the question */
+    description?: string;
+    defaultValue?: string;
+  }): Promise<string> {
+    // For non-interactive mode, use default value or throw
+    if (!this.isTTY || this.logFormat !== 'fancy' || !this._isEnabled) {
+      if (config.defaultValue !== undefined) {
+        const displayValue = config.isPassword ? '*'.repeat(config.defaultValue.length) : config.defaultValue;
+        this.info(`${config.message} ${this.colorize('cyan', displayValue)} (default)`);
+        return config.defaultValue;
+      }
+      throw new Error(
+        `Interactive prompt "${config.message}" is not supported in non-interactive mode. Please provide the value via command-line arguments.`
+      );
+    }
+
+    // Use ink-ui TextInput component
+    const result = await new Promise<string>((resolve) => {
+      const prompt: TuiPromptText = {
+        type: 'text',
+        message: config.message,
+        placeholder: config.placeholder,
+        isPassword: config.isPassword,
+        description: config.description,
+        resolve
+      };
+      tuiState.setActivePrompt(prompt);
+    });
+
+    // Show entered value (masked for passwords)
+    const displayValue = config.isPassword ? '*'.repeat(result.length) : result;
+    this.info(`${config.message} ${this.colorize('cyan', displayValue)}`);
+
+    return result;
   }
 
   async stop() {
@@ -327,10 +472,6 @@ class TuiManager {
     return this.makeBold(stackName);
   }
 
-  prettyResourceParamName(param: string): string {
-    return this.makeBold(this.colorize('gray', param));
-  }
-
   prettyConfigProperty(property: string): string {
     return this.makeBold(this.colorize('gray', property));
   }
@@ -385,10 +526,7 @@ class TuiManager {
       hints.push(...(Array.isArray(hint) ? hint : [hint]));
     }
     if (sentryEventId) {
-      hints.push(
-        `This error has been anonymously reported to our error monitoring service with id ${sentryEventId}. ` +
-          `You can create an issue with more details at https://github.com/stacktape/stacktape/issues. Please include error id in your issue.`
-      );
+      hints.push(`This error has been anonymously reported to our error monitoring service with id ${sentryEventId}.`);
     }
     hints.push(`To get help, reach out to our team at support@stacktape.com`);
 
@@ -562,6 +700,26 @@ class TuiManager {
     ]);
 
     this.printTable({ header, rows });
+  }
+
+  // ============================================================
+  // Next Steps Output
+  // ============================================================
+
+  /**
+   * Print next steps in a formatted list.
+   * Uses console.info to avoid clearing previous terminal output.
+   */
+  showNextSteps(steps: NextStep[]) {
+    if (this.logFormat === 'json') {
+      this.printStacktapeLog({ type: 'NEXT_STEPS', data: { steps } });
+      return;
+    }
+
+    // Always use console.info to avoid clearing previous output
+    // (creating a new Ink instance would overwrite previous terminal content)
+    const output = renderNextStepsToString(steps, this.colorize.bind(this), this.makeBold.bind(this));
+    console.info(output);
   }
 }
 

@@ -77,7 +77,7 @@ export const loggingPlugin = {
         }
 
         if (shouldPrint) {
-          tuiManager.debug(`${prefix} Input:\n  └ ${JSON.stringify(input)}`);
+          tuiManager.debug(`${prefix} Request input:\n  └ ${JSON.stringify(input)}`);
         }
 
         const start = Date.now();
@@ -88,7 +88,7 @@ export const loggingPlugin = {
 
         // const metadata = result.output?.$metadata || {};
         if (shouldPrint) {
-          tuiManager.debug(`${prefix} Finished (took ${end - start}ms).`);
+          tuiManager.debug(`${prefix} Done in ${end - start}ms.`);
         }
         return result;
       },

@@ -28,7 +28,7 @@ export const commandAwsProfileDelete = async (): Promise<AwsProfileDeleteReturnV
   });
 
   await deleteAwsProfile(profile);
-  tuiManager.success(`Successfully deleted credentials for profile ${profile}.`);
+  tuiManager.success(`Deleted credentials for AWS profile ${profile}.`);
 
   return null;
 };

@@ -51,8 +51,8 @@ export const potentiallyPromptBeforeOperation = async ({
     const updated = stackManager.existingStackDetails.LastUpdatedTime?.toLocaleString();
     tuiManager.info(
       [
-        `You are about to ${stackManager.stackActionType} the following stack:`,
-        `  ${tuiManager.colorize('yellow', 'Stack name')}: ${stackName}`,
+        `About to ${stackManager.stackActionType} stack:`,
+        `  ${tuiManager.colorize('yellow', 'Stack name')}: ${tuiManager.prettyStackName(stackName)}`,
         created && `  ${tuiManager.colorize('yellow', 'Creation time')}: ${created}`,
         updated && `  ${tuiManager.colorize('yellow', 'Last updated time')}: ${updated}`,
         `  ${tuiManager.colorize('yellow', 'Number of resources')}: ${stackManager.existingStackResources.length}`
@@ -62,7 +62,7 @@ export const potentiallyPromptBeforeOperation = async ({
     );
     const possiblyImpactedResourcesPart =
       possiblyImpactedResources?.length &&
-      `The following resources may/will be deleted during requested operation. This might lead to a data loss.\n${possiblyImpactedResources
+      `These resources may be deleted during this operation. This can cause data loss.\n${possiblyImpactedResources
         .map(
           ({ stpResourceName, resourceType }) =>
             `○ ${tuiManager.makeBold(tuiManager.colorize('cyan', stpResourceName))} (type ${resourceType})`
@@ -80,7 +80,7 @@ export const potentiallyPromptBeforeOperation = async ({
       message: 'Are you sure you want to proceed?'
     });
     if (!proceed) {
-      tuiManager.info('Operation aborted...');
+      tuiManager.info('Operation canceled.');
       return { abort: true };
     }
   }

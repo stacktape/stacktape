@@ -8,7 +8,7 @@ export const commandDefaultsList = async () => {
   };
 
   if (!Object.keys(defaults)) {
-    tuiManager.info('No defaults are configured on this system');
+    tuiManager.info(`No defaults configured. Run \`${tuiManager.prettyCommand('defaults:configure')}\`.`);
   }
 
   console.info(

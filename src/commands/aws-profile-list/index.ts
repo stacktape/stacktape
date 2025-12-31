@@ -15,10 +15,7 @@ export const commandAwsProfileList = async (): Promise<AwsProfileListReturnValue
   if (globalStateManager.invokedFrom === 'cli') {
     if (!rows.length) {
       tuiManager.warn(
-        `No AWS profiles are set on this system.\n       You can create a new AWS profile using '${tuiManager.colorize(
-          'yellow',
-          'stacktape aws-profile:create'
-        )}' command.`
+        `No AWS profiles found. Create one with \`${tuiManager.colorize('yellow', 'stacktape aws-profile:create')}\`.`
       );
     } else {
       tuiManager.printTable({

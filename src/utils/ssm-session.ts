@@ -93,7 +93,7 @@ export class SsmPortForwardingTunnel {
             if (!`${error}`.includes('TargetNotConnected')) {
               throw error;
             }
-            tuiManager.debug(`Tunneling through ${this.#instanceId} failed. Attempting reconnect`);
+            tuiManager.debug(`Tunnel via ${this.#instanceId} failed. Reconnecting...`);
           }
         }
       ).catch((error) => reject(error));

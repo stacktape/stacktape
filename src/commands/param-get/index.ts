@@ -32,9 +32,9 @@ export const commandParamGet = async (): Promise<ParamGetReturnValue> => {
   const paramValue = param.value;
   if (globalStateManager.invokedFrom === 'cli') {
     tuiManager.success(
-      `Successfully retrieved parameter ${tuiManager.prettyResourceName(resourceName)}.${tuiManager.prettyResourceParamName(
+      `Parameter retrieved: ${tuiManager.prettyResourceName(resourceName)}.${tuiManager.prettyConfigProperty(
         paramName
-      )}\n`
+      )}`
     );
     console.info(`${tuiManager.makeBold(`${paramValue}`)}\n`);
   }

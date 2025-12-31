@@ -12,7 +12,6 @@ import { packagingManager } from '@domain-services/packaging-manager';
 import { stpErrors } from '@errors';
 import { getJobName, getLocalInvokeContainerName } from '@shared/naming/utils';
 import { dockerRun } from '@shared/utils/docker';
-import { getRelativePath } from '@shared/utils/fs-utils';
 import { isJson } from '@shared/utils/misc';
 import { getErrorFromString } from '@utils/errors';
 import { addCallerToAssumeRolePolicy } from 'src/commands/_utils/assume-role';
@@ -105,7 +104,9 @@ export const runDevContainer = async (): Promise<DevReturnValue> => {
       filesToWatch: sourceFiles,
       onChangeFn: async ({ changedFile }) => {
         sourceCodeWatcher.unwatchAllFiles();
-        tuiManager.info(`File at ${getRelativePath(changedFile)} has changed. Rebuilding and restarting container...`);
+        tuiManager.info(
+          `File changed: ${tuiManager.prettyFilePath(changedFile)}. Rebuilding and restarting container...`
+        );
         // @todo we need to remove more, because timings are inaccurate
         const newImage = await prepareImage(containerDefinition);
         sourceCodeWatcher.addFilesToWatch(newImage.sourceFiles);
@@ -124,7 +125,7 @@ const hookToRestartContainer = (
   run: AnyFunction
 ) => {
   hookToRestartStdinInput(async () => {
-    tuiManager.info('Received restart signal. Rebuilding and restarting container...');
+    tuiManager.info('Restart requested. Rebuilding and restarting container...');
     await prepareImage(containerDefinition);
     await run();
   });
@@ -166,8 +167,8 @@ const runDockerContainer = async (
     transformStderrPut: transformContainerWorkloadStdout,
     transformStdoutPut: transformContainerWorkloadStdout,
     onStart: () => {
-      tuiManager.success(`Container started successfully ${restartMessage}.`);
-      tuiManager.info(`Exposed ports: ${ports.map((port) => `http://localhost:${port}`)}`);
+      tuiManager.success(`Container started. ${restartMessage}.`);
+      tuiManager.info(`Ports: ${ports.map((port) => `http://localhost:${port}`)}`);
     },
     args: globalStateManager.args
   }).catch((res) => {

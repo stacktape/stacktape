@@ -1,24 +1,52 @@
-import type { TuiPrompt, TuiPromptConfirm, TuiPromptSelect, TuiPromptText } from '../types';
-import { ConfirmInput, Select, TextInput } from '@inkjs/ui';
+import type { TuiPrompt, TuiPromptConfirm, TuiPromptSelect, TuiPromptText, TuiSelectOption } from '../types';
 import { Box, Text } from 'ink';
-import React from 'react';
+import React, { useMemo } from 'react';
 import { tuiState } from '../state';
+import { ConfirmInputCustom } from './ConfirmInputCustom';
+import { SelectInput } from './SelectInput';
+import { TextInputCustom } from './TextInputCustom';
 
 type PromptProps = {
   prompt: TuiPrompt;
 };
 
+/**
+ * Ensure options have unique values for React keys.
+ * If duplicates exist, append index to make them unique.
+ * Returns a map from unique value -> original value for resolving.
+ */
+const ensureUniqueOptions = (options: TuiSelectOption[]) => {
+  const valueCount = new Map<string, number>();
+  const uniqueOptions: TuiSelectOption[] = [];
+  const valueMap = new Map<string, string>(); // uniqueValue -> originalValue
+
+  for (const opt of options) {
+    const count = valueCount.get(opt.value) || 0;
+    valueCount.set(opt.value, count + 1);
+
+    const uniqueValue = count === 0 ? opt.value : `${opt.value}__${count}`;
+    uniqueOptions.push({ label: opt.label, value: uniqueValue, description: opt.description });
+    valueMap.set(uniqueValue, opt.value);
+  }
+
+  return { uniqueOptions, valueMap };
+};
+
 const SelectPrompt: React.FC<{ prompt: TuiPromptSelect }> = ({ prompt }) => {
-  const handleChange = (value: string) => {
+  const { uniqueOptions, valueMap } = useMemo(() => ensureUniqueOptions(prompt.options), [prompt.options]);
+
+  const handleChange = (uniqueValue: string) => {
     tuiState.clearActivePrompt();
-    prompt.resolve(value);
+    // Resolve with the original value, not the unique one
+    const originalValue = valueMap.get(uniqueValue) || uniqueValue;
+    prompt.resolve(originalValue);
   };
 
   return (
     <Box flexDirection="column" marginY={1}>
-      <Text color="cyan">{prompt.message}</Text>
+      <Text bold>{prompt.message}</Text>
       <Box marginTop={1}>
-        <Select options={prompt.options} onChange={handleChange} />
+        <SelectInput options={uniqueOptions} onChange={handleChange} />
       </Box>
     </Box>
   );
@@ -36,11 +64,9 @@ const ConfirmPrompt: React.FC<{ prompt: TuiPromptConfirm }> = ({ prompt }) => {
   };
 
   return (
-    <Box flexDirection="column" marginY={1}>
-      <Text color="cyan">{prompt.message}</Text>
-      <Box marginTop={1}>
-        <ConfirmInput onConfirm={handleConfirm} onCancel={handleCancel} />
-      </Box>
+    <Box marginY={1}>
+      <Text bold>{prompt.message} </Text>
+      <ConfirmInputCustom onConfirm={handleConfirm} onCancel={handleCancel} />
     </Box>
   );
 };
@@ -52,11 +78,11 @@ const TextPrompt: React.FC<{ prompt: TuiPromptText }> = ({ prompt }) => {
   };
 
   return (
-    <Box flexDirection="column" marginY={1}>
-      <Text color="cyan">{prompt.message}</Text>
-      <Box marginTop={1}>
-        <TextInput placeholder={prompt.placeholder} onSubmit={handleSubmit} />
-      </Box>
+    <Box marginY={1}>
+      <Text bold>{prompt.message}</Text>
+      {prompt.description && <Text color="gray"> {prompt.description}</Text>}
+      <Text> </Text>
+      <TextInputCustom placeholder={prompt.placeholder} isPassword={prompt.isPassword} onSubmit={handleSubmit} />
     </Box>
   );
 };

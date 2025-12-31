@@ -32,10 +32,9 @@ export class AnnouncementsManager {
 
     if (isNewerVersionAvailable) {
       tuiManager.info(
-        `You are currently using Stacktape version ${tuiManager.makeBold(
-          currentVersion
-        )}, but a newer version (${tuiManager.makeBold(latestVersion)}) is available.\n` +
-          `To upgrade, run: ${tuiManager.makeBold(tuiManager.colorize('yellow', 'stacktape upgrade'))}`
+        `Update available. Current: ${tuiManager.makeBold(currentVersion)}. Latest: ${tuiManager.makeBold(
+          latestVersion
+        )}.\nRun: \`${tuiManager.prettyCommand('upgrade')}\``
       );
     }
   };

@@ -1,5 +1,5 @@
 import { globalStateManager } from '@application-services/global-state-manager';
-import prompts from 'prompts';
+import { tuiManager } from '@application-services/tui-manager';
 import { initUsingExistingConfig } from './using-existing-config';
 import { initUsingStarterProject } from './using-starter-project';
 
@@ -11,18 +11,16 @@ export const commandInit = async () => {
     return initUsingStarterProject();
   }
 
-  const { selectedInitType } = await prompts({
-    type: 'select',
-    name: 'selectedInitType',
+  const selectedInitType = await tuiManager.promptSelect({
     message: 'How do you want to initialize the project?',
-    choices: [
+    options: [
       {
-        title: 'Create new config (template) using Interactive Config Editor',
+        label: 'Create new config (template) using Interactive Config Editor',
         description: 'The config will be automatically synced to your project directory',
         value: 'create-config'
       },
       {
-        title: 'Use a starter',
+        label: 'Use a starter',
         description: 'Select one of 30+ pre-configured starter projects',
         value: 'starter-project'
       }

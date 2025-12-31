@@ -1,6 +1,6 @@
 import type { TuiEvent } from '../types';
+import { Spinner } from '@inkjs/ui';
 import { Box, Text } from 'ink';
-import Spinner from 'ink-spinner';
 import React from 'react';
 import { formatDuration } from '../utils';
 
@@ -15,11 +15,7 @@ type EventProps = {
 const StatusIcon: React.FC<{ status: TuiEvent['status'] }> = ({ status }) => {
   switch (status) {
     case 'running':
-      return (
-        <Text color="cyan">
-          <Spinner type="dots" />
-        </Text>
-      );
+      return <Spinner type="dots" />;
     case 'success':
       return <Text color="green">✓</Text>;
     case 'error':

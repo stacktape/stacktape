@@ -157,9 +157,7 @@ export const getWorkloadEnvironmentVars = async (jobDetails: {
 
   setTimeout(
     () => {
-      tuiManager.warn(
-        "Temporary AWS credentials used for the workload have expired. The workload won't have the IAM permissions that it has when running on AWS. To reload the credentials, please restart the dev command."
-      );
+      tuiManager.warn('Temporary AWS credentials expired. Restart dev to refresh permissions.');
     },
     (SESSION_DURATION_SECONDS - 120) * 1000
   );
@@ -209,7 +207,7 @@ export const resolveRunningContainersWithSamePort = async ({
       )}`
     });
     if (shouldStopConflictingContainers) {
-      tuiManager.info('Stopping containers with conflicting ports...');
+      tuiManager.info('Stopping containers using those ports...');
       await Promise.all(containersWithConflictingPorts.map((container) => gracefullyStopContainer(container.Id)));
     }
     if (onContainerStopped) {
@@ -221,7 +219,7 @@ export const resolveRunningContainersWithSamePort = async ({
 export const gracefullyStopContainer = async (containerName: string) => {
   const containerInfo = await inspectDockerContainer(containerName);
   if (containerInfo?.State?.Running) {
-    tuiManager.info('Stopping last container...');
+    tuiManager.info('Stopping previous container...');
     await stopDockerContainer(containerName, getContainerStopWaitTime());
   }
 };

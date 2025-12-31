@@ -78,6 +78,7 @@ export type TuiDeploymentHeader = {
 export type TuiSelectOption = {
   label: string;
   value: string;
+  description?: string;
 };
 
 export type TuiPromptSelect = {
@@ -97,6 +98,9 @@ export type TuiPromptText = {
   type: 'text';
   message: string;
   placeholder?: string;
+  isPassword?: boolean;
+  /** Description shown in gray next to the question */
+  description?: string;
   resolve: (value: string) => void;
 };
 

@@ -1,12 +1,11 @@
 import { join } from 'node:path';
+import { downloadTemplate } from 'giget';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { stpErrors } from '@errors';
 import { fsPaths } from '@shared/naming/fs-paths';
-import { downloadFile } from '@shared/utils/download-file';
 import { deleteDirectoryContent } from '@shared/utils/fs-utils';
-import { unzip } from '@shared/utils/unzip';
-import { existsSync, move, readdir, readdirSync, remove, statSync } from 'fs-extra';
+import { ensureDir, existsSync, readdirSync, statSync } from 'fs-extra';
 import {
   addEslintPrettier,
   addTsConfig,
@@ -53,7 +52,7 @@ export const initUsingStarterProject = async () => {
       const contents = readdirSync(absoluteProjectPath);
       if (contents.length) {
         tuiManager.warn(
-          `Directory ${tuiManager.prettyFilePath(absoluteProjectPath)} already exists and is not empty. Initiating starter project into this directory will overwrite contents of this directory.`
+          `Directory ${tuiManager.prettyFilePath(absoluteProjectPath)} is not empty. Starter project will overwrite its contents.`
         );
         const { confirmed } = await tuiManager.prompt({
           type: 'confirm',
@@ -67,7 +66,9 @@ export const initUsingStarterProject = async () => {
       }
     } else {
       tuiManager.warn(
-        `The path you have entered: ${tuiManager.prettyFilePath(absoluteProjectPath)} is a path to a file on your system. Please choose empty directory for your starter project`
+        `Path ${tuiManager.prettyFilePath(
+          absoluteProjectPath
+        )} is a file. Choose an empty directory for your starter project.`
       );
       return;
     }
@@ -91,53 +92,29 @@ export const initUsingStarterProject = async () => {
 
   const readmePath = join(absoluteProjectPath, 'README.md');
 
-  tuiManager.success(`Project successfully initialized to ${tuiManager.prettyFilePath(absoluteProjectPath)}.`);
-  console.info(`\n   ○ ${tuiManager.colorize('yellow', 'cd')} ${targetDirectory}
-   ○ ${tuiManager.makeBold('To deploy your stack from local machine')}, run ${getDeployStackLine('deploy')}
-   ○ ${tuiManager.makeBold('To deploy your stack from AWS codebuild pipeline')}, run ${getDeployStackLine(
-     'codebuild:deploy'
-   )}
-   ○ ${tuiManager.makeBold('For next steps and detailed description of the stack')}, refer to:
-   https://github.com/stacktape/stacktape/tree/master/starter-projects/${projectToUse.starterProjectId}
-      or the project's README ${tuiManager.prettyFilePath(readmePath)}\n`);
-};
+  tuiManager.success(`Project initialized at ${tuiManager.prettyFilePath(absoluteProjectPath)}.`);
 
-const getDeployStackLine = (deploymentType: 'deploy' | 'codebuild:deploy') => {
-  return `${tuiManager.prettyCommand(deploymentType)} ${tuiManager.makeBold('--region')} <<region>> ${tuiManager.makeBold(
-    '--stage'
-  )} <<stage>>`;
-
-  // if (deploymentType === 'local-machine') {
-  //   return localMachineMessage;
-  // }
-  // const adjustedLocalMachineMsg = localMachineMessage.replace(
-  //   'To deploy your stack',
-  //   'To deploy your stack from local machine'
-  // );
-  // if (deploymentType === 'github') {
-  //   return `${adjustedLocalMachineMsg}   ○ ${printer.makeBold('To deploy your stack using Github Action')}:
-  //     1. Create a new repository at https://github.com/new
-  //     2. Create Github repository secrets: https://docs.stacktape.com/user-guides/ci-cd/#2-create-github-repository-secrets
-  //     3. replace <<stage>> and <<region>> in the .github/workflows/deploy.yml file.
-  //     4. ${printer.colorize('yellow', 'git')} init --initial-branch=main
-  //     5. ${printer.colorize('yellow', 'git')} add .
-  //     6. ${printer.colorize('yellow', 'git')} commit -m "setup stacktape project"
-  //     7. ${printer.colorize('yellow', 'git')} remote add origin git@github.com:<<namespace-name>>/<<repo-name>>.git
-  //     8. ${printer.colorize('yellow', 'git')} push -u origin main
-  //     9. To monitor the deployment progress, navigate to your github project and select the Actions tab`;
-  // }
-  // if (deploymentType === 'gitlab') {
-  //   return `${adjustedLocalMachineMsg}   ○ ${printer.makeBold('To deploy your stack using Gitlab CI')}:
-  //     1. Create a new repository at https://gitlab.com/projects/new
-  //     2. Create Gitlab repository secrets: https://docs.stacktape.com/user-guides/ci-cd/#2-create-gitlab-repository-secrets
-  //     3. replace <<stage>> and <<region>> in the .gitlab-ci.yml file.
-  //     4. ${printer.colorize('yellow', 'git')} init --initial-branch=main
-  //     5. ${printer.colorize('yellow', 'git')} add .
-  //     6. ${printer.colorize('yellow', 'git')} commit -m "setup stacktape project"
-  //     7. ${printer.colorize('yellow', 'git')} remote add origin git@gitlab.com:<<namespace-name>>/<<repo-name>>.git
-  //     8. ${printer.colorize('yellow', 'git')} push -u origin main
-  //     9. To monitor the deployment progress, navigate to your gitlab project and select CI/CD->jobs`;
-  // }
+  tuiManager.showNextSteps([
+    {
+      text: 'Navigate to the project directory:',
+      command: `${tuiManager.colorize('yellow', 'cd')} ${targetDirectory}`
+    },
+    {
+      text: 'To deploy your stack from local machine, run:',
+      command: `${tuiManager.prettyCommand('deploy')} ${tuiManager.prettyOption('region')} <<region>> ${tuiManager.prettyOption('stage')} <<stage>>`
+    },
+    {
+      text: 'To deploy your stack from AWS CodeBuild pipeline, run:',
+      command: `${tuiManager.prettyCommand('codebuild:deploy')} ${tuiManager.prettyOption('region')} <<region>> ${tuiManager.prettyOption('stage')} <<stage>>`
+    },
+    {
+      text: 'For next steps and detailed description of the stack, refer to:',
+      links: [
+        `https://github.com/stacktape/stacktape/tree/master/starter-projects/${projectToUse.starterProjectId}`,
+        tuiManager.prettyFilePath(readmePath)
+      ]
+    }
+  ]);
 };
 
 export const downloadStarterFromGithub = async ({
@@ -147,22 +124,19 @@ export const downloadStarterFromGithub = async ({
   githubLink: string;
   targetDirectory: string;
 }) => {
-  // await remove(targetDirectory);
-  const { filePath: zipFilePath } = await downloadFile({
-    downloadTo: targetDirectory,
-    url: `${githubLink}/zipball/master/`,
-    fileName: 'downloaded-project.zip'
-  });
+  const gigetSource = getGigetSource(githubLink);
+  await ensureDir(targetDirectory);
+  await downloadTemplate(gigetSource, { dir: targetDirectory, force: true });
+};
 
-  await unzip({ zipFilePath, outputDir: targetDirectory });
-
-  const itemsInTargetDir = await readdir(targetDirectory);
-  const capsuleDirName = itemsInTargetDir.find((name) => !name.endsWith('.zip'));
-  const itemsInStarterDir = await readdir(join(targetDirectory, capsuleDirName));
-  await Promise.all(
-    itemsInStarterDir.map((item) => {
-      return move(join(targetDirectory, capsuleDirName, item), join(targetDirectory, item), { overwrite: true });
-    })
-  );
-  await Promise.all([remove(zipFilePath), remove(join(targetDirectory, capsuleDirName))]);
+const getGigetSource = (githubLink: string) => {
+  if (githubLink.startsWith('github:')) {
+    return githubLink;
+  }
+  if (githubLink.startsWith('https://github.com/')) {
+    const { pathname } = new URL(githubLink);
+    const repoPath = pathname.replace(/^\//, '').replace(/\/$/, '').replace(/\.git$/, '');
+    return `github:${repoPath}`;
+  }
+  return githubLink;
 };

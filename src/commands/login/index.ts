@@ -21,8 +21,5 @@ export const commandLogin = async () => {
     userId: userData.user.id,
     systemId: globalStateManager.systemId
   });
-  tuiManager.success(
-    `Successfully logged in and saved API Key.
-User name: ${userData.user.name}. Organization: ${userData.organization.name}.`
-  );
+  tuiManager.success(`Logged in. API key saved.\nUser: ${userData.user.name}. Org: ${userData.organization.name}.`);
 };

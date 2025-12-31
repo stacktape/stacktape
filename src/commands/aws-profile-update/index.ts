@@ -27,7 +27,7 @@ export const commandAwsProfileUpdate = async (): Promise<AwsProfileUpdateReturnV
   });
 
   await upsertAwsProfile(profile, awsAccessKeyId, awsSecretAccessKey);
-  tuiManager.success(`Successfully updated credentials for profile ${profile}.`);
+  tuiManager.success(`Updated credentials for AWS profile ${profile}.`);
 
   // @todo-return-value
   return null;

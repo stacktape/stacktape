@@ -1,3 +1,4 @@
+import { Alert } from '@inkjs/ui';
 import { Box, Text } from 'ink';
 import React from 'react';
 import stringWidth from 'string-width';
@@ -15,56 +16,18 @@ type ErrorDisplayProps = {
   error: ErrorDisplayData;
 };
 
-const BORDER_CHAR = '─';
-const CORNER_TL = '┌';
-const CORNER_TR = '┐';
-const CORNER_BL = '└';
-const CORNER_BR = '┘';
-const VERTICAL = '│';
-
-const ErrorHeader: React.FC<{ errorType: string; isExpected?: boolean }> = ({ errorType, isExpected }) => {
-  const headerWidth = 60;
-  const typeLabel = isExpected === false ? 'UNEXPECTED ERROR' : errorType;
-  const padding = Math.max(0, headerWidth - typeLabel.length - 4);
-  const leftPad = Math.floor(padding / 2);
-  const rightPad = padding - leftPad;
-
-  return (
-    <Box flexDirection="column">
-      <Text color="red">
-        {CORNER_TL}
-        {BORDER_CHAR.repeat(headerWidth)}
-        {CORNER_TR}
-      </Text>
-      <Box>
-        <Text color="red">{VERTICAL}</Text>
-        <Text color="red" bold>
-          {' '.repeat(leftPad)}✖ {typeLabel}
-          {' '.repeat(rightPad)}
-        </Text>
-        <Text color="red">{VERTICAL}</Text>
-      </Box>
-      <Text color="red">
-        {CORNER_BL}
-        {BORDER_CHAR.repeat(headerWidth)}
-        {CORNER_BR}
-      </Text>
-    </Box>
-  );
-};
-
 const HintSection: React.FC<{ hints: string[] }> = ({ hints }) => {
   if (hints.length === 0) return null;
 
   return (
     <Box flexDirection="column" marginTop={1}>
       <Text color="blue" bold>
-        💡 Hints:
+        Hints:
       </Text>
       {hints.map((hint, index) => (
         <Box key={index} marginLeft={2}>
           <Text color="gray">• </Text>
-          <Text color="white">{hint}</Text>
+          <Text>{hint}</Text>
         </Box>
       ))}
     </Box>
@@ -105,42 +68,34 @@ const SentrySection: React.FC<{ sentryEventId: string }> = ({ sentryEventId }) =
 
 export const ErrorDisplay: React.FC<ErrorDisplayProps> = ({ error }) => {
   const hints = error.hints || [];
+  const typeLabel = error.isExpected === false ? 'UNEXPECTED ERROR' : error.errorType;
 
   return (
     <Box flexDirection="column" marginY={1}>
-      <ErrorHeader errorType={error.errorType} isExpected={error.isExpected} />
-
-      {/* Error message */}
-      <Box marginTop={1} marginLeft={2} flexDirection="column">
-        <Text color="white" bold>
-          {error.message}
-        </Text>
-      </Box>
+      <Alert variant="error">
+        <Text bold>{typeLabel}: </Text>
+        <Text>{error.message}</Text>
+      </Alert>
 
       {/* Hints section */}
-      {hints.length > 0 && (
-        <Box marginLeft={2}>
-          <HintSection hints={hints} />
-        </Box>
-      )}
+      {hints.length > 0 && <HintSection hints={hints} />}
 
       {/* Stack trace (for debugging) */}
-      {error.stackTrace && (
-        <Box marginLeft={2}>
-          <StackTraceSection stackTrace={error.stackTrace} />
-        </Box>
-      )}
+      {error.stackTrace && <StackTraceSection stackTrace={error.stackTrace} />}
 
       {/* Sentry event ID */}
-      {error.sentryEventId && (
-        <Box marginLeft={2}>
-          <SentrySection sentryEventId={error.sentryEventId} />
-        </Box>
-      )}
+      {error.sentryEventId && <SentrySection sentryEventId={error.sentryEventId} />}
     </Box>
   );
 };
 
+// Box drawing characters for non-TTY mode
+const BORDER_CHAR = '─';
+const CORNER_TL = '┌';
+const CORNER_TR = '┐';
+const CORNER_BL = '└';
+const CORNER_BR = '┘';
+const VERTICAL = '│';
 const DIVIDER_LEFT = '├';
 const DIVIDER_RIGHT = '┤';
 
@@ -191,14 +146,18 @@ export const renderErrorToString = (
 ): string => {
   const lines: string[] = [];
   const boxWidth = 70;
-  const contentWidth = boxWidth - 4; // Account for "│ " and " │"
+  // Content width = boxWidth - 2 (for "│ " prefix and " │" suffix = 4 chars, but border adds 2 corners)
+  // Total line: │ + space + content + padding + space + │ = 4 + contentWidth
+  // Border line: corner + boxWidth + corner = boxWidth + 2
+  // So: 4 + contentWidth = boxWidth + 2, therefore contentWidth = boxWidth - 2
+  const contentWidth = boxWidth - 2;
   const typeLabel = error.isExpected === false ? 'UNEXPECTED ERROR' : error.errorType;
 
   // Helper to create a padded line inside the box
-  const boxLine = (content: string, padChar = ' ') => {
+  const boxLine = (content: string) => {
     const visibleLength = stringWidth(content); // Properly handles ANSI codes and unicode
     const padding = Math.max(0, contentWidth - visibleLength);
-    return `${colorize('red', VERTICAL)} ${content}${padChar.repeat(padding)} ${colorize('red', VERTICAL)}`;
+    return `${colorize('red', VERTICAL)} ${content}${' '.repeat(padding)} ${colorize('red', VERTICAL)}`;
   };
 
   // Top border
@@ -224,7 +183,7 @@ export const renderErrorToString = (
   // Error message (wrapped)
   const messageLines = wrapText(error.message, contentWidth);
   for (const msgLine of messageLines) {
-    lines.push(boxLine(colorize('white', makeBold(msgLine))));
+    lines.push(boxLine(makeBold(msgLine)));
   }
 
   // Bottom border
@@ -234,7 +193,7 @@ export const renderErrorToString = (
   const hints = error.hints || [];
   if (hints.length > 0) {
     lines.push('');
-    lines.push(colorize('blue', makeBold('💡 Hints:')));
+    lines.push(colorize('blue', makeBold('Hints:')));
     hints.forEach((hint) => {
       lines.push(`  ${colorize('gray', '•')} ${hint}`);
     });

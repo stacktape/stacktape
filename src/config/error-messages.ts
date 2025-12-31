@@ -27,7 +27,7 @@ const errors = {
   e1({ resourceName }: { resourceName: string }): ReturnedError {
     return {
       type: 'NON_EXISTING_RESOURCE',
-      message: `Resource ${tuiManager.colorize('cyan', resourceName)} is not defined in the configuration.`
+      message: `Resource ${tuiManager.prettyResourceName(resourceName)} is not defined in the configuration.`
     };
   },
   e2({ container, resourceName }: { container: string; resourceName: string }): ReturnedError {
@@ -36,37 +36,37 @@ const errors = {
       message: `Container with name ${tuiManager.colorize(
         'cyan',
         container
-      )} is not defined in the container compute resource ${tuiManager.colorize('cyan', resourceName)}.`
+      )} is not defined in the container compute resource ${tuiManager.prettyResourceName(resourceName)}.`
     };
   },
   e3({ region, stage }): ReturnedError {
     return {
       type: 'STACK',
-      message: `Stack with stage ${tuiManager.colorize('cyan', stage)} is not deployed in the region ${tuiManager.colorize(
+      message: `Stack with stage ${tuiManager.colorize('cyan', stage)} is not deployed in region ${tuiManager.colorize(
         'cyan',
         region
       )}.`,
-      hint: `To use the local emulation (inject parameters, use the same IAM permission), you first need to deploy your stack.
+      hint: `To use local emulation (inject parameters, reuse IAM permissions), deploy your stack first.
 If you want to disable local emulation, use the ${tuiManager.prettyOption('disableEmulation')} flag.`
     };
   },
   e4(_arg: null): ReturnedError {
     return {
       type: 'BUDGET',
-      message: 'Using budget control is currently not enabled for your AWS account.',
+      message: 'Budget control is not enabled for your AWS account.',
       hint: [
         `To enable budget control for stacks in your account, please complete the tutorial at ${tuiManager.colorize(
           'yellow',
           'https://docs.stacktape.com/user-guides/enabling-budgeting'
         )}.`,
-        'If you have already completed the tutorial, it might take up to 24 hours for budgeting to become available for your account.'
+        'If you already completed the tutorial, it can take up to 24 hours to become available.'
       ]
     };
   },
   e5({ resourceName, resourceType }: { resourceName: string; resourceType: StpResourceType }): ReturnedError {
     return {
       type: 'NON_EXISTING_RESOURCE',
-      message: `Resource ${tuiManager.colorize('cyan', resourceName)} is not defined in the configuration.`,
+      message: `Resource ${tuiManager.prettyResourceName(resourceName)} is not defined in the configuration.`,
       hint: hintMessages.mustFullDeployResourceBeforeCommand({ resourceType })
     };
   },
@@ -102,42 +102,37 @@ If you want to disable local emulation, use the ${tuiManager.prettyOption('disab
   e11({ functionName }: { functionName: string }): ReturnedError {
     return {
       type: 'CONFIG',
-      message: `Lambda function ${tuiManager.colorize(
-        'cyan',
+      message: `Lambda function ${tuiManager.prettyResourceName(
         functionName
-      )} must have 'runtime' specified when using custom-artifact packaging type.`
+      )} must set ${tuiManager.prettyConfigProperty('runtime')} when using custom-artifact packaging type.`
     };
   },
   e12(): ReturnedError {
     return {
       type: 'CLI',
-      message: 'Wrong options supplied.',
+      message: 'Invalid options provided.',
       hint: [
-        `When syncing using stacktape configuration, you must supply both ${tuiManager.makeBold(
-          'stage'
-        )} and ${tuiManager.makeBold(
+        `For sync via config, provide both ${tuiManager.prettyOption('stage')} and ${tuiManager.prettyOption(
           'resourceName'
-        )}. Bucket id is then determined from the deployed stack and directory to sync from stacktape configuration file.`,
-        `When syncing using bucket id, you must specify a valid ${tuiManager.makeBold(
-          'bucketId'
-        )} (AWS physical resource id, or "name" of the bucket) and ${tuiManager.makeBold(
+        )}. Bucket ID is resolved from the deployed stack and directory from your config.`,
+        `For sync by bucket ID, provide ${tuiManager.prettyOption('bucketId')} (AWS physical ID or bucket name) and ${tuiManager.prettyOption(
           'sourcePath'
-        )}. Specified directory is then synced to the specified bucket. If the bucket is deployed using Stacktape, you can get bucketId using ${tuiManager.prettyCommand(
+        )}. If the bucket is deployed by Stacktape, you can get the bucket ID using ${tuiManager.prettyCommand(
           'stack:info'
-        )} command.`
+        )}.`
       ]
     };
   },
   e13({ directoryPath }): ReturnedError {
     return {
       type: 'CLI',
-      message: `Specified directory at ${directoryPath} is not accessible or not a directory`
+      message: `Directory ${tuiManager.prettyFilePath(directoryPath)} is not accessible or is not a directory.`
     };
   },
   e14({ configPath }): ReturnedError {
     return {
       type: 'CONFIG_VALIDATION',
-      message: `The file at '${configPath}' doesn't exist or is not accessible.`
+      message: `File ${tuiManager.prettyFilePath(configPath)} doesn't exist or is not accessible.`
     };
   },
   e15({ matchingConfigPaths }: { matchingConfigPaths: string[] }): ReturnedError {
@@ -151,16 +146,18 @@ If you want to disable local emulation, use the ${tuiManager.prettyOption('disab
     return {
       type: 'CONFIG_VALIDATION',
       message: [
-        'This command requires a stacktape template(config). You can provide it in following ways:',
-        ` - stacktape automatically detects template file with names ${VALID_CONFIG_PATHS.map(tuiManager.makeBold).join(', ')} in the root of your project.`,
-        ` - specify path to your stacktape template file using ${tuiManager.prettyOption('configPath')},`,
-        ` - specify id of template created in console using ${tuiManager.prettyOption('templateId')}.`
+        'This command requires a Stacktape config. Provide it in one of these ways:',
+        ` - Stacktape auto-detects config files named ${VALID_CONFIG_PATHS.map(tuiManager.makeBold).join(', ')} in your project root.`,
+        ` - Specify the config path using ${tuiManager.prettyOption('configPath')}.`,
+        ` - Specify a console template ID using ${tuiManager.prettyOption('templateId')}.`
       ].join('\n'),
       hint: [
         // ...hintMessages.configPathHint(),
         `Either manually create your stacktape configuration, or use ${tuiManager.prettyCommand(
           'init'
-        )}.\nThe init command allows you to bootstrap Stacktape config for your current project or select one of 25+ pre-made starter projects.`
+        )}.\nThe ${tuiManager.prettyCommand(
+          'init'
+        )} command can bootstrap config for your project or pick a starter template.`
       ]
     };
   },
@@ -173,13 +170,13 @@ If you want to disable local emulation, use the ${tuiManager.prettyOption('disab
   e18({ absoluteScriptPath }): ReturnedError {
     return {
       type: 'CONFIG_VALIDATION',
-      message: `Script at ${tuiManager.prettyFilePath(absoluteScriptPath)} doesn't exists or is not accessible.`
+      message: `Script ${tuiManager.prettyFilePath(absoluteScriptPath)} doesn't exist or is not accessible.`
     };
   },
   e19({ directoryPath }): ReturnedError {
     return {
       type: 'SYNC_BUCKET',
-      message: `Directory at ${tuiManager.prettyFilePath(directoryPath)} doesn't exists or is not accessible.`
+      message: `Directory ${tuiManager.prettyFilePath(directoryPath)} doesn't exist or is not accessible.`
     };
   },
   e20({ scriptName }): ReturnedError {
@@ -191,9 +188,9 @@ If you want to disable local emulation, use the ${tuiManager.prettyOption('disab
   e21(_arg: null): ReturnedError {
     return {
       type: 'CONFIG_VALIDATION',
-      message: `You need to specify ${tuiManager.makeBold('upstash')} provider in ${tuiManager.makeBold(
+      message: `You must set the ${tuiManager.makeBold('upstash')} provider in ${tuiManager.prettyConfigProperty(
         'providerConfig'
-      )} section of you config when using ${tuiManager.colorize('cyan', 'upstash')} resources.`
+      )} when using ${tuiManager.colorize('cyan', 'upstash')} resources.`
     };
   },
   e22({
@@ -212,13 +209,13 @@ If you want to disable local emulation, use the ${tuiManager.prettyOption('disab
     return {
       type: 'EXISTING_STACK',
       message:
-        `There is already a stack with name ${tuiManager.makeBold(stackName)} deployed in ${tuiManager.makeBold(
+        `A stack named ${tuiManager.prettyStackName(stackName)} is already deployed in ${tuiManager.makeBold(
           region
         )} which uses ${moduleType} resources in major version "${tuiManager.colorize(
           'yellow',
           moduleMajorVersionDeployed
         )}".\n` +
-        `This version of stacktape uses major version "${tuiManager.colorize(
+        `This version of Stacktape uses major version "${tuiManager.colorize(
           'yellow',
           moduleMajorVersionUsedByStacktape
         )}". Updating stack might result in replacement of resources and data-loss.`
@@ -227,9 +224,9 @@ If you want to disable local emulation, use the ${tuiManager.prettyOption('disab
   e23({ stpResourceName, stackName }): ReturnedError {
     return {
       type: 'CONFIG_VALIDATION',
-      message: `Upstash redis database ${tuiManager.makeBold(
+      message: `Upstash Redis database ${tuiManager.prettyResourceName(
         stpResourceName
-      )} is already deployed in stack ${tuiManager.makeBold(
+      )} is already deployed in stack ${tuiManager.prettyStackName(
         stackName
       )} with TLS enabled.\nYou cannot disable TLS once it was enabled.`
     };
@@ -237,9 +234,9 @@ If you want to disable local emulation, use the ${tuiManager.prettyOption('disab
   e24({ stpResourceName, stackName }): ReturnedError {
     return {
       type: 'CONFIG_VALIDATION',
-      message: `Upstash redis database ${tuiManager.makeBold(
+      message: `Upstash Redis database ${tuiManager.prettyResourceName(
         stpResourceName
-      )} is already deployed in stack ${tuiManager.makeBold(
+      )} is already deployed in stack ${tuiManager.prettyStackName(
         stackName
       )} with multi-zone replication enabled.\nYou cannot disable multi-zone replication once it was enabled.`
     };
@@ -247,7 +244,7 @@ If you want to disable local emulation, use the ${tuiManager.prettyOption('disab
   e25({ stpResourceName }): ReturnedError {
     return {
       type: 'CONFIG_VALIDATION',
-      message: `Strong consistency for Upstash redis database ${tuiManager.makeBold(
+      message: `Strong consistency for Upstash Redis database ${tuiManager.prettyResourceName(
         stpResourceName
       )} can only be set during initial database creation.\nStrong consistency cannot be enabled/disabled during updates.`
     };
@@ -255,31 +252,33 @@ If you want to disable local emulation, use the ${tuiManager.prettyOption('disab
   e26({ stpResourceName, stackName, currentNumberOfPartitions }): ReturnedError {
     return {
       type: 'CONFIG_VALIDATION',
-      message: `Upstash kafka topic ${tuiManager.makeBold(
+      message: `Upstash Kafka topic ${tuiManager.prettyResourceName(
         stpResourceName
-      )} is already deployed in stack ${tuiManager.makeBold(stackName)} with ${tuiManager.makeBold(
-        currentNumberOfPartitions
-      )} partitions.\nYou cannot update number of partitions of the topic.`
+      )} is already deployed in stack ${tuiManager.prettyStackName(
+        stackName
+      )} with ${tuiManager.makeBold(currentNumberOfPartitions)} partitions.\nYou cannot change partition count after creation.`
     };
   },
   e27({ stpResourceName, stackName, currentClusterId }): ReturnedError {
     return {
       type: 'CONFIG_VALIDATION',
-      message: `Upstash kafka topic ${tuiManager.makeBold(
+      message: `Upstash Kafka topic ${tuiManager.prettyResourceName(
         stpResourceName
-      )} is already deployed in stack ${tuiManager.makeBold(stackName)} in cluster with ID ${tuiManager.makeBold(
-        currentClusterId
-      )}.\nYou cannot change cluster after topic is created.`
+      )} is already deployed in stack ${tuiManager.prettyStackName(
+        stackName
+      )} in cluster ${tuiManager.makeBold(currentClusterId)}.\nYou cannot change the cluster after creation.`
     };
   },
   e28({ stpResourceName, stackName, currentCleanupPolicy }): ReturnedError {
     return {
       type: 'CONFIG_VALIDATION',
-      message: `Upstash kafka topic ${tuiManager.makeBold(
+      message: `Upstash Kafka topic ${tuiManager.prettyResourceName(
         stpResourceName
-      )} is already deployed in stack ${tuiManager.makeBold(stackName)} with cleanup policy set to ${tuiManager.makeBold(
+      )} is already deployed in stack ${tuiManager.prettyStackName(
+        stackName
+      )} with cleanup policy ${tuiManager.makeBold(
         currentCleanupPolicy
-      )}.\nYou cannot change cleanup policy after topic is created.`
+      )}.\nYou cannot change cleanup policy after creation.`
     };
   },
   // e29({ stpResourceName, referencedFrom, referencedFromType }): ReturnedError {
@@ -303,18 +302,16 @@ If you want to disable local emulation, use the ${tuiManager.prettyOption('disab
   }): ReturnedError {
     return {
       type: 'NON_EXISTING_STACK',
-      message: `Cannot retrieve stack detail of stack with name "${tuiManager.makeBold(
-        stackName
-      )}". Stack does not exist.`,
+      message: `Cannot retrieve stack details for ${tuiManager.prettyStackName(stackName)}. Stack not found.`,
       hint: [
         ...hintMessages.incorrectAwsAccount({ organizationName, awsAccountName }),
         ...(command === 'stack:info'
           ? [
               `When using ${tuiManager.prettyCommand(
                 command
-              )} command for non-deployed stack, provide config and use the ${tuiManager.prettyOption(
+              )} for a non-deployed stack, provide config and use ${tuiManager.prettyOption(
                 'detailed'
-              )} option to get overview of which resources will be created.`
+              )} to see what would be created.`
             ]
           : [])
       ]
@@ -323,16 +320,18 @@ If you want to disable local emulation, use the ${tuiManager.prettyOption('disab
   e31({ stackName }): ReturnedError {
     return {
       type: 'MISSING_OUTPUT',
-      message: `Cannot retrieve stack overview map of stack "${tuiManager.makeBold(
+      message: `Cannot retrieve stack overview for ${tuiManager.prettyStackName(
         stackName
-      )}". Stack does not seem to be deployed using Stacktape.`,
+      )}. Stack doesn't appear to be deployed with Stacktape.`,
       hint: ['If the stack was deployed using Stacktape, try re-deploying the stack.']
     };
   },
   e32({ stackName, stage, organizationName, awsAccountName }): ReturnedError {
     return {
       type: 'NON_EXISTING_STACK',
-      message: `Stack ${tuiManager.makeBold(stackName)}${stage ? ` (stage ${stage})` : ''} is not deployed.`,
+      message: `Stack ${tuiManager.prettyStackName(stackName)}${
+        stage ? ` (stage ${tuiManager.colorize('cyan', stage)})` : ''
+      } is not deployed.`,
       hint: hintMessages.incorrectAwsAccount({ organizationName, awsAccountName })
     };
   },
@@ -346,13 +345,13 @@ If you want to disable local emulation, use the ${tuiManager.prettyOption('disab
     return {
       type: 'MISSING_PREREQUISITE',
       message:
-        'To use this starter project, you must have Node.js and a javascript package manager installed (either yarn, npm or pnpm).'
+        'To use this starter project, install Node.js and a JavaScript package manager (yarn, npm, or pnpm).'
     };
   },
   e35({ err }): ReturnedError {
     return {
       type: 'CLI',
-      message: `Failed to install dependencies. Error\n:${err}`
+      message: `Failed to install dependencies. Error:\n${err}`
     };
   },
   e36({
@@ -410,20 +409,22 @@ If you want to disable local emulation, use the ${tuiManager.prettyOption('disab
   }): ReturnedError {
     return {
       type: 'CONFIG_VALIDATION',
-      message: `Resource ${tuiManager.makeBold(
+      message: `Resource ${tuiManager.prettyResourceName(
         stpResourceName
-      )} of type edge-lambda-function cannot use "connectTo" with resource ${tuiManager.makeBold(
+      )} of type edge-lambda-function cannot use ${tuiManager.prettyConfigProperty(
+        'connectTo'
+      )} with resource ${tuiManager.prettyResourceName(
         referencedResourceStpName
-      )} of type ${referencedResourceType}.`
+      )} of type ${tuiManager.prettyResourceType(referencedResourceType)}.`
     };
   },
   e38({ domainName }: { domainName: string }): ReturnedError {
     return {
       type: 'DOMAIN_MANAGEMENT',
-      message: `Domain ${tuiManager.makeBold(domainName)} is not a valid root domain name`,
+      message: `Domain ${tuiManager.makeBold(domainName)} is not a valid root domain name.`,
       hint: `When using ${tuiManager.prettyCommand(
         'domain:add'
-      )} command, enter the apex(root) domain, i.e ${tuiManager.colorize('blue', 'example.com')} or ${tuiManager.colorize(
+      )}, enter the apex (root) domain, e.g. ${tuiManager.colorize('blue', 'example.com')} or ${tuiManager.colorize(
         'blue',
         'mydomain.net'
       )}. After domain is added, you can also use its subdomains (such as my-subdomain.example.com).`
@@ -440,11 +441,13 @@ If you want to disable local emulation, use the ${tuiManager.prettyOption('disab
   }): ReturnedError {
     return {
       type: 'DOMAIN_MANAGEMENT',
-      message: `Could not find suitable TLS certificate for domain ${tuiManager.makeBold(fullDomainName)} in the region ${region}.\n`,
+      message: `No suitable TLS certificate found for domain ${tuiManager.makeBold(fullDomainName)} in region ${region}.\n`,
       hint: [
         'Depending on your goal:',
-        `1. If you want Stacktape to be able to manage your domain names (DNS) and TLS certificates, run command ${tuiManager.prettyCommand('domain:add')} to see next steps.`,
-        `2. If you wish to use a custom certificate specify ${tuiManager.prettyConfigProperty('customCertificateArn')}`,
+        `1. If you want Stacktape to manage DNS and TLS certificates, run ${tuiManager.prettyCommand(
+          'domain:add'
+        )} to see next steps.`,
+        `2. If you want to use a custom certificate, set ${tuiManager.prettyConfigProperty('customCertificateArn')}.`,
         'Refer to Stacktape docs for more information: https://docs.stacktape.com/other-resources/domains-and-certificates/'
       ].join('\n')
     };
@@ -454,10 +457,10 @@ If you want to disable local emulation, use the ${tuiManager.prettyOption('disab
       type: 'DOMAIN_MANAGEMENT',
       message: `Certificate for domain ${tuiManager.makeBold(
         fullDomainName
-      )} is not yet validated. Current certificate status is ${certificateStatus}`,
+      )} is not validated yet. Current status: ${certificateStatus}.`,
       hint: [
-        `Run command ${tuiManager.prettyCommand('domain:add')} to refresh certificate status and see next steps.`,
-        'If you added domain only recently it can take a few minutes before certificates are validated.'
+        `Run ${tuiManager.prettyCommand('domain:add')} to refresh status and see next steps.`,
+        'If you added the domain recently, validation can take a few minutes.'
       ]
     };
   },
@@ -482,7 +485,7 @@ If you want to disable local emulation, use the ${tuiManager.prettyOption('disab
         `Until we resolve this limitation, you can manually create your certificate here: ${tuiManager.colorize(
           'blue',
           consoleLinks.createCertificateUrl(attachingTo, region)
-        )} and reference it using ${tuiManager.colorize('blue', 'customCertificateArn')} property`,
+        )} and reference it using ${tuiManager.prettyConfigProperty('customCertificateArn')}.`,
         `You can try using alternative domain name such as ${tuiManager.colorize(
           'blue',
           [domainLevelSplit.slice(0, -2).join('-'), domainLevelSplit.slice(-2).join('.')].join('.')
@@ -652,10 +655,9 @@ If you want to disable local emulation, use the ${tuiManager.prettyOption('disab
   e52({ resourceName, resourceType }: { resourceName: string; resourceType: StpResourceType }): ReturnedError {
     return {
       type: 'CLI',
-      message: `Resource ${tuiManager.colorize(
-        'cyan',
-        resourceName
-      )} of type ${resourceType} is not runnable in a development mode.`,
+      message: `Resource ${tuiManager.prettyResourceName(resourceName)} of type ${tuiManager.prettyResourceType(
+        resourceType
+      )} can't run in development mode.`,
       hint: 'At the moment, you can locally run only lambda functions and container workloads.'
     };
   },
@@ -676,11 +678,11 @@ If you want to disable local emulation, use the ${tuiManager.prettyOption('disab
   }): ReturnedError {
     return {
       type: 'CONFIG_VALIDATION',
-      message: `Error in ${tuiManager.prettyResourceType(resourceType)} ${tuiManager.makeBold(
+      message: `Error in ${tuiManager.prettyResourceType(resourceType)} ${tuiManager.prettyResourceName(
         stpResourceName
       )}: The compute resource must use application-load-balancer ${tuiManager.makeBold(
         'event'
-      )} integration if you wish to use ${tuiManager.makeBold('deployment')} property`
+      )} integration to use ${tuiManager.prettyConfigProperty('deployment')}.`
     };
   },
   e55({ invalidEmail }: { invalidEmail: string }): ReturnedError {
@@ -1037,14 +1039,14 @@ If you want to disable local emulation, use the ${tuiManager.prettyOption('disab
   }): ReturnedError {
     return {
       type: 'PARAMETER',
-      message: `Parameter ${tuiManager.prettyResourceParamName(
+      message: `Parameter ${tuiManager.prettyConfigProperty(
         resourceParamName
       )} is not referenceable on the resource ${tuiManager.prettyResourceName(
         resourceName
       )} of type ${tuiManager.prettyResourceType(resourceType)}.`,
       hint: [
         `Referenceable params of the resource: ${referenceableParams
-          .map((param) => tuiManager.prettyResourceParamName(param))
+          .map((param) => tuiManager.prettyConfigProperty(param))
           .join(', ')}.`
       ]
     };
@@ -1451,8 +1453,14 @@ You have specified ${tuiManager.makeBold('app_variable')} "${appVariable}" in yo
   e104({ serviceName }: { serviceName: string }): ReturnedError {
     return {
       type: 'CONFIG',
-      message: `Using ${tuiManager.prettyConfigProperty('serviceName')} in your config is deprecated. Use option "${tuiManager.colorize('gray', `--projectName ${serviceName}`)}" instead.`,
-      hint: `Use your current ${tuiManager.prettyConfigProperty('serviceName')} as a ${tuiManager.prettyOption('projectName')} to keep using the same stack.`
+      message: `Using ${tuiManager.prettyConfigProperty(
+        'serviceName'
+      )} in your config is deprecated. Use ${tuiManager.prettyOption(
+        'projectName'
+      )} instead (e.g. ${tuiManager.prettyOption('projectName')} ${serviceName}).`,
+      hint: `Use your current ${tuiManager.prettyConfigProperty(
+        'serviceName'
+      )} value as ${tuiManager.prettyOption('projectName')} to keep using the same stack.`
     };
   },
   e105({ stpResourceName }: { stpResourceName: string }): ReturnedError {
@@ -1607,7 +1615,7 @@ You have specified ${tuiManager.makeBold('app_variable')} "${appVariable}" in yo
   e117({ webServiceName }: { webServiceName: string }): ReturnedError {
     return {
       type: 'CONFIG_VALIDATION',
-      message: `Error in web-service ${tuiManager.prettyResourceName(
+      message: `Error in ${tuiManager.prettyResourceType('web-service')} ${tuiManager.prettyResourceName(
         webServiceName
       )}. CDN can only be used with web services that use ${tuiManager.prettyConfigProperty('http-api-gateway')} (default) or ${tuiManager.prettyConfigProperty('application-load-balancer')} load balancing types.`
     };
@@ -1615,7 +1623,7 @@ You have specified ${tuiManager.makeBold('app_variable')} "${appVariable}" in yo
   e118({ webServiceName }: { webServiceName: string }): ReturnedError {
     return {
       type: 'CONFIG_VALIDATION',
-      message: `Error in web-service ${tuiManager.prettyResourceName(
+      message: `Error in ${tuiManager.prettyResourceType('web-service')} ${tuiManager.prettyResourceName(
         webServiceName
       )}. If you disable DNS record creation for your domain, you must specify ${tuiManager.prettyConfigProperty('customCertificateArn')} property.`
     };
@@ -1639,7 +1647,9 @@ You have specified ${tuiManager.makeBold('app_variable')} "${appVariable}" in yo
       type: 'NON_EXISTING_RESOURCE',
       message: `Error when running ${tuiManager.prettyCommand('container:session')}. Resource ${tuiManager.prettyResourceName(
         containerResourceName
-      )} contains following containers: ${availableContainers.map((name) => tuiManager.makeBold(name)).join(', ')}. Please specify which container you want to connect to using ${tuiManager.prettyConfigProperty('--container')} argument.`
+      )} contains the following containers: ${availableContainers
+        .map((name) => tuiManager.makeBold(name))
+        .join(', ')}. Specify which container to connect to using ${tuiManager.prettyOption('container')}.`
     };
   },
   e121({ lambdaStpResourceName }: { lambdaStpResourceName: string }): ReturnedError {
@@ -1738,8 +1748,8 @@ You have specified ${tuiManager.makeBold('app_variable')} "${appVariable}" in yo
   e501({ operation }: { operation: string }): ReturnedError {
     return {
       type: 'API_KEY',
-      message: `Operation '${operation}' requires Stacktape API Key to be configured on your system.`,
-      hint: `You can get your API KEY in the ${tuiManager.getLink('apiKeys', 'console')}.`
+      message: `Operation "${operation}" requires a Stacktape API key configured on your system.`,
+      hint: `You can get your API key in the ${tuiManager.getLink('apiKeys', 'console')}.`
     };
   },
   e502({ message }: { message: string }): ReturnedError {
@@ -1758,7 +1768,9 @@ You have specified ${tuiManager.makeBold('app_variable')} "${appVariable}" in yo
   e504({ sourceCodePath }: { sourceCodePath: string }): ReturnedError {
     return {
       type: 'CONFIG_GENERATION',
-      message: `No suitable Stacktape configuration can be generated for project in directory ${sourceCodePath}`
+      message: `No suitable Stacktape configuration can be generated for project in ${tuiManager.prettyFilePath(
+        sourceCodePath
+      )}.`
     };
   },
   e505({ sourceCodePath }: { sourceCodePath: string }): ReturnedError {
@@ -1790,7 +1802,7 @@ You have specified ${tuiManager.makeBold('app_variable')} "${appVariable}" in yo
   e509({ templateId }: { templateId: string }): ReturnedError {
     return {
       type: 'INPUT',
-      message: `Can't find template with id ${templateId}`
+      message: `Can't find template with ID ${templateId}.`
     };
   },
 
@@ -1806,13 +1818,13 @@ You have specified ${tuiManager.makeBold('app_variable')} "${appVariable}" in yo
     return {
       type: 'PACKAGING_CONFIG',
       message: `Error in ${tuiManager.prettyResourceType(workloadType)} ${tuiManager.prettyResourceName(workloadName)}:
-If you want to run app as WSGI/ASGI, please specify the app_variable(WSGI/ASGI callable) in the  ${tuiManager.prettyConfigProperty(
+If you want to run the app as WSGI/ASGI, specify the app variable (WSGI/ASGI callable) in ${tuiManager.prettyConfigProperty(
         'entryfilePath'
-      )} i.e ${tuiManager.prettyFilePath(`${entryfilePath}:<<app_variable>>`)}.`,
-      hint: `${tuiManager.makeBold('Typical paths')} for most used frameworks:
+      )}, e.g. ${tuiManager.prettyFilePath(`${entryfilePath}:<<app_variable>>`)}.`,
+      hint: `${tuiManager.makeBold('Typical paths')} for common frameworks:
 Django: ${tuiManager.prettyFilePath('project/asgi.py:application')}
 Flask: ${tuiManager.prettyFilePath('project/app.py:application')}
-FastAPI: ${tuiManager.prettyFilePath('project/main.py:app`')}`
+FastAPI: ${tuiManager.prettyFilePath('project/main.py:app')}`
     };
   },
   e1002({ workloadType, workloadName }: { workloadType: StpResourceType; workloadName: string }): ReturnedError {
@@ -1821,7 +1833,7 @@ FastAPI: ${tuiManager.prettyFilePath('project/main.py:app`')}`
       message: `Error in ${tuiManager.prettyResourceType(workloadType)} ${tuiManager.prettyResourceName(workloadName)}:
 Property ${tuiManager.prettyConfigProperty('runAppAs')} can be specified only for ${tuiManager.prettyConfigProperty(
         'stacktape-image-buildpack'
-      )} packaging type`
+      )} packaging type.`
     };
   },
   e1003({ webServiceName }: { webServiceName: string }): ReturnedError {
@@ -1841,9 +1853,9 @@ Property ${tuiManager.prettyConfigProperty('runAppAs')} can be specified only fo
         firewallName
       )}. Firewall with ${tuiManager.prettyConfigProperty(
         'scope: cdn'
-      )}: can't be used with regional resources without CDN and firewall with ${tuiManager.prettyConfigProperty(
+      )} can't be used with regional resources without CDN, and firewall with ${tuiManager.prettyConfigProperty(
         'scope: regional'
-      )} can;t be used with resources using CDN.`
+      )} can't be used with resources using CDN.`
     };
   },
   e1005({ firewallName }: { firewallName: string }): ReturnedError {
@@ -1853,7 +1865,7 @@ Property ${tuiManager.prettyConfigProperty('runAppAs')} can be specified only fo
         firewallName
       )}: Firewall ${tuiManager.prettyConfigProperty(
         'scope'
-      )}: can't be changed after firewall was created. Delete existing and create new with desired ${tuiManager.prettyConfigProperty(
+      )} can't be changed after the firewall is created. Delete the existing firewall and create a new one with ${tuiManager.prettyConfigProperty(
         'scope'
       )}.`
     };
@@ -1881,27 +1893,39 @@ Property ${tuiManager.prettyConfigProperty('runAppAs')} can be specified only fo
   e131({ stackName }: { stackName: string }): ReturnedError {
     return {
       type: 'CONFIG_VALIDATION',
-      message: `Stack cannot reuse VPC from stack ${tuiManager.makeBold(stackName)} because no valid VPC was found.`,
+      message: `Stack cannot reuse VPC from stack ${tuiManager.prettyStackName(
+        stackName
+      )} because no valid VPC was found.`,
       hint: 'You can only reuse VPC from other Stacktape stacks that have been deployed.'
     };
   },
   e132(_arg: null): ReturnedError {
     return {
       type: 'CONFIG_VALIDATION',
-      message: `Invalid ${tuiManager.prettyConfigProperty('stackConfig.vpc.reuseVpc')} configuration. You must specify either ${tuiManager.makeBold('vpcId')} OR both ${tuiManager.makeBold('projectName')} and ${tuiManager.makeBold('stage')}, but not both methods.`
+      message: `Invalid ${tuiManager.prettyConfigProperty(
+        'stackConfig.vpc.reuseVpc'
+      )} configuration. Specify either ${tuiManager.prettyConfigProperty('vpcId')} or both ${tuiManager.prettyConfigProperty(
+        'projectName'
+      )} and ${tuiManager.prettyConfigProperty('stage')}, but not both methods.`
     };
   },
   e133({ vpcId, foundCount }: { vpcId: string; foundCount: number }): ReturnedError {
     return {
       type: 'CONFIG_VALIDATION',
-      message: `VPC ${tuiManager.makeBold(vpcId)} does not have enough public subnets. Found ${tuiManager.makeBold(String(foundCount))} public subnet(s), but at least ${tuiManager.makeBold('3')} are required.`,
+      message: `VPC ${tuiManager.makeBold(
+        vpcId
+      )} does not have enough public subnets. Found ${tuiManager.makeBold(
+        String(foundCount)
+      )}; at least ${tuiManager.makeBold('3')} are required.`,
       hint: 'Public subnets are identified by having a route to an Internet Gateway (0.0.0.0/0 -> igw-*) in their associated route table.'
     };
   },
   e134({ vpcId, cidrBlock }: { vpcId: string; cidrBlock: string }): ReturnedError {
     return {
       type: 'CONFIG_VALIDATION',
-      message: `VPC ${tuiManager.makeBold(vpcId)} has an invalid CIDR block ${tuiManager.makeBold(cidrBlock)}. VPC must use a private IP address range.`,
+      message: `VPC ${tuiManager.makeBold(vpcId)} has an invalid CIDR block ${tuiManager.makeBold(
+        cidrBlock
+      )}. VPC must use a private IP range.`,
       hint: `Valid private IP ranges are: ${tuiManager.makeBold('10.0.0.0/8')}, ${tuiManager.makeBold('172.16.0.0/12')}, and ${tuiManager.makeBold('192.168.0.0/16')} (RFC 1918).`
     };
   },
@@ -1916,7 +1940,13 @@ Property ${tuiManager.prettyConfigProperty('runAppAs')} can be specified only fo
   }): ReturnedError {
     return {
       type: 'CONFIG_VALIDATION',
-      message: `VPC ${tuiManager.makeBold(vpcId)} does not have enough private subnets. Found ${tuiManager.makeBold(String(foundCount))} private subnet(s), but at least ${tuiManager.makeBold('2')} are required when resources use ${tuiManager.makeBold('usePrivateSubnetsWithNAT')}.`,
+      message: `VPC ${tuiManager.makeBold(
+        vpcId
+      )} does not have enough private subnets. Found ${tuiManager.makeBold(
+        String(foundCount)
+      )}; at least ${tuiManager.makeBold('2')} are required when resources use ${tuiManager.prettyConfigProperty(
+        'usePrivateSubnetsWithNAT'
+      )}.`,
       hint: `The following resources require private subnets: ${requiringResources.map((r) => tuiManager.prettyResourceName(r)).join(', ')}. Private subnets are identified by NOT having a direct route to an Internet Gateway in their route table.`
     };
   },
@@ -1924,7 +1954,9 @@ Property ${tuiManager.prettyConfigProperty('runAppAs')} can be specified only fo
     return {
       type: 'CONFIG_VALIDATION',
       message: `Cannot find package ${tuiManager.makeBold(packageName)} when loading config from ${tuiManager.prettyFilePath(configPath)}.`,
-      hint: `Install the package by running: ${tuiManager.makeBold(`npm install ${packageName}`)} or ${tuiManager.makeBold(`bun add ${packageName}`)}`
+      hint: `Install it with ${tuiManager.makeBold(`npm install ${packageName}`)} or ${tuiManager.makeBold(
+        `bun add ${packageName}`
+      )}.`
     };
   },
   e137({ configPath, errorMessage }: { configPath: string; errorMessage: string }): ReturnedError {
@@ -1971,7 +2003,7 @@ const sharedErrorMessages = {
   }) {
     return `Resource ${tuiManager.prettyResourceName(resourceName)}${
       resourceType ? ` of type ${tuiManager.prettyResourceType(resourceType)} ` : ' '
-    }is not deployed as a part of the ${tuiManager.makeBold(stackName)} stack.`;
+    }is not deployed as part of stack ${tuiManager.prettyStackName(stackName)}.`;
   }
 };
 
@@ -1983,13 +2015,15 @@ export const hintMessages = {
   },
   mustFullDeployResourceBeforeCommand({ resourceType }: { resourceType: StpResourceType }): string[] {
     return [
-      `If you are creating a new ${resourceType}, it must be first deployed with the entire stack using the ${tuiManager.prettyCommand(
+      `If you are creating a new ${tuiManager.prettyResourceType(
+        resourceType
+      )}, deploy it with the full stack using ${tuiManager.prettyCommand(
         'deploy'
-      )} command.`
+      )}.`
     ];
   },
   configPathHint(): string[] {
-    return ['You can specify the config file explicitly using the --configPath option.'];
+    return [`You can specify the config file with ${tuiManager.prettyOption('configPath')}.`];
   },
   incorrectAwsAccount({
     organizationName,
@@ -2002,7 +2036,7 @@ export const hintMessages = {
       `Are you sure you are using correct Stacktape organization and AWS account? Current organization: ${tuiManager.makeBold(
         organizationName
       )} and AWS account ${tuiManager.makeBold(awsAccountName)}.`,
-      `You can check which AWS accounts are connected to you organization in ${tuiManager.getLink(
+      `You can check which AWS accounts are connected to your organization in ${tuiManager.getLink(
         'connectedAwsAccounts',
         'console'
       )}`

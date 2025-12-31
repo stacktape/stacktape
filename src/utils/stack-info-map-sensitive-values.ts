@@ -52,7 +52,7 @@ const locallyResolveSSMParameter = async ({ ssmParameterName }: { ssmParameterNa
     return Value;
   } catch (err) {
     if (globalStateManager.logLevel === 'debug') {
-      tuiManager.debug(`Unable to fetch ssm parameter ${ssmParameterName}: ${err}`);
+      tuiManager.debug(`Failed to fetch SSM parameter ${ssmParameterName}: ${err}`);
     }
   }
   return '<<UNABLE_TO_RESOLVE>>';
@@ -77,7 +77,7 @@ const locallyResolveSecret = async ({
     return SecretString;
   } catch (err) {
     if (globalStateManager.logLevel === 'debug') {
-      tuiManager.debug(`Unable to fetch secret ${secretId} version ${versionId || versionStage} : ${err}`);
+      tuiManager.debug(`Failed to fetch secret ${secretId} (${versionId || versionStage}): ${err}`);
     }
   }
   return '<<UNABLE_TO_RESOLVE>>';

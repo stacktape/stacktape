@@ -1,5 +1,6 @@
 /* eslint-disable no-control-regex */
 import type { TuiEvent, TuiMessage, TuiPhase, TuiWarning } from '../types';
+import { ProgressBar, Spinner } from '@inkjs/ui';
 import { Box, Text } from 'ink';
 import React from 'react';
 import { formatPhaseTimer } from '../utils';
@@ -49,16 +50,6 @@ const getProgressPercent = (remainingPercent: number | null, status: TuiEvent['s
   return Math.max(0, Math.min(100, Math.round(100 - remainingPercent)));
 };
 
-const renderProgressBar = (percent: number | null, width: number) => {
-  if (percent === null) {
-    return { filled: '', empty: '.'.repeat(width), label: 'estimating' };
-  }
-  const filled = Math.max(0, Math.min(width, Math.round((percent / 100) * width)));
-  const arrow = percent > 0 && percent < 100 ? '>' : '=';
-  const filledPart = filled > 0 ? `${'='.repeat(Math.max(0, filled - 1))}${arrow}` : '';
-  const emptyPart = '.'.repeat(width - filledPart.length);
-  return { filled: filledPart, empty: emptyPart, label: `${String(percent).padStart(3, ' ')}%` };
-};
 
 const parseResourceState = (message?: string) => {
   const cleaned = stripAnsi(message);
@@ -141,7 +132,6 @@ export const DeployPhase: React.FC<DeployPhaseProps> = ({ phase, phaseNumber, wa
     progressPercentFromTime === null && progressCounts.done !== null && progressCounts.total
       ? Math.round((progressCounts.done / progressCounts.total) * 100)
       : progressPercentFromTime;
-  const progressBar = renderProgressBar(progressPercent, 44);
 
   return (
     <Box flexDirection="column" marginBottom={1}>
@@ -154,20 +144,28 @@ export const DeployPhase: React.FC<DeployPhaseProps> = ({ phase, phaseNumber, wa
       <Text color="gray">{'-'.repeat(64)}</Text>
 
       <Box flexDirection="column">
-        {!isDone && <Text>Deploying using CloudFormation</Text>}
         {!isDone && (
-          <Box>
-            <Text color="gray">[</Text>
-            <Text color="green">{progressBar.filled}</Text>
-            <Text color="gray">{progressBar.empty}</Text>
-            <Text color="gray">]</Text>
-            <Text color="gray"> {progressBar.label}</Text>
-            {progressCounts.done !== null && progressCounts.total !== null && (
-              <Text color="gray">
-                {' '}
-                {progressCounts.done}/{progressCounts.total} done
-              </Text>
-            )}
+          <Box flexDirection="column">
+            <Box>
+              <Text>Deploying using CloudFormation </Text>
+              {progressPercent !== null && <Text color="cyan">{progressPercent}%</Text>}
+              {progressCounts.done !== null && progressCounts.total !== null && (
+                <Text color="gray">
+                  {' '}
+                  ({progressCounts.done}/{progressCounts.total} resources)
+                </Text>
+              )}
+            </Box>
+            <Box marginTop={0}>
+              {progressPercent !== null ? (
+                <ProgressBar value={progressPercent} />
+              ) : (
+                <Box>
+                  <Spinner type="dots" />
+                  <Text color="gray"> Estimating progress...</Text>
+                </Box>
+              )}
+            </Box>
           </Box>
         )}
 

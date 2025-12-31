@@ -85,7 +85,7 @@ export const commandDelete = async (): Promise<DeleteReturnValue> => {
     message: { text: `Stack ${stackName} deleted successfully.`, type: 'success' }
   });
 
-  tuiManager.success(`Successfully deleted stack ${stackName}.`);
+  tuiManager.success(`Stack ${tuiManager.prettyStackName(stackName)} deleted.`);
 
   // @todo-return-value
   return null;

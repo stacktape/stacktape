@@ -7,7 +7,7 @@ import { configManager } from '@domain-services/config-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { notificationManager } from '@domain-services/notification-manager';
 import { stpErrors } from '@errors';
-import { getRelativePath, isDirAccessible, transformToUnixPath } from '@shared/utils/fs-utils';
+import { isDirAccessible } from '@shared/utils/fs-utils';
 import { getCloudformationChildResources } from '@shared/utils/stack-info-map';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { initializeStackServicesForWorkingWithDeployedStack, loadUserCredentials } from '../_utils/initialization';
@@ -26,11 +26,11 @@ export const commandBucketSync = async (): Promise<BucketSyncReturnValue> => {
 
   const bucketName = getBucketName();
   const absoluteSourcePath = getDirectoryPath();
-  const prettyDirPath = `./${transformToUnixPath(getRelativePath(absoluteSourcePath))}`;
+  const prettyDirPath = tuiManager.prettyFilePath(absoluteSourcePath);
 
-  tuiManager.info(`Syncing directory ${prettyDirPath} to bucket ${bucketName}.`);
+  tuiManager.info(`Syncing ${prettyDirPath} to bucket ${bucketName} (deletes removed files).`);
   await notificationManager.sendDeploymentNotification({
-    message: { text: `Syncing directory ${prettyDirPath} to bucket ${bucketName}.`, type: 'progress' }
+    message: { text: `Syncing ${prettyDirPath} to bucket ${bucketName} (deletes removed files).`, type: 'progress' }
   });
 
   await eventManager.startEvent({
@@ -87,7 +87,7 @@ export const commandBucketSync = async (): Promise<BucketSyncReturnValue> => {
     deployedStackOverviewManager.printResourceInfo([globalStateManager.args.resourceName]);
   }
   await notificationManager.sendDeploymentNotification({
-    message: { text: `Successfully synchronized directory ${prettyDirPath} to bucket ${bucketName}.`, type: 'success' }
+    message: { text: `Synced ${prettyDirPath} to bucket ${bucketName}.`, type: 'success' }
   });
 
   return null;

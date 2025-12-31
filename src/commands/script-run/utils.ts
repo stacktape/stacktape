@@ -72,7 +72,7 @@ const getBastionScriptExecutionFn = ({
     );
 
     tuiManager.info(
-      `Executing ${hookTrigger ? `(${hookTrigger} hook) ` : ''}script ${tuiManager.colorize(
+      `Running ${hookTrigger ? `(${hookTrigger} hook) ` : ''}script ${tuiManager.colorize(
         'blue',
         resolvedScriptDefinition.scriptName
       )} on bastion ${tuiManager.makeBold(bastionResourceStpName)}...`
@@ -171,7 +171,7 @@ const getLocalScriptExecutionFn = ({
         : true;
 
     tuiManager.info(
-      `Executing ${hookTrigger ? `(${hookTrigger} hook) ` : ''}script ${tuiManager.colorize(
+      `Running ${hookTrigger ? `(${hookTrigger} hook) ` : ''}script ${tuiManager.colorize(
         'blue',
         resolvedScriptDefinition.scriptName
       )}...`
@@ -181,7 +181,7 @@ const getLocalScriptExecutionFn = ({
         commandOrScript === 'script'
           ? `script at ${tuiManager.prettyFilePath(join(globalStateManager.workingDir, commandOrScriptToExecute))}`
           : `command '${tuiManager.makeBold(commandOrScriptToExecute)}'`;
-      tuiManager.info(`Executing ${scriptDescription}...`);
+      tuiManager.info(`Running ${scriptDescription}...`);
       try {
         const env = getScriptEnv({
           userDefinedEnv: resolvedScriptDefinition.properties.environment,

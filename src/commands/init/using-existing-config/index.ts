@@ -25,7 +25,10 @@ export const initUsingExistingConfig = async () => {
     const res = await tuiManager.prompt({
       type: 'text',
       name: 'templateId',
-      message: 'TemplateId (available at https://console.stacktape.com/template-editor) -> Click Copy templateId button'
+      message: `Template ID (from ${tuiManager.terminalLink(
+        'https://console.stacktape.com/template-editor',
+        'console'
+      )} -> Copy templateId)`
     });
     templateId = res.templateId;
   }
@@ -42,5 +45,5 @@ export const initUsingExistingConfig = async () => {
 
   await outputFile(templatePath, template.content);
 
-  tuiManager.success(`Template successfully initialized to ${tuiManager.prettyFilePath(templatePath)}`);
+  tuiManager.success(`Template saved to ${tuiManager.prettyFilePath(templatePath)}.`);
 };

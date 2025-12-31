@@ -17,15 +17,15 @@ class StacktapeTrpcApiManager {
         this.apiClient[prop] = async (...args) => {
           const start = Date.now();
           try {
-            tuiManager.debug(`Performing TRPC operation ${prop}.`);
+            tuiManager.debug(`TRPC ${prop}: start.`);
             const res = await oldMethod(...args);
-            tuiManager.debug(`Stacktape TRPC operation ${prop} took ${Date.now() - start}ms.`);
+            tuiManager.debug(`TRPC ${prop}: ${Date.now() - start}ms.`);
             return res;
           } catch (err) {
             if (IS_DEV) {
-              tuiManager.warn(`Communication with Stacktape API has failed:\n${err}`);
+              tuiManager.warn(`Stacktape API request failed:\n${err}`);
             }
-            tuiManager.debug(`Stacktape TRPC API operation ${prop} took ${Date.now() - start}ms.`);
+            tuiManager.debug(`TRPC API ${prop}: ${Date.now() - start}ms.`);
             const errCode = err?.shape?.data.code;
             if (errCode === 'UNAUTHORIZED' && apiKey) {
               throw stpErrors.e503({ message: 'Invalid API key.' });

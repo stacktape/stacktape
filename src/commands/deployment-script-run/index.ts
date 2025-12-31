@@ -33,7 +33,7 @@ export const commandDeploymentScriptRun = async (): Promise<DeploymentScriptRunR
     })
   ]);
 
-  tuiManager.info(`Running deployment-script ${tuiManager.colorize('cyan', resourceName)}`);
+  tuiManager.info(`Running deployment script ${tuiManager.prettyResourceName(resourceName)}...`);
   const response = await awsSdkManager.invokeLambdaFunction({
     lambdaResourceName: lambdaArn,
     payload: scriptParametersResolvedLocally
@@ -62,14 +62,12 @@ const printInformationAboutScriptResult = ({
     tuiManager.info(
       `${tuiManager.colorize(
         'red',
-        'Deployment-script FAILED.\nERROR'
-      )} returned from deployment-script ${tuiManager.colorize('cyan', stpResourceName)}:\n${
-        formattedJsonResponse || response.Payload
-      }`
+        'Deployment script failed.\nError'
+      )} from ${tuiManager.prettyResourceName(stpResourceName)}:\n${formattedJsonResponse || response.Payload}`
     );
   } else {
     tuiManager.success(
-      `Deployment-script ${tuiManager.colorize('cyan', stpResourceName)} finished successfully. Returned payload:\n${
+      `Deployment script ${tuiManager.prettyResourceName(stpResourceName)} succeeded. Payload:\n${
         formattedJsonResponse || response.Payload
       }`
     );

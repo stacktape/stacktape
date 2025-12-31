@@ -491,7 +491,7 @@ export class DeployedStackOverviewManager {
   printShortStackInfo = () => {
     if (tuiManager.enabled) return;
     const { resources } = this.stackInfoMap;
-    const linesToPrint = [`Successfully deployed to stage ${globalStateManager.targetStack.stage}. Overview:\n`];
+    const linesToPrint = [`Deployment complete. Stage: ${globalStateManager.targetStack.stage}. Overview:\n`];
 
     for (const resourceName in resources) {
       const resource = resources[resourceName];
@@ -545,7 +545,7 @@ export class DeployedStackOverviewManager {
     }
     // /projects/posts-api-starter/dev2/overview
     linesToPrint.push(
-      `\nYou can find more information about the stack at ${tuiManager.makeBold(
+      `\nMore details: ${tuiManager.makeBold(
         `https://console.stacktape.com/projects/${globalStateManager.targetStack.projectName}/${globalStateManager.targetStack.stage}/overview`
       )}\n`
     );

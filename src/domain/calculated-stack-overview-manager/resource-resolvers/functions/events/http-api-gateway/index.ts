@@ -160,18 +160,15 @@ const getHttpApiLambdaIntegration = ({
 }) => {
   if (functionTimeout > 29) {
     tuiManager.warn(
-      `Function compute resource (${workloadName}) timeout setting (${functionTimeout}) is greater than ` +
-        'maximum allowed timeout for HTTP API endpoint (29s).\n' +
-        'This may introduce a situation where endpoint times out ' +
-        'for a successful function invocation.'
+      `Function ${tuiManager.prettyResourceName(
+        workloadName
+      )} timeout is ${functionTimeout}s, above HTTP API max (29s).\n` + 'Requests may time out.'
     );
   }
   if (functionTimeout === 29) {
     tuiManager.warn(
-      `Function compute resource (${workloadName}) timeout setting (${functionTimeout}) may not provide ` +
-        'enough room to process an HTTP API request (of which timeout is limited to 29s). ' +
-        'This may introduce a situation where endpoint times out ' +
-        'for a successful function invocation.'
+      `Function ${tuiManager.prettyResourceName(workloadName)} timeout is 29s (HTTP API max). ` +
+        'Requests may time out.'
     );
   }
   return new Integration({

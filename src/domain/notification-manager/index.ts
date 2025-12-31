@@ -11,7 +11,7 @@ const getWarnOnFailedNotificationHandler =
   (args: { type: DeploymentNotificationUserIntegration['type']; [arg: string]: any }) => (err) => {
     const { type, ...restArgs } = args;
     tuiManager.warn(
-      `Failed to send notification to ${tuiManager.colorize('cyan', type)}. Details:\n${getPrettyPrintedFlatObject(
+      `Notification to ${tuiManager.colorize('cyan', type)} failed.\nDetails:\n${getPrettyPrintedFlatObject(
         restArgs
       )}\n${tuiManager.colorize('red', 'Error')}: ${err}`
     );

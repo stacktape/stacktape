@@ -12,7 +12,7 @@ export const commandUpgrade = async () => {
   const isNewerVersionAvailable = gt(latestVersion, normalizedCurrentVersion);
 
   if (!isNewerVersionAvailable) {
-    tuiManager.success(`You are already using the latest version of Stacktape (${currentVersion}).`);
+    tuiManager.success(`Already on latest Stacktape (${currentVersion}).`);
     return { upgraded: false, currentVersion, latestVersion };
   }
 
@@ -21,7 +21,9 @@ export const commandUpgrade = async () => {
 
   if (installationType === 'native') {
     tuiManager.info(
-      `Current version: ${tuiManager.makeBold(currentVersion)}\nLatest version: ${tuiManager.makeBold(latestVersion)}\n\nUpgrading Stacktape using native installer...`
+      `Current: ${tuiManager.makeBold(currentVersion)}\nLatest: ${tuiManager.makeBold(
+        latestVersion
+      )}\n\nRunning native installer...`
     );
     if (process.platform === 'win32') {
       await exec('powershell', ['-Command', upgradeCommand], { disableStdout: false });
@@ -34,7 +36,9 @@ export const commandUpgrade = async () => {
   const instructionPrefix =
     installationType === 'npm-local' ? 'To upgrade Stacktape in your project' : 'To upgrade Stacktape';
   tuiManager.info(
-    `Current version: ${tuiManager.makeBold(currentVersion)}\nLatest version: ${tuiManager.makeBold(latestVersion)}\n\n${instructionPrefix}, run:\n  ${tuiManager.colorize('yellow', upgradeCommand)}`
+    `Current: ${tuiManager.makeBold(currentVersion)}\nLatest: ${tuiManager.makeBold(
+      latestVersion
+    )}\n\n${instructionPrefix}, run:\n  ${tuiManager.colorize('yellow', upgradeCommand)}`
   );
   return { upgraded: false, currentVersion, latestVersion, upgradeCommand };
 };

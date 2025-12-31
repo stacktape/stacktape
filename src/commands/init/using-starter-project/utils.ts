@@ -225,10 +225,9 @@ export const addEslintPrettier = async ({
 };
 
 export const promptTargetDirectory = async (): Promise<string> => {
-  const { targetDirectory } = await tuiManager.prompt({
-    type: 'text',
-    name: 'targetDirectory',
-    message: `Where to create project (Use "." for current directory. Default: "${DEFAULT_STARTER_PROJECT_TARGET_DIRECTORY}"):`
+  const targetDirectory = await tuiManager.promptText({
+    message: 'Where to create the project?',
+    description: `(Use "." for current directory. Default: "${DEFAULT_STARTER_PROJECT_TARGET_DIRECTORY}"):`
   });
   return targetDirectory === '' ? DEFAULT_STARTER_PROJECT_TARGET_DIRECTORY : targetDirectory;
 };

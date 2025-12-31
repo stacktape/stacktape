@@ -38,7 +38,7 @@ export const commandAwsProfileCreate = async (): Promise<AwsProfileCreateReturnV
   });
 
   await upsertAwsProfile(profile, awsAccessKeyId, awsSecretAccessKey);
-  tuiManager.success(`Successfully saved credentials for profile ${profile}.`);
+  tuiManager.success(`Saved credentials for AWS profile ${profile}.`);
 
   return null;
 };

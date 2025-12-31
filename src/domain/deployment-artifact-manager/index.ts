@@ -542,9 +542,7 @@ export class DeploymentArtifactManager {
       objects = await awsSdkManager.listAllObjectsInBucket(deploymentBucketName);
     } catch (err) {
       if (stackActionType === 'delete' && err.toString().includes('NoSuchBucket')) {
-        tuiManager.debug(
-          `Deployment bucket ${deploymentBucketName} not found. Skipping loading of deployment artifacts.`
-        );
+        tuiManager.debug(`Deployment bucket ${deploymentBucketName} not found; skipping artifact load.`);
         return;
       }
       throw err;
@@ -568,7 +566,7 @@ export class DeploymentArtifactManager {
       imagesInRepo = await awsSdkManager.listAllImagesInEcrRepo(repositoryName);
     } catch (err) {
       if (stackActionType === 'delete' && err.toString().includes('RepositoryNotFoundException')) {
-        tuiManager.debug(`ECR image repo ${repositoryName} not found. Skipping loading of images.`);
+        tuiManager.debug(`ECR repo ${repositoryName} not found; skipping image load.`);
         return;
       }
       throw err;

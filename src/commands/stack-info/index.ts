@@ -54,9 +54,7 @@ export const commandStackInfo = async (): Promise<StackInfoReturnValue> => {
     });
   }
   if (existingStackDetails?.StackStatus === StackStatus.UPDATE_FAILED) {
-    tuiManager.warn(
-      'Stack is in UPDATE_FAILED state. Shown values might be different from actual deployed infrastructure values.'
-    );
+    tuiManager.warn('Stack status is UPDATE_FAILED; values may be stale.');
   }
 
   const canUseConfig = getIsConfigPotentiallyUsable();

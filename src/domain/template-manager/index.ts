@@ -50,9 +50,7 @@ export class TemplateManager {
     const amountOfResources = Object.keys(this.template.Resources).length;
     if (amountOfResources > 470) {
       // @later-dodo: print options to solve this issue
-      tuiManager.warn(
-        `You are approaching limit of 500 resources per cloudformation stack. Resources used: ${amountOfResources}`
-      );
+      tuiManager.warn(`Approaching CloudFormation 500-resource limit (used: ${amountOfResources}).`);
     }
     if (amountOfResources > 500) {
       throw new ExpectedError(

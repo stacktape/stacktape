@@ -98,7 +98,7 @@ export class ApplicationManager {
     }
     this.isInterrupted = true;
     tuiManager.stop();
-    tuiManager.info(`Received ${signal} signal. Exiting...`);
+    tuiManager.info(`Received ${signal}. Exiting.`);
     if (globalStateManager.invokedFrom === 'cli') {
       await this.reportTelemetryEvent({ outcome: 'USER_INTERRUPTION' });
     }
@@ -168,7 +168,7 @@ export class ApplicationManager {
       return;
     }
     if (IS_DEV) {
-      tuiManager.warn(`[shown-only-in-dev-mode] ${type} ${err.stack}`);
+      tuiManager.warn(`[dev-only] ${type}: ${err.stack}`);
     }
     this.isErrored = true;
     this.cancelPendingPromises(err);

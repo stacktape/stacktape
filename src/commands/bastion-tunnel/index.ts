@@ -37,7 +37,7 @@ export const commandBastionTunnel = async () => {
   });
 
   tuiManager.info(
-    `Following tunnels are open:\n\n${targets
+    `Tunnels open (local -> remote):\n\n${targets
       .map(({ label, additionalStringToSubstitute, remoteHost, remotePort }, index) => {
         return ` - ${tuiManager.prettyResourceName(resourceName)} ${tuiManager.colorize(
           'gray',

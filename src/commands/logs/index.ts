@@ -33,7 +33,7 @@ export const commandLogs = async (): Promise<LogsReturnValue> => {
   const logStreams = await awsSdkManager.getLogStreams({ logGroupName });
 
   if (!logStreams.length) {
-    tuiManager.info(`No log streams found for log group ${logGroupName}`);
+    tuiManager.info(`No log streams found for ${logGroupName}.`);
     return;
   }
 
