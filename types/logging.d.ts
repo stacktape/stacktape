@@ -61,7 +61,8 @@ type LoggableEventType =
   | 'VALIDATE_CONFIG_TEMP'
   | 'LOAD_TARGET_STACK_INFO'
   | 'LOAD_PROVIDER_CREDENTIALS'
-  | 'LOAD_VPC_INFO';
+  | 'LOAD_VPC_INFO'
+  | 'RUN_SCRIPT';
 
 type EventLogEntryType = 'START' | 'UPDATE' | 'FINISH';
 

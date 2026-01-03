@@ -127,7 +127,7 @@ const renderResourceList = (label: string, items: string) => {
   );
 };
 
-export const DeployPhase: React.FC<DeployPhaseProps> = React.memo(({ phase, phaseNumber, warnings, messages }) => {
+export const DeployPhase: React.FC<DeployPhaseProps> = ({ phase, phaseNumber, warnings, messages }) => {
   const phaseWarnings = warnings.filter((w) => w.phase === phase.id);
   const phaseMessages = messages.filter((m) => m.phase === phase.id);
   const deployEvent = getActiveDeployEvent(phase.events);
@@ -171,7 +171,10 @@ export const DeployPhase: React.FC<DeployPhaseProps> = React.memo(({ phase, phas
         {isWaitingForProgress && (
           <Box>
             <Spinner type="dots" />
-            <Text color="gray"> {isDeleteOperation ? 'Preparing stack deletion...' : 'Preparing CloudFormation update...'}</Text>
+            <Text color="gray">
+              {' '}
+              {isDeleteOperation ? 'Preparing stack deletion...' : 'Preparing CloudFormation update...'}
+            </Text>
           </Box>
         )}
 
@@ -243,8 +246,13 @@ export const DeployPhase: React.FC<DeployPhaseProps> = React.memo(({ phase, phas
       </Box>
 
       {phaseWarnings.map((warning) => (
-        <Box key={warning.id}>
-          <Text color="yellow">! {warning.message}</Text>
+        <Box key={warning.id} flexDirection="column">
+          {warning.message.split('\n').map((line, idx) => (
+            <Box key={idx}>
+              {idx === 0 ? <Text color="yellow">⚠ </Text> : <Text> </Text>}
+              <Text color="yellow">{line}</Text>
+            </Box>
+          ))}
         </Box>
       ))}
 
@@ -253,4 +261,4 @@ export const DeployPhase: React.FC<DeployPhaseProps> = React.memo(({ phase, phas
       ))}
     </Box>
   );
-});
+};

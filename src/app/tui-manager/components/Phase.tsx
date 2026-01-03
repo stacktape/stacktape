@@ -23,7 +23,7 @@ const CF_DEPLOY_EVENT_TYPES: LoggableEventType[] = [
   'HOTSWAP_UPDATE'
 ];
 
-export const Phase: React.FC<PhaseProps> = React.memo(({ phase, phaseNumber, warnings, messages, isTTY }) => {
+export const Phase: React.FC<PhaseProps> = ({ phase, phaseNumber, warnings, messages, isTTY }) => {
   // Only use DeployPhase when there are CloudFormation-related events (not for codebuild monitoring, etc.)
   const hasCfEvents = phase.events.some((e) => CF_DEPLOY_EVENT_TYPES.includes(e.eventType));
   if (phase.id === 'DEPLOY' && isTTY && hasCfEvents) {
@@ -55,8 +55,13 @@ export const Phase: React.FC<PhaseProps> = React.memo(({ phase, phaseNumber, war
       ))}
 
       {phaseWarnings.map((warning) => (
-        <Box key={warning.id}>
-          <Text color="yellow">⚠ {warning.message}</Text>
+        <Box key={warning.id} flexDirection="column">
+          {warning.message.split('\n').map((line, idx) => (
+            <Box key={idx}>
+              {idx === 0 ? <Text color="yellow">⚠ </Text> : <Text> </Text>}
+              <Text color="yellow">{line}</Text>
+            </Box>
+          ))}
         </Box>
       ))}
 
@@ -65,4 +70,4 @@ export const Phase: React.FC<PhaseProps> = React.memo(({ phase, phaseNumber, war
       ))}
     </Box>
   );
-});
+};

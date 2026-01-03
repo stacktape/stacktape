@@ -1,8 +1,8 @@
 import { isAbsolute, join } from 'node:path';
+import { tuiManager } from '@application-services/tui-manager';
 import { getFileExtension, getPathRelativeTo } from '@shared/utils/fs-utils';
 import { ExpectedError, UserCodeError } from './errors';
 import { getCallablePythonFunc, getJavascriptExport, getTypescriptExport, isFile } from './file-loaders';
-import { tuiManager } from '@application-services/tui-manager';
 
 export const parseUserCodeFilepath = ({
   codeType,

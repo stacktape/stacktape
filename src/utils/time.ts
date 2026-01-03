@@ -1,5 +1,5 @@
-import { NtpTimeSync } from 'ntp-time-sync';
 import { tuiManager } from '@application-services/tui-manager';
+import { NtpTimeSync } from 'ntp-time-sync';
 
 const synced = NtpTimeSync.getInstance({
   servers: ['time.aws.com'],

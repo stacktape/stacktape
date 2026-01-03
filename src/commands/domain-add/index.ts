@@ -143,9 +143,7 @@ export const commandDomainAdd = async () => {
     );
     tuiManager.success('Added DNS validation record(s) to the hosted zone.');
     tuiManager.info('Certificate validation can take a few minutes.');
-    tuiManager.hint(
-      `Re-run \`${tuiManager.prettyCommand('domain:add')}\` in a few minutes to check status.`
-    );
+    tuiManager.hint(`Re-run \`${tuiManager.prettyCommand('domain:add')}\` in a few minutes to check status.`);
     domainStatus.regionalCert = regionalCert;
     domainStatus.usEast1Cert = usEast1Cert;
     await domainManager.storeDomainStatusIntoParameterStore({ domainName, status: domainStatus });

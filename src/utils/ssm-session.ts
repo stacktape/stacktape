@@ -3,6 +3,7 @@ import type { StartSessionCommandInput } from '@aws-sdk/client-ssm';
 import type { ExecaChildProcess } from 'execa';
 import readline from 'node:readline';
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { CommandInvocationStatus } from '@aws-sdk/client-ssm';
 import { stpErrors } from '@errors';
 import { fsPaths } from '@shared/naming/fs-paths';
@@ -14,7 +15,6 @@ import findFreePorts from 'find-free-ports';
 import pRetry from 'p-retry';
 import { awsSdkManager } from './aws-sdk-manager';
 import { SsmExecuteScriptCloudwatchLogPrinter } from './cloudwatch-logs';
-import { tuiManager } from '@application-services/tui-manager';
 
 export class SsmPortForwardingTunnel {
   #instanceId: string;

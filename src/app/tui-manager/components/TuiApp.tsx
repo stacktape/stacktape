@@ -1,6 +1,6 @@
 import type { TuiPhase, TuiState } from '../types';
-import { Box, Static } from 'ink';
-import React, { useEffect, useMemo, useState } from 'react';
+import { Box, Static, Text } from 'ink';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { tuiState } from '../state';
 import { Header } from './Header';
 import { Message } from './Message';
@@ -20,14 +20,24 @@ type StaticItem =
       data: { phase: TuiPhase; phaseNumber: number; warnings: TuiState['warnings']; messages: TuiState['messages'] };
     };
 
+// Module-level tracking to survive React concurrent mode re-renders
+// Reset when the module is first loaded (app start)
+let globalRenderedIds = new Set<string>();
+let globalStaticItems: StaticItem[] = [];
+
 export const TuiApp: React.FC<TuiAppProps> = ({ isTTY }) => {
   const [state, setState] = useState<TuiState>(tuiState.getState());
   const [promptKey, setPromptKey] = useState(0);
-  // Track completed items that have been added to Static (using state for proper tracking)
-  const [staticItems, setStaticItems] = useState<StaticItem[]>([]);
-  const [renderedIds, setRenderedIds] = useState<Set<string>>(() => new Set());
+  // Track if this is a fresh mount (reset tracking on new TUI session)
+  const isFirstMount = useRef(true);
 
   useEffect(() => {
+    // Reset tracking on first mount (new TUI session)
+    if (isFirstMount.current) {
+      globalRenderedIds = new Set<string>();
+      globalStaticItems = [];
+      isFirstMount.current = false;
+    }
     return tuiState.subscribe(setState);
   }, []);
 
@@ -38,52 +48,58 @@ export const TuiApp: React.FC<TuiAppProps> = ({ isTTY }) => {
     }
   }, [state.activePrompt]);
 
-  // Add new completed items to static list
-  useEffect(() => {
-    const newItems: StaticItem[] = [];
-    const newIds = new Set(renderedIds);
-
-    // Add header to static if present and not already added
-    if (state.header && !renderedIds.has('header')) {
-      newItems.push({ type: 'header', id: 'header', data: state.header });
-      newIds.add('header');
+  // Compute static items synchronously during render using module-level tracking
+  // This avoids React's async useEffect timing issues
+  const staticItems = useMemo(() => {
+    // Add header if present and not already added
+    if (state.header && !globalRenderedIds.has('header')) {
+      globalStaticItems = [...globalStaticItems, { type: 'header', id: 'header', data: state.header }];
+      globalRenderedIds.add('header');
     }
 
-    // Add completed phases to static
+    // Add completed phases
     for (let i = 0; i < state.phases.length; i++) {
       const phase = state.phases[i];
       const isVisible = isTTY ? phase.status !== 'pending' || phase.events.length > 0 : phase.events.length > 0;
       const isCompleted = phase.status === 'success' || phase.status === 'error';
+      // For DEPLOY phase, ensure all events are completed (to capture final summary data)
+      const allEventsCompleted =
+        phase.id !== 'DEPLOY' || phase.events.every((e) => e.status === 'success' || e.status === 'error');
 
-      if (isVisible && isCompleted && !renderedIds.has(phase.id)) {
-        const phaseNumber = i + 1; // Use index in current phase order
-        newItems.push({
-          type: 'phase',
-          id: phase.id,
-          data: { phase, phaseNumber, warnings: state.warnings, messages: state.messages }
-        });
-        newIds.add(phase.id);
+      if (isVisible && isCompleted && allEventsCompleted && !globalRenderedIds.has(phase.id)) {
+        const phaseNumber = i + 1;
+        globalStaticItems = [
+          ...globalStaticItems,
+          {
+            type: 'phase',
+            id: phase.id,
+            data: { phase, phaseNumber, warnings: state.warnings, messages: state.messages }
+          }
+        ];
+        globalRenderedIds.add(phase.id);
       }
     }
 
-    if (newItems.length > 0) {
-      setStaticItems((prev) => [...prev, ...newItems]);
-      setRenderedIds(newIds);
-    }
-  }, [state.header, state.phases, state.warnings, state.messages, isTTY, renderedIds]);
+    return globalStaticItems;
+  }, [state.header, state.phases, state.warnings, state.messages, isTTY]);
 
   // Messages without a phase are rendered at the bottom (global messages)
   const globalMessages = useMemo(() => {
     return state.messages.filter((m) => !m.phase);
   }, [state.messages]);
 
-  // Active phases: running or pending with events, not yet rendered to Static
+  // Active phases: running or pending with events, not completed (completed go to Static)
   const activePhases = useMemo(() => {
     return state.phases.filter((p) => {
       const isVisible = isTTY ? p.status !== 'pending' || p.events.length > 0 : p.events.length > 0;
-      return isVisible && !renderedIds.has(p.id);
+      const isCompleted = p.status === 'success' || p.status === 'error';
+      // For DEPLOY phase, also check if all events are completed
+      const allEventsCompleted =
+        p.id !== 'DEPLOY' || p.events.every((e) => e.status === 'success' || e.status === 'error');
+      // Completed phases go to Static, so exclude them from dynamic section
+      return isVisible && !(isCompleted && allEventsCompleted);
     });
-  }, [state.phases, isTTY, renderedIds]);
+  }, [state.phases, isTTY]);
 
   return (
     <>
@@ -112,6 +128,8 @@ export const TuiApp: React.FC<TuiAppProps> = ({ isTTY }) => {
       {/* Dynamic content: active phases, prompts, summary */}
       {/* Hide active phases in streaming mode to prevent conflicts with console.log */}
       <Box flexDirection="column">
+        {/* Add spacing between static (completed) phases and dynamic (active) phases */}
+        {!state.streamingMode && staticItems.length > 0 && activePhases.length > 0 && <Text> </Text>}
         {!state.streamingMode &&
           activePhases.map((phase) => {
             const phaseNumber = state.phases.findIndex((p) => p.id === phase.id) + 1;

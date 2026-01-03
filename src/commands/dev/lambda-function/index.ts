@@ -111,6 +111,3 @@ const printLambdaFunctionInfo = (resourceName: string) => {
     }    ${eventsInfo.join('\n    ')}`
   );
 };
-
-
-

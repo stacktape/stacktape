@@ -344,8 +344,7 @@ If you want to disable local emulation, use the ${tuiManager.prettyOption('disab
   e34(_arg: null): ReturnedError {
     return {
       type: 'MISSING_PREREQUISITE',
-      message:
-        'To use this starter project, install Node.js and a JavaScript package manager (yarn, npm, or pnpm).'
+      message: 'To use this starter project, install Node.js and a JavaScript package manager (yarn, npm, or pnpm).'
     };
   },
   e35({ err }): ReturnedError {
@@ -1917,9 +1916,7 @@ Property ${tuiManager.prettyConfigProperty('runAppAs')} can be specified only fo
   e133({ vpcId, foundCount }: { vpcId: string; foundCount: number }): ReturnedError {
     return {
       type: 'CONFIG_VALIDATION',
-      message: `VPC ${tuiManager.makeBold(
-        vpcId
-      )} does not have enough public subnets. Found ${tuiManager.makeBold(
+      message: `VPC ${tuiManager.makeBold(vpcId)} does not have enough public subnets. Found ${tuiManager.makeBold(
         String(foundCount)
       )}; at least ${tuiManager.makeBold('3')} are required.`,
       hint: 'Public subnets are identified by having a route to an Internet Gateway (0.0.0.0/0 -> igw-*) in their associated route table.'
@@ -1945,9 +1942,7 @@ Property ${tuiManager.prettyConfigProperty('runAppAs')} can be specified only fo
   }): ReturnedError {
     return {
       type: 'CONFIG_VALIDATION',
-      message: `VPC ${tuiManager.makeBold(
-        vpcId
-      )} does not have enough private subnets. Found ${tuiManager.makeBold(
+      message: `VPC ${tuiManager.makeBold(vpcId)} does not have enough private subnets. Found ${tuiManager.makeBold(
         String(foundCount)
       )}; at least ${tuiManager.makeBold('2')} are required when resources use ${tuiManager.prettyConfigProperty(
         'usePrivateSubnetsWithNAT'
@@ -2022,9 +2017,7 @@ export const hintMessages = {
     return [
       `If you are creating a new ${tuiManager.prettyResourceType(
         resourceType
-      )}, deploy it with the full stack using ${tuiManager.prettyCommand(
-        'deploy'
-      )}.`
+      )}, deploy it with the full stack using ${tuiManager.prettyCommand('deploy')}.`
     ];
   },
   configPathHint(): string[] {
