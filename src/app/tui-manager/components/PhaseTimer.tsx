@@ -1,4 +1,4 @@
-import { Text } from 'ink';
+/** @jsxImportSource @opentui/react */
 import React, { useEffect, useState } from 'react';
 import { formatPhaseTimer, getElapsedTime } from '../utils';
 
@@ -23,5 +23,5 @@ export const PhaseTimer: React.FC<PhaseTimerProps> = ({ startTime, duration, isR
 
   const elapsed = getElapsedTime(startTime, duration);
 
-  return <Text color="gray"> {formatPhaseTimer(elapsed)}</Text>;
+  return <text fg="gray"> {formatPhaseTimer(elapsed)}</text>;
 };

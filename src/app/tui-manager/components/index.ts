@@ -12,5 +12,5 @@ export { SelectInput } from './SelectInput';
 export { renderStackErrorsToString, StackErrors } from './StackErrors';
 export type { StackError } from './StackErrors';
 export { Summary } from './Summary';
-export { Table } from './Table';
+export { renderTableToString, Table } from './Table';
 export { TuiApp } from './TuiApp';

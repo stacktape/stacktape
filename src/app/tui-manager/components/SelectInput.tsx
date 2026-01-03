@@ -1,6 +1,8 @@
+/** @jsxImportSource @opentui/react */
 import type { TuiSelectOption } from '../types';
-import { Box, Text, useInput, useStdout } from 'ink';
 import React, { memo, useCallback, useMemo, useState } from 'react';
+import { useKeyboard, useTerminalDimensions } from '@opentui/react';
+import { TextAttributes } from '@opentui/core';
 
 type SelectInputProps = {
   options: TuiSelectOption[];
@@ -18,22 +20,20 @@ type OptionItemProps = {
 
 /** Memoized option item to prevent unnecessary re-renders */
 const OptionItem = memo<OptionItemProps>(({ option, isSelected }) => (
-  <Box flexDirection="column">
-    <Box>
-      <Text color={isSelected ? 'cyan' : undefined}>{isSelected ? '> ' : '  '}</Text>
-      <Text color={isSelected ? 'cyan' : undefined} bold={isSelected}>
-        {option.label}
-      </Text>
-      {isSelected && option.description && <Text color="gray"> - {option.description}</Text>}
-    </Box>
-  </Box>
+  <box flexDirection="column">
+    <box flexDirection="row">
+      <text fg={isSelected ? 'cyan' : undefined}>{isSelected ? '> ' : '  '}</text>
+      <text fg={isSelected ? 'cyan' : undefined}>{isSelected ? <strong>{option.label}</strong> : option.label}</text>
+      {isSelected && option.description && <text fg="gray"> - {option.description}</text>}
+    </box>
+  </box>
 ));
 
 OptionItem.displayName = 'OptionItem';
 
 /**
  * Custom Select component with:
- * - Scroll indicators (↑/↓ arrows)
+ * - Scroll indicators (up/down arrows)
  * - Dynamic height based on terminal size
  * - Keyboard navigation (up/down arrows, enter to select)
  */
@@ -44,19 +44,19 @@ export const SelectInput: React.FC<SelectInputProps> = ({
   minVisibleOptions = 5
 }) => {
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const { stdout } = useStdout();
+  const { height } = useTerminalDimensions();
 
   // Calculate visible options based on terminal height
   const visibleCount = useMemo(() => {
     if (maxVisibleOptions) return maxVisibleOptions;
 
     // Get terminal height, reserve space for other UI elements
-    const terminalHeight = stdout?.rows || 24;
+    const terminalHeight = height || 24;
     // Reserve ~10 lines for header, prompt message, and other UI
     const availableLines = Math.max(minVisibleOptions, terminalHeight - 10);
     // Cap at the number of options or a reasonable maximum
     return Math.min(options.length, availableLines, 20);
-  }, [stdout?.rows, options.length, maxVisibleOptions, minVisibleOptions]);
+  }, [height, options.length, maxVisibleOptions, minVisibleOptions]);
 
   // Calculate the window of visible options
   const { startIndex, endIndex, visibleOptions } = useMemo(() => {
@@ -87,24 +87,25 @@ export const SelectInput: React.FC<SelectInputProps> = ({
 
   // Memoized input handler
   const handleInput = useCallback(
-    (_input: string, key: { upArrow?: boolean; downArrow?: boolean; return?: boolean }) => {
-      if (key.upArrow) {
+    (key) => {
+      if (!options.length) return;
+      if (key.name === 'up' || key.name === 'k') {
         setSelectedIndex((prev) => (prev > 0 ? prev - 1 : options.length - 1));
-      } else if (key.downArrow) {
+      } else if (key.name === 'down' || key.name === 'j') {
         setSelectedIndex((prev) => (prev < options.length - 1 ? prev + 1 : 0));
-      } else if (key.return) {
+      } else if (key.name === 'return') {
         onChange(options[selectedIndex].value);
       }
     },
     [options, selectedIndex, onChange]
   );
 
-  useInput(handleInput);
+  useKeyboard(handleInput);
 
   return (
-    <Box flexDirection="column">
+    <box flexDirection="column">
       {/* Scroll up indicator */}
-      {canScrollUp && <Text color="gray"> ^ {startIndex} more above</Text>}
+      {canScrollUp && <text fg="gray"> ^ {startIndex} more above</text>}
 
       {/* Options */}
       {visibleOptions.map((option, index) => {
@@ -114,14 +115,14 @@ export const SelectInput: React.FC<SelectInputProps> = ({
       })}
 
       {/* Scroll down indicator */}
-      {canScrollDown && <Text color="gray"> v {options.length - endIndex} more below</Text>}
+      {canScrollDown && <text fg="gray"> v {options.length - endIndex} more below</text>}
 
       {/* Navigation hint */}
-      <Box marginTop={1}>
-        <Text color="gray" dimColor>
+      <box marginTop={1}>
+        <text fg="gray" attributes={TextAttributes.DIM}>
           Use arrows to navigate, Enter to select
-        </Text>
-      </Box>
-    </Box>
+        </text>
+      </box>
+    </box>
   );
 };

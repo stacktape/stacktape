@@ -1,5 +1,6 @@
-import { Box, Text, useInput } from 'ink';
-import React, { useState } from 'react';
+/** @jsxImportSource @opentui/react */
+import React, { useEffect, useRef, useState } from 'react';
+import { useAppContext, useKeyboard } from '@opentui/react';
 
 type TextInputCustomProps = {
   placeholder?: string;
@@ -15,45 +16,102 @@ type TextInputCustomProps = {
 export const TextInputCustom: React.FC<TextInputCustomProps> = ({ placeholder, isPassword, onSubmit }) => {
   const [value, setValue] = useState('');
   const [cursorOffset, setCursorOffset] = useState(0);
+  const valueRef = useRef(value);
+  const cursorRef = useRef(cursorOffset);
+  const { keyHandler } = useAppContext();
 
-  useInput((input, key) => {
-    if (key.return) {
-      onSubmit(value);
+  useEffect(() => {
+    valueRef.current = value;
+  }, [value]);
+
+  useEffect(() => {
+    cursorRef.current = cursorOffset;
+  }, [cursorOffset]);
+
+  const updateState = (nextValue: string, nextCursor: number) => {
+    valueRef.current = nextValue;
+    cursorRef.current = nextCursor;
+    setValue(nextValue);
+    setCursorOffset(nextCursor);
+  };
+
+  const updateCursor = (nextCursor: number) => {
+    cursorRef.current = nextCursor;
+    setCursorOffset(nextCursor);
+  };
+
+  const insertText = (text: string) => {
+    if (!text) return;
+    const currentValue = valueRef.current;
+    const currentCursor = cursorRef.current;
+    const before = currentValue.slice(0, currentCursor);
+    const after = currentValue.slice(currentCursor);
+    updateState(before + text + after, currentCursor + text.length);
+  };
+
+  useEffect(() => {
+    if (!keyHandler) return;
+    const handlePaste = (event: { text: string }) => {
+      const normalized = event.text.replace(/\r?\n/g, '');
+      if (!normalized) return;
+      const sanitized = Array.from(normalized)
+        .filter((char) => {
+          const code = char.charCodeAt(0);
+          return code >= 32 && code <= 126;
+        })
+        .join('');
+      insertText(sanitized);
+    };
+    keyHandler.on('paste', handlePaste);
+    return () => {
+      keyHandler.off('paste', handlePaste);
+    };
+  }, [keyHandler]);
+
+  useKeyboard((key) => {
+    if (key.name === 'return') {
+      onSubmit(valueRef.current);
       return;
     }
 
-    if (key.backspace || key.delete) {
-      if (cursorOffset > 0) {
-        const before = value.slice(0, cursorOffset - 1);
-        const after = value.slice(cursorOffset);
-        setValue(before + after);
-        setCursorOffset(cursorOffset - 1);
+    if (key.name === 'backspace' || key.name === 'delete') {
+      const currentValue = valueRef.current;
+      const currentCursor = cursorRef.current;
+      if (currentCursor > 0) {
+        const before = currentValue.slice(0, currentCursor - 1);
+        const after = currentValue.slice(currentCursor);
+        updateState(before + after, currentCursor - 1);
       }
       return;
     }
 
-    if (key.leftArrow) {
-      setCursorOffset(Math.max(0, cursorOffset - 1));
+    if (key.name === 'left') {
+      updateCursor(Math.max(0, cursorRef.current - 1));
       return;
     }
 
-    if (key.rightArrow) {
-      setCursorOffset(Math.min(value.length, cursorOffset + 1));
+    if (key.name === 'right') {
+      updateCursor(Math.min(valueRef.current.length, cursorRef.current + 1));
       return;
     }
 
-    // Ignore control characters
-    if (key.ctrl || key.meta || key.escape || key.upArrow || key.downArrow || key.tab) {
+    if (key.ctrl || key.meta || key.option || key.super || key.hyper || key.name === 'tab') {
       return;
     }
 
-    // Insert character at cursor position
-    if (input) {
-      const before = value.slice(0, cursorOffset);
-      const after = value.slice(cursorOffset);
-      setValue(before + input + after);
-      setCursorOffset(cursorOffset + input.length);
-    }
+    const sequence = key.sequence ?? '';
+    if (!sequence) return;
+
+    const normalized = sequence.replace(/\r?\n/g, '');
+    if (!normalized) return;
+
+    const isPrintable = Array.from(normalized).every((char) => {
+      const code = char.charCodeAt(0);
+      return code >= 32 && code <= 126;
+    });
+    if (!isPrintable) return;
+
+    insertText(normalized);
   });
 
   const showPlaceholder = value.length === 0 && placeholder;
@@ -67,23 +125,23 @@ export const TextInputCustom: React.FC<TextInputCustomProps> = ({ placeholder, i
   const afterCursor = displayValue.slice(cursorOffset + 1);
 
   return (
-    <Box>
+    <box flexDirection="row">
       {showPlaceholder ? (
         <>
-          <Text backgroundColor="white" color="black">
+          <text bg="white" fg="black">
             {placeholder[0] || ' '}
-          </Text>
-          <Text color="gray">{placeholder.slice(1)}</Text>
+          </text>
+          <text fg="gray">{placeholder.slice(1)}</text>
         </>
       ) : (
         <>
-          <Text color="white">{beforeCursor}</Text>
-          <Text backgroundColor="white" color="black">
+          <text fg="white">{beforeCursor}</text>
+          <text bg="white" fg="black">
             {atCursor}
-          </Text>
-          <Text color="white">{afterCursor}</Text>
+          </text>
+          <text fg="white">{afterCursor}</text>
         </>
       )}
-    </Box>
+    </box>
   );
 };

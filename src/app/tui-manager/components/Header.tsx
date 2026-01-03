@@ -1,5 +1,5 @@
+/** @jsxImportSource @opentui/react */
 import type { TuiDeploymentHeader } from '../types';
-import { Box, Text } from 'ink';
 import React from 'react';
 
 type HeaderProps = {
@@ -10,15 +10,24 @@ export const Header: React.FC<HeaderProps> = ({ header }) => {
   const { projectName, stageName, region, action } = header;
 
   return (
-    <Box flexDirection="column" marginBottom={1}>
-      <Box borderStyle="round" paddingX={1} paddingY={0} flexDirection="column" width={54}>
-        <Text bold color="cyan">
-          {action}
-        </Text>
-        <Text>
-          {projectName} <Text color="gray">→</Text> {stageName} <Text color="gray">({region})</Text>
-        </Text>
-      </Box>
-    </Box>
+    <box flexDirection="column" marginBottom={1}>
+      <box
+        border
+        borderStyle="rounded"
+        paddingLeft={1}
+        paddingRight={1}
+        paddingTop={0}
+        paddingBottom={0}
+        flexDirection="column"
+        width={54}
+      >
+        <text fg="cyan">
+          <strong>{action}</strong>
+        </text>
+        <text>
+          {projectName} <span fg="gray">|</span> {stageName} <span fg="gray">({region})</span>
+        </text>
+      </box>
+    </box>
   );
 };

@@ -1,5 +1,6 @@
-import { Box, Text } from 'ink';
+/** @jsxImportSource @opentui/react */
 import React from 'react';
+import { stripAnsi } from '../utils';
 
 export type StackError = {
   errorMessage: string;
@@ -65,40 +66,40 @@ const ErrorItem: React.FC<{ error: StackError; index: number }> = ({ error, inde
   const parsed = parseErrorMessage(error.errorMessage);
 
   return (
-    <Box flexDirection="column" marginBottom={1}>
+    <box flexDirection="column" marginBottom={1}>
       {/* Error header with number */}
-      <Box>
-        <Text color="red" bold>
-          {index + 1}.
-        </Text>
+      <box flexDirection="row">
+        <text fg="red">
+          <strong>{index + 1}.</strong>
+        </text>
         {parsed.resource && (
           <>
-            <Text> </Text>
-            <Text color="white" bold>
-              {parsed.resource}
-            </Text>
-            {parsed.context && <Text color="gray"> (in {parsed.context})</Text>}
+            <text> </text>
+            <text fg="white">
+              <strong>{parsed.resource}</strong>
+            </text>
+            {parsed.context && <text fg="gray"> (in {parsed.context})</text>}
           </>
         )}
-      </Box>
+      </box>
 
       {/* Error message */}
-      <Box marginLeft={3}>
-        <Text color="white">{parsed.error}</Text>
-      </Box>
+      <box marginLeft={3}>
+        <text fg="white">{stripAnsi(parsed.error)}</text>
+      </box>
 
       {/* Hints */}
       {error.hints && error.hints.length > 0 && (
-        <Box flexDirection="column" marginLeft={3} marginTop={0}>
+        <box flexDirection="column" marginLeft={3} marginTop={0}>
           {error.hints.map((hint, hintIndex) => (
-            <Box key={hintIndex}>
-              <Text color="blue">hint: </Text>
-              <Text color="gray">{hint}</Text>
-            </Box>
+            <box key={hintIndex} flexDirection="row">
+              <text fg="blue">hint: </text>
+              <text fg="gray">{stripAnsi(hint)}</text>
+            </box>
           ))}
-        </Box>
+        </box>
       )}
-    </Box>
+    </box>
   );
 };
 
@@ -106,23 +107,23 @@ export const StackErrors: React.FC<StackErrorsProps> = ({ errors, title }) => {
   if (errors.length === 0) return null;
 
   return (
-    <Box flexDirection="column" marginTop={1}>
+    <box flexDirection="column" marginTop={1}>
       {/* Title section */}
       {title && (
-        <Box marginBottom={1}>
-          <Text color="red" bold>
-            {title}
-          </Text>
-        </Box>
+        <box marginBottom={1}>
+          <text fg="red">
+            <strong>{title}</strong>
+          </text>
+        </box>
       )}
 
       {/* Errors list */}
-      <Box flexDirection="column" marginLeft={1}>
+      <box flexDirection="column" marginLeft={1}>
         {errors.map((error, index) => (
           <ErrorItem key={index} error={error} index={index} />
         ))}
-      </Box>
-    </Box>
+      </box>
+    </box>
   );
 };
 

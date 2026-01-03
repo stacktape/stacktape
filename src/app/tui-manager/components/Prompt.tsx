@@ -1,7 +1,7 @@
+/** @jsxImportSource @opentui/react */
 import type { TuiPrompt, TuiPromptConfirm, TuiPromptSelect, TuiPromptText, TuiSelectOption } from '../types';
-import { ConfirmInput } from '@inkjs/ui';
-import { Box, Text } from 'ink';
 import React, { useMemo } from 'react';
+import { useKeyboard } from '@opentui/react';
 import { SelectInput } from './SelectInput';
 import { TextInputCustom } from './TextInputCustom';
 
@@ -41,28 +41,43 @@ const SelectPrompt: React.FC<{ prompt: TuiPromptSelect }> = ({ prompt }) => {
   };
 
   return (
-    <Box flexDirection="column" marginY={1}>
-      <Text bold>{prompt.message}</Text>
-      <Box marginTop={1}>
+    <box flexDirection="column" marginTop={1} marginBottom={1}>
+      <text>
+        <strong>{prompt.message}</strong>
+      </text>
+      <box marginTop={1}>
         <SelectInput options={uniqueOptions} onChange={handleChange} />
-      </Box>
-    </Box>
+      </box>
+    </box>
   );
 };
 
 const ConfirmPrompt: React.FC<{ prompt: TuiPromptConfirm }> = ({ prompt }) => {
+  const defaultValue = prompt.defaultValue !== false;
+  const suffix = defaultValue ? 'Y/n' : 'y/N';
+
+  useKeyboard((key) => {
+    const lower = key.sequence?.toLowerCase();
+    if (lower === 'y') {
+      prompt.resolve(true);
+      return;
+    }
+    if (lower === 'n') {
+      prompt.resolve(false);
+      return;
+    }
+    if (key.name === 'return') {
+      prompt.resolve(defaultValue);
+    }
+  });
+
   return (
-    <Box marginY={1}>
-      <Text bold>{prompt.message} </Text>
-      <Text color="gray">(</Text>
-      <ConfirmInput
-        defaultChoice={prompt.defaultValue === false ? 'cancel' : 'confirm'}
-        submitOnEnter={true}
-        onConfirm={() => prompt.resolve(true)}
-        onCancel={() => prompt.resolve(false)}
-      />
-      <Text color="gray">)</Text>
-    </Box>
+    <box flexDirection="row" marginTop={1} marginBottom={1}>
+      <text>
+        <strong>{prompt.message} </strong>
+      </text>
+      <text fg="gray">({suffix})</text>
+    </box>
   );
 };
 
@@ -74,12 +89,14 @@ const TextPrompt: React.FC<{ prompt: TuiPromptText }> = ({ prompt }) => {
   };
 
   return (
-    <Box marginY={1}>
-      <Text bold>{prompt.message}</Text>
-      {prompt.description && <Text color="gray"> {prompt.description}</Text>}
-      <Text> </Text>
+    <box flexDirection="column" marginTop={1} marginBottom={1}>
+      <text>
+        <strong>{prompt.message}</strong>
+      </text>
+      {prompt.description && <text fg="gray"> {prompt.description}</text>}
+      <text> </text>
       <TextInputCustom placeholder={prompt.placeholder} isPassword={prompt.isPassword} onSubmit={handleSubmit} />
-    </Box>
+    </box>
   );
 };
 

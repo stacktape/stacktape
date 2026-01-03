@@ -1,21 +1,34 @@
+/** @jsxImportSource @opentui/react */
 /* eslint-disable no-control-regex */
 import type { TuiEvent, TuiMessage, TuiPhase, TuiWarning } from '../types';
-import { Spinner } from '@inkjs/ui';
-import { Box, Text } from 'ink';
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Message } from './Message';
 import { PhaseTimer } from './PhaseTimer';
 
 const PROGRESS_BAR_WIDTH = 72;
+const SPINNER_FRAMES = ['-', '\\', '|', '/'];
+
+const Spinner = ({ color = 'gray' }: { color?: string }) => {
+  const [frameIndex, setFrameIndex] = useState(0);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setFrameIndex((index) => (index + 1) % SPINNER_FRAMES.length);
+    }, 80);
+    return () => clearInterval(timer);
+  }, []);
+
+  return <text fg={color}>{SPINNER_FRAMES[frameIndex]}</text>;
+};
 
 const GreenProgressBar: React.FC<{ value: number }> = ({ value }) => {
   const filledWidth = Math.round((value / 100) * PROGRESS_BAR_WIDTH);
   const emptyWidth = PROGRESS_BAR_WIDTH - filledWidth;
   return (
-    <Text>
-      <Text color="green">{'█'.repeat(filledWidth)}</Text>
-      <Text color="gray">{'░'.repeat(emptyWidth)}</Text>
-    </Text>
+    <text>
+      <span fg="green">{'#'.repeat(filledWidth)}</span>
+      <span fg="gray">{'-'.repeat(emptyWidth)}</span>
+    </text>
   );
 };
 
@@ -120,10 +133,10 @@ const renderResourceList = (label: string, items: string) => {
     .filter(Boolean);
   if (!list.length) return null;
   return (
-    <Box>
-      <Text color="gray">{label} </Text>
-      <Text>{list.join(' • ')}</Text>
-    </Box>
+    <box flexDirection="row">
+      <text fg="gray">{label} </text>
+      <text>{list.join(', ')}</text>
+    </box>
   );
 };
 
@@ -156,109 +169,113 @@ export const DeployPhase: React.FC<DeployPhaseProps> = ({ phase, phaseNumber, wa
   const currentlyLabel = isDeleteOperation ? 'Currently deleting:' : 'Currently updating:';
 
   return (
-    <Box flexDirection="column" marginBottom={1}>
-      <Box>
-        <Text bold>PHASE {phaseNumber}</Text>
-        <Text> • </Text>
-        <Text bold>{phase.name}</Text>
+    <box flexDirection="column" marginBottom={1}>
+      <box flexDirection="row">
+        <text>
+          <strong>PHASE {phaseNumber}</strong>
+        </text>
+        <text> - </text>
+        <text>
+          <strong>{phase.name}</strong>
+        </text>
         {phase.status !== 'pending' && (
           <PhaseTimer startTime={phase.startTime} duration={phase.duration} isRunning={phase.status === 'running'} />
         )}
-      </Box>
-      <Text color="gray">{'─'.repeat(54)}</Text>
+      </box>
+      <text fg="gray">{'-'.repeat(54)}</text>
 
-      <Box flexDirection="column">
+      <box flexDirection="column">
         {isWaitingForProgress && (
-          <Box>
-            <Spinner type="dots" />
-            <Text color="gray">
+          <box flexDirection="row">
+            <Spinner />
+            <text fg="gray">
               {' '}
               {isDeleteOperation ? 'Preparing stack deletion...' : 'Preparing CloudFormation update...'}
-            </Text>
-          </Box>
+            </text>
+          </box>
         )}
 
         {showProgressUI && (
-          <Box flexDirection="column">
-            <Box>
-              <Text>{actionVerb} using CloudFormation </Text>
-              {progressPercent !== null && <Text color="cyan">{progressPercent}%</Text>}
+          <box flexDirection="column">
+            <box flexDirection="row">
+              <text>{actionVerb} using CloudFormation </text>
+              {progressPercent !== null && <text fg="cyan">{progressPercent}%</text>}
               {progressCounts.done !== null && progressCounts.total !== null && (
-                <Text color="gray">
+                <text fg="gray">
                   {' '}
                   ({progressCounts.done}/{progressCounts.total} resources)
-                </Text>
+                </text>
               )}
-            </Box>
-            <Box marginTop={0}>
+            </box>
+            <box marginTop={0}>
               {progressPercent !== null ? (
                 <GreenProgressBar value={progressPercent} />
               ) : (
-                <Box>
-                  <Spinner type="dots" />
-                  <Text color="gray"> Estimating progress...</Text>
-                </Box>
+                <box flexDirection="row">
+                  <Spinner />
+                  <text fg="gray"> Estimating progress...</text>
+                </box>
               )}
-            </Box>
-          </Box>
+            </box>
+          </box>
         )}
 
         {showProgressUI && (
-          <Box flexDirection="column" marginTop={1}>
+          <box flexDirection="column" marginTop={1}>
             {resourceState.active &&
               renderResourceList(
                 currentlyLabel,
                 resourceState.active === 'none' ? 'waiting for resources' : resourceState.active
               )}
             {resourceState.waiting && renderResourceList('Waiting:', resourceState.waiting)}
-          </Box>
+          </box>
         )}
 
         {isDone && (
-          <Box flexDirection="column" marginTop={0}>
+          <box flexDirection="column" marginTop={0}>
             {!isDeleteOperation && (
               <>
-                <Box>
-                  <Text color="green">✓</Text>
-                  <Text> Created: {summaryCounts.created}</Text>
+                <box flexDirection="row">
+                  <text fg="green">+</text>
+                  <text> Created: {summaryCounts.created}</text>
                   {formatListSummary(detailLists.created, summaryCounts.created, 4) && (
-                    <Text color="gray"> ({formatListSummary(detailLists.created, summaryCounts.created, 4)})</Text>
+                    <text fg="gray"> ({formatListSummary(detailLists.created, summaryCounts.created, 4)})</text>
                   )}
-                </Box>
-                <Box>
-                  <Text color="green">✓</Text>
-                  <Text> Updated: {summaryCounts.updated}</Text>
+                </box>
+                <box flexDirection="row">
+                  <text fg="green">+</text>
+                  <text> Updated: {summaryCounts.updated}</text>
                   {formatListSummary(detailLists.updated, summaryCounts.updated, 4) && (
-                    <Text color="gray"> ({formatListSummary(detailLists.updated, summaryCounts.updated, 4)})</Text>
+                    <text fg="gray"> ({formatListSummary(detailLists.updated, summaryCounts.updated, 4)})</text>
                   )}
-                </Box>
+                </box>
               </>
             )}
-            <Box>
-              <Text color="green">✓</Text>
-              <Text> Deleted: {summaryCounts.deleted}</Text>
+            <box flexDirection="row">
+              <text fg="green">+</text>
+              <text> Deleted: {summaryCounts.deleted}</text>
               {formatListSummary(detailLists.deleted, summaryCounts.deleted, 4) && (
-                <Text color="gray"> ({formatListSummary(detailLists.deleted, summaryCounts.deleted, 4)})</Text>
+                <text fg="gray"> ({formatListSummary(detailLists.deleted, summaryCounts.deleted, 4)})</text>
               )}
-            </Box>
-          </Box>
+            </box>
+          </box>
         )}
-      </Box>
+      </box>
 
       {phaseWarnings.map((warning) => (
-        <Box key={warning.id} flexDirection="column">
+        <box key={warning.id} flexDirection="column">
           {warning.message.split('\n').map((line, idx) => (
-            <Box key={idx}>
-              {idx === 0 ? <Text color="yellow">⚠ </Text> : <Text> </Text>}
-              <Text color="yellow">{line}</Text>
-            </Box>
+            <box key={idx} flexDirection="row">
+              {idx === 0 ? <text fg="yellow">? </text> : <text> </text>}
+              <text fg="yellow">{stripAnsi(line)}</text>
+            </box>
           ))}
-        </Box>
+        </box>
       ))}
 
       {phaseMessages.map((msg) => (
         <Message key={msg.id} message={msg} />
       ))}
-    </Box>
+    </box>
   );
 };

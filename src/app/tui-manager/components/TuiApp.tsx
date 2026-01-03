@@ -1,5 +1,5 @@
+/** @jsxImportSource @opentui/react */
 import type { TuiPhase, TuiState } from '../types';
-import { Box, Static, Text } from 'ink';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { tuiState } from '../state';
 import { Header } from './Header';
@@ -102,61 +102,53 @@ export const TuiApp: React.FC<TuiAppProps> = ({ isTTY }) => {
   }, [state.phases, isTTY]);
 
   return (
-    <>
-      {/* Static content: header + completed phases - rendered once, never re-rendered */}
-      <Static items={staticItems}>
-        {(item) => {
-          if (item.type === 'header') {
-            return <Header key={item.id} header={item.data!} />;
-          }
-          if (item.type === 'phase') {
-            return (
-              <Phase
-                key={item.id}
-                phase={item.data.phase}
-                phaseNumber={item.data.phaseNumber}
-                warnings={item.data.warnings}
-                messages={item.data.messages}
-                isTTY={isTTY}
-              />
-            );
-          }
-          return null;
-        }}
-      </Static>
+    <box flexDirection="column">
+      {staticItems.map((item) => {
+        if (item.type === 'header') {
+          return <Header key={item.id} header={item.data!} />;
+        }
+        if (item.type === 'phase') {
+          return (
+            <Phase
+              key={item.id}
+              phase={item.data.phase}
+              phaseNumber={item.data.phaseNumber}
+              warnings={item.data.warnings}
+              messages={item.data.messages}
+              isTTY={isTTY}
+            />
+          );
+        }
+        return null;
+      })}
 
-      {/* Dynamic content: active phases, prompts, summary */}
-      {/* Hide active phases in streaming mode to prevent conflicts with console.log */}
-      <Box flexDirection="column">
-        {/* Add spacing between static (completed) phases and dynamic (active) phases */}
-        {!state.streamingMode && staticItems.length > 0 && activePhases.length > 0 && <Text> </Text>}
-        {!state.streamingMode &&
-          activePhases.map((phase) => {
-            const phaseNumber = state.phases.findIndex((p) => p.id === phase.id) + 1;
-            return (
-              <Phase
-                key={phase.id}
-                phase={phase}
-                phaseNumber={phaseNumber}
-                warnings={state.warnings}
-                messages={state.messages}
-                isTTY={isTTY}
-              />
-            );
-          })}
+      {!state.streamingMode && staticItems.length > 0 && activePhases.length > 0 && <text> </text>}
+      {!state.streamingMode &&
+        activePhases.map((phase) => {
+          const phaseNumber = state.phases.findIndex((p) => p.id === phase.id) + 1;
+          return (
+            <Phase
+              key={phase.id}
+              phase={phase}
+              phaseNumber={phaseNumber}
+              warnings={state.warnings}
+              messages={state.messages}
+              isTTY={isTTY}
+            />
+          );
+        })}
 
-        {globalMessages.length > 0 && (
-          <Box flexDirection="column" marginTop={1}>
-            {globalMessages.map((msg) => (
-              <Message key={msg.id} message={msg} />
-            ))}
-          </Box>
-        )}
+      {globalMessages.length > 0 && (
+        <box flexDirection="column" marginTop={1}>
+          {globalMessages.map((msg) => (
+            <Message key={msg.id} message={msg} />
+          ))}
+        </box>
+      )}
 
-        {state.activePrompt && <Prompt key={promptKey} prompt={state.activePrompt} />}
+      {state.activePrompt && <Prompt key={promptKey} prompt={state.activePrompt} />}
 
-        {state.summary && <Summary summary={state.summary} />}
-      </Box>
-    </>
+      {state.summary && <Summary summary={state.summary} />}
+    </box>
   );
 };

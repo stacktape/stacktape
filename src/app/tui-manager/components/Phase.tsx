@@ -1,6 +1,7 @@
+/** @jsxImportSource @opentui/react */
 import type { TuiMessage, TuiPhase, TuiWarning } from '../types';
-import { Box, Text } from 'ink';
 import React from 'react';
+import { stripAnsi } from '../utils';
 import { DeployPhase } from './DeployPhase';
 import { Event } from './Event';
 import { Message } from './Message';
@@ -39,35 +40,39 @@ export const Phase: React.FC<PhaseProps> = ({ phase, phaseNumber, warnings, mess
   }
 
   return (
-    <Box flexDirection="column" marginBottom={1}>
-      <Box>
-        <Text bold>PHASE {phaseNumber}</Text>
-        <Text> • </Text>
-        <Text bold>{phase.name}</Text>
+    <box flexDirection="column" marginBottom={1}>
+      <box flexDirection="row">
+        <text>
+          <strong>PHASE {phaseNumber}</strong>
+        </text>
+        <text> - </text>
+        <text>
+          <strong>{phase.name}</strong>
+        </text>
         {phase.status !== 'pending' && (
           <PhaseTimer startTime={phase.startTime} duration={phase.duration} isRunning={phase.status === 'running'} />
         )}
-      </Box>
-      <Text color="gray">{'─'.repeat(54)}</Text>
+      </box>
+      <text fg="gray">{'-'.repeat(54)}</text>
 
       {visibleEvents.map((event) => (
         <Event key={event.id} event={event} isTTY={isTTY} />
       ))}
 
       {phaseWarnings.map((warning) => (
-        <Box key={warning.id} flexDirection="column">
+        <box key={warning.id} flexDirection="column">
           {warning.message.split('\n').map((line, idx) => (
-            <Box key={idx}>
-              {idx === 0 ? <Text color="yellow">⚠ </Text> : <Text> </Text>}
-              <Text color="yellow">{line}</Text>
-            </Box>
+            <box key={idx} flexDirection="row">
+              {idx === 0 ? <text fg="yellow">? </text> : <text> </text>}
+              <text fg="yellow">{stripAnsi(line)}</text>
+            </box>
           ))}
-        </Box>
+        </box>
       ))}
 
       {phaseMessages.map((msg) => (
         <Message key={msg.id} message={msg} />
       ))}
-    </Box>
+    </box>
   );
 };

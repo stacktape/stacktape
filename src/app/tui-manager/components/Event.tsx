@@ -1,8 +1,7 @@
+/** @jsxImportSource @opentui/react */
 import type { TuiEvent } from '../types';
-import { Spinner } from '@inkjs/ui';
-import { Box, Text } from 'ink';
-import React from 'react';
-import { formatDuration } from '../utils';
+import React, { useEffect, useState } from 'react';
+import { formatDuration, stripAnsi } from '../utils';
 
 type EventProps = {
   event: TuiEvent;
@@ -12,18 +11,33 @@ type EventProps = {
   isTTY?: boolean;
 };
 
+const SPINNER_FRAMES = ['-', '\\', '|', '/'];
+
+const Spinner = ({ color = 'gray' }: { color?: string }) => {
+  const [frameIndex, setFrameIndex] = useState(0);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setFrameIndex((index) => (index + 1) % SPINNER_FRAMES.length);
+    }, 80);
+    return () => clearInterval(timer);
+  }, []);
+
+  return <text fg={color}>{SPINNER_FRAMES[frameIndex]}</text>;
+};
+
 const StatusIcon: React.FC<{ status: TuiEvent['status'] }> = ({ status }) => {
   switch (status) {
     case 'running':
-      return <Spinner type="dots" />;
+      return <Spinner />;
     case 'success':
-      return <Text color="green">✓</Text>;
+      return <text fg="green">+</text>;
     case 'error':
-      return <Text color="red">✗</Text>;
+      return <text fg="red">x</text>;
     case 'warning':
-      return <Text color="yellow">!</Text>;
+      return <text fg="yellow">!</text>;
     default:
-      return <Text color="gray">○</Text>;
+      return <text fg="gray"> </text>;
   }
 };
 
@@ -79,7 +93,7 @@ const getAggregatedChildren = (children: TuiEvent[]): TuiEvent[] => {
 };
 
 export const Event: React.FC<EventProps> = ({ event, isChild = false, isLast = false, depth = 0, isTTY = false }) => {
-  const prefix = isChild ? (isLast ? '└' : '├') : '';
+  const prefix = isChild ? (isLast ? '`-' : '|-') : '';
   const indent = isChild ? ' '.repeat(depth) : '';
 
   const hasChildren = event.children.length > 0;
@@ -90,21 +104,23 @@ export const Event: React.FC<EventProps> = ({ event, isChild = false, isLast = f
   const displayChildren = isTTY && hasChildren ? getAggregatedChildren(event.children) : event.children;
 
   return (
-    <Box flexDirection="column">
-      <Box>
-        <Text>{indent}</Text>
-        {isChild && <Text color="gray">{prefix} </Text>}
+    <box flexDirection="column">
+      <box flexDirection="row">
+        <text>{indent}</text>
+        {isChild && <text fg="gray">{prefix} </text>}
         <StatusIcon status={event.status} />
-        <Text> {event.description}</Text>
+        <text> {stripAnsi(event.description)}</text>
         {event.duration !== undefined && event.status !== 'running' && (
-          <Text color="yellow"> {formatDuration(event.duration)}</Text>
+          <text fg="yellow"> {formatDuration(event.duration)}</text>
         )}
-        {event.finalMessage && event.status !== 'running' && <Text color="gray"> {event.finalMessage}</Text>}
-        {event.additionalMessage && event.status === 'running' && <Text color="gray"> {event.additionalMessage}</Text>}
-      </Box>
+        {event.finalMessage && event.status !== 'running' && <text fg="gray"> {stripAnsi(event.finalMessage)}</text>}
+        {event.additionalMessage && event.status === 'running' && (
+          <text fg="gray"> {stripAnsi(event.additionalMessage)}</text>
+        )}
+      </box>
 
       {hasChildren && !shouldHideChildren && (
-        <Box flexDirection="column" marginLeft={2}>
+        <box flexDirection="column" marginLeft={2}>
           {displayChildren.map((child, index) => (
             <Event
               key={child.id}
@@ -115,8 +131,8 @@ export const Event: React.FC<EventProps> = ({ event, isChild = false, isLast = f
               isTTY={isTTY}
             />
           ))}
-        </Box>
+        </box>
       )}
-    </Box>
+    </box>
   );
 };

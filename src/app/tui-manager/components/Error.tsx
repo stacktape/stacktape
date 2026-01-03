@@ -1,5 +1,4 @@
-import { Alert } from '@inkjs/ui';
-import { Box, Text } from 'ink';
+/** @jsxImportSource @opentui/react */
 import React from 'react';
 import stringWidth from 'string-width';
 
@@ -20,17 +19,17 @@ const HintSection: React.FC<{ hints: string[] }> = ({ hints }) => {
   if (hints.length === 0) return null;
 
   return (
-    <Box flexDirection="column" marginTop={1}>
-      <Text color="blue" bold>
-        Hints:
-      </Text>
+    <box flexDirection="column" marginTop={1}>
+      <text fg="blue">
+        <strong>Hints:</strong>
+      </text>
       {hints.map((hint, index) => (
-        <Box key={index} marginLeft={2}>
-          <Text color="gray">• </Text>
-          <Text>{hint}</Text>
-        </Box>
+        <box key={index} marginLeft={2}>
+          <text fg="gray">- </text>
+          <text>{hint}</text>
+        </box>
       ))}
-    </Box>
+    </box>
   );
 };
 
@@ -40,18 +39,18 @@ const StackTraceSection: React.FC<{ stackTrace: string }> = ({ stackTrace }) => 
   const lines = stackTrace.split('\n').filter(Boolean);
 
   return (
-    <Box flexDirection="column" marginTop={1}>
-      <Text color="gray" bold>
-        Stack trace:
-      </Text>
-      <Box flexDirection="column" marginLeft={2}>
+    <box flexDirection="column" marginTop={1}>
+      <text fg="gray">
+        <strong>Stack trace:</strong>
+      </text>
+      <box flexDirection="column" marginLeft={2}>
         {lines.map((line, index) => (
-          <Text key={index} color="gray" dimColor>
+          <text key={index} fg="gray">
             {line}
-          </Text>
+          </text>
         ))}
-      </Box>
-    </Box>
+      </box>
+    </box>
   );
 };
 
@@ -59,10 +58,10 @@ const SentrySection: React.FC<{ sentryEventId: string }> = ({ sentryEventId }) =
   if (!sentryEventId) return null;
 
   return (
-    <Box marginTop={1}>
-      <Text color="gray">Event ID: </Text>
-      <Text color="cyan">{sentryEventId}</Text>
-    </Box>
+    <box marginTop={1} flexDirection="row">
+      <text fg="gray">Event ID: </text>
+      <text fg="cyan">{sentryEventId}</text>
+    </box>
   );
 };
 
@@ -71,11 +70,13 @@ export const ErrorDisplay: React.FC<ErrorDisplayProps> = ({ error }) => {
   const typeLabel = error.isExpected === false ? 'UNEXPECTED ERROR' : error.errorType;
 
   return (
-    <Box flexDirection="column" marginY={1}>
-      <Alert variant="error">
-        <Text bold>{typeLabel}: </Text>
-        <Text>{error.message}</Text>
-      </Alert>
+    <box flexDirection="column" marginTop={1} marginBottom={1}>
+      <box border borderStyle="single" borderColor="red" paddingLeft={1} paddingRight={1} flexDirection="row">
+        <text fg="red">
+          <strong>{typeLabel}: </strong>
+        </text>
+        <text>{error.message}</text>
+      </box>
 
       {/* Hints section */}
       {hints.length > 0 && <HintSection hints={hints} />}
@@ -85,19 +86,19 @@ export const ErrorDisplay: React.FC<ErrorDisplayProps> = ({ error }) => {
 
       {/* Sentry event ID */}
       {error.sentryEventId && <SentrySection sentryEventId={error.sentryEventId} />}
-    </Box>
+    </box>
   );
 };
 
 // Box drawing characters for non-TTY mode
-const BORDER_CHAR = '─';
-const CORNER_TL = '┌';
-const CORNER_TR = '┐';
-const CORNER_BL = '└';
-const CORNER_BR = '┘';
-const VERTICAL = '│';
-const DIVIDER_LEFT = '├';
-const DIVIDER_RIGHT = '┤';
+const BORDER_CHAR = '-';
+const CORNER_TL = '+';
+const CORNER_TR = '+';
+const CORNER_BL = '+';
+const CORNER_BR = '+';
+const VERTICAL = '|';
+const DIVIDER_LEFT = '+';
+const DIVIDER_RIGHT = '+';
 
 /**
  * Wrap text to fit within a given width, breaking on word boundaries.
@@ -162,8 +163,8 @@ export const renderErrorToString = (
 ): string => {
   const lines: string[] = [];
   const boxWidth = 70;
-  // Content width = boxWidth - 2 (for "│ " prefix and " │" suffix = 4 chars, but border adds 2 corners)
-  // Total line: │ + space + content + padding + space + │ = 4 + contentWidth
+  // Content width = boxWidth - 2 (for "| " prefix and " |" suffix = 4 chars, but border adds 2 corners)
+  // Total line: | + space + content + padding + space + | = 4 + contentWidth
   // Border line: corner + boxWidth + corner = boxWidth + 2
   // So: 4 + contentWidth = boxWidth + 2, therefore contentWidth = boxWidth - 2
   const contentWidth = boxWidth - 2;
@@ -180,7 +181,7 @@ export const renderErrorToString = (
   lines.push(colorize('red', `${CORNER_TL}${BORDER_CHAR.repeat(boxWidth)}${CORNER_TR}`));
 
   // Error type header (centered)
-  const headerText = `✖ ${typeLabel}`;
+  const headerText = `? ${typeLabel}`;
   const headerTextWidth = stringWidth(headerText);
   const headerPadding = Math.max(0, contentWidth - headerTextWidth);
   const headerLeftPad = Math.floor(headerPadding / 2);
@@ -211,7 +212,7 @@ export const renderErrorToString = (
     lines.push('');
     lines.push(colorize('blue', makeBold('Hints:')));
     hints.forEach((hint) => {
-      lines.push(`  ${colorize('gray', '•')} ${hint}`);
+      lines.push(`  ${colorize('gray', '-')} ${hint}`);
     });
   }
 

@@ -1,5 +1,6 @@
-import { Box, Text } from 'ink';
+/** @jsxImportSource @opentui/react */
 import React from 'react';
+import { stripAnsi } from '../utils';
 
 export type NextStep = {
   /** Main instruction text */
@@ -18,40 +19,42 @@ type NextStepsProps = {
 
 const StepItem: React.FC<{ step: NextStep; index: number }> = ({ step, index }) => {
   return (
-    <Box flexDirection="column" marginLeft={2}>
-      <Box>
-        <Text color="cyan">{index + 1}. </Text>
-        <Text>{step.text}</Text>
-        {step.command && <Text> {step.command}</Text>}
-      </Box>
+    <box flexDirection="column" marginLeft={2}>
+      <box flexDirection="row">
+        <text fg="cyan">{index + 1}. </text>
+        <text>
+          {stripAnsi(step.text)}
+          {step.command && ` ${stripAnsi(step.command)}`}
+        </text>
+      </box>
       {step.details?.map((detail, i) => (
-        <Box key={i} marginLeft={3}>
-          <Text color="gray">→ </Text>
-          <Text>{detail}</Text>
-        </Box>
+        <box key={i} marginLeft={3}>
+          <text fg="gray">- </text>
+          <text>{stripAnsi(detail)}</text>
+        </box>
       ))}
       {step.links?.map((link, i) => (
-        <Box key={i} marginLeft={3}>
-          <Text color="gray">→ </Text>
-          <Text>{link}</Text>
-        </Box>
+        <box key={i} marginLeft={3}>
+          <text fg="gray">- </text>
+          <text>{stripAnsi(link)}</text>
+        </box>
       ))}
-    </Box>
+    </box>
   );
 };
 
 export const NextSteps: React.FC<NextStepsProps> = ({ steps }) => {
   return (
-    <Box flexDirection="column" marginY={1}>
-      <Box marginBottom={1}>
-        <Text color="cyan" bold>
-          Next steps:
-        </Text>
-      </Box>
+    <box flexDirection="column" marginTop={1} marginBottom={1}>
+      <box marginBottom={1}>
+        <text fg="cyan">
+          <strong>Next steps:</strong>
+        </text>
+      </box>
       {steps.map((step, index) => (
         <StepItem key={index} step={step} index={index} />
       ))}
-    </Box>
+    </box>
   );
 };
 
@@ -77,12 +80,12 @@ export const renderNextStepsToString = (
     lines.push(stepLine);
 
     step.details?.forEach((detail) => {
-      lines.push(`     ${colorize('gray', '→')} ${detail}`);
+      lines.push(`     ${colorize('gray', '-')} ${detail}`);
     });
 
     step.links?.forEach((link) => {
       // Links may already be pre-formatted
-      lines.push(`     ${colorize('gray', '→')} ${link}`);
+      lines.push(`     ${colorize('gray', '-')} ${link}`);
     });
   });
 

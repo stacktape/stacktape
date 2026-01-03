@@ -1,5 +1,6 @@
 import type { ExpectedError, UnexpectedError } from '@utils/errors';
-import type { Instance } from 'ink';
+import type { CliRenderer } from '@opentui/core';
+import type { Root } from '@opentui/react';
 import type { ErrorDisplayData, NextStep } from './components';
 import type {
   TuiDeploymentHeader,
@@ -16,11 +17,12 @@ import { INVOKED_FROM_ENV_VAR_NAME, IS_DEV, linksMap } from '@config';
 import { getRelativePath, transformToUnixPath } from '@shared/utils/fs-utils';
 import { logCollectorStream } from '@utils/log-collector';
 import ci from 'ci-info';
-import { render } from 'ink';
+import { createCliRenderer } from '@opentui/core';
+import { createRoot } from '@opentui/react';
 import kleur from 'kleur';
 import React from 'react';
 import terminalLink from 'terminal-link';
-import { renderErrorToString, renderNextStepsToString, renderStackErrorsToString, Table, TuiApp } from './components';
+import { renderErrorToString, renderNextStepsToString, renderStackErrorsToString, renderTableToString, TuiApp } from './components';
 import { nonTTYRenderer } from './non-tty-renderer';
 import { tuiState } from './state';
 import { formatDuration, stripAnsi } from './utils';
@@ -40,7 +42,9 @@ export type {
 } from './types';
 
 class TuiManager {
-  private inkInstance: Instance | null = null;
+  private openTuiRenderer: CliRenderer | null = null;
+  private openTuiRoot: Root | null = null;
+  private openTuiMountPromise: Promise<void> | null = null;
   private isTTY: boolean;
   private _isEnabled: boolean = false;
   private _isPaused: boolean = false;
@@ -75,13 +79,9 @@ class TuiManager {
     tuiState.reset();
 
     if (this.isTTY) {
-      this.inkInstance = render(React.createElement(TuiApp, { isTTY: true }), {
-        patchConsole: false
-      });
+      void this.mountOpenTui();
     } else {
-      this.nonTTYUnsubscribe = tuiState.subscribe((state) => {
-        nonTTYRenderer.render(state);
-      });
+      this.startNonTtyRenderer();
     }
   }
 
@@ -93,9 +93,8 @@ class TuiManager {
     if (!this._isEnabled || this._isPaused) return;
     this._isPaused = true;
 
-    if (this.inkInstance) {
-      this.inkInstance.unmount();
-      this.inkInstance = null;
+    if (this.openTuiRenderer) {
+      void this.unmountOpenTui();
     }
   }
 
@@ -107,14 +106,82 @@ class TuiManager {
     this._isPaused = false;
 
     if (this.isTTY) {
-      this.inkInstance = render(React.createElement(TuiApp, { isTTY: true }), {
-        patchConsole: false
-      });
+      void this.mountOpenTui();
     }
   }
 
+  private startNonTtyRenderer = () => {
+    if (this.nonTTYUnsubscribe) return;
+    this.nonTTYUnsubscribe = tuiState.subscribe((state) => {
+      nonTTYRenderer.render(state);
+    });
+    nonTTYRenderer.render(tuiState.getState());
+  };
+
+  private mountOpenTui = async () => {
+    if (this.openTuiMountPromise) {
+      return this.openTuiMountPromise;
+    }
+
+    const mountPromise = (async () => {
+      try {
+        if (this.openTuiRenderer) return;
+        process.env.OTUI_OVERRIDE_STDOUT = 'false';
+        process.env.OTUI_USE_CONSOLE = 'false';
+
+        const renderer = await createCliRenderer({
+          useConsole: false,
+          useAlternateScreen: false,
+          useMouse: false
+        });
+
+        if (!this._isEnabled || this._isPaused || !this.isTTY) {
+          renderer.destroy();
+          return;
+        }
+
+        this.openTuiRenderer = renderer;
+        this.openTuiRoot = createRoot(renderer);
+        this.openTuiRoot.render(React.createElement(TuiApp, { isTTY: true }));
+      } catch (error) {
+        console.error(error);
+        this.isTTY = false;
+        this.startNonTtyRenderer();
+      }
+    })();
+
+    this.openTuiMountPromise = mountPromise;
+    try {
+      await mountPromise;
+    } finally {
+      if (!this.openTuiRenderer) {
+        this.openTuiMountPromise = null;
+      }
+    }
+
+    return mountPromise;
+  };
+
+  private unmountOpenTui = async () => {
+    if (this.openTuiMountPromise) {
+      await this.openTuiMountPromise;
+    }
+
+    if (this.openTuiRoot) {
+      this.openTuiRoot.unmount();
+      this.openTuiRoot = null;
+    }
+
+    if (this.openTuiRenderer) {
+      this.openTuiRenderer.destroy();
+      this.openTuiRenderer = null;
+    }
+
+    this.openTuiMountPromise = null;
+  };
+
   /**
-   * Show a select prompt using ink-ui Select component.
+   * Show a select prompt using OpenTUI-based Select component.
    * In non-interactive mode, uses defaultValue if provided, otherwise throws.
    */
   async promptSelect(config: { message: string; options: TuiSelectOption[]; defaultValue?: string }): Promise<string> {
@@ -130,7 +197,7 @@ class TuiManager {
       );
     }
 
-    // Use ink-ui Select component
+    // Use OpenTUI-based Select component
     const result = await new Promise<string>((resolve) => {
       const resolveAndClear = (value: string) => {
         tuiState.clearActivePrompt();
@@ -154,7 +221,7 @@ class TuiManager {
   }
 
   /**
-   * Show a confirm prompt using ink-ui ConfirmInput component.
+   * Show a confirm prompt using OpenTUI-based confirm component.
    * In non-interactive mode, uses defaultValue if provided, otherwise throws.
    */
   async promptConfirm(config: { message: string; defaultValue?: boolean }): Promise<boolean> {
@@ -198,7 +265,7 @@ class TuiManager {
   }
 
   /**
-   * Show a text input prompt using ink-ui TextInput component.
+   * Show a text input prompt using OpenTUI-based text input component.
    * In non-interactive mode, uses defaultValue if provided, otherwise throws.
    */
   async promptText(config: {
@@ -221,7 +288,7 @@ class TuiManager {
       );
     }
 
-    // Use ink-ui TextInput component
+    // Use OpenTUI-based text input component
     const result = await new Promise<string>((resolve) => {
       const resolveAndClear = (value: string) => {
         tuiState.clearActivePrompt();
@@ -248,14 +315,13 @@ class TuiManager {
   }
 
   async stop() {
-    // Capture reference before async operations to avoid race conditions
-    const instance = this.inkInstance;
-    if (instance) {
-      // Wait a moment to ensure the final state (including summary) is rendered
-      await new Promise((resolve) => setTimeout(resolve, 100));
-      instance.unmount();
-      this.inkInstance = null;
+    if (this.openTuiMountPromise) {
+      await this.openTuiMountPromise;
     }
+    if (this.openTuiRenderer) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    await this.unmountOpenTui();
     if (this.nonTTYUnsubscribe) {
       this.nonTTYUnsubscribe();
       this.nonTTYUnsubscribe = null;
@@ -403,7 +469,7 @@ class TuiManager {
   }
 
   private writeMessage(name: string, type: TuiMessageType, message: string, data?: Record<string, any>) {
-    // When paused or not using Ink, print directly to console
+    // When paused or not using the TUI, print directly to console
     if (this._isPaused || !this.isTTY || !this._isEnabled) {
       this.printMessageToConsole(type, message);
       logCollectorStream.write(message);
@@ -415,13 +481,13 @@ class TuiManager {
   private printMessageToConsole(type: TuiMessageType, message: string) {
     const symbols: Record<TuiMessageType, { symbol: string; color: string }> = {
       info: { symbol: 'i', color: 'cyan' },
-      success: { symbol: '✓', color: 'green' },
-      error: { symbol: '✖', color: 'red' },
-      warn: { symbol: '⚠', color: 'yellow' },
-      debug: { symbol: '⚙', color: 'gray' },
-      hint: { symbol: '💡', color: 'blue' },
-      start: { symbol: '▶', color: 'magenta' },
-      announcement: { symbol: '★', color: 'magenta' }
+      success: { symbol: '+', color: 'green' },
+      error: { symbol: 'x', color: 'red' },
+      warn: { symbol: '!', color: 'yellow' },
+      debug: { symbol: 'd', color: 'gray' },
+      hint: { symbol: '?', color: 'blue' },
+      start: { symbol: '>', color: 'magenta' },
+      announcement: { symbol: '*', color: 'magenta' }
     };
     const { symbol, color } = symbols[type];
     const coloredSymbol = this.colorize(color, symbol);
@@ -447,7 +513,7 @@ class TuiManager {
   }
 
   announcement(message: string, highlight?: boolean) {
-    const formattedMessage = highlight ? `★  ${this.makeBold(message)}` : message;
+    const formattedMessage = highlight ? `*  ${this.makeBold(message)}` : message;
     this.writeAnnouncement('announcement', formattedMessage);
   }
 
@@ -562,14 +628,19 @@ class TuiManager {
     tuiState.markAllRunningAsErrored();
 
     // Stop the TUI if running - errors are terminal events
-    if (this.inkInstance) {
-      this.inkInstance.unmount();
-      this.inkInstance = null;
+    if (this.openTuiRoot) {
+      this.openTuiRoot.unmount();
+      this.openTuiRoot = null;
     }
+    if (this.openTuiRenderer) {
+      this.openTuiRenderer.destroy();
+      this.openTuiRenderer = null;
+    }
+    this.openTuiMountPromise = null;
     this._isEnabled = false;
     this._isPaused = false;
 
-    // Always render to console for errors (not through Ink)
+    // Always render to console for errors (not through TUI)
     const errorString = renderErrorToString(errorData, this.colorize.bind(this), this.makeBold.bind(this));
     console.error(errorString);
 
@@ -598,7 +669,7 @@ class TuiManager {
 
   /**
    * Print a table with headers and rows.
-   * For TTY mode, renders a styled React component.
+   * For TTY mode, renders a styled table string.
    * For non-TTY mode, renders ASCII table.
    */
   printTable({ header, rows }: { header: string[]; rows: string[][] }) {
@@ -608,9 +679,12 @@ class TuiManager {
     }
 
     if (this.isTTY && this.logFormat === 'fancy') {
-      // Render React Table component using Ink
-      const instance = render(React.createElement(Table, { header, rows }));
-      instance.unmount();
+      if (this._isEnabled && this.isTTY) {
+        this.pause();
+      }
+      const tableOutput = renderTableToString({ header: header.map((cell) => this.makeBold(cell)), rows });
+      console.info(tableOutput);
+      logCollectorStream.write(tableOutput);
     } else {
       // Render ASCII table for non-TTY
       this.printAsciiTable(header, rows);
@@ -719,7 +793,7 @@ class TuiManager {
     }
 
     // Always use console.info to avoid clearing previous output
-    // (creating a new Ink instance would overwrite previous terminal content)
+    // (creating a new TUI instance would overwrite previous terminal content)
     if (this._isEnabled && this.isTTY) {
       this.pause();
     }

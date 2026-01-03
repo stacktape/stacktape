@@ -1,4 +1,4 @@
-import { Box, Text } from 'ink';
+/** @jsxImportSource @opentui/react */
 import React from 'react';
 
 type TableProps = {
@@ -61,17 +61,17 @@ export const Table: React.FC<TableProps> = ({ header, rows, alignments = [] }) =
   const columnCount = header.length;
 
   // Build border strings
-  const horizontalBorder = '─';
-  const topLeft = '┌';
-  const topRight = '┐';
-  const bottomLeft = '└';
-  const bottomRight = '┘';
-  const headerSepLeft = '├';
-  const headerSepRight = '┤';
-  const verticalBorder = '│';
-  const cross = '┼';
-  const topT = '┬';
-  const bottomT = '┴';
+  const horizontalBorder = '-';
+  const topLeft = '+';
+  const topRight = '+';
+  const bottomLeft = '+';
+  const bottomRight = '+';
+  const headerSepLeft = '+';
+  const headerSepRight = '+';
+  const verticalBorder = '|';
+  const cross = '+';
+  const topT = '+';
+  const bottomT = '+';
 
   const topBorder = topLeft + columnWidths.map((w) => horizontalBorder.repeat(w + 2)).join(topT) + topRight;
   const headerSeparator =
@@ -81,35 +81,69 @@ export const Table: React.FC<TableProps> = ({ header, rows, alignments = [] }) =
   const renderRow = (cells: string[], isBold: boolean = false) => {
     const paddedCells = cells.map((cell, i) => {
       const align = alignments[i] || 'left';
-      return padCell(cell || '', columnWidths[i], align);
+      return padCell(stripAnsi(cell || ''), columnWidths[i], align);
     });
 
     return (
-      <Box>
-        <Text>{verticalBorder} </Text>
+      <box flexDirection="row">
+        <text>{verticalBorder} </text>
         {paddedCells.map((cell, i) => (
           <React.Fragment key={i}>
-            <Text bold={isBold}>{cell}</Text>
-            <Text>
+            <text>{isBold ? <strong>{cell}</strong> : cell}</text>
+            <text>
               {' '}
               {verticalBorder}
               {i < columnCount - 1 ? ' ' : ''}
-            </Text>
+            </text>
           </React.Fragment>
         ))}
-      </Box>
+      </box>
     );
   };
 
   return (
-    <Box flexDirection="column">
-      <Text>{topBorder}</Text>
+    <box flexDirection="column">
+      <text>{topBorder}</text>
       {renderRow(header, true)}
-      <Text>{headerSeparator}</Text>
+      <text>{headerSeparator}</text>
       {rows.map((row, index) => (
         <React.Fragment key={index}>{renderRow(row)}</React.Fragment>
       ))}
-      <Text>{bottomBorder}</Text>
-    </Box>
+      <text>{bottomBorder}</text>
+    </box>
   );
+};
+
+export const renderTableToString = ({ header, rows, alignments = [] }: TableProps): string => {
+  const columnWidths = getColumnWidths(header, rows);
+  const columnCount = header.length;
+  const horizontalBorder = '-';
+  const topLeft = '+';
+  const topRight = '+';
+  const bottomLeft = '+';
+  const bottomRight = '+';
+  const headerSepLeft = '+';
+  const headerSepRight = '+';
+  const verticalBorder = '|';
+  const cross = '+';
+  const topT = '+';
+  const bottomT = '+';
+
+  const topBorder = topLeft + columnWidths.map((w) => horizontalBorder.repeat(w + 2)).join(topT) + topRight;
+  const headerSeparator =
+    headerSepLeft + columnWidths.map((w) => horizontalBorder.repeat(w + 2)).join(cross) + headerSepRight;
+  const bottomBorder = bottomLeft + columnWidths.map((w) => horizontalBorder.repeat(w + 2)).join(bottomT) + bottomRight;
+
+  const renderRow = (cells: string[]) => {
+    const paddedCells = cells.map((cell, i) => {
+      const align = alignments[i] || 'left';
+      return padCell(cell || '', columnWidths[i], align);
+    });
+
+    const renderedCells = paddedCells.map((cell, i) => `${cell} ${verticalBorder}${i < columnCount - 1 ? ' ' : ''}`);
+    return `${verticalBorder} ${renderedCells.join('')}`;
+  };
+
+  const lines = [topBorder, renderRow(header), headerSeparator, ...rows.map((row) => renderRow(row)), bottomBorder];
+  return lines.join('\n');
 };
