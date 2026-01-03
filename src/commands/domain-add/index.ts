@@ -36,7 +36,7 @@ export const commandDomainAdd = async () => {
   if (!domainStatus.ownershipVerified) {
     // if there is NO hosted zone for our domain we will ask user if he wants to create it
     // he can than use this hosted zone to migrate his domain.
-    console.info(`\n${tuiManager.colorize('gray', '-'.repeat(19))}\n`);
+    console.info(`\n${tuiManager.colorize('gray', '─'.repeat(54))}\n`);
     tuiManager.info(
       [
         `DNS for ${tuiManager.makeBold(domainName)} is managed outside AWS.`,
@@ -56,9 +56,7 @@ export const commandDomainAdd = async () => {
       return;
     }
 
-    console.info(
-      `\n${tuiManager.colorize('gray', `${'-'.repeat(8)} ${tuiManager.colorize('green', '✓')} ${'-'.repeat(8)}`)}\n`
-    );
+    console.info(`\n${tuiManager.colorize('gray', '─'.repeat(54))}\n`);
     tuiManager.info('Route 53 hosted zones store DNS records.');
 
     if (!zoneInfo) {
@@ -78,9 +76,7 @@ export const commandDomainAdd = async () => {
         return;
       }
       zoneInfo = await awsSdkManager.createHostedZone(domainName);
-      console.info(
-        `\n${tuiManager.colorize('gray', `${'-'.repeat(8)} ${tuiManager.colorize('green', '✓')} ${'-'.repeat(8)}`)}\n`
-      );
+      console.info(`\n${tuiManager.colorize('gray', '─'.repeat(54))}\n`);
     }
     tuiManager.success(
       `Hosted zone created. Update your registrar to use these name servers:\n${tuiManager.colorize(
@@ -88,9 +84,7 @@ export const commandDomainAdd = async () => {
         zoneInfo.DelegationSet.NameServers.map((ns) => `- ${ns}`).join('\n')
       )}`
     );
-    console.info(
-      `\n${tuiManager.colorize('gray', `${'-'.repeat(8)} ${tuiManager.colorize('green', '✓')} ${'-'.repeat(8)}`)}\n`
-    );
+    console.info(`\n${tuiManager.colorize('gray', '─'.repeat(54))}\n`);
     tuiManager.info(
       [
         'Next: set your registrar name servers to the values above.',

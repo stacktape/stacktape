@@ -145,6 +145,7 @@
     "p-retry": "4.6.2",
     "prompts": "^2.4.2",
     "react": "^19.2.3",
+    "react-devtools-core": "^7.0.1",
     "read-pkg-up": "7.0.1",
     "short-uuid": "^4.2.2",
     "stack-trace": "0.0.10",

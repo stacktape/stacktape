@@ -150,6 +150,11 @@ export const commandCodebuildDeploy = async (): Promise<CodebuildDeployReturnVal
     projectName: globalStateManager.targetStack.projectName
   });
 
+  // Print phase header before streaming mode (so logs appear under correct phase)
+  console.info('');
+  console.info(`${tuiManager.makeBold('PHASE 3')} • ${tuiManager.makeBold('Deploy')}`);
+  console.info(tuiManager.colorize('gray', '─'.repeat(54)));
+
   // Enable streaming mode to hide TUI during log streaming (prevents duplicate phase headers)
   tuiManager.setStreamingMode(true);
 

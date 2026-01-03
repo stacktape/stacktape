@@ -14,10 +14,12 @@ export const commandAwsProfileUpdate = async (): Promise<AwsProfileUpdateReturnV
     options: availableProfiles.map((prof) => ({ label: prof, value: prof }))
   });
   const awsAccessKeyId = await tuiManager.promptText({
-    message: 'AWS_ACCESS_KEY_ID:'
+    message: 'AWS_ACCESS_KEY_ID:',
+    description: '(from your AWS IAM user security credentials)'
   });
   const awsSecretAccessKey = await tuiManager.promptText({
     message: 'AWS_SECRET_ACCESS_KEY:',
+    description: '(keep this secret - it will be stored locally)',
     isPassword: true
   });
 

@@ -1766,7 +1766,8 @@ You have specified ${tuiManager.makeBold('app_variable')} "${appVariable}" in yo
   e503({ message }: { message: string }): ReturnedError {
     return {
       type: 'API_SERVER',
-      message
+      message,
+      hint: `You can get your API key in the ${tuiManager.getLink('apiKeys', 'console')}.`
     };
   },
   e504({ sourceCodePath }: { sourceCodePath: string }): ReturnedError {

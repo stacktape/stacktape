@@ -11,21 +11,24 @@ export const commandSecretCreate = async () => {
   await loadUserCredentials();
 
   const secretName = await tuiManager.promptText({
-    message: 'Secret name:'
+    message: 'Secret name:',
+    description: '(unique name for the AWS Secrets Manager secret)'
   });
   const provideOption = await tuiManager.promptSelect({
-    message: 'How do you want to specify value for your secret?',
+    message: 'How do you want to provide the secret value?',
     options: provideOptions.map((option) => ({ label: option, value: option }))
   });
   let secretString: string;
   if (provideOption === provideOptions[0]) {
     secretString = await tuiManager.promptText({
-      message: 'Secret string:',
+      message: 'Secret value:',
+      description: '(the value will be stored securely in AWS Secrets Manager)',
       isPassword: true
     });
   } else {
     const filePath = await tuiManager.promptText({
-      message: 'Path to file containing secret(s):'
+      message: 'Path to file:',
+      description: '(file content will be stored as JSON in the secret)'
     });
     const fileContent = await loadRawFileContent({
       filePath,

@@ -7,7 +7,8 @@ export const commandSecretGet = async () => {
   await loadUserCredentials();
 
   const secretName = await tuiManager.promptText({
-    message: 'Secret name:'
+    message: 'Secret name:',
+    description: '(name of the AWS Secrets Manager secret to retrieve)'
   });
 
   const secretValue = await awsSdkManager.getSecretValue({ secretId: secretName });
