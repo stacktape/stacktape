@@ -14,7 +14,7 @@ const buildSource = async () => {
     sourcemap: 'inline',
     bytecode: false,
     define: {
-      STACKTAPE_VERSION: `"dev-${packageJson.version}"`
+      STACKTAPE_VERSION: `"${packageJson.version}"`
     }
   });
   if (!result.success) {

@@ -2,6 +2,7 @@ import type { Build } from '@aws-sdk/client-codebuild';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { StatusType } from '@aws-sdk/client-codebuild';
 import { STACKTAPE_TRPC_API_ENDPOINT } from '@config';
 import { budgetManager } from '@domain-services/budget-manager';
@@ -31,6 +32,9 @@ import { potentiallyPromptBeforeOperation, saveDetailedStackInfoMap } from '../_
 import { initializeAllStackServices } from '../_utils/initialization';
 
 export const commandCodebuildDeploy = async (): Promise<CodebuildDeployReturnValue> => {
+  // Configure TUI for codebuild deploy (Initialize, Prepare Pipeline, Deploy - no Build & Package)
+  tuiManager.configureForCodebuildDeploy();
+
   let build: Build;
   try {
     // we need to initialize most of the services as we are also doing resource resolving
@@ -50,6 +54,9 @@ export const commandCodebuildDeploy = async (): Promise<CodebuildDeployReturnVal
     if (abort) {
       return;
     }
+
+    // Switch to UPLOAD phase for preparation work (zip, upload, start codebuild)
+    eventManager.setPhase('UPLOAD');
 
     await eventManager.startEvent({ eventType: 'PREPARE_PIPELINE', description: 'Preparing deployment pipeline' });
 
@@ -132,6 +139,9 @@ export const commandCodebuildDeploy = async (): Promise<CodebuildDeployReturnVal
     logStreamName: build.logs.streamName
   });
 
+  // Switch to DEPLOY phase for codebuild monitoring
+  eventManager.setPhase('DEPLOY');
+
   await eventManager.startEvent({ eventType: 'DEPLOY', description: 'Deploying using codebuild' });
   stacktapeTrpcApiManager.recordStackOperationProgress({
     stackName: globalStateManager.targetStack.stackName,
@@ -139,26 +149,36 @@ export const commandCodebuildDeploy = async (): Promise<CodebuildDeployReturnVal
     logStreamName: build.logs?.streamName,
     projectName: globalStateManager.targetStack.projectName
   });
-  do {
-    await wait(1000);
-    build = await awsSdkManager.getCodebuildDeployment({ buildId: build.id });
-    if (
-      [StatusType.FAILED, StatusType.FAULT, StatusType.STOPPED, StatusType.TIMED_OUT].includes(
-        build.buildStatus as StatusType
-      )
-    ) {
-      // wait for logs to come to cloudwatch
-      await wait(10000);
+
+  // Enable streaming mode to hide TUI during log streaming (prevents duplicate phase headers)
+  tuiManager.setStreamingMode(true);
+
+  try {
+    do {
+      await wait(1000);
+      build = await awsSdkManager.getCodebuildDeployment({ buildId: build.id });
+      if (
+        [StatusType.FAILED, StatusType.FAULT, StatusType.STOPPED, StatusType.TIMED_OUT].includes(
+          build.buildStatus as StatusType as any
+        )
+      ) {
+        // wait for logs to come to cloudwatch
+        await wait(10000);
+        await cloudwatchLogPrinter.printLogs();
+        throw stpErrors.e64({
+          stackName: globalStateManager.targetStack.stackName,
+          projectName: globalStateManager.targetStack.projectName,
+          invocationId: globalStateManager.invocationId,
+          buildId: build.id,
+          stage: globalStateManager.targetStack.stage
+        });
+      }
       await cloudwatchLogPrinter.printLogs();
-      throw stpErrors.e64({
-        stackName: globalStateManager.targetStack.stackName,
-        projectName: globalStateManager.targetStack.projectName,
-        invocationId: globalStateManager.invocationId,
-        buildId: build.id
-      });
-    }
-    await cloudwatchLogPrinter.printLogs();
-  } while (build.buildStatus !== StatusType.SUCCEEDED);
+    } while (build.buildStatus !== StatusType.SUCCEEDED);
+  } finally {
+    tuiManager.setStreamingMode(false);
+  }
+
   await eventManager.finishEvent({ eventType: 'DEPLOY' });
 
   // refreshing stack details to return to user and pretty print

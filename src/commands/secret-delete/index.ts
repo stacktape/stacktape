@@ -5,9 +5,7 @@ import { loadUserCredentials } from '../_utils/initialization';
 export const commandSecretDelete = async () => {
   await loadUserCredentials();
 
-  const { secretName } = await tuiManager.prompt({
-    type: 'text',
-    name: 'secretName',
+  const secretName = await tuiManager.promptText({
     message: 'Secret name:'
   });
   awsSdkManager.deleteSecret(secretName);

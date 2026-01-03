@@ -10,7 +10,14 @@ import type {
   TuiSummary,
   TuiWarning
 } from './types';
-import { PHASE_NAMES, PHASE_ORDER } from './types';
+import {
+  CODEBUILD_DEPLOY_PHASE_NAMES,
+  CODEBUILD_DEPLOY_PHASE_ORDER,
+  DELETE_PHASE_NAMES,
+  DELETE_PHASE_ORDER,
+  PHASE_NAMES,
+  PHASE_ORDER
+} from './types';
 
 type StateListener = (state: TuiState) => void;
 
@@ -23,6 +30,8 @@ const HIDE_CHILDREN_WHEN_FINISHED_EVENTS: LoggableEventType[] = ['LOAD_METADATA_
 class TuiStateManager {
   private state: TuiState;
   private listeners: Set<StateListener> = new Set();
+  private phaseOrder: DeploymentPhase[] = PHASE_ORDER;
+  private phaseNames: Record<DeploymentPhase, string> = PHASE_NAMES;
 
   constructor() {
     this.state = this.createInitialState();
@@ -30,9 +39,9 @@ class TuiStateManager {
 
   private createInitialState(): TuiState {
     return {
-      phases: PHASE_ORDER.map((id) => ({
+      phases: this.phaseOrder.map((id) => ({
         id,
-        name: PHASE_NAMES[id],
+        name: this.phaseNames[id] || PHASE_NAMES[id],
         status: 'pending' as TuiEventStatus,
         events: []
       })),
@@ -43,8 +52,41 @@ class TuiStateManager {
     };
   }
 
-  reset() {
+  /**
+   * Configure phases for delete command (simpler phase structure).
+   * Must be called before setHeader for delete operations.
+   */
+  configureForDelete() {
+    this.phaseOrder = DELETE_PHASE_ORDER;
+    this.phaseNames = { ...PHASE_NAMES, ...DELETE_PHASE_NAMES };
     this.state = this.createInitialState();
+    this.notifyListeners();
+  }
+
+  /**
+   * Configure phases for codebuild:deploy command.
+   * Uses: Initialize, Prepare Pipeline, Deploy (no Build & Package).
+   */
+  configureForCodebuildDeploy() {
+    this.phaseOrder = CODEBUILD_DEPLOY_PHASE_ORDER;
+    this.phaseNames = { ...PHASE_NAMES, ...CODEBUILD_DEPLOY_PHASE_NAMES };
+    this.state = this.createInitialState();
+    this.notifyListeners();
+  }
+
+  reset() {
+    this.phaseOrder = PHASE_ORDER;
+    this.phaseNames = PHASE_NAMES;
+    this.state = this.createInitialState();
+    this.notifyListeners();
+  }
+
+  /**
+   * Enable/disable streaming mode. When enabled, hides dynamic phase rendering
+   * to prevent conflicts with console.log output (e.g., cloudwatch logs).
+   */
+  setStreamingMode(enabled: boolean) {
+    this.state = { ...this.state, streamingMode: enabled };
     this.notifyListeners();
   }
 
@@ -64,12 +106,18 @@ class TuiStateManager {
   }
 
   setHeader(header: TuiDeploymentHeader) {
-    this.state = { ...this.state, header };
+    // Clear any messages that were added before the header (e.g., from confirmation prompts)
+    // These will be displayed via non-TUI console output, so don't duplicate in TUI
+    this.state = { ...this.state, header, messages: [] };
     this.notifyListeners();
   }
 
+  getPhaseOrder(): DeploymentPhase[] {
+    return this.phaseOrder;
+  }
+
   setCurrentPhase(phase: DeploymentPhase) {
-    const currentPhaseIndex = PHASE_ORDER.indexOf(phase);
+    const currentPhaseIndex = this.phaseOrder.indexOf(phase);
 
     // Mark all previous phases as complete
     this.state.phases = this.state.phases.map((p, index) => {

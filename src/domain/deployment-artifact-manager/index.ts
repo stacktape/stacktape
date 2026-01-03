@@ -443,9 +443,6 @@ export class DeploymentArtifactManager {
         description: 'Uploading deployment artifacts'
       });
 
-      throw new Error(
-        'test dfhgjnsdfgkjhn fdghkjn f dfgkjhn dfghjkdn fhgkjhn\nfdghkjn f dfgkjhn dfghjkdn fhgkjhn fdghkjn f dfgkjhn dfghjkdn fhgkjhn fdghkjn f dfgkjhn dfghjkdn fhgkjhn fdghkjn f dfgkjhn dfghjkdn fhgkjhn fdghkjn f dfgkjhn dfghjkdn fhgkjhn fdghkjn f dfgkjhn dfghjkdn fhgkjhn\ndfgsdf\nsdfg\nsdfgsdfgsdfg'
-      );
       await Promise.all([
         // on some occasions i started getting "NoSuchBucket: The specified bucket does not exist" when creating fresh stacks
         // this waiting should prevent it (and lose no time otherwise)

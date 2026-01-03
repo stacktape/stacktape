@@ -1,10 +1,10 @@
 import type { TuiMessage, TuiPhase, TuiWarning } from '../types';
 import { Box, Text } from 'ink';
 import React from 'react';
-import { formatPhaseTimer } from '../utils';
 import { DeployPhase } from './DeployPhase';
 import { Event } from './Event';
 import { Message } from './Message';
+import { PhaseTimer } from './PhaseTimer';
 
 type PhaseProps = {
   phase: TuiPhase;
@@ -14,8 +14,19 @@ type PhaseProps = {
   isTTY: boolean;
 };
 
-export const Phase: React.FC<PhaseProps> = ({ phase, phaseNumber, warnings, messages, isTTY }) => {
-  if (phase.id === 'DEPLOY' && isTTY) {
+// Event types that trigger the fancy CloudFormation progress UI
+const CF_DEPLOY_EVENT_TYPES: LoggableEventType[] = [
+  'UPDATE_STACK',
+  'CREATE_RESOURCES_FOR_ARTIFACTS',
+  'DELETE_STACK',
+  'ROLLBACK_STACK',
+  'HOTSWAP_UPDATE'
+];
+
+export const Phase: React.FC<PhaseProps> = React.memo(({ phase, phaseNumber, warnings, messages, isTTY }) => {
+  // Only use DeployPhase when there are CloudFormation-related events (not for codebuild monitoring, etc.)
+  const hasCfEvents = phase.events.some((e) => CF_DEPLOY_EVENT_TYPES.includes(e.eventType));
+  if (phase.id === 'DEPLOY' && isTTY && hasCfEvents) {
     return <DeployPhase phase={phase} phaseNumber={phaseNumber} warnings={warnings} messages={messages} />;
   }
   const phaseWarnings = warnings.filter((w) => w.phase === phase.id);
@@ -27,16 +38,15 @@ export const Phase: React.FC<PhaseProps> = ({ phase, phaseNumber, warnings, mess
     return null;
   }
 
-  // eslint-disable-next-line react-hooks/purity
-  const duration = phase.duration || (phase.startTime ? Date.now() - phase.startTime : 0);
-
   return (
     <Box flexDirection="column" marginBottom={1}>
       <Box>
         <Text bold>PHASE {phaseNumber}</Text>
         <Text> • </Text>
         <Text bold>{phase.name}</Text>
-        {phase.status !== 'pending' && <Text color="gray"> {formatPhaseTimer(duration)}</Text>}
+        {phase.status !== 'pending' && (
+          <PhaseTimer startTime={phase.startTime} duration={phase.duration} isRunning={phase.status === 'running'} />
+        )}
       </Box>
       <Text color="gray">{'─'.repeat(54)}</Text>
 
@@ -55,4 +65,4 @@ export const Phase: React.FC<PhaseProps> = ({ phase, phaseNumber, warnings, mess
       ))}
     </Box>
   );
-};
+});

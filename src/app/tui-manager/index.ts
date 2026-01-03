@@ -1,6 +1,5 @@
 import type { ExpectedError, UnexpectedError } from '@utils/errors';
 import type { Instance } from 'ink';
-import type { PromptObject } from 'prompts';
 import type { ErrorDisplayData, NextStep } from './components';
 import type {
   TuiDeploymentHeader,
@@ -79,9 +78,6 @@ class TuiManager {
       this.inkInstance = render(React.createElement(TuiApp, { isTTY: true }), {
         patchConsole: false
       });
-      tuiState.subscribe(() => {
-        // Ink automatically re-renders on state changes
-      });
     } else {
       this.nonTTYUnsubscribe = tuiState.subscribe((state) => {
         nonTTYRenderer.render(state);
@@ -118,43 +114,6 @@ class TuiManager {
   }
 
   /**
-   * Show a user prompt.
-   * @deprecated Use promptSelect, promptConfirm, or promptText instead
-   */
-  async prompt<T extends string = string>(questions: PromptObject<T>): Promise<Record<T, any>> {
-    const question = Array.isArray(questions) ? questions[0] : questions;
-    const name = (question.name as string) || 'value';
-
-    if (question.type === 'select') {
-      const choices = question.choices as Array<{ title: string; value: string; description?: string }>;
-      const result = await this.promptSelect({
-        message: question.message as string,
-        options: choices.map((c) => ({ label: c.title, value: c.value, description: c.description }))
-      });
-      return { [name]: result } as Record<T, any>;
-    }
-
-    if (question.type === 'confirm') {
-      const result = await this.promptConfirm({
-        message: question.message as string
-      });
-      return { [name]: result } as Record<T, any>;
-    }
-
-    if (question.type === 'text') {
-      const result = await this.promptText({
-        message: question.message as string,
-        placeholder: question.initial as string
-      });
-      return { [name]: result } as Record<T, any>;
-    }
-
-    throw new Error(
-      `Unsupported prompt type: ${question.type}. Use promptSelect, promptConfirm, or promptText instead.`
-    );
-  }
-
-  /**
    * Show a select prompt using ink-ui Select component.
    * In non-interactive mode, uses defaultValue if provided, otherwise throws.
    */
@@ -173,11 +132,16 @@ class TuiManager {
 
     // Use ink-ui Select component
     const result = await new Promise<string>((resolve) => {
+      const resolveAndClear = (value: string) => {
+        tuiState.clearActivePrompt();
+        // Defer resolve to next tick to ensure React unmounts the old component first
+        setTimeout(() => resolve(value), 0);
+      };
       const prompt: TuiPromptSelect = {
         type: 'select',
         message: config.message,
         options: config.options,
-        resolve
+        resolve: resolveAndClear
       };
       tuiState.setActivePrompt(prompt);
     });
@@ -206,12 +170,22 @@ class TuiManager {
       );
     }
 
-    // Use ink-ui ConfirmInput component
     const result = await new Promise<boolean>((resolve) => {
+      let settled = false;
+
+      const resolveOnce = (value: boolean) => {
+        if (settled) return;
+        settled = true;
+        tuiState.clearActivePrompt();
+        // Defer resolve to next tick to ensure React unmounts the old component first
+        setTimeout(() => resolve(value), 0);
+      };
+
       const prompt: TuiPromptConfirm = {
         type: 'confirm',
         message: config.message,
-        resolve
+        defaultValue: config.defaultValue,
+        resolve: resolveOnce
       };
       tuiState.setActivePrompt(prompt);
     });
@@ -249,13 +223,19 @@ class TuiManager {
 
     // Use ink-ui TextInput component
     const result = await new Promise<string>((resolve) => {
+      const resolveAndClear = (value: string) => {
+        tuiState.clearActivePrompt();
+        // Defer resolve to next tick to ensure React unmounts the old component first
+        setTimeout(() => resolve(value), 0);
+      };
       const prompt: TuiPromptText = {
         type: 'text',
         message: config.message,
         placeholder: config.placeholder,
         isPassword: config.isPassword,
         description: config.description,
-        resolve
+        defaultValue: config.defaultValue,
+        resolve: resolveAndClear
       };
       tuiState.setActivePrompt(prompt);
     });
@@ -283,6 +263,30 @@ class TuiManager {
     this._isEnabled = false;
     this._isPaused = false;
     nonTTYRenderer.reset();
+  }
+
+  /**
+   * Configure TUI for delete command with simplified phases (Initialize, Delete).
+   * Call this before setHeader for delete operations.
+   */
+  configureForDelete() {
+    tuiState.configureForDelete();
+  }
+
+  /**
+   * Configure phases for codebuild:deploy command.
+   * Call this before setHeader for codebuild deploy operations.
+   */
+  configureForCodebuildDeploy() {
+    tuiState.configureForCodebuildDeploy();
+  }
+
+  /**
+   * Enable/disable streaming mode. When enabled, hides dynamic TUI rendering
+   * to allow console.log output (e.g., cloudwatch log streaming).
+   */
+  setStreamingMode(enabled: boolean) {
+    tuiState.setStreamingMode(enabled);
   }
 
   setHeader(header: TuiDeploymentHeader) {
@@ -410,8 +414,8 @@ class TuiManager {
 
   private printMessageToConsole(type: TuiMessageType, message: string) {
     const symbols: Record<TuiMessageType, { symbol: string; color: string }> = {
-      info: { symbol: 'ℹ', color: 'cyan' },
-      success: { symbol: '✔', color: 'green' },
+      info: { symbol: 'i', color: 'cyan' },
+      success: { symbol: '✓', color: 'green' },
       error: { symbol: '✖', color: 'red' },
       warn: { symbol: '⚠', color: 'yellow' },
       debug: { symbol: '⚙', color: 'gray' },
@@ -453,7 +457,7 @@ class TuiManager {
 
   getLink(link: keyof typeof linksMap, placeholder: string): string {
     const url = linksMap[link];
-    return this.colorize('cyan', terminalLink(placeholder, url.endsWith('/') ? `${url} ` : `${url}/ `));
+    return this.colorize('cyan', terminalLink(placeholder, url.endsWith('/') ? `${url.slice(0, -1)} ` : url));
   }
 
   prettyCommand(command: string): string {
@@ -559,8 +563,6 @@ class TuiManager {
 
     // Stop the TUI if running - errors are terminal events
     if (this.inkInstance) {
-      // Give Ink one frame to render the error states before unmounting
-      this.inkInstance.waitUntilExit().catch(() => {});
       this.inkInstance.unmount();
       this.inkInstance = null;
     }
@@ -718,6 +720,9 @@ class TuiManager {
 
     // Always use console.info to avoid clearing previous output
     // (creating a new Ink instance would overwrite previous terminal content)
+    if (this._isEnabled && this.isTTY) {
+      this.pause();
+    }
     const output = renderNextStepsToString(steps, this.colorize.bind(this), this.makeBold.bind(this));
     console.info(output);
   }

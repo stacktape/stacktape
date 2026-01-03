@@ -91,6 +91,7 @@ export type TuiPromptSelect = {
 export type TuiPromptConfirm = {
   type: 'confirm';
   message: string;
+  defaultValue?: boolean;
   resolve: (value: boolean) => void;
 };
 
@@ -101,6 +102,7 @@ export type TuiPromptText = {
   isPassword?: boolean;
   /** Description shown in gray next to the question */
   description?: string;
+  defaultValue?: string;
   resolve: (value: string) => void;
 };
 
@@ -118,6 +120,8 @@ export type TuiState = {
   startTime: number;
   /** Active prompt waiting for user input */
   activePrompt?: TuiPrompt;
+  /** When true, hides dynamic phase rendering to allow console.log streaming */
+  streamingMode?: boolean;
 };
 
 export const PHASE_NAMES: Record<DeploymentPhase, string> = {
@@ -129,3 +133,18 @@ export const PHASE_NAMES: Record<DeploymentPhase, string> = {
 };
 
 export const PHASE_ORDER: DeploymentPhase[] = ['INITIALIZE', 'BUILD_AND_PACKAGE', 'UPLOAD', 'DEPLOY', 'SUMMARY'];
+
+// Delete command uses only these phases with custom names
+export const DELETE_PHASE_ORDER: DeploymentPhase[] = ['INITIALIZE', 'DEPLOY'];
+export const DELETE_PHASE_NAMES: Partial<Record<DeploymentPhase, string>> = {
+  INITIALIZE: 'Initialize',
+  DEPLOY: 'Delete'
+};
+
+// Codebuild deploy command uses these phases (no Build & Package, Upload renamed)
+export const CODEBUILD_DEPLOY_PHASE_ORDER: DeploymentPhase[] = ['INITIALIZE', 'UPLOAD', 'DEPLOY'];
+export const CODEBUILD_DEPLOY_PHASE_NAMES: Partial<Record<DeploymentPhase, string>> = {
+  INITIALIZE: 'Initialize',
+  UPLOAD: 'Prepare Pipeline',
+  DEPLOY: 'Deploy'
+};

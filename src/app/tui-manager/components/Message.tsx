@@ -7,8 +7,8 @@ type MessageProps = {
 };
 
 const MESSAGE_ICONS: Record<TuiMessageType, { symbol: string; color: string }> = {
-  info: { symbol: 'ℹ', color: 'cyan' },
-  success: { symbol: '✔', color: 'green' },
+  info: { symbol: 'i', color: 'cyan' },
+  success: { symbol: '✓', color: 'green' },
   error: { symbol: '✖', color: 'red' },
   warn: { symbol: '⚠', color: 'yellow' },
   debug: { symbol: '⚙', color: 'gray' },

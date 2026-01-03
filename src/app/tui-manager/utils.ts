@@ -24,3 +24,12 @@ export const formatPhaseTimer = (ms: number): string => {
   const seconds = totalSeconds % 60;
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 };
+
+/**
+ * Calculate elapsed time for a phase/event, handling both running and completed states.
+ */
+export const getElapsedTime = (startTime: number | undefined, duration: number | undefined): number => {
+  if (duration !== undefined) return duration;
+  if (startTime === undefined) return 0;
+  return Date.now() - startTime;
+};

@@ -20,11 +20,9 @@ export const commandAwsProfileDelete = async (): Promise<AwsProfileDeleteReturnV
     throw new ExpectedError('CREDENTIALS', 'No profile set in global AWS credentials file.');
   }
 
-  const { profile } = await tuiManager.prompt({
-    type: 'select',
-    choices: profiles.map((prof) => ({ title: prof, value: prof })),
-    name: 'profile',
-    message: 'Choose a profile to delete:'
+  const profile = await tuiManager.promptSelect({
+    message: 'Choose a profile to delete:',
+    options: profiles.map((prof) => ({ label: prof, value: prof }))
   });
 
   await deleteAwsProfile(profile);

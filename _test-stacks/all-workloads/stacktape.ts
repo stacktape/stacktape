@@ -6,7 +6,7 @@ import {
   StacktapeImageBuildpackPackaging,
   StacktapeLambdaBuildpackPackaging,
   WebService
-} from '../../__release-npm';
+} from 'stacktape';
 
 export default defineConfig(() => {
   const lambda = new LambdaFunction({

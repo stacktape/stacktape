@@ -10,10 +10,8 @@ import { parse as tldtsParse } from 'tldts';
 import { loadUserCredentials } from '../_utils/initialization';
 
 export const commandDomainAdd = async () => {
-  const { domainName } = await tuiManager.prompt({
-    type: 'text',
-    name: 'domainName',
-    message: 'Domain name (example: mydomain.com)'
+  const domainName = await tuiManager.promptText({
+    message: 'Domain name (example: mydomain.com):'
   });
   const isRootDomain = !tldtsParse(domainName).subdomain;
   if (!isRootDomain) {
@@ -49,9 +47,7 @@ export const commandDomainAdd = async () => {
         )}\n`
       ].join('\n')
     );
-    const { controlDomainDnsWithAws } = await tuiManager.prompt({
-      type: 'confirm',
-      name: 'controlDomainDnsWithAws',
+    const controlDomainDnsWithAws = await tuiManager.promptConfirm({
       message:
         "Do you wish to manage your domain's DNS records in your AWS account? (if unsure, read the docs (link above))."
     });
@@ -74,9 +70,7 @@ export const commandDomainAdd = async () => {
         ].join('\n')
       );
 
-      const { createHostedZone } = await tuiManager.prompt({
-        type: 'confirm',
-        name: 'createHostedZone',
+      const createHostedZone = await tuiManager.promptConfirm({
         message: `Proceed with creating hosted zone for the domain ${tuiManager.makeBold(domainName)} in your AWS account?`
       });
       if (!createHostedZone) {
@@ -133,9 +127,7 @@ export const commandDomainAdd = async () => {
   let usEast1Cert = domainStatus.usEast1Cert;
   if (!regionalCert || !usEast1Cert) {
     tuiManager.warn(`Stacktape can create free TLS certs for ${tuiManager.makeBold(domainName)} in your AWS account.`);
-    const { generateCerts } = await tuiManager.prompt({
-      type: 'confirm',
-      name: 'generateCerts',
+    const generateCerts = await tuiManager.promptConfirm({
       message: `Do you wish to generate certificates for ${tuiManager.makeBold(domainName)} in your AWS account?`
     });
     if (!generateCerts) {
@@ -169,9 +161,7 @@ export const commandDomainAdd = async () => {
   await sesManager.init({ identities: [domainName] });
   if (!sesManager.isIdentityVerified({ identity: domainName })) {
     tuiManager.info('Optional: verify domain for AWS SES to send email. Free.');
-    const { prepareForSES } = await tuiManager.prompt({
-      type: 'confirm',
-      name: 'prepareForSES',
+    const prepareForSES = await tuiManager.promptConfirm({
       message: 'Do you wish to verify your domain for using with AWS SES?'
     });
     if (prepareForSES) {

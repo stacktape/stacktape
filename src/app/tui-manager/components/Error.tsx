@@ -120,14 +120,30 @@ const wrapText = (text: string, maxWidth: number): string[] => {
     let currentLine = '';
 
     for (const word of words) {
-      // Handle words longer than maxWidth by truncating
-      const safeWord = word.length > maxWidth ? `${word.slice(0, maxWidth - 3)}...` : word;
+      // Handle words longer than maxWidth by breaking them across lines
+      if (word.length > maxWidth) {
+        // Push current line if not empty
+        if (currentLine) {
+          result.push(currentLine);
+          currentLine = '';
+        }
+        // Break long word into chunks
+        let remaining = word;
+        while (remaining.length > maxWidth) {
+          result.push(remaining.slice(0, maxWidth));
+          remaining = remaining.slice(maxWidth);
+        }
+        if (remaining) {
+          currentLine = remaining;
+        }
+        continue;
+      }
 
-      if (currentLine.length + safeWord.length + 1 <= maxWidth) {
-        currentLine += (currentLine ? ' ' : '') + safeWord;
+      if (currentLine.length + word.length + 1 <= maxWidth) {
+        currentLine += (currentLine ? ' ' : '') + word;
       } else {
         if (currentLine) result.push(currentLine);
-        currentLine = safeWord;
+        currentLine = word;
       }
     }
     if (currentLine) result.push(currentLine);

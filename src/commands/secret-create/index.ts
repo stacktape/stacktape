@@ -10,29 +10,22 @@ const provideOptions = ['Interactively using CLI', 'From file'];
 export const commandSecretCreate = async () => {
   await loadUserCredentials();
 
-  const { secretName } = await tuiManager.prompt({
-    type: 'text',
-    name: 'secretName',
+  const secretName = await tuiManager.promptText({
     message: 'Secret name:'
   });
-  const { provideOption } = await tuiManager.prompt({
-    type: 'select',
-    choices: provideOptions.map((option) => ({ title: option, value: option })),
-    name: 'provideOption',
-    message: 'How do you want to specify value for your secret.'
+  const provideOption = await tuiManager.promptSelect({
+    message: 'How do you want to specify value for your secret?',
+    options: provideOptions.map((option) => ({ label: option, value: option }))
   });
   let secretString: string;
   if (provideOption === provideOptions[0]) {
-    ({ secretString } = await tuiManager.prompt({
-      type: 'password',
-      name: 'secretString',
-      message: 'Secret string:'
-    }));
+    secretString = await tuiManager.promptText({
+      message: 'Secret string:',
+      isPassword: true
+    });
   } else {
-    const { filePath } = await tuiManager.prompt({
-      type: 'text',
-      name: 'filePath',
-      message: 'Path to file containing secret(s)'
+    const filePath = await tuiManager.promptText({
+      message: 'Path to file containing secret(s):'
     });
     const fileContent = await loadRawFileContent({
       filePath,
@@ -49,9 +42,7 @@ const createNamedSecret = async (secretName: string, secretValue: string) => {
   const secretList = await awsSdkManager.listAllSecrets();
   const matchingSecret = secretList.find(({ Name }) => Name === secretName);
   if (matchingSecret) {
-    const { shouldUpdate } = await tuiManager.prompt({
-      type: 'confirm',
-      name: 'shouldUpdate',
+    const shouldUpdate = await tuiManager.promptConfirm({
       message: `Secret with name "${secretName}" already exists. Would you like to update it?`
     });
     if (shouldUpdate) {

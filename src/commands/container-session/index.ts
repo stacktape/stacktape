@@ -63,17 +63,15 @@ const resolveTargetContainer = async () => {
 
   let taskArn = tasks[0]?.taskArn;
   if (tasks.length > 1) {
-    ({ taskArn } = await tuiManager.prompt({
-      type: 'select',
-      name: 'taskArn',
+    taskArn = await tuiManager.promptSelect({
       message: 'There are multiple instances running. Please select the one you want to connect to.',
-      choices: tasks
+      options: tasks
         .sort((t1, t2) => t1.taskArn.localeCompare(t2.taskArn))
         .map(({ taskArn: ta, startedAt }) => ({
-          title: `${ta.split('/').pop()} (started at: ${startedAt})`,
+          label: `${ta.split('/').pop()} (started at: ${startedAt})`,
           value: ta
         }))
-    }));
+    });
   }
   tuiManager.debug(JSON.stringify(tasks, null, 2));
   const task = tasks.find(({ taskArn: tArn }) => tArn === taskArn);

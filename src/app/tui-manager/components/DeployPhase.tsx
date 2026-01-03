@@ -1,10 +1,23 @@
 /* eslint-disable no-control-regex */
 import type { TuiEvent, TuiMessage, TuiPhase, TuiWarning } from '../types';
-import { ProgressBar, Spinner } from '@inkjs/ui';
+import { Spinner } from '@inkjs/ui';
 import { Box, Text } from 'ink';
 import React from 'react';
-import { formatPhaseTimer } from '../utils';
 import { Message } from './Message';
+import { PhaseTimer } from './PhaseTimer';
+
+const PROGRESS_BAR_WIDTH = 72;
+
+const GreenProgressBar: React.FC<{ value: number }> = ({ value }) => {
+  const filledWidth = Math.round((value / 100) * PROGRESS_BAR_WIDTH);
+  const emptyWidth = PROGRESS_BAR_WIDTH - filledWidth;
+  return (
+    <Text>
+      <Text color="green">{'█'.repeat(filledWidth)}</Text>
+      <Text color="gray">{'░'.repeat(emptyWidth)}</Text>
+    </Text>
+  );
+};
 
 type DeployPhaseProps = {
   phase: TuiPhase;
@@ -49,7 +62,6 @@ const getProgressPercent = (remainingPercent: number | null, status: TuiEvent['s
   if (remainingPercent === null) return null;
   return Math.max(0, Math.min(100, Math.round(100 - remainingPercent)));
 };
-
 
 const parseResourceState = (message?: string) => {
   const cleaned = stripAnsi(message);
@@ -115,11 +127,9 @@ const renderResourceList = (label: string, items: string) => {
   );
 };
 
-export const DeployPhase: React.FC<DeployPhaseProps> = ({ phase, phaseNumber, warnings, messages }) => {
+export const DeployPhase: React.FC<DeployPhaseProps> = React.memo(({ phase, phaseNumber, warnings, messages }) => {
   const phaseWarnings = warnings.filter((w) => w.phase === phase.id);
   const phaseMessages = messages.filter((m) => m.phase === phase.id);
-  // eslint-disable-next-line react-hooks/purity
-  const duration = phase.duration || (phase.startTime ? Date.now() - phase.startTime : 0);
   const deployEvent = getActiveDeployEvent(phase.events);
   const remainingPercent = parseRemainingPercent(deployEvent?.additionalMessage);
   const progressPercentFromTime = getProgressPercent(remainingPercent, deployEvent?.status || 'running');
@@ -133,21 +143,42 @@ export const DeployPhase: React.FC<DeployPhaseProps> = ({ phase, phaseNumber, wa
       ? Math.round((progressCounts.done / progressCounts.total) * 100)
       : progressPercentFromTime;
 
+  // Only show progress UI if we have meaningful progress data (event has been running long enough to report progress)
+  // This prevents a brief flash of the progress bar when deploy finishes instantly (no changes)
+  const hasProgressData = deployEvent?.additionalMessage && deployEvent.additionalMessage.length > 0;
+  const showProgressUI = !isDone && hasProgressData;
+  // Show waiting state when phase is running but no progress data yet
+  const isWaitingForProgress = phase.status === 'running' && !isDone && !hasProgressData;
+
+  // Detect if this is a delete operation
+  const isDeleteOperation = deployEvent?.eventType === 'DELETE_STACK';
+  const actionVerb = isDeleteOperation ? 'Deleting' : 'Deploying';
+  const currentlyLabel = isDeleteOperation ? 'Currently deleting:' : 'Currently updating:';
+
   return (
     <Box flexDirection="column" marginBottom={1}>
       <Box>
         <Text bold>PHASE {phaseNumber}</Text>
-        <Text> - </Text>
+        <Text> • </Text>
         <Text bold>{phase.name}</Text>
-        {phase.status !== 'pending' && <Text color="gray"> {formatPhaseTimer(duration)}</Text>}
+        {phase.status !== 'pending' && (
+          <PhaseTimer startTime={phase.startTime} duration={phase.duration} isRunning={phase.status === 'running'} />
+        )}
       </Box>
-      <Text color="gray">{'-'.repeat(64)}</Text>
+      <Text color="gray">{'─'.repeat(54)}</Text>
 
       <Box flexDirection="column">
-        {!isDone && (
+        {isWaitingForProgress && (
+          <Box>
+            <Spinner type="dots" />
+            <Text color="gray"> {isDeleteOperation ? 'Preparing stack deletion...' : 'Preparing CloudFormation update...'}</Text>
+          </Box>
+        )}
+
+        {showProgressUI && (
           <Box flexDirection="column">
             <Box>
-              <Text>Deploying using CloudFormation </Text>
+              <Text>{actionVerb} using CloudFormation </Text>
               {progressPercent !== null && <Text color="cyan">{progressPercent}%</Text>}
               {progressCounts.done !== null && progressCounts.total !== null && (
                 <Text color="gray">
@@ -158,7 +189,7 @@ export const DeployPhase: React.FC<DeployPhaseProps> = ({ phase, phaseNumber, wa
             </Box>
             <Box marginTop={0}>
               {progressPercent !== null ? (
-                <ProgressBar value={progressPercent} />
+                <GreenProgressBar value={progressPercent} />
               ) : (
                 <Box>
                   <Spinner type="dots" />
@@ -169,11 +200,11 @@ export const DeployPhase: React.FC<DeployPhaseProps> = ({ phase, phaseNumber, wa
           </Box>
         )}
 
-        {!isDone && (
+        {showProgressUI && (
           <Box flexDirection="column" marginTop={1}>
             {resourceState.active &&
               renderResourceList(
-                'Currently updating:',
+                currentlyLabel,
                 resourceState.active === 'none' ? 'waiting for resources' : resourceState.active
               )}
             {resourceState.waiting && renderResourceList('Waiting:', resourceState.waiting)}
@@ -182,20 +213,24 @@ export const DeployPhase: React.FC<DeployPhaseProps> = ({ phase, phaseNumber, wa
 
         {isDone && (
           <Box flexDirection="column" marginTop={0}>
-            <Box>
-              <Text color="green">✓</Text>
-              <Text> Created: {summaryCounts.created}</Text>
-              {formatListSummary(detailLists.created, summaryCounts.created, 4) && (
-                <Text color="gray"> ({formatListSummary(detailLists.created, summaryCounts.created, 4)})</Text>
-              )}
-            </Box>
-            <Box>
-              <Text color="green">✓</Text>
-              <Text> Updated: {summaryCounts.updated}</Text>
-              {formatListSummary(detailLists.updated, summaryCounts.updated, 4) && (
-                <Text color="gray"> ({formatListSummary(detailLists.updated, summaryCounts.updated, 4)})</Text>
-              )}
-            </Box>
+            {!isDeleteOperation && (
+              <>
+                <Box>
+                  <Text color="green">✓</Text>
+                  <Text> Created: {summaryCounts.created}</Text>
+                  {formatListSummary(detailLists.created, summaryCounts.created, 4) && (
+                    <Text color="gray"> ({formatListSummary(detailLists.created, summaryCounts.created, 4)})</Text>
+                  )}
+                </Box>
+                <Box>
+                  <Text color="green">✓</Text>
+                  <Text> Updated: {summaryCounts.updated}</Text>
+                  {formatListSummary(detailLists.updated, summaryCounts.updated, 4) && (
+                    <Text color="gray"> ({formatListSummary(detailLists.updated, summaryCounts.updated, 4)})</Text>
+                  )}
+                </Box>
+              </>
+            )}
             <Box>
               <Text color="green">✓</Text>
               <Text> Deleted: {summaryCounts.deleted}</Text>
@@ -218,4 +253,4 @@ export const DeployPhase: React.FC<DeployPhaseProps> = ({ phase, phaseNumber, wa
       ))}
     </Box>
   );
-};
+});

@@ -1,8 +1,7 @@
 import type { TuiPrompt, TuiPromptConfirm, TuiPromptSelect, TuiPromptText, TuiSelectOption } from '../types';
+import { ConfirmInput } from '@inkjs/ui';
 import { Box, Text } from 'ink';
 import React, { useMemo } from 'react';
-import { tuiState } from '../state';
-import { ConfirmInputCustom } from './ConfirmInputCustom';
 import { SelectInput } from './SelectInput';
 import { TextInputCustom } from './TextInputCustom';
 
@@ -36,7 +35,6 @@ const SelectPrompt: React.FC<{ prompt: TuiPromptSelect }> = ({ prompt }) => {
   const { uniqueOptions, valueMap } = useMemo(() => ensureUniqueOptions(prompt.options), [prompt.options]);
 
   const handleChange = (uniqueValue: string) => {
-    tuiState.clearActivePrompt();
     // Resolve with the original value, not the unique one
     const originalValue = valueMap.get(uniqueValue) || uniqueValue;
     prompt.resolve(originalValue);
@@ -53,28 +51,26 @@ const SelectPrompt: React.FC<{ prompt: TuiPromptSelect }> = ({ prompt }) => {
 };
 
 const ConfirmPrompt: React.FC<{ prompt: TuiPromptConfirm }> = ({ prompt }) => {
-  const handleConfirm = () => {
-    tuiState.clearActivePrompt();
-    prompt.resolve(true);
-  };
-
-  const handleCancel = () => {
-    tuiState.clearActivePrompt();
-    prompt.resolve(false);
-  };
-
   return (
     <Box marginY={1}>
       <Text bold>{prompt.message} </Text>
-      <ConfirmInputCustom onConfirm={handleConfirm} onCancel={handleCancel} />
+      <Text color="gray">(</Text>
+      <ConfirmInput
+        defaultChoice={prompt.defaultValue === false ? 'cancel' : 'confirm'}
+        submitOnEnter={true}
+        onConfirm={() => prompt.resolve(true)}
+        onCancel={() => prompt.resolve(false)}
+      />
+      <Text color="gray">)</Text>
     </Box>
   );
 };
 
 const TextPrompt: React.FC<{ prompt: TuiPromptText }> = ({ prompt }) => {
   const handleSubmit = (value: string) => {
-    tuiState.clearActivePrompt();
-    prompt.resolve(value);
+    // Use defaultValue if empty string submitted
+    const finalValue = value === '' && prompt.defaultValue ? prompt.defaultValue : value;
+    prompt.resolve(finalValue);
   };
 
   return (

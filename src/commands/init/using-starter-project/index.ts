@@ -1,11 +1,27 @@
 import { join } from 'node:path';
-import { downloadTemplate } from 'giget';
+import { Readable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { stpErrors } from '@errors';
 import { fsPaths } from '@shared/naming/fs-paths';
+import { convertYamlToTypescript } from '@shared/utils/config-converter';
 import { deleteDirectoryContent } from '@shared/utils/fs-utils';
-import { ensureDir, existsSync, readdirSync, statSync } from 'fs-extra';
+import { unzip } from '@shared/utils/unzip';
+import {
+  createWriteStream,
+  ensureDir,
+  existsSync,
+  move,
+  outputFile,
+  pathExists,
+  readdir,
+  readdirSync,
+  readFile,
+  remove,
+  stat,
+  statSync
+} from 'fs-extra';
 import {
   addEslintPrettier,
   addTsConfig,
@@ -30,13 +46,11 @@ export const initUsingStarterProject = async () => {
       throw stpErrors.e506({ projectId: globalStateManager.args.starterId });
     }
   } else {
-    const res = await tuiManager.prompt({
-      type: 'select',
-      choices: availableStarters.map((s) => ({ title: s.name, value: s.name })),
-      name: 'name',
-      message: 'Choose a starter project.'
+    const selectedName = await tuiManager.promptSelect({
+      message: 'Choose a starter project.',
+      options: availableStarters.map((s) => ({ label: s.name, value: s.name }))
     });
-    projectToUse = availableStarters.find((s) => s.name === res.name);
+    projectToUse = availableStarters.find((s) => s.name === selectedName);
   }
 
   let targetDirectory = globalStateManager.args.projectDirectory;
@@ -54,9 +68,7 @@ export const initUsingStarterProject = async () => {
         tuiManager.warn(
           `Directory ${tuiManager.prettyFilePath(absoluteProjectPath)} is not empty. Starter project will overwrite its contents.`
         );
-        const { confirmed } = await tuiManager.prompt({
-          type: 'confirm',
-          name: 'confirmed',
+        const confirmed = await tuiManager.promptConfirm({
           message: 'Continue?'
         });
         if (!confirmed) {
@@ -75,6 +87,10 @@ export const initUsingStarterProject = async () => {
   }
 
   await downloadStarterFromGithub({ githubLink: projectToUse.githubLink, targetDirectory: absoluteProjectPath });
+  const configFormat = await promptConfigFormat();
+  if (configFormat === 'typescript') {
+    await convertStarterConfigToTypescript({ absoluteProjectPath });
+  }
 
   if (projectToUse.projectType === 'es') {
     let shouldAddEslintPrettier = false;
@@ -124,19 +140,89 @@ export const downloadStarterFromGithub = async ({
   githubLink: string;
   targetDirectory: string;
 }) => {
-  const gigetSource = getGigetSource(githubLink);
+  const { owner, repo } = parseGithubRepo(githubLink);
+  if (!owner || !repo) {
+    throw new Error(`Unsupported starter repository link: ${githubLink}`);
+  }
+  const archiveUrl = `https://codeload.github.com/${owner}/${repo}/zip/HEAD`;
+  const archivePath = join(targetDirectory, `.stacktape-starter-${Date.now()}.zip`);
   await ensureDir(targetDirectory);
-  await downloadTemplate(gigetSource, { dir: targetDirectory, force: true });
+  await downloadArchive({ archiveUrl, archivePath });
+  const { outputDirPath } = await unzip({ zipFilePath: archivePath, outputDir: targetDirectory });
+  const capsuleDirPath = await resolveStarterRoot({ targetDirectory, outputDirPath });
+  const itemsInStarterDir = await readdir(capsuleDirPath);
+  await Promise.all(
+    itemsInStarterDir.map((item) => {
+      return move(join(capsuleDirPath, item), join(targetDirectory, item), { overwrite: true });
+    })
+  );
+  await Promise.all([remove(archivePath), remove(capsuleDirPath)]);
 };
 
-const getGigetSource = (githubLink: string) => {
-  if (githubLink.startsWith('github:')) {
-    return githubLink;
+const downloadArchive = async ({ archiveUrl, archivePath }: { archiveUrl: string; archivePath: string }) => {
+  const response = await fetch(archiveUrl);
+  if (!response.ok || !response.body) {
+    throw new Error(`Failed to download starter project archive: ${archiveUrl}`);
   }
+  await pipeline((Readable as any).fromWeb(response.body), createWriteStream(archivePath));
+};
+
+const parseGithubRepo = (githubLink: string) => {
   if (githubLink.startsWith('https://github.com/')) {
     const { pathname } = new URL(githubLink);
-    const repoPath = pathname.replace(/^\//, '').replace(/\/$/, '').replace(/\.git$/, '');
-    return `github:${repoPath}`;
+    const [owner, repo] = pathname
+      .replace(/^\//, '')
+      .replace(/\/$/, '')
+      .replace(/\.git$/, '')
+      .split('/');
+    return { owner, repo };
   }
-  return githubLink;
+  if (githubLink.startsWith('github:')) {
+    const [owner, repo] = githubLink.replace('github:', '').split('/');
+    return { owner, repo };
+  }
+  return { owner: '', repo: '' };
+};
+
+const resolveStarterRoot = async ({
+  targetDirectory,
+  outputDirPath
+}: {
+  targetDirectory: string;
+  outputDirPath: string;
+}) => {
+  if (outputDirPath && (await pathExists(outputDirPath))) {
+    const stats = await stat(outputDirPath);
+    if (stats.isDirectory()) {
+      return outputDirPath;
+    }
+  }
+  const itemsInTargetDir = await readdir(targetDirectory);
+  const capsuleDirName = itemsInTargetDir.find((name) => !name.endsWith('.zip'));
+  if (!capsuleDirName) {
+    throw new Error('Downloaded starter archive did not contain a project directory.');
+  }
+  return join(targetDirectory, capsuleDirName);
+};
+
+const promptConfigFormat = async (): Promise<'typescript' | 'yaml'> => {
+  const format = await tuiManager.promptSelect({
+    message: 'What is your preferred config format?',
+    options: [
+      { label: 'TypeScript (stacktape.ts)', value: 'typescript' },
+      { label: 'YAML (stacktape.yml)', value: 'yaml' }
+    ]
+  });
+  return format as 'typescript' | 'yaml';
+};
+
+const convertStarterConfigToTypescript = async ({ absoluteProjectPath }: { absoluteProjectPath: string }) => {
+  const yamlPath = join(absoluteProjectPath, 'stacktape.yml');
+  if (!(await pathExists(yamlPath))) {
+    return;
+  }
+  const yamlContent = await readFile(yamlPath, 'utf8');
+  const tsConfig = convertYamlToTypescript(yamlContent);
+  await outputFile(join(absoluteProjectPath, 'stacktape.ts'), tsConfig);
+  await remove(yamlPath);
 };

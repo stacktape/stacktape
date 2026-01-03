@@ -782,13 +782,15 @@ If you want to disable local emulation, use the ${tuiManager.prettyOption('disab
     phaseStatus,
     message,
     projectName,
-    invocationId
+    invocationId,
+    stage
   }: {
     phase: string;
     phaseStatus: string;
     message: string;
     projectName: string;
     invocationId: string;
+    stage: string;
   }): ReturnedError {
     return {
       type: 'CODEBUILD',
@@ -796,26 +798,28 @@ If you want to disable local emulation, use the ${tuiManager.prettyOption('disab
         'red',
         phaseStatus
       )} before logs could be retrieved.${message ? `\nAdditional message: ${message}.` : ''}`,
-      hint: `Deployment logs: https://console.stacktape.com/projects/${projectName}/deployment-detail/${invocationId}?tab=logs`
+      hint: `Deployment logs: https://console.stacktape.com/projects/${projectName}/${stage}/deployment-detail/${invocationId}?tab=logs`
     };
   },
   e64({
     stackName,
     projectName,
     invocationId,
-    buildId
+    buildId,
+    stage
   }: {
     stackName: string;
     projectName: string;
     invocationId: string;
     buildId: string;
+    stage: string;
   }): ReturnedError {
     return {
       type: 'CODEBUILD',
       message: `Deployment of stack ${tuiManager.makeBold(
         stackName
       )} through codebuild failed (buildId: ${buildId}). Inspect logs for further information.`,
-      hint: `Deployment logs: https://console.stacktape.com/projects/${projectName}/deployment-detail/${invocationId}?tab=logs`
+      hint: `Deployment logs: https://console.stacktape.com/projects/${projectName}/${stage}/deployment-detail/${invocationId}?tab=logs`
     };
   },
   e65({

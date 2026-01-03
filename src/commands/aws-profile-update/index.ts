@@ -9,21 +9,16 @@ export const commandAwsProfileUpdate = async (): Promise<AwsProfileUpdateReturnV
     throw new ExpectedError('CREDENTIALS', 'No profile set in global AWS credentials file.');
   }
 
-  const { awsSecretAccessKey } = await tuiManager.prompt({
-    type: 'select',
-    choices: availableProfiles.map((profile) => ({ title: profile, value: profile })),
-    name: 'awsSecretAccessKey',
-    message: 'Choose a profile to update:'
+  const profile = await tuiManager.promptSelect({
+    message: 'Choose a profile to update:',
+    options: availableProfiles.map((prof) => ({ label: prof, value: prof }))
   });
-  const { awsAccessKeyId } = await tuiManager.prompt({
-    type: 'text',
-    name: 'awsAccessKeyId',
-    message: 'AWS_ACCESS_KEY_ID: '
+  const awsAccessKeyId = await tuiManager.promptText({
+    message: 'AWS_ACCESS_KEY_ID:'
   });
-  const { profile } = await tuiManager.prompt({
-    type: 'password',
-    name: 'profile',
-    message: 'AWS_SECRET_ACCESS_KEY: '
+  const awsSecretAccessKey = await tuiManager.promptText({
+    message: 'AWS_SECRET_ACCESS_KEY:',
+    isPassword: true
   });
 
   await upsertAwsProfile(profile, awsAccessKeyId, awsSecretAccessKey);

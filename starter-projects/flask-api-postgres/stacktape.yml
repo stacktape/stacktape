@@ -52,6 +52,6 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.4'
+          version: '18.2'
           primaryInstance:
             instanceSize: db.t3.micro

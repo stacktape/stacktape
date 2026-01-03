@@ -5,13 +5,11 @@ import { upsertAwsProfile } from '@utils/aws-config';
 import { ExpectedError } from '@utils/errors';
 
 export const commandAwsProfileCreate = async (): Promise<AwsProfileCreateReturnValue> => {
-  const promptResult = await tuiManager.prompt({
-    type: 'text',
-    name: 'profile',
-    message:
-      'Choose an arbitrary profile name. ("default" will be used as default profile value in every command. Leave blank for "default"):'
+  const profileInput = await tuiManager.promptText({
+    message: 'Choose an arbitrary profile name:',
+    description: '("default" will be used as default profile value in every command. Leave blank for "default")'
   });
-  const profile = promptResult.profile || 'default';
+  const profile = profileInput || 'default';
 
   const [credsFileContent, configFileContent] = await Promise.all([
     getIniFileContent(fsPaths.awsCredentialsFilePath()),
@@ -25,16 +23,13 @@ export const commandAwsProfileCreate = async (): Promise<AwsProfileCreateReturnV
     throw new ExpectedError('CREDENTIALS', `Credentials for profile ${profile} are already set in config file.`);
   }
 
-  const { awsAccessKeyId } = await tuiManager.prompt({
-    type: 'text',
-    name: 'awsAccessKeyId',
-    message: 'AWS_ACCESS_KEY_ID: '
+  const awsAccessKeyId = await tuiManager.promptText({
+    message: 'AWS_ACCESS_KEY_ID:'
   });
 
-  const { awsSecretAccessKey } = await tuiManager.prompt({
-    type: 'password',
-    name: 'awsSecretAccessKey',
-    message: 'AWS_SECRET_ACCESS_KEY: '
+  const awsSecretAccessKey = await tuiManager.promptText({
+    message: 'AWS_SECRET_ACCESS_KEY:',
+    isPassword: true
   });
 
   await upsertAwsProfile(profile, awsAccessKeyId, awsSecretAccessKey);

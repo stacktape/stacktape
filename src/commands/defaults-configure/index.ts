@@ -14,16 +14,15 @@ const getDefaults = async (
     const currentValueRedacted = prop.isSensitive ? maskString(currentValue) : currentValue;
     const redactedValueToPrint = currentValueRedacted === null ? '<< not-set >>' : currentValueRedacted;
 
-    const res = await tuiManager.prompt({
-      type: prop.isSensitive ? 'password' : 'text',
-      name: propName,
-      message: `${prop.description}. (leave blank to keep unchanged${hasValue ? ', use whitespace to unset' : ''}, current value: ${redactedValueToPrint}):`,
-      initial: currentValue
+    const inputValue = await tuiManager.promptText({
+      message: `${prop.description}:`,
+      description: `(leave blank to keep unchanged${hasValue ? ', use whitespace to unset' : ''}, current value: ${redactedValueToPrint})`,
+      isPassword: prop.isSensitive
     });
-    const isEmptyString = typeof res[propName] === 'string' && (res[propName] as string).length < 1;
-    const shouldUnset = res[propName] === ' ';
+    const isEmptyString = typeof inputValue === 'string' && inputValue.length < 1;
+    const shouldUnset = inputValue === ' ';
     if (!isEmptyString) {
-      result[propName] = res[propName];
+      result[propName] = inputValue;
     }
     if (shouldUnset) {
       result[propName] = prop.default;

@@ -199,9 +199,7 @@ export const resolveRunningContainersWithSamePort = async ({
   );
 
   if (containersWithConflictingPorts.length) {
-    const { shouldStopConflictingContainers } = await tuiManager.prompt({
-      type: 'confirm',
-      name: 'shouldStopConflictingContainers',
+    const shouldStopConflictingContainers = await tuiManager.promptConfirm({
       message: `The following containers have conflicting ports open. Would you like to remove them?:\n${containersWithConflictingPorts.map(
         (c) => `${c.Names.join(', ')} (${c.Id}).`
       )}`

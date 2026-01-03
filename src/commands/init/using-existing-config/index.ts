@@ -22,15 +22,12 @@ export const initUsingExistingConfig = async () => {
 
   let templateId = globalStateManager.args.templateId;
   if (!templateId) {
-    const res = await tuiManager.prompt({
-      type: 'text',
-      name: 'templateId',
+    templateId = await tuiManager.promptText({
       message: `Template ID (from ${tuiManager.terminalLink(
         'https://console.stacktape.com/template-editor',
         'console'
-      )} -> Copy templateId)`
+      )} -> Copy templateId):`
     });
-    templateId = res.templateId;
   }
 
   let template;

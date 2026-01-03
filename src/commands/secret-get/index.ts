@@ -6,9 +6,7 @@ import { loadUserCredentials } from '../_utils/initialization';
 export const commandSecretGet = async () => {
   await loadUserCredentials();
 
-  const { secretName } = await tuiManager.prompt({
-    type: 'text',
-    name: 'secretName',
+  const secretName = await tuiManager.promptText({
     message: 'Secret name:'
   });
 

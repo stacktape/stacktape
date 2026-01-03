@@ -74,9 +74,7 @@ export const potentiallyPromptBeforeOperation = async ({
     if (!process.stdout.isTTY) {
       throw stpErrors.e108({ reason: possiblyImpactedResourcesPart, command: globalStateManager.command });
     }
-    const { proceed } = await tuiManager.prompt({
-      type: 'confirm',
-      name: 'proceed',
+    const proceed = await tuiManager.promptConfirm({
       message: 'Are you sure you want to proceed?'
     });
     if (!proceed) {
