@@ -293,6 +293,9 @@ export const processConcurrently = (jobs: ((...args: any[]) => Promise<any>)[], 
         .then(() => {
           resolvedPromises++;
           currentlyRunning--;
+          // Use setImmediate to yield to event loop after each job completes
+          // This allows UI updates and prevents event loop starvation
+          setImmediate(checkJobs);
         })
         .catch((err) => {
           if (interval) {
@@ -324,7 +327,8 @@ export const processConcurrently = (jobs: ((...args: any[]) => Promise<any>)[], 
       }
     };
     checkJobs();
-    interval = setInterval(checkJobs, 5);
+    // Check more frequently (every 10ms) to ensure UI responsiveness
+    interval = setInterval(checkJobs, 10);
   });
 };
 

@@ -29,6 +29,7 @@ import {
   isDockerRunning
 } from '@shared/utils/docker';
 import { getFileExtension } from '@shared/utils/fs-utils';
+import { processConcurrently } from '@shared/utils/misc';
 import compose from '@utils/basic-compose-shim';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
 import objectHash from 'object-hash';
@@ -87,33 +88,39 @@ export class PackagingManager {
       }
     }
 
-    await Promise.all([
-      ...configManager.allUserCodeLambdas.map(async ({ name, type, packaging, architecture, runtime }) => {
-        return this.packageWorkload({
-          commandCanUseCache,
-          jobName: getJobName({ workloadName: name, workloadType: type }),
-          workloadName: name,
-          packaging,
-          runtime,
-          dockerBuildOutputArchitecture: architecture === 'arm64' ? 'linux/arm64' : 'linux/amd64'
-        });
+    const packagingJobs = [
+      ...configManager.allUserCodeLambdas.map(({ name, type, packaging, architecture, runtime }) => {
+        return () =>
+          this.packageWorkload({
+            commandCanUseCache,
+            jobName: getJobName({ workloadName: name, workloadType: type }),
+            workloadName: name,
+            packaging,
+            runtime,
+            dockerBuildOutputArchitecture: architecture === 'arm64' ? 'linux/arm64' : 'linux/amd64'
+          });
       }),
-      ...configManager.allContainersRequiringPackaging.map(async ({ jobName, packaging, workloadName, resources }) => {
-        return this.packageWorkload({
-          commandCanUseCache,
-          jobName,
-          packaging,
-          workloadName,
-          dockerBuildOutputArchitecture: this.getTargetCpuArchitectureForContainer(resources)
-        });
+      ...configManager.allContainersRequiringPackaging.map(({ jobName, packaging, workloadName, resources }) => {
+        return () =>
+          this.packageWorkload({
+            commandCanUseCache,
+            jobName,
+            packaging,
+            workloadName,
+            dockerBuildOutputArchitecture: this.getTargetCpuArchitectureForContainer(resources)
+          });
       }),
       ...configManager.nextjsWebs.map((resource) => {
-        return this.packageNextjsWeb({
-          nextjsWebResource: resource,
-          commandCanUseCache
-        });
+        return () =>
+          this.packageNextjsWeb({
+            nextjsWebResource: resource,
+            commandCanUseCache
+          });
       })
-    ]);
+    ];
+    // Use limited concurrency to prevent event loop starvation and allow UI updates
+    const maxConcurrentPackaging = Math.min(packagingJobs.length, 6);
+    await processConcurrently(packagingJobs, maxConcurrentPackaging);
     await eventManager.finishEvent({
       eventType: 'PACKAGE_ARTIFACTS',
       data: { packagedJobs: this.#packagedJobs }
