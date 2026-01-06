@@ -41,9 +41,13 @@ export const runDevLambdaFunction = async (): Promise<DevReturnValue> => {
     });
   } else {
     hookToRestartStdinInput(async () => {
-      tuiManager.info('Restart requested. Rebuilding and redeploying function...');
+      await eventManager.startEvent({
+        eventType: 'REBUILD_AND_RESTART',
+        description: 'Rebuilding and redeploying function'
+      });
       await buildAndDeployFunction();
       await cloudwatchLogPrinter.startUsingNewLogStream();
+      await eventManager.finishEvent({ eventType: 'REBUILD_AND_RESTART' });
     });
   }
 

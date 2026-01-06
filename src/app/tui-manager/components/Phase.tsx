@@ -12,6 +12,7 @@ type PhaseProps = {
   warnings: TuiWarning[];
   messages: TuiMessage[];
   isTTY: boolean;
+  showPhaseHeader?: boolean;
 };
 
 // Event types that trigger the fancy CloudFormation progress UI
@@ -23,10 +24,18 @@ const CF_DEPLOY_EVENT_TYPES: LoggableEventType[] = [
   'HOTSWAP_UPDATE'
 ];
 
-export const Phase: React.FC<PhaseProps> = ({ phase, phaseNumber, warnings, messages, isTTY }) => {
-  // Only use DeployPhase when there are CloudFormation-related events (not for codebuild monitoring, etc.)
+export const Phase: React.FC<PhaseProps> = ({
+  phase,
+  phaseNumber,
+  warnings,
+  messages,
+  isTTY,
+  showPhaseHeader = true
+}) => {
+  // Use DeployPhase when there are CloudFormation-related events (not for codebuild monitoring, etc.)
+  // This applies to any phase that has CF events (DEPLOY phase, or BUILD_AND_PACKAGE with CREATE_RESOURCES_FOR_ARTIFACTS)
   const hasCfEvents = phase.events.some((e) => CF_DEPLOY_EVENT_TYPES.includes(e.eventType));
-  if (phase.id === 'DEPLOY' && isTTY && hasCfEvents) {
+  if (isTTY && hasCfEvents) {
     return <DeployPhase phase={phase} phaseNumber={phaseNumber} warnings={warnings} messages={messages} />;
   }
   const phaseWarnings = warnings.filter((w) => w.phase === phase.id);
@@ -34,21 +43,30 @@ export const Phase: React.FC<PhaseProps> = ({ phase, phaseNumber, warnings, mess
   // All events are visible - child hiding is handled in Event.tsx
   const visibleEvents = phase.events;
 
-  if (phase.status === 'pending' && isTTY) {
+  // Don't render pending phases that have no events
+  if (phase.status === 'pending' && isTTY && phase.events.length === 0) {
     return null;
   }
 
   return (
-    <Box flexDirection="column" marginBottom={1}>
-      <Box>
-        <Text bold>PHASE {phaseNumber}</Text>
-        <Text> • </Text>
-        <Text bold>{phase.name}</Text>
-        {phase.status !== 'pending' && (
-          <PhaseTimer startTime={phase.startTime} duration={phase.duration} isRunning={phase.status === 'running'} />
-        )}
-      </Box>
-      <Text color="gray">{'─'.repeat(54)}</Text>
+    <Box flexDirection="column" marginBottom={showPhaseHeader ? 1 : 0}>
+      {showPhaseHeader && (
+        <>
+          <Box>
+            <Text bold>PHASE {phaseNumber}</Text>
+            <Text> • </Text>
+            <Text bold>{phase.name}</Text>
+            {phase.status !== 'pending' && (
+              <PhaseTimer
+                startTime={phase.startTime}
+                duration={phase.duration}
+                isRunning={phase.status === 'running'}
+              />
+            )}
+          </Box>
+          <Text color="gray">{'─'.repeat(54)}</Text>
+        </>
+      )}
 
       {visibleEvents.map((event) => (
         <Event key={event.id} event={event} isTTY={isTTY} />

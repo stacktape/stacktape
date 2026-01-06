@@ -36,27 +36,25 @@ export const commandDomainAdd = async () => {
   if (!domainStatus.ownershipVerified) {
     // if there is NO hosted zone for our domain we will ask user if he wants to create it
     // he can than use this hosted zone to migrate his domain.
-    console.info(`\n${tuiManager.colorize('gray', '─'.repeat(54))}\n`);
+
     tuiManager.info(
       [
         `DNS for ${tuiManager.makeBold(domainName)} is managed outside AWS.`,
         'To let Stacktape manage DNS/certs, move DNS to Route 53.',
-        `${tuiManager.colorize('yellow', 'NOTE:')} Options: ${tuiManager.terminalLink(
+        `To learn more about options, visit: ${tuiManager.terminalLink(
           'https://docs.stacktape.com/other-resources/domains-and-certificates/',
           'docs'
         )}\n`
       ].join('\n')
     );
     const controlDomainDnsWithAws = await tuiManager.promptConfirm({
-      message:
-        "Do you wish to manage your domain's DNS records in your AWS account? (if unsure, read the docs (link above))."
+      message: "Do you wish to manage your domain's DNS records in your AWS account?"
     });
     if (!controlDomainDnsWithAws) {
       tuiManager.warn('Domain add canceled.');
       return;
     }
 
-    console.info(`\n${tuiManager.colorize('gray', '─'.repeat(54))}\n`);
     tuiManager.info('Route 53 hosted zones store DNS records.');
 
     if (!zoneInfo) {
@@ -76,7 +74,6 @@ export const commandDomainAdd = async () => {
         return;
       }
       zoneInfo = await awsSdkManager.createHostedZone(domainName);
-      console.info(`\n${tuiManager.colorize('gray', '─'.repeat(54))}\n`);
     }
     tuiManager.success(
       `Hosted zone created. Update your registrar to use these name servers:\n${tuiManager.colorize(
@@ -84,7 +81,7 @@ export const commandDomainAdd = async () => {
         zoneInfo.DelegationSet.NameServers.map((ns) => `- ${ns}`).join('\n')
       )}`
     );
-    console.info(`\n${tuiManager.colorize('gray', '─'.repeat(54))}\n`);
+
     tuiManager.info(
       [
         'Next: set your registrar name servers to the values above.',

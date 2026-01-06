@@ -3,6 +3,7 @@ import type { FSWatcher } from 'chokidar';
 import type { Stats } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
 import { applicationManager } from '@application-services/application-manager';
+import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { configManager } from '@domain-services/config-manager';
@@ -205,8 +206,14 @@ export const resolveRunningContainersWithSamePort = async ({
       )}`
     });
     if (shouldStopConflictingContainers) {
-      tuiManager.info('Stopping containers using those ports...');
-      await Promise.all(containersWithConflictingPorts.map((container) => gracefullyStopContainer(container.Id)));
+      await eventManager.startEvent({
+        eventType: 'STOP_CONTAINER',
+        description: `Stopping ${containersWithConflictingPorts.length} conflicting container${containersWithConflictingPorts.length > 1 ? 's' : ''}`
+      });
+      await Promise.all(
+        containersWithConflictingPorts.map((container) => stopDockerContainer(container.Id, getContainerStopWaitTime()))
+      );
+      await eventManager.finishEvent({ eventType: 'STOP_CONTAINER' });
     }
     if (onContainerStopped) {
       onContainerStopped();
@@ -217,7 +224,8 @@ export const resolveRunningContainersWithSamePort = async ({
 export const gracefullyStopContainer = async (containerName: string) => {
   const containerInfo = await inspectDockerContainer(containerName);
   if (containerInfo?.State?.Running) {
-    tuiManager.info('Stopping previous container...');
+    await eventManager.startEvent({ eventType: 'STOP_CONTAINER', description: 'Stopping previous container' });
     await stopDockerContainer(containerName, getContainerStopWaitTime());
+    await eventManager.finishEvent({ eventType: 'STOP_CONTAINER' });
   }
 };

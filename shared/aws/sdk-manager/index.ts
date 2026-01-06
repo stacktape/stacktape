@@ -1191,9 +1191,10 @@ export class AwsSdkManager {
 
   batchDeleteObjects = async (bucketName: string, objectKeys: ObjectIdentifier[]) => {
     const errHandler = this.#getErrorHandler(`Failed to batch delete objects from bucket ${bucketName}.`);
-    if (objectKeys.length) {
+    const validObjectKeys = objectKeys.filter((obj) => obj?.Key);
+    if (validObjectKeys.length) {
       return Promise.all(
-        chunkArray(objectKeys, 1000).map((chunk) =>
+        chunkArray(validObjectKeys, 1000).map((chunk) =>
           this.#s3()
             .send(
               new DeleteObjectsCommand({

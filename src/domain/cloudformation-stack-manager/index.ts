@@ -495,6 +495,11 @@ export class StackManager {
       return;
     }
 
+    eventManager.updateEvent({
+      eventType: 'DELETE_STACK',
+      additionalMessage: `Scaling down ${ecsServiceArns.length} ECS service${ecsServiceArns.length > 1 ? 's' : ''} before delete...`
+    });
+
     // Ask ECS to scale all services to 0
     await Promise.all(
       ecsServiceArns.map(async (ecsServiceArn) => {
@@ -523,10 +528,15 @@ export class StackManager {
           }
         })
       );
-      const allDrained = services.every((svc) => !svc || (svc.runningCount || 0) === 0);
+      const totalRunning = services.reduce((sum, svc) => sum + (svc?.runningCount || 0), 0);
+      const allDrained = totalRunning === 0;
       if (allDrained) {
         return;
       }
+      eventManager.updateEvent({
+        eventType: 'DELETE_STACK',
+        additionalMessage: `Waiting for ${totalRunning} ECS task${totalRunning > 1 ? 's' : ''} to drain...`
+      });
       await wait(pollMs);
     }
   };
@@ -621,10 +631,10 @@ export class StackManager {
         startTime: lastStackActionTimestamp,
         now: new Date()
       });
-      const remainingPart =
+      const estimatePart =
         cleanupAfterSuccessfulUpdateInProgress || remainingPercent === null
           ? ''
-          : ` Est. remaining: ~${remainingPercent === 0 ? '<1' : remainingPercent}%`;
+          : ` Estimate: ~${remainingPercent === 100 ? '<1' : 100 - remainingPercent}%`;
       const changeSummary = formatChangeSummary({
         cfStackAction,
         templateDiff,
@@ -659,18 +669,27 @@ export class StackManager {
               3
             )
           : 'none';
-      const summaryPart = `Summary: ${tuiManager.makeBold('created')}=${changeSummary.counts.created} ${tuiManager.makeBold(
-        'updated'
-      )}=${changeSummary.counts.updated} ${tuiManager.makeBold('deleted')}=${changeSummary.counts.deleted}.`;
-      const detailPart = `Details: ${tuiManager.makeBold('created')}=${formatResourceList(
-        changeSummary.lists.created,
-        4
-      )}; ${tuiManager.makeBold('updated')}=${formatResourceList(changeSummary.lists.updated, 4)}; ${tuiManager.makeBold(
-        'deleted'
-      )}=${formatResourceList(changeSummary.lists.deleted, 4)}.`;
-      const progressMessage = `${inProgressPart}. ${finishedPart}.${remainingPart}`.trim();
+      // Build changes part - only show non-zero counts with resource names if available
+      const changesParts: string[] = [];
+      if (changeSummary.counts.created > 0) {
+        const resources =
+          changeSummary.lists.created.length > 0 ? ` (${formatResourceList(changeSummary.lists.created, 3)})` : '';
+        changesParts.push(`Creating: ${changeSummary.counts.created}${resources}`);
+      }
+      if (changeSummary.counts.updated > 0) {
+        const resources =
+          changeSummary.lists.updated.length > 0 ? ` (${formatResourceList(changeSummary.lists.updated, 3)})` : '';
+        changesParts.push(`Updating: ${changeSummary.counts.updated}${resources}`);
+      }
+      if (changeSummary.counts.deleted > 0) {
+        const resources =
+          changeSummary.lists.deleted.length > 0 ? ` (${formatResourceList(changeSummary.lists.deleted, 3)})` : '';
+        changesParts.push(`Deleting: ${changeSummary.counts.deleted}${resources}`);
+      }
+      const changesPart = changesParts.length > 0 ? changesParts.join('. ') + '.' : '';
+      const progressMessage = `${inProgressPart}. ${finishedPart}.${estimatePart}`.trim();
       onProgress(
-        `${progressMessage} Progress: ${completedPlanned}/${totalPlanned}. Currently updating: ${activeList}. Waiting to start update: ${waitingList}. ${summaryPart} ${detailPart}`
+        `${progressMessage} Progress: ${completedPlanned}/${totalPlanned}. Currently updating: ${activeList}. Waiting: ${waitingList}.${changesPart ? ` ${changesPart}` : ''}`
       );
     };
 

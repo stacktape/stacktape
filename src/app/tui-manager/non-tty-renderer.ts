@@ -46,7 +46,7 @@ class NonTTYRenderer {
   }
 
   private normalizeProgressMessage(message: string) {
-    return message.replace(/Est\. remaining:\s*~?(<)?\d+%/gi, 'Est. remaining: ~%').trim();
+    return message.replace(/Estimate:\s*~?(<)?\d+%/gi, 'Estimate: ~%').trim();
   }
 
   reset() {

@@ -62,7 +62,11 @@ type LoggableEventType =
   | 'LOAD_TARGET_STACK_INFO'
   | 'LOAD_PROVIDER_CREDENTIALS'
   | 'LOAD_VPC_INFO'
-  | 'RUN_SCRIPT';
+  | 'RUN_SCRIPT'
+  | 'STOP_CONTAINER'
+  | 'RUN_DEPLOYMENT_SCRIPT'
+  | 'ASSUME_ROLE'
+  | 'REBUILD_AND_RESTART';
 
 type EventLogEntryType = 'START' | 'UPDATE' | 'FINISH';
 

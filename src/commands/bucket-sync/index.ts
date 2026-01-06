@@ -28,14 +28,13 @@ export const commandBucketSync = async (): Promise<BucketSyncReturnValue> => {
   const absoluteSourcePath = getDirectoryPath();
   const prettyDirPath = tuiManager.prettyFilePath(absoluteSourcePath);
 
-  tuiManager.info(`Syncing ${prettyDirPath} to bucket ${bucketName} (deletes removed files).`);
   await notificationManager.sendDeploymentNotification({
     message: { text: `Syncing ${prettyDirPath} to bucket ${bucketName} (deletes removed files).`, type: 'progress' }
   });
 
   await eventManager.startEvent({
     eventType: 'SYNC_BUCKET',
-    description: 'Syncing...'
+    description: `Syncing ${prettyDirPath} to ${bucketName}`
   });
   let lastProgressPercent = null;
   const stats = await awsSdkManager.syncDirectoryIntoBucket({

@@ -37,9 +37,7 @@ const formatDescription = (id: string): string => {
 
 /**
  * In TTY mode, aggregate children by instanceId (workload name) to show a cleaner summary.
- * Instead of showing every build step, show one entry per workload with its final status.
- * For hotswap deployment, we want to show actual event descriptions (e.g., "Updating ECS service")
- * instead of just workload name, so we use most recently active event's description.
+ * Shows "Workload: current action" while running, "Workload: Done" or "Workload: Skipped" when finished.
  */
 const getAggregatedChildren = (children: TuiEvent[]): TuiEvent[] => {
   if (children.length === 0) return [];
@@ -63,10 +61,8 @@ const getAggregatedChildren = (children: TuiEvent[]): TuiEvent[] => {
 
   // For each workload, create a summary event
   return sortedEntries.map(([instanceId, events]) => {
-    // Find the last finished event to get duration and final message
-    const lastFinished = [...events].reverse().find((e) => e.status === 'success' || e.status === 'error');
     const firstEvent = events[0];
-    const anyRunning = events.some((e) => e.status === 'running');
+    const runningEvent = events.find((e) => e.status === 'running');
     const anyError = events.some((e) => e.status === 'error');
     const allFinished = events.every((e) => e.status === 'success' || e.status === 'error');
 
@@ -75,25 +71,92 @@ const getAggregatedChildren = (children: TuiEvent[]): TuiEvent[] => {
     const endTimes = events.filter((e) => e.endTime).map((e) => e.endTime!);
     const endTime = allFinished && endTimes.length > 0 ? Math.max(...endTimes) : undefined;
 
-    // For hotswap deployments, prefer showing actual action descriptions
-    // But prepend workload name for context, e.g., "LambdaMcpServer: Updating function code"
-    const useActualDescription = events.some((e) =>
-      ['UPDATE_ECS_SERVICE', 'REGISTER_ECS_TASK_DEFINITION', 'UPDATE_FUNCTION_CODE'].includes(e.eventType)
-    );
-    const description = useActualDescription
-      ? `${formatDescription(instanceId)}: ${firstEvent.description}`
-      : formatDescription(instanceId);
+    // Build description: "Workload: current action" while running, "Workload: Done/Skipped" when finished
+    const workloadName = formatDescription(instanceId);
+    let description: string;
+    if (allFinished) {
+      // Check if all events were skipped (finalMessage contains "Skipped" or outcome was skipped)
+      const wasSkipped = events.length === 1 && events[0].finalMessage?.toLowerCase().includes('skipped');
+      description = anyError
+        ? `${workloadName}: Failed`
+        : wasSkipped
+          ? `${workloadName}: Skipped`
+          : `${workloadName}: Done`;
+    } else if (runningEvent) {
+      description = `${workloadName}: ${runningEvent.description}`;
+    } else {
+      description = workloadName;
+    }
 
     return {
       ...firstEvent,
       id: `aggregated-${instanceId}`,
       description,
-      status: anyRunning ? 'running' : anyError ? 'error' : lastFinished?.status || firstEvent.status,
+      status: runningEvent ? 'running' : anyError ? 'error' : 'success',
       startTime,
       endTime,
       duration: allFinished && endTime ? endTime - startTime : undefined,
-      finalMessage: allFinished ? lastFinished?.finalMessage : undefined,
       children: [] // Don't show nested children in aggregated view
+    } as TuiEvent;
+  });
+};
+
+/**
+ * Aggregate hotswap children by workload, showing current action while running
+ * and "Hotswap done" when finished.
+ */
+const getAggregatedHotswapChildren = (children: TuiEvent[]): TuiEvent[] => {
+  if (children.length === 0) return [];
+
+  const byInstanceId = new Map<string, TuiEvent[]>();
+
+  for (const child of children) {
+    const key = child.instanceId || child.id;
+    if (!byInstanceId.has(key)) {
+      byInstanceId.set(key, []);
+    }
+    byInstanceId.get(key)!.push(child);
+  }
+
+  // Sort by first event start time for stable order
+  const sortedEntries = Array.from(byInstanceId.entries()).sort(([, aEvents], [, bEvents]) => {
+    const aStart = Math.min(...aEvents.map((e) => e.startTime));
+    const bStart = Math.min(...bEvents.map((e) => e.startTime));
+    return aStart - bStart;
+  });
+
+  return sortedEntries.map(([instanceId, events]) => {
+    const firstEvent = events[0];
+    const runningEvent = events.find((e) => e.status === 'running');
+    const anyError = events.some((e) => e.status === 'error');
+    const allFinished = events.every((e) => e.status === 'success' || e.status === 'error');
+
+    // Calculate total duration from first start to last end
+    const startTime = Math.min(...events.map((e) => e.startTime));
+    const endTimes = events.filter((e) => e.endTime).map((e) => e.endTime!);
+    const endTime = allFinished && endTimes.length > 0 ? Math.max(...endTimes) : undefined;
+
+    // Build description: "Workload: current action" while running, "Workload: Hotswap done" when finished
+    const workloadName = formatDescription(instanceId);
+    let description: string;
+    if (allFinished) {
+      description = anyError ? `${workloadName}: Hotswap failed` : `${workloadName}: Hotswap done`;
+    } else if (runningEvent) {
+      description = `${workloadName}: ${runningEvent.description}`;
+    } else {
+      // Pending or unknown state
+      description = `${workloadName}: ${firstEvent.description}`;
+    }
+
+    return {
+      ...firstEvent,
+      id: `hotswap-${instanceId}`,
+      description,
+      status: runningEvent ? 'running' : anyError ? 'error' : 'success',
+      startTime,
+      endTime,
+      duration: allFinished && endTime ? endTime - startTime : undefined,
+      children: []
     } as TuiEvent;
   });
 };
@@ -108,19 +171,20 @@ export const Event: React.FC<EventProps> = ({ event, isChild = false, isLast = f
   const shouldHideChildren = event.hideChildrenWhenFinished && event.status === 'success' && allChildrenFinished;
 
   // In TTY mode, aggregate children by workload for cleaner display
-  // But for hotswap parent event, show individual steps with workload names
   const isHotswapParent = event.eventType === 'HOTSWAP_UPDATE';
-  const isHotswapChild = ['UPDATE_ECS_SERVICE', 'REGISTER_ECS_TASK_DEFINITION', 'UPDATE_FUNCTION_CODE'].includes(
-    event.eventType
-  );
-  const shouldAggregate = isTTY && hasChildren && !isHotswapParent && !isHotswapChild;
-  const displayChildren = shouldAggregate ? getAggregatedChildren(event.children) : event.children;
+  const shouldAggregateHotswap = isTTY && hasChildren && isHotswapParent;
+  const shouldAggregateNormal = isTTY && hasChildren && !isHotswapParent;
 
-  // For hotswap parent events that have instanceId, prepend workload name to description
-  const hotswapParentDescription =
-    isHotswapParent && event.instanceId
-      ? `${formatDescription(event.instanceId)}: ${event.description}`
-      : event.description;
+  let displayChildren: TuiEvent[];
+  if (shouldAggregateHotswap) {
+    displayChildren = getAggregatedHotswapChildren(event.children);
+  } else if (shouldAggregateNormal) {
+    displayChildren = getAggregatedChildren(event.children);
+  } else {
+    displayChildren = event.children;
+  }
+
+  const displayDescription = event.description;
 
   return (
     <Box flexDirection="column">
@@ -128,7 +192,7 @@ export const Event: React.FC<EventProps> = ({ event, isChild = false, isLast = f
         <Text>{indent}</Text>
         {isChild && <Text color="gray">{prefix} </Text>}
         <StatusIcon status={event.status} />
-        <Text> {hotswapParentDescription || event.description}</Text>
+        <Text> {displayDescription}</Text>
         {event.duration !== undefined && event.status !== 'running' && (
           <Text color="yellow"> {formatDuration(event.duration)}</Text>
         )}

@@ -1,5 +1,5 @@
+import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
-import { tuiManager } from '@application-services/tui-manager';
 import { configManager } from '@domain-services/config-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { stpErrors } from '@errors';
@@ -33,18 +33,24 @@ export const commandDeploymentScriptRun = async (): Promise<DeploymentScriptRunR
     })
   ]);
 
-  tuiManager.info(`Running deployment script ${tuiManager.prettyResourceName(resourceName)}...`);
+  await eventManager.startEvent({
+    eventType: 'RUN_DEPLOYMENT_SCRIPT',
+    description: `Running deployment script ${resourceName}`
+  });
   const response = await awsSdkManager.invokeLambdaFunction({
     lambdaResourceName: lambdaArn,
     payload: scriptParametersResolvedLocally
   });
-
-  printInformationAboutScriptResult({ stpResourceName: resourceName, response });
+  const resultMessage = getScriptResultMessage({ stpResourceName: resourceName, response });
+  await eventManager.finishEvent({
+    eventType: 'RUN_DEPLOYMENT_SCRIPT',
+    finalMessage: resultMessage
+  });
 
   return { success: !response.FunctionError, returnedPayload: response.Payload };
 };
 
-const printInformationAboutScriptResult = ({
+const getScriptResultMessage = ({
   stpResourceName,
   response
 }: {
@@ -57,21 +63,10 @@ const printInformationAboutScriptResult = ({
   } catch {
     // do nothing
   }
-
   if (response.FunctionError) {
-    tuiManager.info(
-      `${tuiManager.colorize(
-        'red',
-        'Deployment script failed.\nError'
-      )} from ${tuiManager.prettyResourceName(stpResourceName)}:\n${formattedJsonResponse || response.Payload}`
-    );
-  } else {
-    tuiManager.success(
-      `Deployment script ${tuiManager.prettyResourceName(stpResourceName)} succeeded. Payload:\n${
-        formattedJsonResponse || response.Payload
-      }`
-    );
+    return `Failed. Error from ${stpResourceName}:\n${formattedJsonResponse || response.Payload}`;
   }
+  return `Succeeded. Payload:\n${formattedJsonResponse || response.Payload}`;
 };
 
 const validateCorrectResourceExistence = ({

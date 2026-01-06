@@ -3,6 +3,7 @@ import type { TuiEvent, TuiMessage, TuiPhase, TuiWarning } from '../types';
 import { Spinner } from '@inkjs/ui';
 import { Box, Text } from 'ink';
 import React from 'react';
+import { formatDuration } from '../utils';
 import { Event } from './Event';
 import { Message } from './Message';
 import { PhaseTimer } from './PhaseTimer';
@@ -57,10 +58,10 @@ const stripAnsi = (message?: string) => {
   return message.replace(/\x1B\[[0-9;]*m/g, '');
 };
 
-const parseRemainingPercent = (message?: string) => {
+const parseEstimatePercent = (message?: string) => {
   const cleaned = stripAnsi(message);
   if (!cleaned) return null;
-  const match = cleaned.match(/Est\. remaining:\s*~(<)?(\d+)%/);
+  const match = cleaned.match(/Estimate:\s*~(<)?(\d+)%/);
   if (!match) return null;
   const isLessThan = !!match[1];
   const value = Number(match[2]);
@@ -68,10 +69,10 @@ const parseRemainingPercent = (message?: string) => {
   return isLessThan ? 1 : value;
 };
 
-const getProgressPercent = (remainingPercent: number | null, status: TuiEvent['status']) => {
+const getProgressPercent = (estimatePercent: number | null, status: TuiEvent['status']) => {
   if (status !== 'running') return 100;
-  if (remainingPercent === null) return null;
-  return Math.max(0, Math.min(100, Math.round(100 - remainingPercent)));
+  if (estimatePercent === null) return null;
+  return Math.max(0, Math.min(100, estimatePercent));
 };
 
 const parseResourceState = (message?: string) => {
@@ -132,8 +133,8 @@ const renderResourceList = (label: string, items: string) => {
   if (!list.length) return null;
   return (
     <Box>
-      <Text color="gray">{label} </Text>
-      <Text>{list.join(' • ')}</Text>
+      <Text color="gray">{label}</Text>
+      <Text> {list.join(' • ')}</Text>
     </Box>
   );
 };
@@ -142,8 +143,8 @@ export const DeployPhase: React.FC<DeployPhaseProps> = ({ phase, phaseNumber, wa
   const phaseWarnings = warnings.filter((w) => w.phase === phase.id);
   const phaseMessages = messages.filter((m) => m.phase === phase.id);
   const deployEvent = getActiveDeployEvent(phase.events);
-  const remainingPercent = parseRemainingPercent(deployEvent?.additionalMessage);
-  const progressPercentFromTime = getProgressPercent(remainingPercent, deployEvent?.status || 'running');
+  const estimatePercent = parseEstimatePercent(deployEvent?.additionalMessage);
+  const progressPercentFromTime = getProgressPercent(estimatePercent, deployEvent?.status || 'running');
   const resourceState = parseResourceState(deployEvent?.additionalMessage);
   const progressCounts = parseProgressCounts(deployEvent?.additionalMessage);
 
@@ -157,10 +158,13 @@ export const DeployPhase: React.FC<DeployPhaseProps> = ({ phase, phaseNumber, wa
   // Track if CloudFormation deployment is done (event finished successfully)
   const isDeploymentDone = deployEvent?.status === 'success' || deployEvent?.status === 'error';
 
-  // Only show progress UI if we have meaningful progress data (event has been running long enough to report progress)
-  // This prevents a brief flash of progress bar when deploy finishes instantly (no changes)
+  // Only show progress UI if we have meaningful progress data indicating actual resource changes
+  // Check for actual activity: resources completed (done > 0) OR resources currently in progress
   const hasProgressData = deployEvent?.additionalMessage && deployEvent.additionalMessage.length > 0;
-  const showProgressUI = !isDeploymentDone && hasProgressData;
+  const hasActualResourceActivity =
+    (progressCounts.done !== null && progressCounts.done > 0) ||
+    (resourceState.active && resourceState.active !== 'none');
+  const showProgressUI = !isDeploymentDone && hasProgressData && hasActualResourceActivity;
 
   // Detect if this is a hotswap deployment
   const isHotswapDeploy = deployEvent?.eventType === 'HOTSWAP_UPDATE';
@@ -176,8 +180,8 @@ export const DeployPhase: React.FC<DeployPhaseProps> = ({ phase, phaseNumber, wa
   // Detect operation type
   const isDeleteOperation = deployEvent?.eventType === 'DELETE_STACK';
   const isCreateArtifactsOperation = deployEvent?.eventType === 'CREATE_RESOURCES_FOR_ARTIFACTS';
-  // Hotswap and delete don't use CloudFormation progress UI
-  const isCloudFormationDeploy = !isHotswapDeploy && !isDeleteOperation;
+  // Hotswap doesn't use CloudFormation progress UI, but delete operations DO use CloudFormation
+  const isCloudFormationDeploy = !isHotswapDeploy;
   const actionVerb = isHotswapDeploy
     ? 'Hot-swapping'
     : isDeleteOperation
@@ -185,7 +189,7 @@ export const DeployPhase: React.FC<DeployPhaseProps> = ({ phase, phaseNumber, wa
       : isCreateArtifactsOperation
         ? 'Creating resources'
         : 'Deploying';
-  const currentlyLabel = isDeleteOperation ? 'Currently deleting:' : 'Currently creating:';
+  const currentlyLabel = isDeleteOperation ? 'Currently deleting:' : 'Currently updating:';
 
   // For hotswap deployments, render the deploy event as an Event component to show its children nested
   // For CloudFormation, we use custom UI instead
@@ -211,15 +215,21 @@ export const DeployPhase: React.FC<DeployPhaseProps> = ({ phase, phaseNumber, wa
 
   // Deploy is running but has no progress data yet
   const isDeployingNoProgress =
-    phase.status === 'running' &&
-    !isDeploymentDone &&
-    deployEvent?.status === 'running' &&
-    !hasProgressData &&
-    !hasPhaseLevelEvents;
+    phase.status === 'running' && !isDeploymentDone && deployEvent?.status === 'running' && !hasProgressData;
 
   // For hotswap, we render it as Event component with children - don't show generic message
   // For CloudFormation without progress, show generic "Deploying..." message
   const showGenericDeployMessage = isDeployingNoProgress && !isHotswapDeploy && !deployEvent?.additionalMessage;
+
+  // Show a simple status message when we have additionalMessage but no full progress bar data yet
+  // (e.g., "Scaling down ECS services..." before CloudFormation delete starts)
+  const hasSimpleStatusMessage =
+    deployEvent?.status === 'running' &&
+    deployEvent?.additionalMessage &&
+    !showProgressUI &&
+    !isHotswapDeploy &&
+    !isDeploymentDone;
+  const simpleStatusMessage = hasSimpleStatusMessage ? stripAnsi(deployEvent?.additionalMessage) : null;
 
   return (
     <Box flexDirection="column" marginBottom={1}>
@@ -254,8 +264,16 @@ export const DeployPhase: React.FC<DeployPhaseProps> = ({ phase, phaseNumber, wa
             <Spinner type="dots" />
             <Text color="gray">
               {' '}
-              {isDeleteOperation ? 'Deleting using CloudFormation...' : 'Deploying using CloudFormation...'}
+              {isDeleteOperation ? 'Deleting using CloudFormation...' : 'Checking for infrastructure changes...'}
             </Text>
+          </Box>
+        )}
+
+        {/* Show simple status message (e.g., ECS scale-down) before full progress UI */}
+        {simpleStatusMessage && (
+          <Box>
+            <Spinner type="dots" />
+            <Text color="gray"> {simpleStatusMessage}</Text>
           </Box>
         )}
 
@@ -264,7 +282,7 @@ export const DeployPhase: React.FC<DeployPhaseProps> = ({ phase, phaseNumber, wa
 
         {/* Hotswap doesn't show CloudFormation-style progress bar */}
         {isCloudFormationDeploy && showProgressUI && (
-          <Box flexDirection="column">
+          <Box flexDirection="column" marginTop={1}>
             <Box>
               <Text>{actionVerb} using CloudFormation </Text>
               {progressPercent !== null && <Text color="cyan">{progressPercent}%</Text>}
@@ -288,8 +306,8 @@ export const DeployPhase: React.FC<DeployPhaseProps> = ({ phase, phaseNumber, wa
           </Box>
         )}
 
-        {/* Hotswap doesn't show resource state */}
-        {isCloudFormationDeploy && showProgressUI && (
+        {/* Hotswap and CREATE_RESOURCES_FOR_ARTIFACTS don't show resource state */}
+        {isCloudFormationDeploy && showProgressUI && !isCreateArtifactsOperation && (
           <Box flexDirection="column" marginTop={1}>
             {resourceState.active &&
               renderResourceList(
@@ -301,35 +319,63 @@ export const DeployPhase: React.FC<DeployPhaseProps> = ({ phase, phaseNumber, wa
         )}
 
         {/* Show CloudFormation summary (not for hotswap) */}
-        {isCloudFormationDeploy && isDeploymentDone && (
-          <Box flexDirection="column" marginTop={0}>
-            {!isDeleteOperation && (
-              <>
+        {isCloudFormationDeploy &&
+          isDeploymentDone &&
+          (() => {
+            const nothingToUpdate =
+              !isDeleteOperation &&
+              summaryCounts.created === 0 &&
+              summaryCounts.updated === 0 &&
+              summaryCounts.deleted === 0;
+            return (
+              <Box flexDirection="column" marginTop={0}>
                 <Box>
-                  <Text color="green">✓</Text>
-                  <Text> Created: {summaryCounts.created}</Text>
-                  {formatListSummary(detailLists.created, summaryCounts.created, 4) && (
-                    <Text color="gray"> ({formatListSummary(detailLists.created, summaryCounts.created, 4)})</Text>
+                  <Text color={deployEvent?.status === 'success' ? 'green' : 'red'}>
+                    {deployEvent?.status === 'success' ? '✓' : '✗'}
+                  </Text>
+                  <Text> {isDeleteOperation ? 'Deleting' : 'Deploying'}</Text>
+                  {deployEvent?.duration !== undefined && (
+                    <Text color="yellow"> {formatDuration(deployEvent.duration)}</Text>
                   )}
+                  {nothingToUpdate && <Text color="gray"> Nothing to update</Text>}
                 </Box>
-                <Box>
-                  <Text color="green">✓</Text>
-                  <Text> Updated: {summaryCounts.updated}</Text>
-                  {formatListSummary(detailLists.updated, summaryCounts.updated, 4) && (
-                    <Text color="gray"> ({formatListSummary(detailLists.updated, summaryCounts.updated, 4)})</Text>
-                  )}
-                </Box>
-              </>
-            )}
-            <Box>
-              <Text color="green">✓</Text>
-              <Text> Deleted: {summaryCounts.deleted}</Text>
-              {formatListSummary(detailLists.deleted, summaryCounts.deleted, 4) && (
-                <Text color="gray"> ({formatListSummary(detailLists.deleted, summaryCounts.deleted, 4)})</Text>
-              )}
-            </Box>
-          </Box>
-        )}
+                {!isDeleteOperation && !nothingToUpdate && (
+                  <Box flexDirection="column" marginLeft={3}>
+                    <Box>
+                      <Text color="gray">├ </Text>
+                      <Text>Created: {summaryCounts.created}</Text>
+                      {formatListSummary(detailLists.created, summaryCounts.created, 4) && (
+                        <Text color="gray"> ({formatListSummary(detailLists.created, summaryCounts.created, 4)})</Text>
+                      )}
+                    </Box>
+                    <Box>
+                      <Text color="gray">├ </Text>
+                      <Text>Updated: {summaryCounts.updated}</Text>
+                      {formatListSummary(detailLists.updated, summaryCounts.updated, 4) && (
+                        <Text color="gray"> ({formatListSummary(detailLists.updated, summaryCounts.updated, 4)})</Text>
+                      )}
+                    </Box>
+                    <Box>
+                      <Text color="gray">└ </Text>
+                      <Text>Deleted: {summaryCounts.deleted}</Text>
+                      {formatListSummary(detailLists.deleted, summaryCounts.deleted, 4) && (
+                        <Text color="gray"> ({formatListSummary(detailLists.deleted, summaryCounts.deleted, 4)})</Text>
+                      )}
+                    </Box>
+                  </Box>
+                )}
+                {isDeleteOperation && (
+                  <Box marginLeft={3}>
+                    <Text color="gray">└ </Text>
+                    <Text>Deleted: {summaryCounts.deleted}</Text>
+                    {formatListSummary(detailLists.deleted, summaryCounts.deleted, 4) && (
+                      <Text color="gray"> ({formatListSummary(detailLists.deleted, summaryCounts.deleted, 4)})</Text>
+                    )}
+                  </Box>
+                )}
+              </Box>
+            );
+          })()}
 
         {/* Hotswap completion message */}
         {isHotswapDeploy && isDeploymentDone && (

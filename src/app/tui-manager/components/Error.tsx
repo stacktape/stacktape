@@ -72,8 +72,13 @@ export const ErrorDisplay: React.FC<ErrorDisplayProps> = ({ error }) => {
 
   return (
     <Box flexDirection="column" marginY={1}>
-      <Text bold>{typeLabel}: </Text>
-      <Text>{error.message}</Text>
+      {/* Only show error type header in Alert box */}
+      <Alert variant="error">{typeLabel}</Alert>
+
+      {/* Error message outside the box */}
+      <Box marginTop={1}>
+        <Text>{error.message}</Text>
+      </Box>
 
       {/* Hints section */}
       {hints.length > 0 && <HintSection hints={hints} />}
@@ -94,8 +99,6 @@ const CORNER_TR = '┐';
 const CORNER_BL = '└';
 const CORNER_BR = '┘';
 const VERTICAL = '│';
-const DIVIDER_LEFT = '├';
-const DIVIDER_RIGHT = '┤';
 
 /**
  * Wrap text to fit within a given width, breaking on word boundaries.
@@ -159,25 +162,14 @@ export const renderErrorToString = (
   makeBold: (text: string) => string
 ): string => {
   const lines: string[] = [];
-  const boxWidth = 70;
-  // Content width = boxWidth - 2 (for "│ " prefix and " │" suffix = 4 chars, but border adds 2 corners)
-  // Total line: │ + space + content + padding + space + │ = 4 + contentWidth
-  // Border line: corner + boxWidth + corner = boxWidth + 2
-  // So: 4 + contentWidth = boxWidth + 2, therefore contentWidth = boxWidth - 2
+  const boxWidth = 56;
   const contentWidth = boxWidth - 2;
   const typeLabel = error.isExpected === false ? 'UNEXPECTED ERROR' : error.errorType;
-
-  // Helper to create a padded line inside the box
-  const boxLine = (content: string) => {
-    const visibleLength = stringWidth(content); // Properly handles ANSI codes and unicode
-    const padding = Math.max(0, contentWidth - visibleLength);
-    return `${colorize('red', VERTICAL)} ${content}${' '.repeat(padding)} ${colorize('red', VERTICAL)}`;
-  };
 
   // Top border
   lines.push(colorize('red', `${CORNER_TL}${BORDER_CHAR.repeat(boxWidth)}${CORNER_TR}`));
 
-  // Error type header (centered)
+  // Error type header (centered) - only header in box
   const headerText = `✖ ${typeLabel}`;
   const headerTextWidth = stringWidth(headerText);
   const headerPadding = Math.max(0, contentWidth - headerTextWidth);
@@ -191,17 +183,15 @@ export const renderErrorToString = (
       colorize('red', VERTICAL)
   );
 
-  // Divider
-  lines.push(colorize('red', `${DIVIDER_LEFT}${BORDER_CHAR.repeat(boxWidth)}${DIVIDER_RIGHT}`));
-
-  // Error message (wrapped)
-  const messageLines = wrapText(error.message, contentWidth);
-  for (const msgLine of messageLines) {
-    lines.push(boxLine(makeBold(msgLine)));
-  }
-
   // Bottom border
   lines.push(colorize('red', `${CORNER_BL}${BORDER_CHAR.repeat(boxWidth)}${CORNER_BR}`));
+
+  // Error message (outside the box)
+  lines.push('');
+  const messageLines = wrapText(error.message, 100);
+  for (const msgLine of messageLines) {
+    lines.push(msgLine);
+  }
 
   // Hints (outside the box)
   const hints = error.hints || [];

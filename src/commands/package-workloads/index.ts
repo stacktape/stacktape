@@ -13,7 +13,7 @@ export const commandPackageWorkloads = async (): Promise<PackageWorkloadsReturnV
 
   const packagedWorkloads = await packagingManager.packageAllWorkloads({ commandCanUseCache: false });
 
-  tuiManager.info(
+  tuiManager.success(
     `Packaged compute resources for stack ${tuiManager.prettyStackName(globalStateManager.targetStack.stackName)}.`
   );
 

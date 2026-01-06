@@ -457,11 +457,11 @@ export class DeploymentArtifactManager {
     } else {
       await eventManager.startEvent({
         eventType: 'UPLOAD_DEPLOYMENT_ARTIFACTS',
-        description: 'No artifacts to upload'
+        description: 'Uploading deployment artifacts'
       });
       await eventManager.finishEvent({
         eventType: 'UPLOAD_DEPLOYMENT_ARTIFACTS',
-        finalMessage: 'All artifacts already deployed.'
+        finalMessage: 'Nothing to upload'
       });
     }
   };

@@ -125,9 +125,13 @@ const hookToRestartContainer = (
   run: AnyFunction
 ) => {
   hookToRestartStdinInput(async () => {
-    tuiManager.info('Restart requested. Rebuilding and restarting container...');
+    await eventManager.startEvent({
+      eventType: 'REBUILD_AND_RESTART',
+      description: 'Rebuilding and restarting container'
+    });
     await prepareImage(containerDefinition);
     await run();
+    await eventManager.finishEvent({ eventType: 'REBUILD_AND_RESTART' });
   });
 };
 
