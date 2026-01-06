@@ -1,3 +1,4 @@
+import { cpus } from 'node:os';
 import { join } from 'node:path';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
@@ -119,7 +120,10 @@ export class PackagingManager {
       })
     ];
     // Use limited concurrency to prevent event loop starvation and allow UI updates
-    const maxConcurrentPackaging = Math.min(packagingJobs.length, 6);
+    // Limit to number of physical CPU cores (logical cores / 2 for hyperthreaded systems)
+    const logicalCores = cpus().length;
+    const physicalCores = Math.max(1, Math.floor(logicalCores / 2));
+    const maxConcurrentPackaging = Math.min(packagingJobs.length, physicalCores);
     await processConcurrently(packagingJobs, maxConcurrentPackaging);
     await eventManager.finishEvent({
       eventType: 'PACKAGE_ARTIFACTS',
