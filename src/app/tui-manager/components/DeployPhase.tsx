@@ -28,13 +28,7 @@ type DeployPhaseProps = {
   messages: TuiMessage[];
 };
 
-const DEPLOY_EVENT_TYPES: LoggableEventType[] = [
-  'UPDATE_STACK',
-  'CREATE_RESOURCES_FOR_ARTIFACTS',
-  'DELETE_STACK',
-  'ROLLBACK_STACK',
-  'HOTSWAP_UPDATE'
-];
+const DEPLOY_EVENT_TYPES: LoggableEventType[] = ['UPDATE_STACK', 'DELETE_STACK', 'ROLLBACK_STACK', 'HOTSWAP_UPDATE'];
 
 const getActiveDeployEvent = (events: TuiEvent[]) => {
   const runningEvent = events.find(
@@ -176,16 +170,9 @@ export const DeployPhase: React.FC<DeployPhaseProps> = ({ phase, phaseNumber, wa
 
   // Detect operation type
   const isDeleteOperation = deployEvent?.eventType === 'DELETE_STACK';
-  const isCreateArtifactsOperation = deployEvent?.eventType === 'CREATE_RESOURCES_FOR_ARTIFACTS';
   // Hotswap doesn't use CloudFormation progress UI, but delete operations DO use CloudFormation
   const isCloudFormationDeploy = !isHotswapDeploy;
-  const actionVerb = isHotswapDeploy
-    ? 'Hot-swapping'
-    : isDeleteOperation
-      ? 'Deleting'
-      : isCreateArtifactsOperation
-        ? 'Creating resources'
-        : 'Deploying';
+  const actionVerb = isHotswapDeploy ? 'Hot-swapping' : isDeleteOperation ? 'Deleting' : 'Deploying';
   const currentlyLabel = isDeleteOperation ? 'Deleting:' : 'Updating:';
 
   // For hotswap deployments, render the deploy event as an Event component to show its children nested
@@ -303,8 +290,8 @@ export const DeployPhase: React.FC<DeployPhaseProps> = ({ phase, phaseNumber, wa
           </Box>
         )}
 
-        {/* Hotswap and CREATE_RESOURCES_FOR_ARTIFACTS don't show resource state */}
-        {isCloudFormationDeploy && showProgressUI && !isCreateArtifactsOperation && (
+        {/* Show resource state for CloudFormation deploys */}
+        {isCloudFormationDeploy && showProgressUI && (
           <Box flexDirection="column" marginTop={1}>
             {resourceState.active &&
               renderResourceList(

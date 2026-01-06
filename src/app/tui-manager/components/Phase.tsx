@@ -16,13 +16,7 @@ type PhaseProps = {
 };
 
 // Event types that trigger the fancy CloudFormation progress UI
-const CF_DEPLOY_EVENT_TYPES: LoggableEventType[] = [
-  'UPDATE_STACK',
-  'CREATE_RESOURCES_FOR_ARTIFACTS',
-  'DELETE_STACK',
-  'ROLLBACK_STACK',
-  'HOTSWAP_UPDATE'
-];
+const CF_DEPLOY_EVENT_TYPES: LoggableEventType[] = ['UPDATE_STACK', 'DELETE_STACK', 'ROLLBACK_STACK', 'HOTSWAP_UPDATE'];
 
 export const Phase: React.FC<PhaseProps> = ({
   phase,
@@ -33,7 +27,6 @@ export const Phase: React.FC<PhaseProps> = ({
   showPhaseHeader = true
 }) => {
   // Use DeployPhase when there are CloudFormation-related events (not for codebuild monitoring, etc.)
-  // This applies to any phase that has CF events (DEPLOY phase, or BUILD_AND_PACKAGE with CREATE_RESOURCES_FOR_ARTIFACTS)
   const hasCfEvents = phase.events.some((e) => CF_DEPLOY_EVENT_TYPES.includes(e.eventType));
   if (isTTY && hasCfEvents) {
     return <DeployPhase phase={phase} phaseNumber={phaseNumber} warnings={warnings} messages={messages} />;

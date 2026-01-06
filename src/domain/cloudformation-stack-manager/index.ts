@@ -307,7 +307,7 @@ export class StackManager {
   createResourcesForArtifacts = async () => {
     await eventManager.startEvent({
       eventType: 'CREATE_RESOURCES_FOR_ARTIFACTS',
-      description: 'Creating resources for deployment artifacts'
+      description: 'Creating AWS resources for deployment artifacts (S3, ECR...)'
     });
     const stackParams = this.getStackParams();
     // stack policy body includes information about protected resources
@@ -319,12 +319,8 @@ export class StackManager {
       ...onCreateParams,
       ...(this.isAutoRollbackEnabled && { OnFailure: OnFailure.DELETE })
     });
-    await this.monitorStack('create', StackId, (message) => {
-      eventManager.updateEvent({
-        eventType: 'CREATE_RESOURCES_FOR_ARTIFACTS',
-        additionalMessage: message
-      });
-    });
+    // Monitor stack creation without progress updates (shown as simple event)
+    await this.monitorStack('create', StackId, () => {});
     await eventManager.finishEvent({
       eventType: 'CREATE_RESOURCES_FOR_ARTIFACTS',
       data: { stackParams, template: templateManager.initialTemplate }
