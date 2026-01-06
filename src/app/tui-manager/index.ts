@@ -75,6 +75,9 @@ class TuiManager {
     tuiState.reset();
 
     if (this.isTTY) {
+      // Print newlines before starting Ink to preserve any previous console output
+      // Ink will manage everything below this point without clearing what's above
+      console.log('');
       this.inkInstance = render(React.createElement(TuiApp, { isTTY: true }), {
         patchConsole: false
       });
@@ -248,15 +251,21 @@ class TuiManager {
   }
 
   async stop() {
+    // Signal that we're finalizing - this allows the current phase to be committed to Static
+    tuiState.setFinalizing();
+
     // Capture reference before async operations to avoid race conditions
     const instance = this.inkInstance;
     if (instance) {
-      // Wait a moment to ensure the final state (including summary) is rendered
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      // Wait for React to process the finalizing state and render the final output
+      // This ensures all Static items are flushed to stdout before unmounting
+      await new Promise((resolve) => setTimeout(resolve, 150));
       instance.unmount();
       this.inkInstance = null;
     }
     if (this.nonTTYUnsubscribe) {
+      // Trigger one final render for non-TTY mode
+      nonTTYRenderer.render(tuiState.getState());
       this.nonTTYUnsubscribe();
       this.nonTTYUnsubscribe = null;
     }
@@ -331,12 +340,37 @@ class TuiManager {
     tuiState.finishEvent(params);
   }
 
+  /**
+   * Append output lines to an event (for script output capture).
+   * Use this instead of piping directly to stdout to avoid conflicts with Ink rendering.
+   */
+  appendEventOutput(params: { eventType: LoggableEventType; lines: string[]; instanceId?: string }) {
+    tuiState.appendEventOutput(params);
+  }
+
   warn(message: string) {
     this.writeWarn('warn', message);
   }
 
   setComplete(success: boolean, message: string, links: TuiLink[] = [], consoleUrl?: string) {
     tuiState.setComplete(success, message, links, consoleUrl);
+  }
+
+  /**
+   * Store completion info without displaying summary yet.
+   * This allows hooks to run and add events before showing the summary.
+   * Call commitPendingCompletion() to actually display the summary.
+   */
+  setPendingCompletion(params: { success: boolean; message: string; links: TuiLink[]; consoleUrl?: string }) {
+    tuiState.setPendingCompletion(params);
+  }
+
+  /**
+   * Commit the pending completion by calling setComplete with stored info.
+   * This should be called after hooks finish running.
+   */
+  commitPendingCompletion() {
+    tuiState.commitPendingCompletion();
   }
 
   colorize(color: string, text: string): string {

@@ -158,7 +158,14 @@ export const commandDeploy = async (): Promise<DeployReturnValue> => {
 
   const consoleUrl = `https://console.stacktape.com/projects/${globalStateManager.targetStack.projectName}/${globalStateManager.stage}/overview`;
   const resourceLinks = deployedStackOverviewManager.getResourceLinks();
-  tuiManager.setComplete(true, 'DEPLOYMENT SUCCESSFUL', resourceLinks, consoleUrl);
+
+  // Store completion info - setComplete will be called after afterDeploy hooks finish
+  tuiManager.setPendingCompletion({
+    success: true,
+    message: 'DEPLOYMENT SUCCESSFUL',
+    links: resourceLinks,
+    consoleUrl
+  });
 
   return { stackInfo: detailedStackInfoSensitive, packagedWorkloads };
 };

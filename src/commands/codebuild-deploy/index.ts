@@ -223,6 +223,15 @@ export const commandCodebuildDeploy = async (): Promise<CodebuildDeployReturnVal
   }
   // @todo end
 
+  const consoleUrl = `https://console.stacktape.com/projects/${globalStateManager.targetStack.projectName}/${globalStateManager.targetStack.stage}/overview`;
+
+  tuiManager.setPendingCompletion({
+    success: true,
+    message: 'DEPLOYMENT SUCCESSFUL',
+    links: [],
+    consoleUrl
+  });
+
   return { stackInfo: detailedStackInfoSensitive };
 };
 

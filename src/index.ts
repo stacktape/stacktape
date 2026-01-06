@@ -59,6 +59,10 @@ export const runCommand = async (opts: StacktapeProgrammaticOptions) => {
     const executor = getCommandExecutor(globalStateManager.command);
     const commandResult = await executor();
     await eventManager.processHooks({ captureType: 'FINISH' });
+
+    // Commit pending completion (from setPendingCompletion) before stopping
+    tuiManager.commitPendingCompletion();
+
     await eventManager.processFinalActions();
 
     await tuiManager.stop();

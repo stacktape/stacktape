@@ -166,6 +166,19 @@ class NonTTYRenderer {
       }
     }
 
+    // Render output lines (e.g., from script execution)
+    if (event.outputLines) {
+      for (let i = 0; i < event.outputLines.length; i++) {
+        const line = event.outputLines[i];
+        if (!line.trim()) continue; // Skip empty lines
+        const lineKey = `event-output-${event.id}-${i}`;
+        if (!this.printedItems.has(lineKey)) {
+          this.log(`${prefix}   ${line}`);
+          this.printedItems.add(lineKey);
+        }
+      }
+    }
+
     for (const child of event.children) {
       this.renderEvent(child, indent + 1, true);
     }

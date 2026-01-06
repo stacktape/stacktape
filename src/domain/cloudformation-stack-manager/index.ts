@@ -448,13 +448,14 @@ export class StackManager {
       }
       await awsSdkManager.setTerminationProtection(!!stackParams.EnableTerminationProtection, this.#stackName);
       await eventManager.finishEvent({
-        eventType: 'UPDATE_STACK'
+        eventType: 'UPDATE_STACK',
+        finalMessage: 'Deployment successful.'
       });
       return result;
     }
     await eventManager.finishEvent({
       eventType: 'UPDATE_STACK',
-      additionalMessage: 'Skipped. No updates need to be performed.'
+      finalMessage: 'No updates needed.'
     });
     return {};
   };

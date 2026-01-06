@@ -22,6 +22,8 @@ export type TuiEvent = {
   children: TuiEvent[];
   /** Data associated with the event */
   data?: Record<string, any>;
+  /** Captured output lines from script execution */
+  outputLines?: string[];
 };
 
 export type TuiPhase = {
@@ -122,6 +124,10 @@ export type TuiState = {
   activePrompt?: TuiPrompt;
   /** When true, hides dynamic phase rendering to allow console.log streaming */
   streamingMode?: boolean;
+  /** When true, the TUI is about to stop and phases should be finalized */
+  isFinalizing?: boolean;
+  /** Stored completion info to be committed after hooks finish */
+  pendingCompletion?: { success: boolean; message: string; links: TuiLink[]; consoleUrl?: string };
 };
 
 export const PHASE_NAMES: Record<DeploymentPhase, string> = {

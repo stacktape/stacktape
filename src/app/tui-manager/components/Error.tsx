@@ -72,10 +72,8 @@ export const ErrorDisplay: React.FC<ErrorDisplayProps> = ({ error }) => {
 
   return (
     <Box flexDirection="column" marginY={1}>
-      <Alert variant="error">
-        <Text bold>{typeLabel}: </Text>
-        <Text>{error.message}</Text>
-      </Alert>
+      <Text bold>{typeLabel}: </Text>
+      <Text>{error.message}</Text>
 
       {/* Hints section */}
       {hints.length > 0 && <HintSection hints={hints} />}

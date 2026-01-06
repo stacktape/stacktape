@@ -65,7 +65,7 @@ export const potentiallyPromptBeforeOperation = async ({
       `These resources may be deleted during this operation. This can cause data loss.\n${possiblyImpactedResources
         .map(
           ({ stpResourceName, resourceType }) =>
-            `○ ${tuiManager.makeBold(tuiManager.colorize('cyan', stpResourceName))} (type ${resourceType})`
+            `- ${tuiManager.prettyResourceName(stpResourceName)} (type ${tuiManager.prettyResourceType(resourceType)})`
         )
         .join('\n')}`;
     if (possiblyImpactedResourcesPart) {

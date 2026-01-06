@@ -61,19 +61,34 @@ export const TuiApp: React.FC<TuiAppProps> = ({ isTTY }) => {
     for (let i = 0; i < state.phases.length; i++) {
       const phase = state.phases[i];
       const isVisible = isTTY ? phase.status !== 'pending' || phase.events.length > 0 : phase.events.length > 0;
-      const isCompleted = phase.status === 'success' || phase.status === 'error';
-      // For DEPLOY phase, ensure all events are completed (to capture final summary data)
-      const allEventsCompleted =
-        phase.id !== 'DEPLOY' || phase.events.every((e) => e.status === 'success' || e.status === 'error');
+      const allEventsCompleted = phase.events.every((e) => e.status === 'success' || e.status === 'error');
 
-      if (isVisible && isCompleted && allEventsCompleted && !globalRenderedIds.has(phase.id)) {
+      // A phase is ready to be committed to Static when:
+      // 1. It's explicitly marked as success/error, OR
+      // 2. TUI is finalizing (stopping), it's the current phase, and all events are done
+      // We use isFinalizing instead of isComplete to allow afterDeploy hooks to add events
+      const isExplicitlyCompleted = phase.status === 'success' || phase.status === 'error';
+      const isImplicitlyCompleted =
+        state.isFinalizing && phase.id === state.currentPhase && allEventsCompleted && phase.status === 'running';
+
+      if (isVisible && (isExplicitlyCompleted || isImplicitlyCompleted) && !globalRenderedIds.has(phase.id)) {
         const phaseNumber = i + 1;
+        // For implicitly completed phases, update the status in the snapshot
+        const phaseSnapshot =
+          isImplicitlyCompleted && !isExplicitlyCompleted
+            ? {
+                ...phase,
+                status: 'success' as const,
+                endTime: Date.now(),
+                duration: phase.startTime ? Date.now() - phase.startTime : 0
+              }
+            : phase;
         globalStaticItems = [
           ...globalStaticItems,
           {
             type: 'phase',
             id: phase.id,
-            data: { phase, phaseNumber, warnings: state.warnings, messages: state.messages }
+            data: { phase: phaseSnapshot, phaseNumber, warnings: state.warnings, messages: state.messages }
           }
         ];
         globalRenderedIds.add(phase.id);
@@ -81,25 +96,26 @@ export const TuiApp: React.FC<TuiAppProps> = ({ isTTY }) => {
     }
 
     return globalStaticItems;
-  }, [state.header, state.phases, state.warnings, state.messages, isTTY]);
+  }, [state.header, state.phases, state.warnings, state.messages, state.isFinalizing, state.currentPhase, isTTY]);
 
   // Messages without a phase are rendered at the bottom (global messages)
   const globalMessages = useMemo(() => {
     return state.messages.filter((m) => !m.phase);
   }, [state.messages]);
 
-  // Active phases: running or pending with events, not completed (completed go to Static)
+  // Active phases: running or pending with events, not yet committed to Static
+  // IMPORTANT: Use globalRenderedIds to check if already in Static, not just completion status.
+  // This prevents duplicate rendering during the transition frame.
   const activePhases = useMemo(() => {
     return state.phases.filter((p) => {
+      // If already committed to Static, never show in dynamic section
+      if (globalRenderedIds.has(p.id)) {
+        return false;
+      }
       const isVisible = isTTY ? p.status !== 'pending' || p.events.length > 0 : p.events.length > 0;
-      const isCompleted = p.status === 'success' || p.status === 'error';
-      // For DEPLOY phase, also check if all events are completed
-      const allEventsCompleted =
-        p.id !== 'DEPLOY' || p.events.every((e) => e.status === 'success' || e.status === 'error');
-      // Completed phases go to Static, so exclude them from dynamic section
-      return isVisible && !(isCompleted && allEventsCompleted);
+      return isVisible;
     });
-  }, [state.phases, isTTY]);
+  }, [state.phases, isTTY, staticItems]); // staticItems dependency ensures re-eval when phases move to Static
 
   return (
     <>
@@ -126,27 +142,25 @@ export const TuiApp: React.FC<TuiAppProps> = ({ isTTY }) => {
       </Static>
 
       {/* Dynamic content: active phases, prompts, summary */}
-      {/* Hide active phases in streaming mode to prevent conflicts with console.log */}
       <Box flexDirection="column">
         {/* Add spacing between static (completed) phases and dynamic (active) phases */}
-        {!state.streamingMode && staticItems.length > 0 && activePhases.length > 0 && <Text> </Text>}
-        {!state.streamingMode &&
-          activePhases.map((phase) => {
-            const phaseNumber = state.phases.findIndex((p) => p.id === phase.id) + 1;
-            return (
-              <Phase
-                key={phase.id}
-                phase={phase}
-                phaseNumber={phaseNumber}
-                warnings={state.warnings}
-                messages={state.messages}
-                isTTY={isTTY}
-              />
-            );
-          })}
+        {staticItems.length > 0 && activePhases.length > 0 && <Text> </Text>}
+        {activePhases.map((phase) => {
+          const phaseNumber = state.phases.findIndex((p) => p.id === phase.id) + 1;
+          return (
+            <Phase
+              key={phase.id}
+              phase={phase}
+              phaseNumber={phaseNumber}
+              warnings={state.warnings}
+              messages={state.messages}
+              isTTY={isTTY}
+            />
+          );
+        })}
 
         {globalMessages.length > 0 && (
-          <Box flexDirection="column" marginTop={1}>
+          <Box flexDirection="column">
             {globalMessages.map((msg) => (
               <Message key={msg.id} message={msg} />
             ))}

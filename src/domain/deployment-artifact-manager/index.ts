@@ -454,6 +454,15 @@ export class DeploymentArtifactManager {
         eventType: 'UPLOAD_DEPLOYMENT_ARTIFACTS',
         data: { images: this.successfullyUploadedImages, objects: this.successfullyCreatedObjects }
       });
+    } else {
+      await eventManager.startEvent({
+        eventType: 'UPLOAD_DEPLOYMENT_ARTIFACTS',
+        description: 'No artifacts to upload'
+      });
+      await eventManager.finishEvent({
+        eventType: 'UPLOAD_DEPLOYMENT_ARTIFACTS',
+        finalMessage: 'All artifacts already deployed.'
+      });
     }
   };
 

@@ -3,6 +3,7 @@ import type { TuiEvent, TuiMessage, TuiPhase, TuiWarning } from '../types';
 import { Spinner } from '@inkjs/ui';
 import { Box, Text } from 'ink';
 import React from 'react';
+import { Event } from './Event';
 import { Message } from './Message';
 import { PhaseTimer } from './PhaseTimer';
 
@@ -38,7 +39,17 @@ const getActiveDeployEvent = (events: TuiEvent[]) => {
   const runningEvent = events.find(
     (event) => DEPLOY_EVENT_TYPES.includes(event.eventType) && event.status === 'running'
   );
-  return runningEvent || events.find((event) => DEPLOY_EVENT_TYPES.includes(event.eventType)) || events[0];
+  if (runningEvent) return runningEvent;
+  // If no running deploy event, return most recently finished deploy event
+  const finishedDeployEvent = [...events]
+    .reverse()
+    .find(
+      (event) =>
+        DEPLOY_EVENT_TYPES.includes(event.eventType) && (event.status === 'success' || event.status === 'error')
+    );
+  if (finishedDeployEvent) return finishedDeployEvent;
+  // If no deploy events at all, return undefined (not first event which could be non-deploy)
+  return events.find((event) => DEPLOY_EVENT_TYPES.includes(event.eventType));
 };
 
 const stripAnsi = (message?: string) => {
@@ -135,7 +146,7 @@ export const DeployPhase: React.FC<DeployPhaseProps> = ({ phase, phaseNumber, wa
   const progressPercentFromTime = getProgressPercent(remainingPercent, deployEvent?.status || 'running');
   const resourceState = parseResourceState(deployEvent?.additionalMessage);
   const progressCounts = parseProgressCounts(deployEvent?.additionalMessage);
-  const isDone = phase.status === 'success' || deployEvent?.status === 'success';
+
   const summaryCounts = parseSummaryCounts(deployEvent?.additionalMessage);
   const detailLists = parseDetailLists(deployEvent?.additionalMessage);
   const progressPercent =
@@ -143,17 +154,72 @@ export const DeployPhase: React.FC<DeployPhaseProps> = ({ phase, phaseNumber, wa
       ? Math.round((progressCounts.done / progressCounts.total) * 100)
       : progressPercentFromTime;
 
-  // Only show progress UI if we have meaningful progress data (event has been running long enough to report progress)
-  // This prevents a brief flash of the progress bar when deploy finishes instantly (no changes)
-  const hasProgressData = deployEvent?.additionalMessage && deployEvent.additionalMessage.length > 0;
-  const showProgressUI = !isDone && hasProgressData;
-  // Show waiting state when phase is running but no progress data yet
-  const isWaitingForProgress = phase.status === 'running' && !isDone && !hasProgressData;
+  // Track if CloudFormation deployment is done (event finished successfully)
+  const isDeploymentDone = deployEvent?.status === 'success' || deployEvent?.status === 'error';
 
-  // Detect if this is a delete operation
+  // Only show progress UI if we have meaningful progress data (event has been running long enough to report progress)
+  // This prevents a brief flash of progress bar when deploy finishes instantly (no changes)
+  const hasProgressData = deployEvent?.additionalMessage && deployEvent.additionalMessage.length > 0;
+  const showProgressUI = !isDeploymentDone && hasProgressData;
+
+  // Detect if this is a hotswap deployment
+  const isHotswapDeploy = deployEvent?.eventType === 'HOTSWAP_UPDATE';
+
+  // Check if we have a deploy event at all (CloudFormation related)
+  const hasDeployEvent = !!deployEvent;
+
+  // Show "Preparing" message only before deploy event exists or is pending (not running yet)
+  // If deploy event is running (even without progress data), show "Deploying..." message
+  const isWaitingForDeployStart =
+    phase.status === 'running' && !isDeploymentDone && (!hasDeployEvent || deployEvent?.status === 'pending');
+
+  // Detect operation type
   const isDeleteOperation = deployEvent?.eventType === 'DELETE_STACK';
-  const actionVerb = isDeleteOperation ? 'Deleting' : 'Deploying';
-  const currentlyLabel = isDeleteOperation ? 'Currently deleting:' : 'Currently updating:';
+  const isCreateArtifactsOperation = deployEvent?.eventType === 'CREATE_RESOURCES_FOR_ARTIFACTS';
+  // Hotswap and delete don't use CloudFormation progress UI
+  const isCloudFormationDeploy = !isHotswapDeploy && !isDeleteOperation;
+  const actionVerb = isHotswapDeploy
+    ? 'Hot-swapping'
+    : isDeleteOperation
+      ? 'Deleting'
+      : isCreateArtifactsOperation
+        ? 'Creating resources'
+        : 'Deploying';
+  const currentlyLabel = isDeleteOperation ? 'Currently deleting:' : 'Currently creating:';
+
+  // For hotswap deployments, render the deploy event as an Event component to show its children nested
+  // For CloudFormation, we use custom UI instead
+  const shouldShowDeployAsEvent = isHotswapDeploy && deployEvent;
+  // Events to show at phase level (not nested under deploy event):
+  // - For hotswap: exclude deploy event and its children (they're rendered via deploy event)
+  // - For CloudFormation: exclude deploy events (we show custom UI), but include children
+  const deployEventChildren = deployEvent?.children || [];
+  const phaseLevelEvents = phase.events.filter((e) => {
+    const isDeployEventType = DEPLOY_EVENT_TYPES.includes(e.eventType);
+    const isChildOfDeploy = deployEventChildren.some((child) => child.id === e.id);
+    return !isDeployEventType && !isChildOfDeploy;
+  });
+
+  // Split phase-level events into those that started before deploy and those that started after
+  const deployStartTime = deployEvent?.startTime || Infinity;
+  const eventsBeforeDeploy = phaseLevelEvents.filter((e) => e.startTime < deployStartTime);
+  const eventsAfterDeploy = phaseLevelEvents.filter((e) => e.startTime >= deployStartTime);
+
+  // Only show "Preparing/Deploying" message if there are no other events to display
+  const hasPhaseLevelEvents = phaseLevelEvents.length > 0;
+  const shouldShowPreparingMessage = isWaitingForDeployStart && !hasPhaseLevelEvents;
+
+  // Deploy is running but has no progress data yet
+  const isDeployingNoProgress =
+    phase.status === 'running' &&
+    !isDeploymentDone &&
+    deployEvent?.status === 'running' &&
+    !hasProgressData &&
+    !hasPhaseLevelEvents;
+
+  // For hotswap, we render it as Event component with children - don't show generic message
+  // For CloudFormation without progress, show generic "Deploying..." message
+  const showGenericDeployMessage = isDeployingNoProgress && !isHotswapDeploy && !deployEvent?.additionalMessage;
 
   return (
     <Box flexDirection="column" marginBottom={1}>
@@ -168,7 +234,12 @@ export const DeployPhase: React.FC<DeployPhaseProps> = ({ phase, phaseNumber, wa
       <Text color="gray">{'─'.repeat(54)}</Text>
 
       <Box flexDirection="column">
-        {isWaitingForProgress && (
+        {/* Show events that happened BEFORE the deploy started (e.g., Validating template) */}
+        {eventsBeforeDeploy.map((event) => (
+          <Event key={event.id} event={event} isTTY={true} />
+        ))}
+
+        {shouldShowPreparingMessage && (
           <Box>
             <Spinner type="dots" />
             <Text color="gray">
@@ -178,7 +249,21 @@ export const DeployPhase: React.FC<DeployPhaseProps> = ({ phase, phaseNumber, wa
           </Box>
         )}
 
-        {showProgressUI && (
+        {showGenericDeployMessage && (
+          <Box>
+            <Spinner type="dots" />
+            <Text color="gray">
+              {' '}
+              {isDeleteOperation ? 'Deleting using CloudFormation...' : 'Deploying using CloudFormation...'}
+            </Text>
+          </Box>
+        )}
+
+        {/* For hotswap, render deploy event as Event component to show nested children (workloads) */}
+        {shouldShowDeployAsEvent && <Event key={deployEvent!.id} event={deployEvent!} isTTY={true} />}
+
+        {/* Hotswap doesn't show CloudFormation-style progress bar */}
+        {isCloudFormationDeploy && showProgressUI && (
           <Box flexDirection="column">
             <Box>
               <Text>{actionVerb} using CloudFormation </Text>
@@ -203,7 +288,8 @@ export const DeployPhase: React.FC<DeployPhaseProps> = ({ phase, phaseNumber, wa
           </Box>
         )}
 
-        {showProgressUI && (
+        {/* Hotswap doesn't show resource state */}
+        {isCloudFormationDeploy && showProgressUI && (
           <Box flexDirection="column" marginTop={1}>
             {resourceState.active &&
               renderResourceList(
@@ -214,7 +300,8 @@ export const DeployPhase: React.FC<DeployPhaseProps> = ({ phase, phaseNumber, wa
           </Box>
         )}
 
-        {isDone && (
+        {/* Show CloudFormation summary (not for hotswap) */}
+        {isCloudFormationDeploy && isDeploymentDone && (
           <Box flexDirection="column" marginTop={0}>
             {!isDeleteOperation && (
               <>
@@ -243,6 +330,21 @@ export const DeployPhase: React.FC<DeployPhaseProps> = ({ phase, phaseNumber, wa
             </Box>
           </Box>
         )}
+
+        {/* Hotswap completion message */}
+        {isHotswapDeploy && isDeploymentDone && (
+          <Box flexDirection="column" marginTop={0}>
+            <Box>
+              <Text color="green">✓</Text>
+              <Text> Hotswap deployment completed.</Text>
+            </Box>
+          </Box>
+        )}
+
+        {/* Show events that happened AFTER the deploy started (hooks, scripts, etc.) */}
+        {eventsAfterDeploy.map((event) => (
+          <Event key={event.id} event={event} isTTY={true} />
+        ))}
       </Box>
 
       {phaseWarnings.map((warning) => (

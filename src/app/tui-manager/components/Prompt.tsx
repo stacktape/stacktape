@@ -52,7 +52,7 @@ const SelectPrompt: React.FC<{ prompt: TuiPromptSelect }> = ({ prompt }) => {
 
 const ConfirmPrompt: React.FC<{ prompt: TuiPromptConfirm }> = ({ prompt }) => {
   return (
-    <Box marginY={1}>
+    <Box>
       <Text bold>{prompt.message} </Text>
       <Text color="gray">(</Text>
       <ConfirmInput

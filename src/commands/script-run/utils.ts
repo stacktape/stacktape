@@ -190,6 +190,18 @@ const getLocalScriptExecutionFn = ({
       instanceId: eventInstanceId
     });
 
+    // Callback to capture script output and send to TUI
+    // This avoids piping directly to stdout which conflicts with Ink rendering
+    const onOutputLine = pipeStdio
+      ? (line: string) => {
+          tuiManager.appendEventOutput({
+            eventType: 'RUN_SCRIPT',
+            instanceId: eventInstanceId,
+            lines: [line]
+          });
+        }
+      : undefined;
+
     for (const commandOrScriptToExecute of executeSequence) {
       const currentDescription =
         commandOrScript === 'script'
@@ -218,14 +230,16 @@ const getLocalScriptExecutionFn = ({
             command: commandOrScriptToExecute,
             env,
             cwd,
-            pipeStdio
+            pipeStdio,
+            onOutputLine
           });
         } else {
           await executeScriptHook({
             env,
             filePath: commandOrScriptToExecute,
             cwd,
-            pipeStdio
+            pipeStdio,
+            onOutputLine
           });
         }
       } catch (err) {

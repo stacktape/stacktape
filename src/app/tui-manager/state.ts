@@ -90,6 +90,38 @@ class TuiStateManager {
     this.notifyListeners();
   }
 
+  /**
+   * Mark the TUI as finalizing. This signals that no more events will be added
+   * and the current phase can be committed to Static.
+   */
+  setFinalizing() {
+    this.state = { ...this.state, isFinalizing: true };
+    this.notifyListeners();
+  }
+
+  /**
+   * Store completion info without displaying summary yet.
+   * This allows hooks to run and add events before showing the summary.
+   * Call commitPendingCompletion() to actually display the summary.
+   */
+  setPendingCompletion(params: { success: boolean; message: string; links: TuiLink[]; consoleUrl?: string }) {
+    this.state = { ...this.state, pendingCompletion: params };
+    this.notifyListeners();
+  }
+
+  /**
+   * Commit the pending completion by calling setComplete with stored info.
+   * This should be called after hooks finish running.
+   */
+  commitPendingCompletion() {
+    if (this.state.pendingCompletion) {
+      const { success, message, links, consoleUrl } = this.state.pendingCompletion;
+      this.setComplete(success, message, links, consoleUrl);
+      this.state = { ...this.state, pendingCompletion: undefined };
+      this.notifyListeners();
+    }
+  }
+
   getState(): TuiState {
     return this.state;
   }
@@ -393,6 +425,29 @@ class TuiStateManager {
       }
       return { ...phase, events };
     });
+
+    this.state = { ...this.state, phases: newPhases };
+    this.notifyListeners();
+  }
+
+  /**
+   * Append output lines to an event (for script output capture).
+   * Lines are stored in the event and rendered as part of the event UI.
+   */
+  appendEventOutput(params: { eventType: LoggableEventType; lines: string[]; instanceId?: string }) {
+    const { eventType, lines, instanceId } = params;
+    const eventId = instanceId ? `${eventType}-${instanceId}` : eventType;
+
+    const newPhases = this.state.phases.map((phase) => ({
+      ...phase,
+      events: phase.events.map((event) => {
+        if (event.id === eventId) {
+          const existingLines = event.outputLines || [];
+          return { ...event, outputLines: [...existingLines, ...lines] };
+        }
+        return event;
+      })
+    }));
 
     this.state = { ...this.state, phases: newPhases };
     this.notifyListeners();

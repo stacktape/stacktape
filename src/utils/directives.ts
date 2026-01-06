@@ -1,7 +1,6 @@
 import { isAlphanumeric } from '@shared/utils/misc';
 
 export const startsLikeDirective = (str: string) => {
-  // eslint-disable-next-line regexp/no-unused-capturing-group
   return /^\$(.*)\(/.test(str);
 };
 
@@ -17,6 +16,7 @@ export const getIsDirective = (node: any) => {
   if (typeof node !== 'string') {
     return false;
   }
+
   if (!startsLikeDirective(node)) {
     return false;
   }
