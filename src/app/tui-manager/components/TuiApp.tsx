@@ -148,11 +148,20 @@ export const TuiApp: React.FC<TuiAppProps> = ({ isTTY }) => {
   // Active phases: running or pending with events, not yet committed to Static
   // IMPORTANT: Use globalRenderedIds to check if already in Static, not just completion status.
   // This prevents duplicate rendering during the transition frame.
+  // Also ensures a phase only shows in dynamic if all previous phases are in Static.
   const activePhases = useMemo(() => {
     if (isSimpleMode) return []; // In simple mode, we don't use phases
-    return state.phases.filter((p) => {
+    return state.phases.filter((p, index) => {
       // If already committed to Static, never show in dynamic section
       if (globalRenderedIds.has(p.id)) {
+        return false;
+      }
+      // Only show this phase if all previous phases are already in Static
+      // This prevents showing a new phase header before the previous phase content is rendered
+      const allPreviousPhasesInStatic = state.phases
+        .slice(0, index)
+        .every((prevPhase) => globalRenderedIds.has(prevPhase.id) || prevPhase.status === 'pending');
+      if (!allPreviousPhasesInStatic) {
         return false;
       }
       const isVisible = isTTY ? p.status !== 'pending' || p.events.length > 0 : p.events.length > 0;
