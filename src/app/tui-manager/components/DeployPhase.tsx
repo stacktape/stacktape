@@ -158,13 +158,10 @@ export const DeployPhase: React.FC<DeployPhaseProps> = ({ phase, phaseNumber, wa
   // Track if CloudFormation deployment is done (event finished successfully)
   const isDeploymentDone = deployEvent?.status === 'success' || deployEvent?.status === 'error';
 
-  // Only show progress UI if we have meaningful progress data indicating actual resource changes
-  // Check for actual activity: resources completed (done > 0) OR resources currently in progress
+  // Only show progress UI if we have meaningful progress data (event has been running long enough to report progress)
+  // This prevents a brief flash of progress bar when deploy finishes instantly (no changes)
   const hasProgressData = deployEvent?.additionalMessage && deployEvent.additionalMessage.length > 0;
-  const hasActualResourceActivity =
-    (progressCounts.done !== null && progressCounts.done > 0) ||
-    (resourceState.active && resourceState.active !== 'none');
-  const showProgressUI = !isDeploymentDone && hasProgressData && hasActualResourceActivity;
+  const showProgressUI = !isDeploymentDone && hasProgressData;
 
   // Detect if this is a hotswap deployment
   const isHotswapDeploy = deployEvent?.eventType === 'HOTSWAP_UPDATE';
@@ -264,7 +261,7 @@ export const DeployPhase: React.FC<DeployPhaseProps> = ({ phase, phaseNumber, wa
             <Spinner type="dots" />
             <Text color="gray">
               {' '}
-              {isDeleteOperation ? 'Deleting using CloudFormation...' : 'Checking for infrastructure changes...'}
+              {isDeleteOperation ? 'Deleting using CloudFormation...' : 'Deploying using CloudFormation...'}
             </Text>
           </Box>
         )}
