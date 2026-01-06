@@ -1,8 +1,8 @@
 import type { FilteredLogEvent, LogStream } from '@aws-sdk/client-cloudwatch-logs';
+import { tuiManager } from '@application-services/tui-manager';
 import { IS_DEV } from '@config';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { getErrorFromString } from '@utils/errors';
-import { printer } from '@utils/printer';
 import { getAwsSynchronizedTime } from '@utils/time';
 import dayjs from 'dayjs';
 import { logCollectorStream } from './log-collector';
@@ -50,7 +50,7 @@ export class LambdaCloudwatchLogPrinter {
     try {
       const matchedParts = event.message.trim().match(/([\s\S]*)\t([\s\S]*)\t([\s\S]*)\t([\s\S]*)\t([\s\S]*)/);
       const [, , requestId, , errorType, logContent] = matchedParts;
-      const logTypePart = printer.colorize('red', printer.makeBold(`ERROR: ${errorType}`));
+      const logTypePart = tuiManager.colorize('red', tuiManager.makeBold(`ERROR: ${errorType}`));
       let errorString: string;
       try {
         const { errorMessage, stack } = JSON.parse(logContent);
@@ -67,7 +67,7 @@ export class LambdaCloudwatchLogPrinter {
     } catch {
       const matchedParts = event.message.trim().match(/([\s\S]*)\t([\s\S]*)\t([\s\S]*)\t([\s\S]*)/);
       const [, , requestId, logType, logContent] = matchedParts;
-      const logTypePart = printer.colorize('red', printer.makeBold(logType));
+      const logTypePart = tuiManager.colorize('red', tuiManager.makeBold(logType));
       console.error(
         `${this.#getPrefix(requestId)} ${this.#getFormattedTimeStamp(
           event
@@ -77,23 +77,23 @@ export class LambdaCloudwatchLogPrinter {
   };
 
   #getFormattedTimeStamp = (event: FilteredLogEvent) => {
-    return `${printer.colorize('yellow', new Date(event.timestamp).toLocaleString())}`;
+    return `${tuiManager.colorize('yellow', new Date(event.timestamp).toLocaleString())}`;
   };
 
   #getFormattedRequestId = (requestId: string) => {
-    return printer.colorize('gray', `(request ID: ${requestId.trim()})`);
+    return tuiManager.colorize('gray', `(request ID: ${requestId.trim()})`);
   };
 
   #getFormattedReportData = ({ duration, memoryUsed, initDuration }) => {
-    return `duration: ${printer.colorize('cyan', duration.trim())}, memory used: ${printer.colorize(
+    return `duration: ${tuiManager.colorize('cyan', duration.trim())}, memory used: ${tuiManager.colorize(
       'cyan',
       memoryUsed.trim()
-    )}${initDuration ? `, cold start duration: ${printer.colorize('cyan', initDuration.trim())}` : ''}.`;
+    )}${initDuration ? `, cold start duration: ${tuiManager.colorize('cyan', initDuration.trim())}` : ''}.`;
   };
 
   #getPrefix = (requestId?: string) => {
     if (!requestId) {
-      return printer.makeBold('?');
+      return tuiManager.makeBold('?');
     }
     const trimmedRequestId = requestId.trim();
     let color = this.#printedRequestIds[trimmedRequestId];
@@ -106,7 +106,7 @@ export class LambdaCloudwatchLogPrinter {
       this.#lastColor = color;
       this.#printedRequestIds[trimmedRequestId] = color;
     }
-    return printer.makeBold(printer.colorize(color, '>'));
+    return tuiManager.makeBold(tuiManager.colorize(color, '>'));
   };
 
   #printLambdaLogEvents = (events: FilteredLogEvent[]) => {
@@ -121,7 +121,7 @@ export class LambdaCloudwatchLogPrinter {
         if (message.startsWith('START')) {
           const [, requestId] = message.match(/START RequestId:(.*)Version: \$LATEST/);
           console.info(
-            `${this.#getPrefix(requestId)} ${this.#getFormattedTimeStamp(event)} ${printer.makeBold(
+            `${this.#getPrefix(requestId)} ${this.#getFormattedTimeStamp(event)} ${tuiManager.makeBold(
               'START'
             )} ${this.#getFormattedRequestId(requestId)}\n`
           );
@@ -129,7 +129,7 @@ export class LambdaCloudwatchLogPrinter {
           const [, requestId] = message.match(/END RequestId:(.*)/);
           endLogs[requestId.trim()] = (reportData) =>
             console.info(
-              `${this.#getPrefix(requestId)} ${this.#getFormattedTimeStamp(event)} ${printer.makeBold(
+              `${this.#getPrefix(requestId)} ${this.#getFormattedTimeStamp(event)} ${tuiManager.makeBold(
                 'END'
               )} ${this.#getFormattedRequestId(requestId)} ${reportData}\n`
             );
@@ -153,7 +153,7 @@ export class LambdaCloudwatchLogPrinter {
           // in that case following block is executed
           if (message.match(/([\s\S]*)\t([\s\S]*)\t([\s\S]*)\t([\s\S]*)/)) {
             const [, , requestId, logType, logContent] = message.match(/([\s\S]*)\t([\s\S]*)\t([\s\S]*)\t([\s\S]*)/);
-            const logTypePart = printer.colorize('cyan', printer.makeBold(logType));
+            const logTypePart = tuiManager.colorize('cyan', tuiManager.makeBold(logType));
             if (logType === 'ERROR' || logType === 'Invoke Error ') {
               return this.#printError(event);
             }
@@ -237,10 +237,10 @@ export class CodebuildDeploymentCloudwatchLogPrinter {
       .forEach((event) => {
         let message = event.message.trim();
         if (message.startsWith('[Container]')) {
-          message = printer.colorize('gray', message);
+          message = tuiManager.colorize('gray', message);
         }
         console.info(
-          `${printer.colorize('gray', `[${dayjs(event.timestamp).format('HH:mm:ss:SSS')}]:`)} ${this.#colorizeMessage(
+          `${tuiManager.colorize('gray', `[${dayjs(event.timestamp).format('HH:mm:ss:SSS')}]:`)} ${this.#colorizeMessage(
             // if we have empty message we will print white spaces (otherwise parts of messages from spinner might be printed)
             message.length === 0 ? ' '.repeat(30) : message
           )}`
@@ -250,13 +250,13 @@ export class CodebuildDeploymentCloudwatchLogPrinter {
 
   #colorizeMessage = (message: string) =>
     message
-      .replaceAll('WARN', printer.colorize('yellow', 'WARN'))
-      .replaceAll('UNEXPECTED_ERROR', printer.colorize('red', 'UNEXPECTED_ERROR'))
-      .replaceAll('ERROR', printer.colorize('red', 'ERROR'))
-      .replaceAll('INFO', printer.colorize('cyan', 'INFO'))
-      .replaceAll('HINT', printer.colorize('blue', 'HINT'))
-      .replaceAll('SUCCESS', printer.colorize('green', 'SUCCESS'))
-      .replaceAll('START', printer.colorize('magenta', 'START'));
+      .replaceAll('WARN', tuiManager.colorize('yellow', 'WARN'))
+      .replaceAll('UNEXPECTED_ERROR', tuiManager.colorize('red', 'UNEXPECTED_ERROR'))
+      .replaceAll('ERROR', tuiManager.colorize('red', 'ERROR'))
+      .replaceAll('INFO', tuiManager.colorize('cyan', 'INFO'))
+      .replaceAll('HINT', tuiManager.colorize('blue', 'HINT'))
+      .replaceAll('SUCCESS', tuiManager.colorize('green', 'SUCCESS'))
+      .replaceAll('START', tuiManager.colorize('magenta', 'START'));
 }
 
 export class SsmExecuteScriptCloudwatchLogPrinter {
@@ -313,8 +313,8 @@ export class SsmExecuteScriptCloudwatchLogPrinter {
         .split('\n')
         .map((line) =>
           line.startsWith('++')
-            ? `  ${printer.colorize('gray', `└ ${line.trim()}`)}`
-            : ` ${event.logStreamName?.endsWith('stderr') ? printer.colorize('red', '!└') : ' └'} ${line.trim()}`
+            ? `  ${tuiManager.colorize('gray', `└ ${line.trim()}`)}`
+            : ` ${event.logStreamName?.endsWith('stderr') ? tuiManager.colorize('red', '!└') : ' └'} ${line.trim()}`
         )
         .join('\n');
       console.info(messageLines);

@@ -3,6 +3,7 @@ import { applicationManager } from '@application-services/application-manager';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { budgetManager } from '@domain-services/budget-manager';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { cloudformationRegistryManager } from '@domain-services/cloudformation-registry-manager';
@@ -17,7 +18,6 @@ import { packagingManager } from '@domain-services/packaging-manager';
 import { templateManager } from '@domain-services/template-manager';
 import { fsPaths } from '@shared/naming/fs-paths';
 import { obfuscatedNamesStateHolder } from '@shared/naming/utils';
-import { printer } from '@utils/printer';
 import { getDetailedStackInfoMap } from '@utils/stack-info-map-diff';
 import {
   injectEnvironmentToHostedHtmlFiles,
@@ -39,6 +39,7 @@ export const commandDeploy = async (): Promise<DeployReturnValue> => {
 
   validateGuardrails(configManager.guardrails);
 
+  eventManager.setPhase('BUILD_AND_PACKAGE');
   const [{ packagedWorkloads, abort, cfTemplateDiff }] = await Promise.all([
     prepareArtifactsForStackDeployment(),
     // @note this can take a long time, so we do it in parallel with other stack activities
@@ -65,7 +66,7 @@ export const commandDeploy = async (): Promise<DeployReturnValue> => {
     useHotswap = isHotswapPossible;
     if (!useHotswap) {
       // in this case we are falling back to standard Cloudformation deploy
-      printer.warn('Stack changes are not hot-swappable. Performing CloudFormation deployment.');
+      tuiManager.warn('Hot-swap not possible; running full CloudFormation deploy.');
       // this means we might need to create new versions for some packages(jobs) that were previously skipped
       // otherwise Cloudformation might not detect the change
       // currently we are only able to create new versions by uploading new artifacts.
@@ -84,6 +85,7 @@ export const commandDeploy = async (): Promise<DeployReturnValue> => {
   }
 
   // deploy all artifacts - use versions depending on whether this is hotswap or not
+  eventManager.setPhase('UPLOAD');
   await deploymentArtifactManager.uploadAllArtifacts({ useHotswap });
 
   await notificationManager.sendDeploymentNotification({
@@ -93,6 +95,7 @@ export const commandDeploy = async (): Promise<DeployReturnValue> => {
     }
   });
 
+  eventManager.setPhase('DEPLOY');
   if (useHotswap) {
     await performHotswapDeploy();
   } else {
@@ -153,6 +156,17 @@ export const commandDeploy = async (): Promise<DeployReturnValue> => {
     }
   });
 
+  const consoleUrl = `https://console.stacktape.com/projects/${globalStateManager.targetStack.projectName}/${globalStateManager.stage}/overview`;
+  const resourceLinks = deployedStackOverviewManager.getResourceLinks();
+
+  // Store completion info - setComplete will be called after afterDeploy hooks finish
+  tuiManager.setPendingCompletion({
+    success: true,
+    message: 'DEPLOYMENT SUCCESSFUL',
+    links: resourceLinks,
+    consoleUrl
+  });
+
   return { stackInfo: detailedStackInfoSensitive, packagedWorkloads };
 };
 
@@ -164,9 +178,7 @@ export const prepareArtifactsForStackDeployment = async (): Promise<{
   const packagedWorkloads = await packagingManager.packageAllWorkloads({ commandCanUseCache: true });
   await calculatedStackOverviewManager.resolveAllResources();
   if (obfuscatedNamesStateHolder.usingObfuscateNames) {
-    printer.warn(
-      'The combination of stack name (made of service name and stage) and some of the resource name(s) is too long. Some resources will have obfuscated names.'
-    );
+    tuiManager.warn('Stack name too long (project+stage). Some resource names will be obfuscated.');
   }
 
   await calculatedStackOverviewManager.populateStackMetadata();
@@ -182,7 +194,7 @@ const performFullDeploy = async () => {
   try {
     const { warningMessages } = await stackManager.deployStack(deploymentArtifactManager.cloudformationTemplateUrl);
     warningMessages?.forEach((msg) => {
-      printer.warn(msg);
+      tuiManager.warn(msg);
     });
   } catch (err) {
     // cleanup in case error happened during deploy

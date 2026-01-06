@@ -60,7 +60,8 @@ export class ConfigManager {
     const { templateId } = globalStateManager.args;
     await eventManager.startEvent({
       eventType: 'LOAD_CONFIG_FILE',
-      description: 'Loading configuration'
+      description: 'Loading configuration',
+      phase: 'INITIALIZE'
     });
     let detectedConfigPath: string;
 
@@ -98,7 +99,8 @@ export class ConfigManager {
 
     await eventManager.finishEvent({
       eventType: 'LOAD_CONFIG_FILE',
-      data: { stackName: globalStateManager.targetStack.stackName, config: this.config }
+      data: { stackName: globalStateManager.targetStack.stackName, config: this.config },
+      phase: 'INITIALIZE'
     });
   };
 

@@ -1,6 +1,7 @@
 import type { ErrorObject } from 'ajv';
 import { join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import {
   lambdaRuntimesForFileExtension,
   linksMap,
@@ -20,7 +21,6 @@ import {
 } from '@shared/utils/misc';
 import { getIsDirective } from '@utils/directives';
 import { ExpectedError, UnexpectedError } from '@utils/errors';
-import { printer } from '@utils/printer';
 import { parseUserCodeFilepath } from '@utils/user-code-processing';
 import get from 'lodash/get';
 import isEqual from 'lodash/isEqual';
@@ -53,12 +53,12 @@ export const validatePackagingProps = ({
   lambdaRuntime?: LambdaRuntime;
   workloadType: StpWorkloadType;
 }) => {
-  const prettyIdentifier = `${capitalizeFirstLetter(workloadType)} ${printer.makeBold(workloadName)}${
+  const prettyIdentifier = `${capitalizeFirstLetter(workloadType)} ${tuiManager.makeBold(workloadName)}${
     containerName && workloadType === 'multi-container-workload'
-      ? ` (container ${printer.makeBold(containerName)})`
+      ? ` (container ${tuiManager.makeBold(containerName)})`
       : ''
   }`;
-  const cwdHint = `The path is resolved relative to the directory specified using ${printer.prettyOption(
+  const cwdHint = `The path is resolved relative to the directory specified using ${tuiManager.prettyOption(
     'currentWorkingDirectory'
   )} or the directory containing Stacktape configuration file.`;
   if (packaging.type === 'stacktape-image-buildpack' || packaging.type === 'stacktape-lambda-buildpack') {
@@ -91,7 +91,7 @@ export const validatePackagingProps = ({
       if (!allowedRuntimes) {
         throw new ExpectedError(
           'PACKAGING_CONFIG',
-          `${prettyIdentifier} has unsupported entryfile extension ${extension} for file ${printer.prettyFilePath(
+          `${prettyIdentifier} has unsupported entryfile extension ${extension} for file ${tuiManager.prettyFilePath(
             filePath
           )}`
         );
@@ -127,7 +127,7 @@ export const validatePackagingProps = ({
     if (!isFileAccessible(fullLocation)) {
       throw new ExpectedError(
         'PACKAGING_CONFIG',
-        `${prettyIdentifier}'s dockerfilePath ${printer.prettyFilePath(
+        `${prettyIdentifier}'s dockerfilePath ${tuiManager.prettyFilePath(
           fullLocation
         )} doesn't exist or is not accessible.`,
         cwdHint
@@ -139,7 +139,7 @@ export const validatePackagingProps = ({
     if (!isFileAccessible(fullLocation) && !isDirAccessible(fullLocation)) {
       throw new ExpectedError(
         'PACKAGING_CONFIG',
-        `${prettyIdentifier}'s packagePath ${printer.prettyFilePath(fullLocation)} doesn't exist or is not accessible.`,
+        `${prettyIdentifier}'s packagePath ${tuiManager.prettyFilePath(fullLocation)} doesn't exist or is not accessible.`,
         cwdHint
       );
     }
@@ -149,7 +149,7 @@ export const validatePackagingProps = ({
     if (!isFileAccessible(fullLocation) && !isDirAccessible(fullLocation)) {
       throw new ExpectedError(
         'PACKAGING_CONFIG',
-        `${prettyIdentifier}'s sourceDirectoryPath ${printer.prettyFilePath(
+        `${prettyIdentifier}'s sourceDirectoryPath ${tuiManager.prettyFilePath(
           fullLocation
         )} doesn't exist or is not accessible.`,
         cwdHint
@@ -186,8 +186,8 @@ const validateStacktapeBuildpackPythonPackagingProps = ({
 };
 
 export const validateAwsCdkConstructProps = ({ construct }: { construct: StpAwsCdkConstruct }) => {
-  const prettyIdentifier = `${capitalizeFirstLetter('aws-cdk-construct')} ${printer.makeBold(construct.name)}`;
-  const cwdHint = `The path is resolved relative to the directory specified using ${printer.prettyOption(
+  const prettyIdentifier = `${capitalizeFirstLetter('aws-cdk-construct')} ${tuiManager.makeBold(construct.name)}`;
+  const cwdHint = `The path is resolved relative to the directory specified using ${tuiManager.prettyOption(
     'currentWorkingDirectory'
   )} or the directory containing Stacktape configuration file.`;
 
@@ -200,7 +200,7 @@ export const validateAwsCdkConstructProps = ({ construct }: { construct: StpAwsC
   if (!supportedAwsCdkConstructExtensions.includes(extension as SupportedFileExt)) {
     throw new ExpectedError(
       'NOT_YET_IMPLEMENTED',
-      `Packaging ${printer.makeBold(`.${extension}`)} constructs is not yet supported.`
+      `Packaging ${tuiManager.makeBold(`.${extension}`)} constructs is not yet supported.`
     );
   }
   if (!isFileAccessible(filePath)) {
@@ -230,7 +230,7 @@ const extractError = ({
       : `"${instancePath}" - `
     : `${BASE_PATH_PREFIX}${instancePath} - `;
   // if (instancePathSplit.length > 2 && instancePathSplit[1] === 'resources') {
-  //   instancePath = `.${instancePathSplit[1]}.${printer.colorize('cyan', instancePathSplit[2])}${
+  //   instancePath = `.${instancePathSplit[1]}.${tuiManager.colorize('cyan', instancePathSplit[2])}${
   //     instancePathSplit.length > 3 ? `.${instancePathSplit.slice(3).join('.')}` : ''
   //   }`;
   // } else {
@@ -242,9 +242,9 @@ const extractError = ({
       const allowedTypes = (error.params as any).type || [];
       let msg: string;
       if (allowedTypes.length > 1) {
-        msg = `must be one of type: ${allowedTypes.map((t: any) => printer.makeBold(t)).join(', ')}. Received: "${error.data}".`;
+        msg = `must be one of type: ${allowedTypes.map((t: any) => tuiManager.makeBold(t)).join(', ')}. Received: "${error.data}".`;
       } else if (allowedTypes.length === 1) {
-        msg = `must be of type ${printer.makeBold(allowedTypes[0])}.`;
+        msg = `must be of type ${tuiManager.makeBold(allowedTypes[0])}.`;
       } else {
         msg = 'has an invalid type.'; // Fallback message if array is empty
       }
@@ -255,19 +255,19 @@ const extractError = ({
 
       let msg: string;
       if (unexpectedProps.length > 1) {
-        msg = `contains ${printer.makeBold('INVALID')} properties "${unexpectedProps.map((p: any) => printer.makeBold(p)).join('", "')}".`;
+        msg = `contains ${tuiManager.makeBold('INVALID')} properties "${unexpectedProps.map((p: any) => tuiManager.makeBold(p)).join('", "')}".`;
       } else if (unexpectedProps.length === 1) {
-        msg = `contains ${printer.makeBold('INVALID')} property "${printer.makeBold(unexpectedProps[0])}".`;
+        msg = `contains ${tuiManager.makeBold('INVALID')} property "${tuiManager.makeBold(unexpectedProps[0])}".`;
       } else {
         msg = 'contains unexpected properties.'; // Fallback
       }
       return `${fullPrefix}${msg} ${
         error.mergedFrom?.[0]?.parentSchema?.properties
-          ? `\n    ${printer.colorize('cyan', 'Valid properties are:')} "${Object.keys(
+          ? `\n    ${tuiManager.colorize('cyan', 'Valid properties are:')} "${Object.keys(
               error.mergedFrom[0].parentSchema.properties
             )
               .sort()
-              .map((p: string) => printer.makeBold(p))
+              .map((p: string) => tuiManager.makeBold(p))
               .join('", "')}".`
           : ''
       }`;
@@ -278,7 +278,7 @@ const extractError = ({
       if (allowedValues.length > 0) {
         msg = `value must be one of: ${allowedValues
           .sort((a, b) => (typeof a === 'number' && typeof b === 'number' ? a - b : String(a).localeCompare(String(b))))
-          .map((t: any) => printer.makeBold(t))
+          .map((t: any) => tuiManager.makeBold(t))
           .join(', ')}.`;
       } else {
         msg = 'value is not one of the allowed options.'; // Fallback
@@ -289,9 +289,9 @@ const extractError = ({
       const missingProps = (error.params as any).missingProperty || [];
       let msg: string;
       if (missingProps.length > 1) {
-        msg = `missing ${printer.makeBold('REQUIRED')} properties "${missingProps.map((p: any) => printer.makeBold(p)).join('", "')}".`;
+        msg = `missing ${tuiManager.makeBold('REQUIRED')} properties "${missingProps.map((p: any) => tuiManager.makeBold(p)).join('", "')}".`;
       } else if (missingProps.length === 1) {
-        msg = `missing ${printer.makeBold('REQUIRED')} property "${printer.makeBold(missingProps[0])}".`;
+        msg = `missing ${tuiManager.makeBold('REQUIRED')} property "${tuiManager.makeBold(missingProps[0])}".`;
       } else {
         msg = 'is missing required properties.'; // Fallback
       }
@@ -301,7 +301,7 @@ const extractError = ({
     //   // anyOf has a different structure, return directly
     //   const sectionName = instancePath.split('.').at(-1);
     //   const pathPrefix = instancePath.split('.').slice(0, -1).join('.');
-    //   return `${basePrefix}${pathPrefix} - ${printer.makeBold(sectionName)} section is invalid.`;
+    //   return `${basePrefix}${pathPrefix} - ${tuiManager.makeBold(sectionName)} section is invalid.`;
     // }
     case 'const': {
       const constValues = (error.params as any).allowedValue || [];
@@ -309,10 +309,10 @@ const extractError = ({
       if (constValues.length > 1) {
         msg = `should be set to one of: ${constValues
           .sort((a, b) => (typeof a === 'number' && typeof b === 'number' ? a - b : String(a).localeCompare(String(b))))
-          .map((v: any) => printer.makeBold(v))
+          .map((v: any) => tuiManager.makeBold(v))
           .join(', ')}.`;
       } else if (constValues.length === 1) {
-        msg = `should be set to ${printer.makeBold(constValues[0])}.`;
+        msg = `should be set to ${tuiManager.makeBold(constValues[0])}.`;
       } else {
         msg = 'does not match the required constant value(s).'; // Fallback
       }
@@ -498,7 +498,7 @@ const getErrorLines = ({
     ? preparedErrorMessages
     : preparedErrorMessages
         .sort()
-        .map((errMsg) => `${printer.colorize('red', `${++errIndex}.`.padEnd(3, ' '))} ${errMsg}`);
+        .map((errMsg) => `${tuiManager.colorize('red', `${++errIndex}.`.padEnd(3, ' '))} ${errMsg}`);
 };
 
 const getBadlyDefinedUnionErrorLines = ({
@@ -514,7 +514,7 @@ const getBadlyDefinedUnionErrorLines = ({
   let errIndex = 0;
   Object.entries(groupedErrors).forEach(([schemaDefinitionName, errors]) => {
     errorLines.push(
-      `${printer.colorize('red', `${++errIndex}.`)} If you are trying to use ${printer.colorize(
+      `${tuiManager.colorize('red', `${++errIndex}.`)} If you are trying to use ${tuiManager.colorize(
         'red',
         schemaDefinitionName
       )}:`
@@ -522,13 +522,13 @@ const getBadlyDefinedUnionErrorLines = ({
     prepareErrorMessages({ errors, parentError })
       .sort()
       .forEach((errMsg) => {
-        errorLines.push(`${printer.colorize('red', '  -')} ${errMsg}`);
+        errorLines.push(`${tuiManager.colorize('red', '  -')} ${errMsg}`);
       });
   });
   prepareErrorMessages({ errors: nonGroupedErrors, parentError })
     .sort()
     .forEach((errMsg) => {
-      errorLines.push(`${printer.colorize('red', `${++errIndex}.`)} ${errMsg}`);
+      errorLines.push(`${tuiManager.colorize('red', `${++errIndex}.`)} ${errMsg}`);
     });
   return errorLines;
 };
@@ -801,13 +801,13 @@ export const validateConfigStructure = async ({
     // if (Object.keys(errorsGroupedByAnyOfParent).length) {
     const classifiedErrors = Object.values(errorsGroupedByAnyOfParent)
       .map(({ instancePath, errorLines }) => {
-        let prefix = `${printer.colorize(
+        let prefix = `${tuiManager.colorize(
           'red',
           `${BASE_PATH_PREFIX}${instancePath}`
         )} does not match any of the allowed shapes.`;
         if (instancePath.startsWith('.resources') || instancePath.startsWith('.scripts')) {
           const [, section, name, ...restPath] = instancePath.split('.');
-          prefix = `${capitalizeFirstLetter(section.slice(0, -1))} ${printer.colorize('red', name)} ${restPath.length ? `(section ${printer.colorize('red', restPath.join('.'))}) ` : ''}is invalid.`;
+          prefix = `${capitalizeFirstLetter(section.slice(0, -1))} ${tuiManager.colorize('red', name)} ${restPath.length ? `(section ${tuiManager.colorize('red', restPath.join('.'))}) ` : ''}is invalid.`;
         }
         return `${prefix} ${errorLines.length === 1 ? `${errorLines[0]}` : errorLines.length > 1 ? `Possible reasons:\n\n${errorLines.join('\n')}` : 'Details below.'}`;
       })
@@ -824,7 +824,7 @@ export const validateConfigStructure = async ({
     const formattedUnclassifiedErrors = unclassifiedErrors
       .map((error, index) => {
         const errMsg = extractError({ error });
-        return `${printer.colorize('red', `${index + 1}.`.padEnd(3, ' '))} ${errMsg}`;
+        return `${tuiManager.colorize('red', `${index + 1}.`.padEnd(3, ' '))} ${errMsg}`;
       })
       .join('\n');
 

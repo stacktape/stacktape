@@ -21,6 +21,7 @@ export default antfu(
       'docs/next-env.d.ts',
       'README.md'
     ],
+    regexp: false,
     lessOpinionated: true,
     formatters: false,
     react: {

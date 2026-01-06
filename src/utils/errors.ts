@@ -1,11 +1,11 @@
 /* eslint-disable unicorn/error-message */
 import { isAbsolute, join } from 'node:path';
 import { eventManager } from '@application-services/event-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { IS_DEV } from '@config';
 import { getRelativePath, isFileAccessible } from '@shared/utils/fs-utils';
 import stacktrace from 'stack-trace';
 import stripAnsi from 'strip-ansi';
-import { printer } from './printer';
 
 export class ExpectedError extends Error {
   type: ErrorType;
@@ -140,7 +140,9 @@ export const getPrettyStacktrace = (
 };
 
 export const getErrorDetails = (error: UnexpectedError | ExpectedError) => {
-  const prettyStackTrace: string = IS_DEV ? getPrettyStacktrace(error, (msg) => printer.colorize('cyan', msg)) : null;
+  const prettyStackTrace: string = IS_DEV
+    ? getPrettyStacktrace(error, (msg) => tuiManager.colorize('cyan', msg))
+    : null;
   const originalErrorType = error.name && !error.isExpected ? error.stack.slice(0, error.stack.indexOf(':')) : '';
   const errorType = error.isExpected ? `${(error as ExpectedError).type}_ERROR` : 'UNEXPECTED_ERROR';
   const code = error.isExpected ? `${errorType}_${(error as any).code || 'UNKNOWN_CODE'}` : errorType;
@@ -180,7 +182,7 @@ export const getErrorFromString = (errorString: string) => {
   let prettyStacktrace = getPrettyStacktrace(
     error as any,
     (msg) => msg,
-    (msg) => printer.colorize('gray', msg)
+    (msg) => tuiManager.colorize('gray', msg)
   );
 
   if (!prettyStacktrace.endsWith('\n')) {
@@ -190,7 +192,7 @@ export const getErrorFromString = (errorString: string) => {
     message += '\n';
   }
 
-  return `\n${printer.makeBold(message)}${prettyStacktrace}`;
+  return `\n${tuiManager.makeBold(message)}${prettyStacktrace}`;
 };
 
 // export const handleStderrData = (data, killProcessFn) => {

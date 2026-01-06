@@ -1,12 +1,12 @@
 import type { StackEvent } from '@aws-sdk/client-cloudformation';
 import type { EcsServiceDeploymentStatusPoller } from '@shared/aws/ecs-deployment-monitoring';
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { consoleLinks } from '@shared/naming/console-links';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import { getCloudformationChildResources } from '@shared/utils/stack-info-map';
-import { printer } from '@utils/printer';
 
 export const cfFailedEventHandlers: {
   eventMatchFunction: (event: StackEvent) => boolean;
@@ -25,7 +25,7 @@ export const cfFailedEventHandlers: {
     },
     handlerFunction: async (event) => {
       return {
-        errorMessage: `Resource ${printer.colorize('red', event.LogicalResourceId)} of type ${
+        errorMessage: `Resource ${tuiManager.colorize('red', event.LogicalResourceId)} of type ${
           event.ResourceType
         } needs to be replaced. When automatic rollback is disabled, resource replacements during update are not allowed.`
       };
@@ -42,11 +42,13 @@ export const cfFailedEventHandlers: {
     },
     handlerFunction: async (event) => {
       return {
-        errorMessage: `Failed to delete namespace ${printer.colorize(
+        errorMessage: `Failed to delete namespace ${tuiManager.colorize(
           'red',
           event.LogicalResourceId
         )}. This is a helper resource which helps private services to communicate within the stack. In some cases, AWS fails to detect(due to eventual consistency) that the namespace is not in use anymore and refuses to delete it.`,
-        hints: [`Try running the command ${printer.prettyCommand(globalStateManager.command)} again in a few minutes`]
+        hints: [
+          `Try running the command ${tuiManager.prettyCommand(globalStateManager.command)} again in a few minutes`
+        ]
       };
     }
   },
@@ -60,17 +62,17 @@ export const cfFailedEventHandlers: {
     },
     handlerFunction: async (event) => {
       return {
-        errorMessage: `Deletion of relational-database option group resource ${printer.colorize(
+        errorMessage: `Deletion of relational-database option group resource ${tuiManager.colorize(
           'red',
           event.LogicalResourceId
         )} failed. This can happen if there are manual snapshots of your database (associated with this option group) or AWS did not manage to delete automated snapshots during "${
           globalStateManager.command
         }" operation.`,
         hints: [
-          `If you made manual snapshots of the database, delete them first and then re-run ${printer.prettyCommand(
+          `If you made manual snapshots of the database, delete them first and then re-run ${tuiManager.prettyCommand(
             globalStateManager.command
           )} command.`,
-          `If you did not make manual snapshots of the database, simply re-run ${printer.prettyCommand(
+          `If you did not make manual snapshots of the database, simply re-run ${tuiManager.prettyCommand(
             globalStateManager.command
           )} command`
         ]
@@ -114,7 +116,7 @@ export const cfFailedEventHandlers: {
           })
       );
       return {
-        errorMessage: `Blue/green deployment of function ${printer.colorize(
+        errorMessage: `Blue/green deployment of function ${tuiManager.colorize(
           'red',
           functionNameChain.join('.')
         )} failed.`
@@ -135,8 +137,8 @@ export const cfFailedEventHandlers: {
       });
       const poller = additionalProps?.ecsDeploymentStatusPollers?.[event.LogicalResourceId];
       return {
-        errorMessage: `Deployment of ${printer.colorize('red', event.LogicalResourceId)}${
-          parentResourceName ? ` (part of ${printer.colorize('red', parentResourceName)})` : ''
+        errorMessage: `Deployment of ${tuiManager.colorize('red', event.LogicalResourceId)}${
+          parentResourceName ? ` (part of ${tuiManager.colorize('red', parentResourceName)})` : ''
         } failed after multiple attempts:\n${poller.getFailureMessage() || event.ResourceStatusReason}`
       };
     }
@@ -157,8 +159,8 @@ export const cfFailedEventHandlers: {
       const cleanedMessageEnd = event.ResourceStatusReason.indexOf('has been reached') + 'has been reached.'.length;
       const cleanedMessage = event.ResourceStatusReason.slice(cleanedMessageStart, cleanedMessageEnd);
       return {
-        errorMessage: `Resource ${printer.colorize('red', event.LogicalResourceId)}${
-          parentResourceName ? ` (part of ${printer.colorize('red', parentResourceName)})` : ''
+        errorMessage: `Resource ${tuiManager.colorize('red', event.LogicalResourceId)}${
+          parentResourceName ? ` (part of ${tuiManager.colorize('red', parentResourceName)})` : ''
         }: ${cleanedMessage}`,
         hints: [
           'You seem to have gotten AWS quota error. You can ask for quota increase in AWS console: https://console.aws.amazon.com/servicequotas/home/services'
@@ -176,8 +178,8 @@ export const cfFailedEventHandlers: {
         cfLogicalName: event.LogicalResourceId
       });
       return {
-        errorMessage: `Resource ${printer.colorize('red', event.LogicalResourceId)}${
-          parentResourceName ? ` (part of ${printer.colorize('red', parentResourceName)})` : ''
+        errorMessage: `Resource ${tuiManager.colorize('red', event.LogicalResourceId)}${
+          parentResourceName ? ` (part of ${tuiManager.colorize('red', parentResourceName)})` : ''
         }: ${event.ResourceStatusReason}`
       };
     }
@@ -201,12 +203,12 @@ export const getHintsAfterStackFailureOperation = ({
             stackId,
             'events'
           )}.`,
-          `You can disable automatic rollback after error using the ${printer.prettyOption(
+          `You can disable automatic rollback after error using the ${tuiManager.prettyOption(
             'disableAutoRollback'
           )} switch.`
         ]
       : [
-          `Automatic rollback is disabled. You can manually rollback your stack using the ${printer.colorize(
+          `Automatic rollback is disabled. You can manually rollback your stack using the ${tuiManager.colorize(
             'blue',
             'stacktape rollback'
           )} command.`
@@ -220,7 +222,7 @@ export const getHintsAfterStackFailureOperation = ({
             stackId,
             'events'
           )}.`
-        : `Automatic rollback is disabled. You can manually rollback your stack using the ${printer.colorize(
+        : `Automatic rollback is disabled. You can manually rollback your stack using the ${tuiManager.colorize(
             'blue',
             'stacktape rollback'
           )} command.`

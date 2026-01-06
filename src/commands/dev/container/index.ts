@@ -3,6 +3,7 @@ import type { ExecaReturnBase } from 'execa';
 import { applicationManager } from '@application-services/application-manager';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { DEFAULT_CONTAINER_NODE_VERSION } from '@config';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
@@ -11,10 +12,8 @@ import { packagingManager } from '@domain-services/packaging-manager';
 import { stpErrors } from '@errors';
 import { getJobName, getLocalInvokeContainerName } from '@shared/naming/utils';
 import { dockerRun } from '@shared/utils/docker';
-import { getRelativePath } from '@shared/utils/fs-utils';
 import { isJson } from '@shared/utils/misc';
 import { getErrorFromString } from '@utils/errors';
-import { printer } from '@utils/printer';
 import { addCallerToAssumeRolePolicy } from 'src/commands/_utils/assume-role';
 import {
   getBastionTunnelsForResource,
@@ -105,7 +104,9 @@ export const runDevContainer = async (): Promise<DevReturnValue> => {
       filesToWatch: sourceFiles,
       onChangeFn: async ({ changedFile }) => {
         sourceCodeWatcher.unwatchAllFiles();
-        printer.info(`File at ${getRelativePath(changedFile)} has changed. Rebuilding and restarting container...`);
+        tuiManager.info(
+          `File changed: ${tuiManager.prettyFilePath(changedFile)}. Rebuilding and restarting container...`
+        );
         // @todo we need to remove more, because timings are inaccurate
         const newImage = await prepareImage(containerDefinition);
         sourceCodeWatcher.addFilesToWatch(newImage.sourceFiles);
@@ -124,9 +125,13 @@ const hookToRestartContainer = (
   run: AnyFunction
 ) => {
   hookToRestartStdinInput(async () => {
-    printer.info('Received restart signal. Rebuilding and restarting container...');
+    await eventManager.startEvent({
+      eventType: 'REBUILD_AND_RESTART',
+      description: 'Rebuilding and restarting container'
+    });
     await prepareImage(containerDefinition);
     await run();
+    await eventManager.finishEvent({ eventType: 'REBUILD_AND_RESTART' });
   });
 };
 
@@ -152,7 +157,7 @@ const runDockerContainer = async (
   });
 
   const { watch } = globalStateManager.args;
-  const restartMessage = printer.colorize(
+  const restartMessage = tuiManager.colorize(
     'gray',
     watch ? '(watching for files changes)' : "(type 'rs' + enter to rebuild and restart)"
   );
@@ -166,8 +171,8 @@ const runDockerContainer = async (
     transformStderrPut: transformContainerWorkloadStdout,
     transformStdoutPut: transformContainerWorkloadStdout,
     onStart: () => {
-      printer.success(`Container started successfully ${restartMessage}.`);
-      printer.info(`Exposed ports: ${ports.map((port) => `http://localhost:${port}`)}`);
+      tuiManager.success(`Container started. ${restartMessage}.`);
+      tuiManager.info(`Ports: ${ports.map((port) => `http://localhost:${port}`)}`);
     },
     args: globalStateManager.args
   }).catch((res) => {
@@ -175,7 +180,7 @@ const runDockerContainer = async (
   });
   if (exitCode !== 0 && !(isNewContainerRunStarted && exitCode === 143)) {
     console.error(
-      `\n[${printer.colorize('red', 'CONTAINER_ERROR')}] Container ${printer.makeBold(
+      `\n[${tuiManager.colorize('red', 'CONTAINER_ERROR')}] Container ${tuiManager.makeBold(
         userDefinedContainerName
       )} has exited with error. Exit code: ${exitCode}.` //  Error:\n${err}
     );

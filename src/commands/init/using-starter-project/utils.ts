@@ -1,7 +1,7 @@
 import { join } from 'node:path';
+import { tuiManager } from '@application-services/tui-manager';
 import { DEFAULT_STARTER_PROJECT_TARGET_DIRECTORY } from '@config';
 import { sortObjectKeys } from '@shared/utils/misc';
-import { userPrompt } from '@shared/utils/user-prompt';
 import { copy, outputFile, readJson, readJSON, writeJson } from 'fs-extra';
 import sortBy from 'lodash/sortBy';
 
@@ -63,15 +63,14 @@ export const adjustPackageJson = async ({
   const { dependencies, devDependencies, scripts, workspaces } = packageJson;
 
   const eslintPrettierDeps = {
-    '@typescript-eslint/eslint-plugin': '^8.15.0',
-    '@typescript-eslint/parser': '^8.15.0',
-    eslint: '^9.16.0',
+    eslint: '^9.36.0',
     ...(hasReact
       ? {
-          '@eslint/eslintrc': '^3.2.0',
+          '@eslint/eslintrc': '^3.3.1',
           'eslint-plugin-react': '^7.37.2',
           'eslint-plugin-jsx-a11y': '^6.10.2',
-          'eslint-plugin-react-hooks': '^5.0.0'
+          'eslint-plugin-react-hooks': '^7.0.1',
+          'eslint-plugin-react-refresh': '^0.4.24'
         }
       : {}),
     ...(hasNextJs
@@ -81,9 +80,11 @@ export const adjustPackageJson = async ({
         }
       : {}),
     'eslint-plugin-import': '^2.31.0',
-    '@eslint/js': '^9.16.0',
-    'typescript-eslint': '^8.15.0',
-    prettier: '^3.3.3'
+    '@eslint/js': '^9.36.0',
+    'typescript-eslint': '^8.48.0',
+    'eslint-config-prettier': '^10.1.8',
+    'eslint-plugin-prettier': '^5.5.4',
+    prettier: '^3.6.2'
   };
 
   const content = {
@@ -113,7 +114,7 @@ export const adjustPackageJson = async ({
       ...(devDependencies || {}),
       '@stacktape/sdk': '^2.5.0',
       '@types/node': '^22.10.1',
-      typescript: '^5.7.2',
+      typescript: '^5.9.2',
       ...(hasReact && { '@types/react': '^19.1.0', '@types/react-dom': '^19.1.0' }),
       ...(hasPrisma && { prisma: '^6.7.0' }),
       ...(shouldAddEslintPrettier ? eslintPrettierDeps : {})
@@ -133,6 +134,7 @@ ${hasReact ? "import react from 'eslint-plugin-react';\nimport reactHooks from '
 export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
+  ...tseslint.configs.stylisticTypeChecked,
   ${
     hasReact
       ? `
@@ -203,12 +205,9 @@ export default tseslint.config(
 };
 
 export const promptAddEslintPrettier = async () => {
-  const { shouldAdd } = await userPrompt({
-    type: 'confirm',
-    name: 'shouldAdd',
+  return tuiManager.promptConfirm({
     message: 'Add linting and code formatting? (eslint and prettier).'
   });
-  return shouldAdd;
 };
 
 export const addEslintPrettier = async ({
@@ -225,10 +224,10 @@ export const addEslintPrettier = async ({
 };
 
 export const promptTargetDirectory = async (): Promise<string> => {
-  const { targetDirectory } = await userPrompt({
-    type: 'text',
-    name: 'targetDirectory',
-    message: `Where to create project (Use "." for current directory. Default: "${DEFAULT_STARTER_PROJECT_TARGET_DIRECTORY}"):`
+  const targetDirectory = await tuiManager.promptText({
+    message: 'Where to create the project?',
+    description: `(Use "." for current directory. Default: "${DEFAULT_STARTER_PROJECT_TARGET_DIRECTORY}"):`,
+    defaultValue: DEFAULT_STARTER_PROJECT_TARGET_DIRECTORY
   });
   return targetDirectory === '' ? DEFAULT_STARTER_PROJECT_TARGET_DIRECTORY : targetDirectory;
 };

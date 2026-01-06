@@ -1,7 +1,7 @@
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { CF_ESCAPED_DYNAMIC_REFERENCE_END, CF_ESCAPED_DYNAMIC_REFERENCE_START } from '@shared/utils/constants';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
-import { printer } from '@utils/printer';
 
 const captureSecretsRegex = new RegExp(
   `${CF_ESCAPED_DYNAMIC_REFERENCE_START}(.*?)${CF_ESCAPED_DYNAMIC_REFERENCE_END}`,
@@ -52,7 +52,7 @@ const locallyResolveSSMParameter = async ({ ssmParameterName }: { ssmParameterNa
     return Value;
   } catch (err) {
     if (globalStateManager.logLevel === 'debug') {
-      printer.debug(`Unable to fetch ssm parameter ${ssmParameterName}: ${err}`);
+      tuiManager.debug(`Failed to fetch SSM parameter ${ssmParameterName}: ${err}`);
     }
   }
   return '<<UNABLE_TO_RESOLVE>>';
@@ -77,7 +77,7 @@ const locallyResolveSecret = async ({
     return SecretString;
   } catch (err) {
     if (globalStateManager.logLevel === 'debug') {
-      printer.debug(`Unable to fetch secret ${secretId} version ${versionId || versionStage} : ${err}`);
+      tuiManager.debug(`Failed to fetch secret ${secretId} (${versionId || versionStage}): ${err}`);
     }
   }
   return '<<UNABLE_TO_RESOLVE>>';

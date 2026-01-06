@@ -12,7 +12,7 @@ const getTimeString = () => {
  * @param {string} message - message to print
  */
 export const logSuccess = (message) => {
-  console.info(`${kleur.green('✔')} ${getTimeString()} ${message}`);
+  console.info(`${kleur.green('✓')} ${getTimeString()} ${message}`);
 };
 
 /**

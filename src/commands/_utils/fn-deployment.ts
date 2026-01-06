@@ -91,9 +91,9 @@ export const updateFunctionCode = async ({
   artifactInfo: { s3Key: string; digest: string };
   aliasName?: string;
 }) => {
-  const updateWorkloadLogger = eventManager.getNamespacedInstance({
-    eventType: 'HOTSWAP_UPDATE',
-    identifier: workloadName
+  const updateWorkloadLogger = eventManager.createChildLogger({
+    parentEventType: 'HOTSWAP_UPDATE',
+    instanceId: workloadName
   });
   await updateWorkloadLogger.startEvent({
     eventType: 'UPDATE_FUNCTION_CODE',

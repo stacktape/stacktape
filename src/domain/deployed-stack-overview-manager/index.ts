@@ -1,6 +1,8 @@
 import type { ResourceDifference, TemplateDiff } from '@aws-cdk/cloudformation-diff';
 import type { CloudformationResourceType } from '@cloudform/resource-types';
+import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { HELPER_LAMBDA_NAMES } from '@config';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { stpErrors } from '@errors';
@@ -14,7 +16,6 @@ import { PARENT_IDENTIFIER_SHARED_GLOBAL } from '@shared/utils/constants';
 import { traverseResourcesInMap } from '@shared/utils/stack-info-map';
 import compose from '@utils/basic-compose-shim';
 import { cancelablePublicMethods, memoizeGetters, skipInitIfInitialized } from '@utils/decorators';
-import { printer } from '@utils/printer';
 import { locallyResolveSensitiveValue } from '@utils/stack-info-map-sensitive-values';
 import { capitalCase } from 'change-case';
 import get from 'lodash/get';
@@ -222,7 +223,7 @@ export class DeployedStackOverviewManager {
     ]) {
       for (const [logicalId, change] of Object.entries(sectionDiff.changes)) {
         if (logicalId !== outputNames.deploymentVersion()) {
-          printer.debug(`Non hot-swappable change detected: ${logicalId}: ${JSON.stringify(change, null, 2)}`);
+          tuiManager.debug(`Non hot-swappable change detected: ${logicalId}: ${JSON.stringify(change, null, 2)}`);
           isHotswapPossible = false;
         }
       }
@@ -233,7 +234,7 @@ export class DeployedStackOverviewManager {
         hotSwappableWorkloadsWhoseCodeWillBeUpdatedByCloudformation.push(willUpdateCodeOfWorkload);
       }
       if (!isHotswappable) {
-        printer.debug(`Non hot-swappable change detected: ${cfLogicalName}: ${JSON.stringify(change, null, 2)}`);
+        tuiManager.debug(`Non hot-swappable change detected: ${cfLogicalName}: ${JSON.stringify(change, null, 2)}`);
         isHotswapPossible = false;
       }
     }
@@ -476,7 +477,7 @@ export class DeployedStackOverviewManager {
     const { links, referencableParams, resourceType, outputs } = this.getStpResource({
       nameChain
     });
-    printer.info(
+    tuiManager.info(
       getResourceInfoLines({
         nameChain,
         resourceType,
@@ -489,8 +490,9 @@ export class DeployedStackOverviewManager {
   };
 
   printShortStackInfo = () => {
+    if (tuiManager.enabled) return;
     const { resources } = this.stackInfoMap;
-    const linesToPrint = [`Successfully deployed to stage ${globalStateManager.targetStack.stage}. Overview:\n`];
+    const linesToPrint = [`Deployment complete. Stage: ${globalStateManager.targetStack.stage}. Overview:\n`];
 
     for (const resourceName in resources) {
       const resource = resources[resourceName];
@@ -521,11 +523,13 @@ export class DeployedStackOverviewManager {
         ];
         const domain = domainParams.filter(Boolean)[0]?.value;
         if (url) {
-          linesToPrint.push(`  ${printer.makeBold(resourceName)} URL: ${printer.colorize('green', url.toString())}`);
+          linesToPrint.push(
+            `  ${tuiManager.makeBold(resourceName)} URL: ${tuiManager.colorize('green', url.toString())}`
+          );
           linesToPrint.push(...getResourceTypeSpecificInfoLines(resource));
         } else if (domain) {
           linesToPrint.push(
-            `  ${printer.makeBold(resourceName)} Domain: ${printer.colorize('green', domain.toString())}`
+            `  ${tuiManager.makeBold(resourceName)} Domain: ${tuiManager.colorize('green', domain.toString())}`
           );
         }
         const canonicalDomainParams = [
@@ -535,18 +539,55 @@ export class DeployedStackOverviewManager {
         const canonicalDomain = canonicalDomainParams.filter((param) => param?.showDuringPrint)[0]?.value;
         if (canonicalDomain) {
           linesToPrint.push(
-            `  ${printer.makeBold(resourceName)} Canonical Domain: ${printer.colorize('green', canonicalDomain.toString())}`
+            `  ${tuiManager.makeBold(resourceName)} Canonical Domain: ${tuiManager.colorize('green', canonicalDomain.toString())}`
           );
         }
       }
     }
     // /projects/posts-api-starter/dev2/overview
     linesToPrint.push(
-      `\nYou can find more information about the stack at ${printer.makeBold(
+      `\nMore details: ${tuiManager.makeBold(
         `https://console.stacktape.com/projects/${globalStateManager.targetStack.projectName}/${globalStateManager.targetStack.stage}/overview`
       )}\n`
     );
-    printer.info(linesToPrint.join('\n'), { disableWhitespacePrefixing: true });
+    tuiManager.info(linesToPrint.join('\n'));
+  };
+
+  /**
+   * Get resource links for TUI summary display
+   */
+  getResourceLinks = (): { label: string; url: string }[] => {
+    const { resources } = this.stackInfoMap;
+    const links: { label: string; url: string }[] = [];
+
+    for (const resourceName in resources) {
+      const resource = resources[resourceName];
+      if (
+        [
+          'http-api-gateway',
+          'bucket',
+          'application-load-balancer',
+          'network-load-balancer',
+          'web-service',
+          'hosting-bucket',
+          'function',
+          'nextjs-web'
+        ].includes(resource.resourceType)
+      ) {
+        const urlParams = [
+          resource.referencableParams.cdnCustomDomainUrls,
+          resource.referencableParams.cdnUrl,
+          resource.referencableParams.customDomainUrls,
+          resource.referencableParams.url
+        ];
+        const url = urlParams.filter(Boolean)[0]?.value;
+        if (url) {
+          links.push({ label: `${resourceName} URL`, url: url.toString() });
+        }
+      }
+    }
+
+    return links;
   };
 
   printEntireStackInfo = () => {
@@ -558,15 +599,15 @@ export class DeployedStackOverviewManager {
 
     const linesToPrint = [
       'Stack overview:',
-      `${printer.colorize('yellow', 'Stack name')}: ${metaStackName.value}`,
-      `${printer.colorize('yellow', 'Created time')}: ${metaCreated.value.toLocaleString()}`,
-      `${printer.colorize('yellow', 'Last updated time')}: ${metaLastUpdated.value.toLocaleString()}.`
+      `${tuiManager.colorize('yellow', 'Stack name')}: ${metaStackName.value}`,
+      `${tuiManager.colorize('yellow', 'Created time')}: ${metaCreated.value.toLocaleString()}`,
+      `${tuiManager.colorize('yellow', 'Last updated time')}: ${metaLastUpdated.value.toLocaleString()}.`
     ];
     let containsSensitiveValues = false;
     Object.entries(restMeta)
       .filter(([, { showDuringPrint }]) => showDuringPrint)
       .forEach(([metaName, { value }]) => {
-        linesToPrint.push(`${printer.colorize('yellow', capitalCase(metaName))}: ${value}`);
+        linesToPrint.push(`${tuiManager.colorize('yellow', capitalCase(metaName))}: ${value}`);
       });
 
     const filteredResourcesToPrint = Object.entries(resources)
@@ -600,14 +641,14 @@ export class DeployedStackOverviewManager {
     // dealing with user defined outputs
     const userDefinedOutputs = Object.entries(customOutputs);
     if (userDefinedOutputs.length) {
-      linesToPrint.push(printer.colorize('magenta', 'Custom outputs'));
+      linesToPrint.push(tuiManager.colorize('magenta', 'Custom outputs'));
       userDefinedOutputs.forEach(([descriptiveName, value], index, arr) =>
         linesToPrint.push(
-          `  ${arr.length - 1 === index ? '└' : '├'} ${printer.colorize('green', `${descriptiveName}`)}: ${value}`
+          `  ${arr.length - 1 === index ? '└' : '├'} ${tuiManager.colorize('green', `${descriptiveName}`)}: ${value}`
         )
       );
     }
-    printer.info(linesToPrint.join('\n'), { disableWhitespacePrefixing: true });
+    tuiManager.info(linesToPrint.join('\n'));
     return { containsSensitiveValues };
   };
 }

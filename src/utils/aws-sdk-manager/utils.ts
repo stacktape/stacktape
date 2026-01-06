@@ -1,13 +1,13 @@
 import type { Credentials } from '@aws-sdk/types';
 import { Buffer } from 'node:buffer';
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { GetCallerIdentityCommand, STSClient } from '@aws-sdk/client-sts';
 import { hintMessages } from '@errors';
 import { retryPlugin } from '@shared/aws/sdk-manager/utils';
 import { awsResourceNames } from '@shared/naming/aws-resource-names';
 import { serialize } from '@shared/utils/misc';
 import { ExpectedError } from '@utils/errors';
-import { printer } from '@utils/printer';
 
 export const getErrorHandler = (message: string) => (err: Error) => {
   if ((err as ExpectedError).isExpected) {
@@ -57,7 +57,7 @@ export const loggingPlugin = {
       (next, context) => async (args) => {
         const operation = `${context.clientName.replace('Client', '')}.${context.commandName.replace('Command', '')}`;
         const input = serialize(args.input || {});
-        const prefix = `[${printer.colorize('gray', `DEBUG: ${operation}`)}]`;
+        const prefix = `[${tuiManager.colorize('gray', `DEBUG: ${operation}`)}]`;
         const shouldPrint =
           globalStateManager.logLevel === 'debug' &&
           // we are not printing requests for sending logs to /stp/stack-operations log group as it creates infinite sending loop (and too much logs) during debug logging
@@ -77,11 +77,7 @@ export const loggingPlugin = {
         }
 
         if (shouldPrint) {
-          printer.progress({
-            message: `${prefix} Input:\n  └ ${JSON.stringify(input)}`,
-            identifier: operation,
-            type: 'START'
-          });
+          tuiManager.debug(`${prefix} Request input:\n  └ ${JSON.stringify(input)}`);
         }
 
         const start = Date.now();
@@ -92,11 +88,7 @@ export const loggingPlugin = {
 
         // const metadata = result.output?.$metadata || {};
         if (shouldPrint) {
-          printer.progress({
-            message: `${prefix} Finished (took ${end - start}ms).`,
-            identifier: operation,
-            type: 'FINISH'
-          });
+          tuiManager.debug(`${prefix} Done in ${end - start}ms.`);
         }
         return result;
       },

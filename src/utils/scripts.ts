@@ -59,13 +59,18 @@ export const executeCommandHook = ({
   command,
   env,
   cwd,
-  pipeStdio
+  pipeStdio,
+  onOutputLine
 }: {
   command: string;
   env: Record<string, any>;
   cwd: string;
   pipeStdio: boolean;
+  onOutputLine?: (line: string) => void;
 }) => {
+  // When using onOutputLine callback, don't use prefix transformer - Ink handles formatting
+  // When piping directly to stdout (no callback), use prefix for visual hierarchy
+  const usePrefix = pipeStdio && !onOutputLine;
   return exec(command, [], {
     cwd,
     env,
@@ -75,8 +80,9 @@ export const executeCommandHook = ({
     pipeStdio,
     disableStderr: !pipeStdio,
     disableStdout: !pipeStdio,
-    transformStderrLine: getStdioPrefixTransformer('  └ '),
-    transformStdoutLine: getStdioPrefixTransformer('  └ ')
+    transformStderrLine: usePrefix ? getStdioPrefixTransformer('  └ ') : undefined,
+    transformStdoutLine: usePrefix ? getStdioPrefixTransformer('  └ ') : undefined,
+    onOutputLine: onOutputLine ? (line) => onOutputLine(line) : undefined
   }).then((execResult) => {
     if (execResult.failed) {
       throw new Error(execResult.stderr);
@@ -88,20 +94,25 @@ export const executeScriptHook = ({
   filePath,
   cwd,
   env,
-  pipeStdio
+  pipeStdio,
+  onOutputLine
 }: {
   filePath: string;
   cwd: string;
   env: Record<string, any>;
   pipeStdio: boolean;
+  onOutputLine?: (line: string) => void;
 }) => {
+  // When using onOutputLine callback, don't use prefix transformer - Ink handles formatting
+  const usePrefix = pipeStdio && !onOutputLine;
   return execScriptInNewProcess({
     absoluteScriptPath: join(globalStateManager.workingDir, filePath),
     scriptCwd: cwd,
     env,
     pipeStdio,
-    transformStderrLine: getStdioPrefixTransformer('  └ '),
-    transformStdoutLine: getStdioPrefixTransformer('  └ ')
+    transformStderrLine: usePrefix ? getStdioPrefixTransformer('  └ ') : undefined,
+    transformStdoutLine: usePrefix ? getStdioPrefixTransformer('  └ ') : undefined,
+    onOutputLine
   });
 };
 
@@ -114,7 +125,8 @@ const execScriptInNewProcess = async ({
   env,
   pipeStdio,
   transformStderrLine,
-  transformStdoutLine
+  transformStdoutLine,
+  onOutputLine
 }: {
   absoluteScriptPath: string;
   scriptCwd: string;
@@ -124,12 +136,14 @@ const execScriptInNewProcess = async ({
   pipeStdio?: boolean;
   transformStderrLine: AnyFunction;
   transformStdoutLine: AnyFunction;
+  onOutputLine?: (line: string) => void;
 }) => {
   const ext = getFileExtension(absoluteScriptPath);
   if ((ext === 'js' || ext === 'ts') && !absoluteNodeExecPath) {
     absoluteNodeExecPath = checkExecutableInPath('node') || checkExecutableInPath('nodejs');
   }
   const stdioOpts = pipeStdio ? { pipeStdio: true } : { disableStderr: true, disableStdout: true };
+  const outputCallback = onOutputLine ? { onOutputLine: (line: string) => onOutputLine(line) } : {};
   if (!existsSync(absoluteScriptPath)) {
     throw stpErrors.e18({ absoluteScriptPath });
   }
@@ -138,6 +152,7 @@ const execScriptInNewProcess = async ({
       await exec(absoluteNodeExecPath, [absoluteScriptPath], {
         env,
         ...stdioOpts,
+        ...outputCallback,
         cwd: scriptCwd,
         inheritEnvVarsExcept: ['ESBUILD_BINARY_PATH'],
         transformStderrLine,
@@ -149,6 +164,7 @@ const execScriptInNewProcess = async ({
       await exec(absoluteNodeExecPath, ['-r', fsPaths.esbuildRegisterPath(), absoluteScriptPath], {
         env: { ...env, ESBUILD_BINARY_PATH: process.env.ESBUILD_BINARY_PATH },
         ...stdioOpts,
+        ...outputCallback,
         inheritEnvVarsExcept: ['ESBUILD_BINARY_PATH'],
         cwd: scriptCwd,
         transformStderrLine,
@@ -160,6 +176,7 @@ const execScriptInNewProcess = async ({
       await exec(getPythonExecutable(), [absoluteScriptPath], {
         env,
         ...stdioOpts,
+        ...outputCallback,
         cwd: scriptCwd,
         inheritEnvVarsExcept: ['ESBUILD_BINARY_PATH'],
         transformStderrLine,

@@ -1,13 +1,12 @@
 import { applicationManager } from '@application-services/application-manager';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { IS_DEV, PRINT_LOGS_INTERVAL } from '@config';
 import { configManager } from '@domain-services/config-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { packagingManager } from '@domain-services/packaging-manager';
-import { getRelativePath } from '@shared/utils/fs-utils';
 import { LambdaCloudwatchLogPrinter } from '@utils/cloudwatch-logs';
-import { printer } from '@utils/printer';
 import { getAwsSynchronizedTime } from '@utils/time';
 import { buildAndUpdateFunctionCode } from '../../_utils/fn-deployment';
 import { getLogGroupInfoForStacktapeResource } from '../../_utils/logs';
@@ -31,7 +30,9 @@ export const runDevLambdaFunction = async (): Promise<DevReturnValue> => {
       filesToWatch: sourceFiles.map((p) => p.path),
       onChangeFn: async ({ changedFile }) => {
         sourceCodeWatcher.unwatchAllFiles();
-        printer.info(`File at ${getRelativePath(changedFile)} has changed. Rebuilding and redeploying function...`);
+        tuiManager.info(
+          `File changed: ${tuiManager.prettyFilePath(changedFile)}. Rebuilding and redeploying function...`
+        );
         // @todo we need to remove more, because timings are inaccurate
         const newPackage = await buildAndDeployFunction();
         sourceCodeWatcher.addFilesToWatch(newPackage.packagingOutput.sourceFiles.map((p) => p.path));
@@ -40,9 +41,13 @@ export const runDevLambdaFunction = async (): Promise<DevReturnValue> => {
     });
   } else {
     hookToRestartStdinInput(async () => {
-      printer.info('Received restart signal. Rebuilding and redeploying function...');
+      await eventManager.startEvent({
+        eventType: 'REBUILD_AND_RESTART',
+        description: 'Rebuilding and redeploying function'
+      });
       await buildAndDeployFunction();
       await cloudwatchLogPrinter.startUsingNewLogStream();
+      await eventManager.finishEvent({ eventType: 'REBUILD_AND_RESTART' });
     });
   }
 
@@ -51,7 +56,7 @@ export const runDevLambdaFunction = async (): Promise<DevReturnValue> => {
     try {
       await cloudwatchLogPrinter.printLogs();
     } catch (err) {
-      printer.warn('Failed to print logs.');
+      tuiManager.warn('Failed to fetch logs.');
       if (IS_DEV) {
         console.error(err);
       }
@@ -83,8 +88,8 @@ const printLambdaFunctionInfo = (resourceName: string) => {
     resource: StpLambdaFunction;
   };
   const { watch } = globalStateManager.args;
-  const restartMessage = printer.makeBold(
-    printer.colorize(
+  const restartMessage = tuiManager.makeBold(
+    tuiManager.colorize(
       'gray',
       watch
         ? '(watching for source files changes to rebuild and redeploy)'
@@ -101,11 +106,11 @@ const printLambdaFunctionInfo = (resourceName: string) => {
         nameChain: httpApiGatewayInfo.name,
         referencableParamName: 'url'
       });
-      eventsInfo.push(`(${printer.makeBold(`${event.type} event`)}) [${printer.makeBold(method)}] ${url}${path}`);
+      eventsInfo.push(`(${tuiManager.makeBold(`${event.type} event`)}) [${tuiManager.makeBold(method)}] ${url}${path}`);
     }
   });
-  printer.success(
-    `New version deployed successfully. ${restartMessage}.\n○ Function logs are continuously printed to the terminal (with a few seconds delay).${
+  tuiManager.success(
+    `Deployed new version. ${restartMessage}.\n○ Logs stream with a short delay.${
       eventsInfo.length ? '\n○ Events:\n' : ''
     }    ${eventsInfo.join('\n    ')}`
   );

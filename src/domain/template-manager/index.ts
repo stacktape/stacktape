@@ -1,5 +1,6 @@
 import type { IntrinsicFunction } from '@cloudform/dataTypes';
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { diffTemplate } from '@aws-cdk/cloudformation-diff';
 import { StackStatus } from '@aws-sdk/client-cloudformation';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
@@ -15,7 +16,6 @@ import { awsSdkManager } from '@utils/aws-sdk-manager';
 import compose from '@utils/basic-compose-shim';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
 import { ExpectedError } from '@utils/errors';
-import { printer } from '@utils/printer';
 import { saveToCfTemplateFile, saveToInitialCfTemplateFile, saveToStpTemplateFile } from '@utils/temp-files';
 import { validateStackOutput, validateUniqueness } from '@utils/validator';
 import set from 'lodash/set';
@@ -50,9 +50,7 @@ export class TemplateManager {
     const amountOfResources = Object.keys(this.template.Resources).length;
     if (amountOfResources > 470) {
       // @later-dodo: print options to solve this issue
-      printer.warn(
-        `You are approaching limit of 500 resources per cloudformation stack. Resources used: ${amountOfResources}`
-      );
+      tuiManager.warn(`Approaching CloudFormation 500-resource limit (used: ${amountOfResources}).`);
     }
     if (amountOfResources > 500) {
       throw new ExpectedError(

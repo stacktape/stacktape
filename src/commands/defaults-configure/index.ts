@@ -1,8 +1,7 @@
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { configurableGlobalDefaultCliArgs, configurableGlobalDefaultOtherProps } from '@config';
 import { fsPaths } from '@shared/naming/fs-paths';
-import { userPrompt } from '@shared/utils/user-prompt';
-import { printer } from '@utils/printer';
 
 const getDefaults = async (
   persistedData: PersistedState['cliArgsDefaults'] | PersistedState['otherDefaults'],
@@ -15,16 +14,15 @@ const getDefaults = async (
     const currentValueRedacted = prop.isSensitive ? maskString(currentValue) : currentValue;
     const redactedValueToPrint = currentValueRedacted === null ? '<< not-set >>' : currentValueRedacted;
 
-    const res = await userPrompt({
-      type: prop.isSensitive ? 'password' : 'text',
-      name: propName,
-      message: `${prop.description}. (leave blank to keep unchanged${hasValue ? ', use whitespace to unset' : ''}, current value: ${redactedValueToPrint}):`,
-      initial: currentValue
+    const inputValue = await tuiManager.promptText({
+      message: `${prop.description}:`,
+      description: `(leave blank to keep unchanged${hasValue ? ', use whitespace to unset' : ''}, current value: ${redactedValueToPrint})`,
+      isPassword: prop.isSensitive
     });
-    const isEmptyString = typeof res[propName] === 'string' && (res[propName] as string).length < 1;
-    const shouldUnset = res[propName] === ' ';
+    const isEmptyString = typeof inputValue === 'string' && inputValue.length < 1;
+    const shouldUnset = inputValue === ' ';
     if (!isEmptyString) {
-      result[propName] = res[propName];
+      result[propName] = inputValue;
     }
     if (shouldUnset) {
       result[propName] = prop.default;
@@ -45,7 +43,7 @@ export const commandDefaultsConfigure = async () => {
   await globalStateManager.saveDefaults({ cliArgsDefaults, otherDefaults });
   await globalStateManager.reloadPersistedState();
 
-  printer.success(`Defaults successfully saved to ${fsPaths.persistedStateFilePath()}.`);
+  tuiManager.success(`Defaults saved to ${tuiManager.prettyFilePath(fsPaths.persistedStateFilePath())}.`);
 };
 
 const maskString = (input: string): string => {

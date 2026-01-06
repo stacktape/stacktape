@@ -58,7 +58,9 @@ export const packageHelperLambdas = async ({ distFolderPath }: { isDev?: boolean
           startEvent: () => {},
           finishEvent: () => {},
           updateEvent: () => {},
-          namespace: {} as EventManager['namespace']
+          get eventContext() {
+            return {};
+          }
         },
         args: {},
         zippedSizeLimit: Infinity,

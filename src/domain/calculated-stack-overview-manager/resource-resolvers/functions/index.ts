@@ -1,5 +1,6 @@
 import type { FunctionProperties } from '@cloudform/lambda/function';
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import Application from '@cloudform/codeDeploy/application';
 import { GetAtt, Join, Ref } from '@cloudform/functions';
 import EventInvokeConfig from '@cloudform/lambda/eventInvokeConfig';
@@ -23,7 +24,6 @@ import { tagNames } from '@shared/naming/tag-names';
 import { PARENT_IDENTIFIER_SHARED_GLOBAL } from '@shared/utils/constants';
 import { getAugmentedEnvironment } from '@utils/environment';
 import { ExpectedError } from '@utils/errors';
-import { printer } from '@utils/printer';
 import { resolveAlarmsForResource } from '../_utils/alarms';
 import {
   getCachePolicyHash,
@@ -260,14 +260,14 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
     if (resourcesRequiringOnlyVpcAccess.length) {
       throw new ExpectedError(
         'CONFIG_VALIDATION',
-        `Function ${printer.makeBold(
+        `Function ${tuiManager.makeBold(
           name
         )} can not connect to the following resources, unless it is connected to a VPC:\n${resourcesRequiringOnlyVpcAccess.map(
           ({ name: refName, type: refType }) =>
-            `${printer.prettyResourceName(refName)} of type ${printer.prettyResourceType(refType)}\n`
+            `${tuiManager.prettyResourceName(refName)} of type ${tuiManager.prettyResourceType(refType)}\n`
         )}`,
         [
-          `You can connect the function to a VPC by setting ${printer.prettyConfigProperty(
+          `You can connect the function to a VPC by setting ${tuiManager.prettyConfigProperty(
             'joinDefaultVpc'
           )} property to true. (Note that the function won't be able to make outbound Internet requests after connecting to a VPC)`
         ]

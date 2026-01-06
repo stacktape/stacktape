@@ -2,6 +2,7 @@ import type { ImageIdentifier } from '@aws-sdk/client-ecr';
 import type { _Object, ObjectIdentifier } from '@aws-sdk/client-s3';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import {
   CF_TEMPLATE_FILE_NAME_WITHOUT_EXT,
   DEFAULT_KEEP_PREVIOUS_DEPLOYMENT_ARTIFACTS_COUNT,
@@ -31,7 +32,6 @@ import { awsSdkManager } from '@utils/aws-sdk-manager';
 import compose from '@utils/basic-compose-shim';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
 import { ExpectedError } from '@utils/errors';
-import { printer } from '@utils/printer';
 import { getHotSwapDeployVersionString } from '@utils/versioning';
 import { getDeploymentBucketObjectType, parseBucketObjectS3Key, parseImageTag } from './utils';
 
@@ -87,11 +87,14 @@ export class DeploymentArtifactManager {
   init = async ({
     globallyUniqueStackHash,
     accountId,
-    stackActionType
+    stackActionType,
+    parentEventType
   }: {
     globallyUniqueStackHash: string;
     accountId: string;
     stackActionType?: StackActionType;
+    /** Optional parent event for grouping (e.g., LOAD_METADATA_FROM_AWS) */
+    parentEventType?: LoggableEventType;
   }) => {
     this.deploymentBucketName = awsResourceNames.deploymentBucket(globallyUniqueStackHash);
     this.repositoryName = awsResourceNames.deploymentEcrRepo(globallyUniqueStackHash);
@@ -100,13 +103,19 @@ export class DeploymentArtifactManager {
     if (stackActionType && stackActionType !== 'create') {
       await eventManager.startEvent({
         eventType: 'FETCH_PREVIOUS_ARTIFACTS',
-        description: 'Fetching previous deployment artifacts'
+        description: 'Fetching previous deployment artifacts',
+        parentEventType,
+        instanceId: parentEventType ? 'previous-artifacts' : undefined
       });
       await Promise.all([
         this.loadPreviousBucketObjects(this.deploymentBucketName, stackActionType),
         this.loadPreviousImages(this.repositoryName, stackActionType)
       ]);
-      await eventManager.finishEvent({ eventType: 'FETCH_PREVIOUS_ARTIFACTS' });
+      await eventManager.finishEvent({
+        eventType: 'FETCH_PREVIOUS_ARTIFACTS',
+        parentEventType,
+        instanceId: parentEventType ? 'previous-artifacts' : undefined
+      });
     }
   };
 
@@ -229,23 +238,23 @@ export class DeploymentArtifactManager {
     deleteRemoved?: boolean;
     shortName: string;
   }) => {
-    const namespacedEventManager = eventManager.getNamespacedInstance({
-      identifier: shortName || bucketName,
-      eventType: 'SYNC_BUCKET'
+    const childLogger = eventManager.createChildLogger({
+      instanceId: shortName || bucketName,
+      parentEventType: 'SYNC_BUCKET'
     });
-    await namespacedEventManager.startEvent({ eventType: 'UPLOAD_BUCKET_CONTENT', description: 'Uploading content' });
+    await childLogger.startEvent({ eventType: 'UPLOAD_BUCKET_CONTENT', description: 'Uploading content' });
     const syncStats = await awsSdkManager.syncDirectoryIntoBucket({
       uploadConfiguration,
       bucketName,
       deleteRemoved,
       onProgress: ({ progressPercent }) => {
-        return namespacedEventManager.updateEvent({
+        return childLogger.updateEvent({
           eventType: 'UPLOAD_BUCKET_CONTENT',
           additionalMessage: `${progressPercent}%`
         });
       }
     });
-    await namespacedEventManager.finishEvent({ eventType: 'UPLOAD_BUCKET_CONTENT', data: syncStats });
+    await childLogger.finishEvent({ eventType: 'UPLOAD_BUCKET_CONTENT', data: syncStats });
   };
 
   // this is ran when the stack is rolled back
@@ -433,6 +442,7 @@ export class DeploymentArtifactManager {
         eventType: 'UPLOAD_DEPLOYMENT_ARTIFACTS',
         description: 'Uploading deployment artifacts'
       });
+
       await Promise.all([
         // on some occasions i started getting "NoSuchBucket: The specified bucket does not exist" when creating fresh stacks
         // this waiting should prevent it (and lose no time otherwise)
@@ -443,6 +453,15 @@ export class DeploymentArtifactManager {
       await eventManager.finishEvent({
         eventType: 'UPLOAD_DEPLOYMENT_ARTIFACTS',
         data: { images: this.successfullyUploadedImages, objects: this.successfullyCreatedObjects }
+      });
+    } else {
+      await eventManager.startEvent({
+        eventType: 'UPLOAD_DEPLOYMENT_ARTIFACTS',
+        description: 'Uploading deployment artifacts'
+      });
+      await eventManager.finishEvent({
+        eventType: 'UPLOAD_DEPLOYMENT_ARTIFACTS',
+        finalMessage: 'Nothing to upload'
       });
     }
   };
@@ -529,7 +548,7 @@ export class DeploymentArtifactManager {
       objects = await awsSdkManager.listAllObjectsInBucket(deploymentBucketName);
     } catch (err) {
       if (stackActionType === 'delete' && err.toString().includes('NoSuchBucket')) {
-        printer.debug(`Deployment bucket ${deploymentBucketName} not found. Skipping loading of deployment artifacts.`);
+        tuiManager.debug(`Deployment bucket ${deploymentBucketName} not found; skipping artifact load.`);
         return;
       }
       throw err;
@@ -553,7 +572,7 @@ export class DeploymentArtifactManager {
       imagesInRepo = await awsSdkManager.listAllImagesInEcrRepo(repositoryName);
     } catch (err) {
       if (stackActionType === 'delete' && err.toString().includes('RepositoryNotFoundException')) {
-        printer.debug(`ECR image repo ${repositoryName} not found. Skipping loading of images.`);
+        tuiManager.debug(`ECR repo ${repositoryName} not found; skipping image load.`);
         return;
       }
       throw err;
@@ -635,9 +654,9 @@ export class DeploymentArtifactManager {
     metadata?: { [key: string]: string };
   }) => {
     const isHelperLambda = configManager.helperLambdas.map((l) => l.artifactName).includes(artifactName);
-    const uploadLogger = eventManager.getNamespacedInstance({
-      eventType: 'UPLOAD_DEPLOYMENT_ARTIFACTS',
-      identifier: isHelperLambda ? `${artifactName} (stacktape internal)` : artifactName
+    const uploadLogger = eventManager.createChildLogger({
+      parentEventType: 'UPLOAD_DEPLOYMENT_ARTIFACTS',
+      instanceId: isHelperLambda ? `${artifactName} (stacktape internal)` : artifactName
     });
     // we do not log these events for service lambdas to avoid bloating output
     if (!isHelperLambda) {
@@ -665,9 +684,9 @@ export class DeploymentArtifactManager {
     jobName: string;
     imageTagWithUrl: string;
   }) => {
-    const uploadLogger = eventManager.getNamespacedInstance({
-      eventType: 'UPLOAD_DEPLOYMENT_ARTIFACTS',
-      identifier: jobName
+    const uploadLogger = eventManager.createChildLogger({
+      parentEventType: 'UPLOAD_DEPLOYMENT_ARTIFACTS',
+      instanceId: jobName
     });
     await uploadLogger.startEvent({ eventType: 'UPLOAD_IMAGE', description: 'Uploading image' });
     await tagDockerImage(jobName, imageTagWithUrl);

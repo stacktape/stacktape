@@ -1,15 +1,15 @@
 import { isAbsolute, join } from 'node:path';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { notificationManager } from '@domain-services/notification-manager';
 import { stpErrors } from '@errors';
-import { getRelativePath, isDirAccessible, transformToUnixPath } from '@shared/utils/fs-utils';
+import { isDirAccessible } from '@shared/utils/fs-utils';
 import { getCloudformationChildResources } from '@shared/utils/stack-info-map';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
-import { printer } from '@utils/printer';
 import { initializeStackServicesForWorkingWithDeployedStack, loadUserCredentials } from '../_utils/initialization';
 
 export const commandBucketSync = async (): Promise<BucketSyncReturnValue> => {
@@ -26,16 +26,15 @@ export const commandBucketSync = async (): Promise<BucketSyncReturnValue> => {
 
   const bucketName = getBucketName();
   const absoluteSourcePath = getDirectoryPath();
-  const prettyDirPath = `./${transformToUnixPath(getRelativePath(absoluteSourcePath))}`;
+  const prettyDirPath = tuiManager.prettyFilePath(absoluteSourcePath);
 
-  printer.info(`Syncing directory ${prettyDirPath} to bucket ${bucketName}.`);
   await notificationManager.sendDeploymentNotification({
-    message: { text: `Syncing directory ${prettyDirPath} to bucket ${bucketName}.`, type: 'progress' }
+    message: { text: `Syncing ${prettyDirPath} to bucket ${bucketName} (deletes removed files).`, type: 'progress' }
   });
 
   await eventManager.startEvent({
     eventType: 'SYNC_BUCKET',
-    description: 'Syncing...'
+    description: `Syncing ${prettyDirPath} to ${bucketName}`
   });
   let lastProgressPercent = null;
   const stats = await awsSdkManager.syncDirectoryIntoBucket({
@@ -87,7 +86,7 @@ export const commandBucketSync = async (): Promise<BucketSyncReturnValue> => {
     deployedStackOverviewManager.printResourceInfo([globalStateManager.args.resourceName]);
   }
   await notificationManager.sendDeploymentNotification({
-    message: { text: `Successfully synchronized directory ${prettyDirPath} to bucket ${bucketName}.`, type: 'success' }
+    message: { text: `Synced ${prettyDirPath} to bucket ${bucketName}.`, type: 'success' }
   });
 
   return null;

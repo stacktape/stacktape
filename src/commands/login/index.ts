@@ -1,18 +1,15 @@
 import { globalStateManager } from '@application-services/global-state-manager';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
-import { userPrompt } from '@shared/utils/user-prompt';
-import { printer } from '@utils/printer';
+import { tuiManager } from '@application-services/tui-manager';
 import { identifyUserInMixpanel } from '../../../shared/utils/telemetry';
 
 export const commandLogin = async () => {
   let apiKey = globalStateManager.args.apiKey;
   if (!apiKey) {
-    const res = await userPrompt({
-      type: 'password',
-      name: 'apiKey',
-      message: `Your Stacktape API key (available in the ${printer.getLink('apiKeys', 'console')})`
+    apiKey = await tuiManager.promptText({
+      message: `Your Stacktape API key (available in the ${tuiManager.getLink('apiKeys', 'console')}):`,
+      isPassword: true
     });
-    apiKey = res.apiKey;
   }
 
   await globalStateManager.saveApiKey({ apiKey });
@@ -22,8 +19,5 @@ export const commandLogin = async () => {
     userId: userData.user.id,
     systemId: globalStateManager.systemId
   });
-  printer.success(
-    `Successfully logged in and saved API Key.
-User name: ${userData.user.name}. Organization: ${userData.organization.name}.`
-  );
+  tuiManager.success(`Logged in. API key saved.\nUser: ${userData.user.name}. Org: ${userData.organization.name}.`);
 };

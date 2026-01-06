@@ -3,15 +3,14 @@ import type { CloudformationResourceType } from '@cloudform/resource-types';
 import { join } from 'node:path';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { stpErrors } from '@errors';
 import { getAllFilesInDir } from '@shared/utils/fs-utils';
-import { userPrompt } from '@shared/utils/user-prompt';
 import { stringifyToYaml } from '@shared/utils/yaml';
-import { printer } from '@utils/printer';
 import { getCriticalResourcesPotentiallyEndangeredByOperation } from '@utils/stack-info-map-diff';
 import { parse as dotenvParse } from 'dotenv';
 import dotenvStringify from 'dotenv-stringify';
@@ -50,38 +49,36 @@ export const potentiallyPromptBeforeOperation = async ({
     const stackName = stackManager.existingStackDetails.StackName;
     const created = stackManager.existingStackDetails.CreationTime?.toLocaleString();
     const updated = stackManager.existingStackDetails.LastUpdatedTime?.toLocaleString();
-    printer.info(
+    tuiManager.info(
       [
-        `You are about to ${stackManager.stackActionType} the following stack:`,
-        `  ${printer.colorize('yellow', 'Stack name')}: ${stackName}`,
-        created && `  ${printer.colorize('yellow', 'Creation time')}: ${created}`,
-        updated && `  ${printer.colorize('yellow', 'Last updated time')}: ${updated}`,
-        `  ${printer.colorize('yellow', 'Number of resources')}: ${stackManager.existingStackResources.length}`
+        `About to ${stackManager.stackActionType} stack:`,
+        `  ${tuiManager.colorize('yellow', 'Stack name')}: ${tuiManager.prettyStackName(stackName)}`,
+        created && `  ${tuiManager.colorize('yellow', 'Creation time')}: ${created}`,
+        updated && `  ${tuiManager.colorize('yellow', 'Last updated time')}: ${updated}`,
+        `  ${tuiManager.colorize('yellow', 'Number of resources')}: ${stackManager.existingStackResources.length}`
       ]
         .filter(Boolean)
         .join('\n')
     );
     const possiblyImpactedResourcesPart =
       possiblyImpactedResources?.length &&
-      `The following resources may/will be deleted during requested operation. This might lead to a data loss.\n${possiblyImpactedResources
+      `These resources may be deleted during this operation. This can cause data loss.\n${possiblyImpactedResources
         .map(
           ({ stpResourceName, resourceType }) =>
-            `○ ${printer.colorize('cyan', stpResourceName, true)} (type ${resourceType})`
+            `- ${tuiManager.prettyResourceName(stpResourceName)} (type ${tuiManager.prettyResourceType(resourceType)})`
         )
         .join('\n')}`;
     if (possiblyImpactedResourcesPart) {
-      printer.warn(possiblyImpactedResourcesPart);
+      tuiManager.warn(possiblyImpactedResourcesPart);
     }
     if (!process.stdout.isTTY) {
       throw stpErrors.e108({ reason: possiblyImpactedResourcesPart, command: globalStateManager.command });
     }
-    const { proceed } = await userPrompt({
-      type: 'confirm',
-      name: 'proceed',
+    const proceed = await tuiManager.promptConfirm({
       message: 'Are you sure you want to proceed?'
     });
     if (!proceed) {
-      printer.info('Operation aborted...');
+      tuiManager.info('Operation canceled.');
       return { abort: true };
     }
   }

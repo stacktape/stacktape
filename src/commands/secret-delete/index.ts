@@ -1,18 +1,16 @@
-import { userPrompt } from '@shared/utils/user-prompt';
+import { tuiManager } from '@application-services/tui-manager';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
-import { printer } from '@utils/printer';
 import { loadUserCredentials } from '../_utils/initialization';
 
 export const commandSecretDelete = async () => {
   await loadUserCredentials();
 
-  const { secretName } = await userPrompt({
-    type: 'text',
-    name: 'secretName',
-    message: 'Secret name:'
+  const secretName = await tuiManager.promptText({
+    message: 'Secret name:',
+    description: '(name of the AWS Secrets Manager secret to delete)'
   });
-  awsSdkManager.deleteSecret(secretName);
-  printer.success(`Secret "${secretName}" deleted successfully.`);
+  await awsSdkManager.deleteSecret(secretName);
+  tuiManager.success(`Secret "${secretName}" deleted successfully.`);
 
   // @todo-return-value
   return null;

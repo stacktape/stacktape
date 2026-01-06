@@ -1,6 +1,6 @@
+import { tuiManager } from '@application-services/tui-manager';
 import commandsInfo from '@schemas/cli-schema.json';
 import { ExpectedError } from './errors';
-import { printer } from './printer';
 
 export const validatePrimitiveFunctionParams = (
   actualParams: any[],
@@ -28,7 +28,7 @@ export const validatePrimitiveFunctionParams = (
   }
 };
 
-export const getPrettyCommand = (command: string) => `'${printer.colorize('yellow', command)}'`;
+export const getPrettyCommand = (command: string) => `'${tuiManager.colorize('yellow', command)}'`;
 
 export const getCommandShortDescription = (command: string) => {
   return commandsInfo[command].description.split('---')[0].slice(5).trim();

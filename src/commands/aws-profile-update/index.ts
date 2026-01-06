@@ -1,7 +1,6 @@
-import { userPrompt } from '@shared/utils/user-prompt';
+import { tuiManager } from '@application-services/tui-manager';
 import { getAvailableAwsProfiles, upsertAwsProfile } from '@utils/aws-config';
 import { ExpectedError } from '@utils/errors';
-import { printer } from '@utils/printer';
 
 export const commandAwsProfileUpdate = async (): Promise<AwsProfileUpdateReturnValue> => {
   const availableProfiles = await getAvailableAwsProfiles();
@@ -10,25 +9,22 @@ export const commandAwsProfileUpdate = async (): Promise<AwsProfileUpdateReturnV
     throw new ExpectedError('CREDENTIALS', 'No profile set in global AWS credentials file.');
   }
 
-  const { awsAccessKeyId } = await userPrompt({
-    type: 'select',
-    choices: availableProfiles.map((profile) => ({ title: profile, value: profile })),
-    name: 'profile',
-    message: 'Choose a profile to update:'
+  const profile = await tuiManager.promptSelect({
+    message: 'Choose a profile to update:',
+    options: availableProfiles.map((prof) => ({ label: prof, value: prof }))
   });
-  const { awsSecretAccessKey } = await userPrompt({
-    type: 'text',
-    name: 'awsAccessKeyId',
-    message: 'AWS_ACCESS_KEY_ID: '
+  const awsAccessKeyId = await tuiManager.promptText({
+    message: 'AWS_ACCESS_KEY_ID:',
+    description: '(from your AWS IAM user security credentials)'
   });
-  const { profile } = await userPrompt({
-    type: 'password',
-    name: 'awsSecretAccessKey',
-    message: 'AWS_SECRET_ACCESS_KEY: '
+  const awsSecretAccessKey = await tuiManager.promptText({
+    message: 'AWS_SECRET_ACCESS_KEY:',
+    description: '(keep this secret - it will be stored locally)',
+    isPassword: true
   });
 
   await upsertAwsProfile(profile, awsAccessKeyId, awsSecretAccessKey);
-  printer.success(`Successfully updated credentials for profile ${profile}.`);
+  tuiManager.success(`Updated credentials for AWS profile ${profile}.`);
 
   // @todo-return-value
   return null;

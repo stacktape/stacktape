@@ -2,6 +2,7 @@ import { applicationManager } from '@application-services/application-manager';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { RECORDED_STACKTAPE_COMMANDS } from '@config';
 import { budgetManager } from '@domain-services/budget-manager';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
@@ -27,7 +28,6 @@ import { settleAllBeforeThrowing } from '@shared/utils/misc';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { getErrorHandler, loggingPlugin } from '@utils/aws-sdk-manager/utils';
 import { logCollectorStream } from '@utils/log-collector';
-import { printer } from '@utils/printer';
 
 export const initializeAllStackServices = async ({
   commandModifiesStack,
@@ -40,6 +40,14 @@ export const initializeAllStackServices = async ({
   loadGlobalConfig?: boolean;
   requiresSubscription?: boolean;
 }) => {
+  tuiManager.setHeader({
+    action: globalStateManager.command === 'delete' ? 'DELETING' : 'DEPLOYING',
+    projectName: globalStateManager.args.projectName || globalStateManager.targetStack?.projectName || 'project',
+    stageName: globalStateManager.stage || 'stage',
+    region: globalStateManager.region || 'region'
+  });
+  eventManager.setPhase('INITIALIZE');
+
   await loadUserCredentials();
   await recordStackOperationStart();
 
@@ -55,13 +63,22 @@ export const initializeAllStackServices = async ({
   if (loadGlobalConfig) {
     await configManager.loadGlobalConfig();
   }
+
+  // Start the parent event for loading AWS metadata
+  await eventManager.startEvent({
+    eventType: 'LOAD_METADATA_FROM_AWS',
+    description: 'Loading metadata from AWS',
+    phase: 'INITIALIZE'
+  });
+
   // we are using allSettled instead of all because we want all operations to finish before throwing (especially startStackOperationRecording)
   // at the same time we want to make execution as fast and parallel as possible
   await settleAllBeforeThrowing([
     stackManager.init({
       stackName: globalStateManager.targetStack.stackName,
       commandModifiesStack,
-      commandRequiresDeployedStack
+      commandRequiresDeployedStack,
+      parentEventType: 'LOAD_METADATA_FROM_AWS'
     }),
     ec2Manager.init({
       instanceTypes: configManager.allUsedEc2InstanceTypes,
@@ -71,11 +88,12 @@ export const initializeAllStackServices = async ({
       reuseVpc: configManager.reuseVpcConfig,
       resourcesRequiringPrivateSubnet: configManager.allResourcesRequiringPrivateSubnets
     }),
-    budgetManager.init(),
+    budgetManager.init({ parentEventType: 'LOAD_METADATA_FROM_AWS' }),
     domainManager.init({
       stackName: globalStateManager.targetStack.stackName,
       domains: configManager.allUsedDomainsInConfig,
-      fromParameterStore: true
+      fromParameterStore: true,
+      parentEventType: 'LOAD_METADATA_FROM_AWS'
     }),
     startStackOperationRecording({
       stackName: globalStateManager.targetStack.stackName,
@@ -100,11 +118,16 @@ export const initializeAllStackServices = async ({
     deploymentArtifactManager.init({
       accountId: globalStateManager.targetAwsAccount.awsAccountId,
       globallyUniqueStackHash: globalStateManager.targetStack.globallyUniqueStackHash,
-      stackActionType: stackManager.stackActionType
+      stackActionType: stackManager.stackActionType,
+      parentEventType: 'LOAD_METADATA_FROM_AWS'
     }),
     packagingManager.init(),
     cloudformationRegistryManager.init()
   ]);
+
+  // Finish the parent event for loading AWS metadata
+  await eventManager.finishEvent({ eventType: 'LOAD_METADATA_FROM_AWS' });
+
   await eventManager.registerHooks(configManager.hooks);
   if (globalStateManager.command !== 'codebuild:deploy') {
     await dependencyInstaller.install({
@@ -256,11 +279,11 @@ export const loadUserCredentials = async () => {
     region: globalStateManager.region,
     getErrorHandlerFn: getErrorHandler,
     plugins: [loggingPlugin, retryPlugin, redirectPlugin],
-    printer
+    printer: tuiManager
   });
   await eventManager.finishEvent({
     eventType: 'LOAD_USER_DATA',
-    finalMessage: `User: ${printer.makeBold(globalStateManager.userData.name)}. Organization: ${printer.makeBold(
+    finalMessage: `User: ${tuiManager.makeBold(globalStateManager.userData.name)}. Organization: ${tuiManager.makeBold(
       globalStateManager.organizationData.name
     )}.`
   });

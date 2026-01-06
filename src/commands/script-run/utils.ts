@@ -2,10 +2,10 @@ import type { ScriptFn } from '@utils/scripts';
 import type { SsmPortForwardingTunnel } from '@utils/ssm-session';
 import { join, resolve } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { configManager } from '@domain-services/config-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { ExpectedError } from '@utils/errors';
-import { printer } from '@utils/printer';
 import { executeCommandHook, executeScriptHook, getScriptEnv } from '@utils/scripts';
 import {
   runSsmShellScript,
@@ -71,12 +71,14 @@ const getBastionScriptExecutionFn = ({
       resolvedScriptDefinition.properties.bastionResource
     );
 
-    printer.info(
-      `Executing ${hookTrigger ? `(${hookTrigger} hook) ` : ''}script ${printer.colorize(
-        'blue',
-        resolvedScriptDefinition.scriptName
-      )} on bastion ${printer.makeBold(bastionResourceStpName)}...`
-    );
+    const scriptDescription = `${hookTrigger ? `(${hookTrigger} hook) ` : ''}${resolvedScriptDefinition.scriptName}`;
+    const eventInstanceId = `${hookTrigger || 'manual'}-${resolvedScriptDefinition.scriptName}`;
+
+    tuiManager.startEvent({
+      eventType: 'RUN_SCRIPT',
+      description: `Running script ${scriptDescription} on bastion ${bastionResourceStpName}`,
+      instanceId: eventInstanceId
+    });
     try {
       const env = getScriptEnv({
         userDefinedEnv: resolvedScriptDefinition.properties.environment,
@@ -94,13 +96,22 @@ const getBastionScriptExecutionFn = ({
         instanceId: bastionInstanceId,
         cwd: resolvedScriptDefinition.properties.cwd
       });
+      tuiManager.finishEvent({
+        eventType: 'RUN_SCRIPT',
+        instanceId: eventInstanceId
+      });
     } catch (err) {
+      tuiManager.finishEvent({
+        eventType: 'RUN_SCRIPT',
+        instanceId: eventInstanceId,
+        status: 'error'
+      });
       throw new ExpectedError(
         'SCRIPT',
-        `Failed to execute ${hookTrigger ? `(${hookTrigger} hook) ` : ''}script ${printer.colorize(
+        `Failed to execute ${hookTrigger ? `(${hookTrigger} hook) ` : ''}script ${tuiManager.colorize(
           'blue',
           resolvedScriptDefinition.scriptName
-        )} on bastion ${printer.makeBold(bastionResourceStpName)}. Error:\n${err}`
+        )} on bastion ${tuiManager.makeBold(bastionResourceStpName)}. Error:\n${err}`
       );
     }
   };
@@ -170,18 +181,39 @@ const getLocalScriptExecutionFn = ({
         ? resolvedScriptDefinition.properties.pipeStdio
         : true;
 
-    printer.info(
-      `Executing ${hookTrigger ? `(${hookTrigger} hook) ` : ''}script ${printer.colorize(
-        'blue',
-        resolvedScriptDefinition.scriptName
-      )}...`
-    );
+    const scriptDisplayName = `${hookTrigger ? `(${hookTrigger} hook) ` : ''}${resolvedScriptDefinition.scriptName}`;
+    const eventInstanceId = `${hookTrigger || 'manual'}-${resolvedScriptDefinition.scriptName}`;
+
+    tuiManager.startEvent({
+      eventType: 'RUN_SCRIPT',
+      description: `Running script ${scriptDisplayName}`,
+      instanceId: eventInstanceId
+    });
+
+    // Callback to capture script output and send to TUI
+    // This avoids piping directly to stdout which conflicts with Ink rendering
+    const onOutputLine = pipeStdio
+      ? (line: string) => {
+          tuiManager.appendEventOutput({
+            eventType: 'RUN_SCRIPT',
+            instanceId: eventInstanceId,
+            lines: [line]
+          });
+        }
+      : undefined;
+
     for (const commandOrScriptToExecute of executeSequence) {
-      const scriptDescription =
+      const currentDescription =
         commandOrScript === 'script'
-          ? `script at ${printer.prettyFilePath(join(globalStateManager.workingDir, commandOrScriptToExecute))}`
-          : `command '${printer.makeBold(commandOrScriptToExecute)}'`;
-      printer.info(`Executing ${scriptDescription}...`);
+          ? `script at ${join(globalStateManager.workingDir, commandOrScriptToExecute)}`
+          : `command '${commandOrScriptToExecute}'`;
+
+      tuiManager.updateEvent({
+        eventType: 'RUN_SCRIPT',
+        instanceId: eventInstanceId,
+        additionalMessage: `Running ${currentDescription}`
+      });
+
       try {
         const env = getScriptEnv({
           userDefinedEnv: resolvedScriptDefinition.properties.environment,
@@ -198,24 +230,36 @@ const getLocalScriptExecutionFn = ({
             command: commandOrScriptToExecute,
             env,
             cwd,
-            pipeStdio
+            pipeStdio,
+            onOutputLine
           });
         } else {
           await executeScriptHook({
             env,
             filePath: commandOrScriptToExecute,
             cwd,
-            pipeStdio
+            pipeStdio,
+            onOutputLine
           });
         }
       } catch (err) {
+        tuiManager.finishEvent({
+          eventType: 'RUN_SCRIPT',
+          instanceId: eventInstanceId,
+          status: 'error'
+        });
         await Promise.all(tunnels.map((tunnel) => tunnel.kill()));
         throw new ExpectedError(
           'SCRIPT',
-          `Failed to execute ${hookTrigger ? `(${hookTrigger} hook) ` : ''}${scriptDescription}. Error:\n${err}`
+          `Failed to execute ${hookTrigger ? `(${hookTrigger} hook) ` : ''}${currentDescription}. Error:\n${err}`
         );
       }
     }
+
+    tuiManager.finishEvent({
+      eventType: 'RUN_SCRIPT',
+      instanceId: eventInstanceId
+    });
     await Promise.all(tunnels.map((tunnel) => tunnel.kill()));
   };
 };

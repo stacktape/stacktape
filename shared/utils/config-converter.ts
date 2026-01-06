@@ -1,6 +1,7 @@
 import type { GetConfigParams } from '../../src/api/npm/ts/config';
 import {
   ENGINE_TYPE_TO_CLASS,
+  MISC_TYPES_CONVERTIBLE_TO_CLASSES,
   PACKAGING_TYPE_TO_CLASS,
   RESOURCE_TYPE_TO_CLASS,
   SCRIPT_TYPE_TO_CLASS
@@ -18,6 +19,37 @@ import { AWS_SES } from '../../src/api/npm/ts/global-aws-services';
 import * as resourceClasses from '../../src/api/npm/ts/resources';
 import * as typePropertyClasses from '../../src/api/npm/ts/type-properties';
 import { parseYaml, stringifyToYaml } from './yaml';
+
+/** Lambda function event types (from events.d.ts) */
+const LAMBDA_EVENT_TYPE_TO_CLASS: Record<string, string> = Object.fromEntries(
+  MISC_TYPES_CONVERTIBLE_TO_CLASSES.filter(
+    (t) => t.sourceFile === 'events.d.ts' && t.className.includes('Integration')
+  ).map((t) => [t.typeValue, t.className])
+);
+
+/** Multi-container workload event types */
+const CONTAINER_EVENT_TYPE_TO_CLASS: Record<string, string> = Object.fromEntries(
+  MISC_TYPES_CONVERTIBLE_TO_CLASSES.filter(
+    (t) => t.sourceFile === 'multi-container-workloads.d.ts' && t.className.includes('Integration')
+  ).map((t) => [t.typeValue, t.className])
+);
+
+/** Resource types that use container-style events */
+const CONTAINER_RESOURCE_TYPES = new Set([
+  'web-service',
+  'private-service',
+  'worker-service',
+  'multi-container-workload',
+  'batch-job'
+]);
+
+/** Get the appropriate event type mapping based on resource type */
+const getEventTypeMapping = (resourceType?: string): Record<string, string> => {
+  if (resourceType && CONTAINER_RESOURCE_TYPES.has(resourceType)) {
+    return CONTAINER_EVENT_TYPE_TO_CLASS;
+  }
+  return LAMBDA_EVENT_TYPE_TO_CLASS;
+};
 
 /** All stacktape exports that can be used in configs */
 const STACKTAPE_EXPORTS: Record<string, unknown> = {
@@ -171,16 +203,15 @@ const configObjectToTypescriptCode = (config: Record<string, unknown>): string =
   if (config.resources && typeof config.resources === 'object') {
     const resources = config.resources as Record<string, Record<string, unknown>>;
     for (const [name, resource] of Object.entries(resources)) {
-      const className = RESOURCE_TYPE_TO_CLASS[resource.type as string];
+      const resourceType = resource.type as string;
+      const className = RESOURCE_TYPE_TO_CLASS[resourceType];
       if (!className) {
-        throw new Error(`Unknown resource type: ${resource.type}`);
+        throw new Error(`Unknown resource type: ${resourceType}`);
       }
 
-      // Use LambdaFunction for Function class (JS reserved word)
-      const exportedClassName = className === 'Function' ? 'LambdaFunction' : className;
-      imports.add(exportedClassName as string);
-      const propsCode = generatePropsCode(resource.properties as Record<string, unknown>, imports, 2);
-      resourceDeclarations.push(`const ${name} = new ${exportedClassName}(${propsCode});`);
+      imports.add(className as string);
+      const propsCode = generatePropsCode(resource.properties as Record<string, unknown>, imports, 2, resourceType);
+      resourceDeclarations.push(`const ${name} = new ${className}(${propsCode});`);
       resourceNames.push(name);
     }
   }
@@ -253,24 +284,17 @@ const configObjectToTypescriptCode = (config: Record<string, unknown>): string =
   lines.push('});');
 
   return lines.join('\n');
-
-  // // Format with prettier
-  // return format(code, {
-  //   parser: 'typescript',
-  //   singleQuote: true,
-  //   trailingComma: 'none',
-  //   printWidth: 100
-  // });
 };
 
 /**
  * Generates TypeScript code for a properties object.
- * Handles special types like packaging and engine.
+ * Handles special types like packaging, engine, and events.
  */
 const generatePropsCode = (
   props: Record<string, unknown> | undefined,
   imports: Set<string>,
-  indent: number
+  indent: number,
+  resourceType?: string
 ): string => {
   if (!props) return '{}';
 
@@ -284,14 +308,21 @@ const generatePropsCode = (
         value as Record<string, unknown>,
         PACKAGING_TYPE_TO_CLASS,
         imports,
-        indent
+        indent,
+        resourceType
       );
       entries.push(`${key}: ${code}`);
       continue;
     }
 
     if (key === 'engine' && isTypedProperty(value)) {
-      const code = generateTypedPropertyCode(value as Record<string, unknown>, ENGINE_TYPE_TO_CLASS, imports, indent);
+      const code = generateTypedPropertyCode(
+        value as Record<string, unknown>,
+        ENGINE_TYPE_TO_CLASS,
+        imports,
+        indent,
+        resourceType
+      );
       entries.push(`${key}: ${code}`);
       continue;
     }
@@ -313,24 +344,34 @@ const generatePropsCode = (
       continue;
     }
 
-    // Handle connectTo array (strings -> resource references in comment)
+    // Handle connectTo array - use variable references instead of strings
     if (key === 'connectTo' && Array.isArray(value)) {
-      // In YAML these are strings; in TS they could be resource references
-      // For now, keep as strings with a comment
-      entries.push(`${key}: ${JSON.stringify(value)} /* resource references */`);
+      const refs = (value as (string | unknown)[]).map((ref) => {
+        // If it's a string like "mainDatabase", convert to variable reference
+        if (typeof ref === 'string') return ref;
+        return JSON.stringify(ref);
+      });
+      entries.push(`${key}: [${refs.join(', ')}]`);
+      continue;
+    }
+
+    // Handle events array with context-aware mapping
+    if (key === 'events' && Array.isArray(value)) {
+      const arrayCode = generateArrayCode(value, imports, indent + 1, resourceType);
+      entries.push(`${key}: ${arrayCode}`);
       continue;
     }
 
     // Handle nested objects that might have typed properties
     if (value && typeof value === 'object' && !Array.isArray(value)) {
-      const nested = generatePropsCode(value as Record<string, unknown>, imports, indent + 1);
+      const nested = generatePropsCode(value as Record<string, unknown>, imports, indent + 1, resourceType);
       entries.push(`${key}: ${nested}`);
       continue;
     }
 
     // Handle arrays with potential typed properties
     if (Array.isArray(value)) {
-      const arrayCode = generateArrayCode(value, imports, indent + 1);
+      const arrayCode = generateArrayCode(value, imports, indent + 1, resourceType);
       entries.push(`${key}: ${arrayCode}`);
       continue;
     }
@@ -360,12 +401,13 @@ const isTypedProperty = (value: unknown): boolean => {
   );
 };
 
-/** Generate code for typed properties (packaging, engine, etc.) */
+/** Generate code for typed properties (packaging, engine, events, etc.) */
 const generateTypedPropertyCode = (
   value: Record<string, unknown>,
   typeMap: Record<string, string>,
   imports: Set<string>,
-  indent: number
+  indent: number,
+  resourceType?: string
 ): string => {
   const type = value.type as string;
   const className = typeMap[type];
@@ -376,14 +418,15 @@ const generateTypedPropertyCode = (
   }
 
   imports.add(className);
-  const propsCode = generatePropsCode(value.properties as Record<string, unknown>, imports, indent);
+  const propsCode = generatePropsCode(value.properties as Record<string, unknown>, imports, indent, resourceType);
   return `new ${className}(${propsCode})`;
 };
 
 /** Generate code for arrays, handling nested typed properties */
-const generateArrayCode = (arr: unknown[], imports: Set<string>, indent: number): string => {
+const generateArrayCode = (arr: unknown[], imports: Set<string>, indent: number, resourceType?: string): string => {
   const indentStr = '  '.repeat(indent);
   const items: string[] = [];
+  const eventTypeMap = getEventTypeMapping(resourceType);
 
   for (const item of arr) {
     if (isDirective(item)) {
@@ -393,16 +436,16 @@ const generateArrayCode = (arr: unknown[], imports: Set<string>, indent: number)
       const typed = item as Record<string, unknown>;
       const type = typed.type as string;
 
-      if (PACKAGING_TYPE_TO_CLASS[type]) {
-        items.push(generateTypedPropertyCode(typed, PACKAGING_TYPE_TO_CLASS, imports, indent));
-      } else if (ENGINE_TYPE_TO_CLASS[type]) {
-        items.push(generateTypedPropertyCode(typed, ENGINE_TYPE_TO_CLASS, imports, indent));
+      // Check event types first (context-aware), then packaging/engine
+      const className = eventTypeMap[type] || PACKAGING_TYPE_TO_CLASS[type] || ENGINE_TYPE_TO_CLASS[type];
+      if (className) {
+        items.push(generateTypedPropertyCode(typed, { [type]: className }, imports, indent, resourceType));
       } else {
-        // Event types or other - keep as plain objects
+        // Unknown typed property - keep as plain object
         items.push(JSON.stringify(item, null, 2).split('\n').join(`\n${indentStr}`));
       }
     } else if (item && typeof item === 'object' && !Array.isArray(item)) {
-      const objCode = generatePropsCode(item as Record<string, unknown>, imports, indent);
+      const objCode = generatePropsCode(item as Record<string, unknown>, imports, indent, resourceType);
       items.push(objCode);
     } else {
       items.push(generateValueCode(item, imports));
@@ -429,9 +472,6 @@ const validateSerializable = (config: Record<string, unknown>): void => {
 /**
  * Converts a TypeScript config (with classes) to a plain serialized config object.
  * Handles both defineConfig style (function) and plain object configs.
- *
- * @param configOrFn - Either a config object or a function from defineConfig
- * @param params - Optional params to pass to defineConfig function
  */
 const typescriptConfigToObject = (
   configOrFn: Record<string, unknown> | ((params: GetConfigParams) => Record<string, unknown>),
@@ -448,13 +488,6 @@ const typescriptConfigToObject = (
 
 /**
  * Converts a TypeScript config (with classes) to YAML string.
- * Accepts either:
- * - TypeScript code as a string (will be evaluated)
- * - A config object
- * - A function from defineConfig
- *
- * @param input - TypeScript code string, config object, or defineConfig function
- * @param params - Optional params to pass to defineConfig function
  * @throws Error if config contains dynamic/non-serializable content
  */
 export const convertTypescriptToYaml = (

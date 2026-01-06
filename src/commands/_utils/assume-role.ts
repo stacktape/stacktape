@@ -1,9 +1,9 @@
+import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { arns } from '@shared/naming/arns';
 import { getRoleArnFromSessionArn } from '@shared/naming/utils';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
-import { printer } from '@utils/printer';
 
 export const SESSION_DURATION_SECONDS = 3600;
 
@@ -19,7 +19,10 @@ export const addCallerToAssumeRolePolicy = async ({ roleName }: { roleName: stri
 };
 
 export const getLocalInvokeAwsCredentials = async ({ assumeRoleOfWorkload }: { assumeRoleOfWorkload: string }) => {
-  printer.info(`Assuming role of "${assumeRoleOfWorkload}"...`);
+  await eventManager.startEvent({
+    eventType: 'ASSUME_ROLE',
+    description: `Assuming role of ${assumeRoleOfWorkload}`
+  });
   const workloadRoleName = deployedStackOverviewManager.getIamRoleNameOfDeployedResource(assumeRoleOfWorkload);
 
   await addCallerToAssumeRolePolicy({ roleName: workloadRoleName });
@@ -33,6 +36,7 @@ export const getLocalInvokeAwsCredentials = async ({ assumeRoleOfWorkload }: { a
     roleSessionName: `local-assume-by-${globalStateManager.userData.id}`,
     retry: { count: 6, delaySeconds: 5 }
   });
+  await eventManager.finishEvent({ eventType: 'ASSUME_ROLE' });
 
   return {
     AWS_ACCESS_KEY_ID: credentials.accessKeyId,

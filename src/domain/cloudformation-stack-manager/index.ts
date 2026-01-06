@@ -2,6 +2,7 @@ import type { Capability, StackEvent, StackResourceSummary } from '@aws-sdk/clie
 import type { Tag } from '@aws-sdk/client-ecs';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { OnFailure, ResourceStatus, StackStatus } from '@aws-sdk/client-cloudformation';
 import { DeploymentRolloutState } from '@aws-sdk/client-ecs';
 import { MONITORING_FREQUENCY_SECONDS } from '@config';
@@ -32,11 +33,67 @@ import { awsSdkManager } from '@utils/aws-sdk-manager';
 import compose from '@utils/basic-compose-shim';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
 import { ExpectedError } from '@utils/errors';
-import { printer } from '@utils/printer';
 import { getAwsSynchronizedTime } from '@utils/time';
 import { getNextVersionString } from '@utils/versioning';
 import uniqBy from 'lodash/uniqBy';
+import { getEstimatedRemainingPercent, getStackDeploymentEstimate } from './duration-estimation';
 import { cfFailedEventHandlers, getHintsAfterStackFailureOperation } from './utils';
+
+const formatChangeSummary = ({
+  cfStackAction,
+  templateDiff,
+  createResourcesCount,
+  deleteResourcesCount
+}: {
+  cfStackAction: 'create' | 'update' | 'delete' | 'rollback';
+  templateDiff?: ReturnType<typeof templateManager.getOldTemplateDiff>;
+  createResourcesCount?: number;
+  deleteResourcesCount?: number;
+}) => {
+  const emptyLists = { created: [], updated: [], deleted: [] as string[] };
+  if (cfStackAction === 'create') {
+    return {
+      text: `Creating ${createResourcesCount || 0} resources`,
+      counts: { created: createResourcesCount || 0, updated: 0, deleted: 0 },
+      lists: emptyLists
+    };
+  }
+  if (cfStackAction === 'delete' || cfStackAction === 'rollback') {
+    return {
+      text: `Deleting ${deleteResourcesCount || 0} resources`,
+      counts: { created: 0, updated: 0, deleted: deleteResourcesCount || 0 },
+      lists: emptyLists
+    };
+  }
+  if (!templateDiff) {
+    return {
+      text: 'Updating resources',
+      counts: { created: 0, updated: 0, deleted: 0 },
+      lists: emptyLists
+    };
+  }
+
+  const added: string[] = [];
+  const removed: string[] = [];
+  const updated: string[] = [];
+  templateDiff.resources?.forEachDifference((logicalId, diff) => {
+    if (diff.isAddition) added.push(logicalId);
+    else if (diff.isRemoval) removed.push(logicalId);
+    else if (diff.isUpdate) updated.push(logicalId);
+  });
+  return {
+    text: 'Updating resources',
+    counts: { created: added.length, updated: updated.length, deleted: removed.length },
+    lists: { created: added, updated, deleted: removed }
+  };
+};
+
+const formatResourceList = (resources: string[], maxItems: number) => {
+  if (!resources.length) return 'none';
+  const visible = resources.slice(0, maxItems);
+  const overflow = resources.length - visible.length;
+  return `${visible.join(', ')}${overflow > 0 ? ` +${overflow}` : ''}`;
+};
 
 export class StackManager {
   callerIdentity: AwsCallerIdentity;
@@ -51,13 +108,21 @@ export class StackManager {
   init = async ({
     stackName,
     commandModifiesStack,
-    commandRequiresDeployedStack
+    commandRequiresDeployedStack,
+    parentEventType
   }: {
     stackName: string;
     commandModifiesStack: boolean;
     commandRequiresDeployedStack: boolean;
+    /** Optional parent event for grouping (e.g., LOAD_METADATA_FROM_AWS) */
+    parentEventType?: LoggableEventType;
   }) => {
-    await eventManager.startEvent({ eventType: 'FETCH_STACK_DATA', description: 'Fetching stack data' });
+    await eventManager.startEvent({
+      eventType: 'FETCH_STACK_DATA',
+      description: 'Fetching stack data',
+      parentEventType,
+      instanceId: parentEventType ? 'stack-data' : undefined
+    });
     this.#stackName = stackName;
 
     let stackDetails = await awsSdkManager.getStackDetails(stackName);
@@ -81,7 +146,9 @@ export class StackManager {
 
     await eventManager.finishEvent({
       eventType: 'FETCH_STACK_DATA',
-      data: { stackDetails, stackResources }
+      data: { stackDetails, stackResources },
+      parentEventType,
+      instanceId: parentEventType ? 'stack-data' : undefined
     });
   };
 
@@ -295,7 +362,7 @@ export class StackManager {
       while (STACK_OPERATION_IN_PROGRESS_STATUS.includes(stackDetails?.StackStatus as any)) {
         progressLogger.updateEvent({
           eventType: 'FETCH_STACK_DATA',
-          additionalMessage: `Waiting for stack to reach stable state before proceeding. Current stack state: ${printer.makeBold(
+          additionalMessage: `Waiting for stack to reach stable state before proceeding. Current stack state: ${tuiManager.makeBold(
             stackDetails?.StackStatus
           )}`
         });
@@ -381,13 +448,14 @@ export class StackManager {
       }
       await awsSdkManager.setTerminationProtection(!!stackParams.EnableTerminationProtection, this.#stackName);
       await eventManager.finishEvent({
-        eventType: 'UPDATE_STACK'
+        eventType: 'UPDATE_STACK',
+        finalMessage: 'Deployment successful.'
       });
       return result;
     }
     await eventManager.finishEvent({
       eventType: 'UPDATE_STACK',
-      additionalMessage: 'Skipped. No updates need to be performed.'
+      finalMessage: 'No updates needed.'
     });
     return {};
   };
@@ -427,6 +495,11 @@ export class StackManager {
       return;
     }
 
+    eventManager.updateEvent({
+      eventType: 'DELETE_STACK',
+      additionalMessage: `Scaling down ${ecsServiceArns.length} ECS service${ecsServiceArns.length > 1 ? 's' : ''} before delete...`
+    });
+
     // Ask ECS to scale all services to 0
     await Promise.all(
       ecsServiceArns.map(async (ecsServiceArn) => {
@@ -455,10 +528,15 @@ export class StackManager {
           }
         })
       );
-      const allDrained = services.every((svc) => !svc || (svc.runningCount || 0) === 0);
+      const totalRunning = services.reduce((sum, svc) => sum + (svc?.runningCount || 0), 0);
+      const allDrained = totalRunning === 0;
       if (allDrained) {
         return;
       }
+      eventManager.updateEvent({
+        eventType: 'DELETE_STACK',
+        additionalMessage: `Waiting for ${totalRunning} ECS task${totalRunning > 1 ? 's' : ''} to drain...`
+      });
       await wait(pollMs);
     }
   };
@@ -496,6 +574,7 @@ export class StackManager {
     const potentialErrorCausingEvents: { [logicalResourceId: string]: StackEvent } = {};
     const inProgressResources = new Set<string>();
     const completeResources = new Set<string>();
+    const seenResources = new Set<string>();
     let resourcesToHandleCount: number;
     let isResourceToHandleCountPossiblyInaccurate = false;
     if (cfStackAction === 'create') {
@@ -509,6 +588,16 @@ export class StackManager {
       isResourceToHandleCountPossiblyInaccurate = true;
       resourcesToHandleCount = Object.keys(templateManager.template.Resources).length;
     }
+    const templateDiff = cfStackAction === 'update' ? templateManager.getOldTemplateDiff() : undefined;
+    const updatedResourceLogicalNames =
+      cfStackAction === 'update' ? templateDiff?.resources?.logicalIds.filter(Boolean) : undefined;
+    const { totalSeconds } = getStackDeploymentEstimate({
+      cfStackAction,
+      template: cfStackAction === 'create' ? templateManager.initialTemplate : templateManager.template,
+      oldTemplate: templateManager.oldTemplate,
+      existingStackResources: this.existingStackResources,
+      resourceLogicalNames: updatedResourceLogicalNames
+    });
 
     let fetchSince = await getAwsSynchronizedTime();
     fetchSince.setSeconds(fetchSince.getSeconds() - 20);
@@ -533,10 +622,75 @@ export class StackManager {
           : `${
               cleanupAfterSuccessfulUpdateInProgress ? 'Cleaning up old resources in progress' : 'In progress'
             }: ${inProgressAmount}`;
-      const finishedPart = `Finished: ${completedAmount}/${isResourceToHandleCountPossiblyInaccurate ? '~' : ''}${
-        globalStateManager.command === 'rollback' ? 'unknown' : resourcesToHandleCount
-      }`;
-      onProgress(`${inProgressPart}. ${finishedPart}.`);
+      const finishedPart =
+        cfStackAction === 'create'
+          ? `Finished: ${completedAmount}/${isResourceToHandleCountPossiblyInaccurate ? '~' : ''}${resourcesToHandleCount}`
+          : `Finished: ${completedAmount}`;
+      const remainingPercent = getEstimatedRemainingPercent({
+        totalSeconds,
+        startTime: lastStackActionTimestamp,
+        now: new Date()
+      });
+      const estimatePart =
+        cleanupAfterSuccessfulUpdateInProgress || remainingPercent === null
+          ? ''
+          : ` Estimate: ~${remainingPercent === 100 ? '<1' : 100 - remainingPercent}%`;
+      const changeSummary = formatChangeSummary({
+        cfStackAction,
+        templateDiff,
+        createResourcesCount: resourcesToHandleCount,
+        deleteResourcesCount: resourcesToHandleCount
+      });
+      const plannedResources =
+        updatedResourceLogicalNames && updatedResourceLogicalNames.length > 0
+          ? new Set(updatedResourceLogicalNames)
+          : undefined;
+      const completedPlanned = plannedResources
+        ? Array.from(completeResources).filter((name) => plannedResources.has(name)).length
+        : completeResources.size;
+      const inProgressPlanned = plannedResources
+        ? Array.from(inProgressResources).filter((name) => plannedResources.has(name)).length
+        : inProgressResources.size;
+      const totalPlannedBase = plannedResources ? plannedResources.size : resourcesToHandleCount;
+      const totalSeen = seenResources.size;
+      const totalPlanned = Math.max(totalPlannedBase, totalSeen);
+      const waitingPlanned = Math.max(0, totalPlanned - completedPlanned - inProgressPlanned);
+      const activeList = formatResourceList(Array.from(inProgressResources), 3);
+      const waitingList =
+        waitingPlanned > 0
+          ? formatResourceList(
+              plannedResources
+                ? Array.from(plannedResources).filter(
+                    (name) => !inProgressResources.has(name) && !completeResources.has(name)
+                  )
+                : Array.from(seenResources).filter(
+                    (name) => !inProgressResources.has(name) && !completeResources.has(name)
+                  ),
+              3
+            )
+          : 'none';
+      // Build changes part - only show non-zero counts with resource names if available
+      const changesParts: string[] = [];
+      if (changeSummary.counts.created > 0) {
+        const resources =
+          changeSummary.lists.created.length > 0 ? ` (${formatResourceList(changeSummary.lists.created, 3)})` : '';
+        changesParts.push(`Creating: ${changeSummary.counts.created}${resources}`);
+      }
+      if (changeSummary.counts.updated > 0) {
+        const resources =
+          changeSummary.lists.updated.length > 0 ? ` (${formatResourceList(changeSummary.lists.updated, 3)})` : '';
+        changesParts.push(`Updating: ${changeSummary.counts.updated}${resources}`);
+      }
+      if (changeSummary.counts.deleted > 0) {
+        const resources =
+          changeSummary.lists.deleted.length > 0 ? ` (${formatResourceList(changeSummary.lists.deleted, 3)})` : '';
+        changesParts.push(`Deleting: ${changeSummary.counts.deleted}${resources}`);
+      }
+      const changesPart = changesParts.length > 0 ? changesParts.join('. ') + '.' : '';
+      const progressMessage = `${inProgressPart}. ${finishedPart}.${estimatePart}`.trim();
+      onProgress(
+        `${progressMessage} Progress: ${completedPlanned}/${totalPlanned}. Currently updating: ${activeList}. Waiting: ${waitingList}.${changesPart ? ` ${changesPart}` : ''}`
+      );
     };
 
     const { warningMessages }: { warningMessages?: string[] } = await new Promise((resolve, reject) => {
@@ -548,7 +702,7 @@ export class StackManager {
           const handledStackErrors = await this.#handleFailedEvents({
             potentialErrorCausingEvents
           });
-          const formattedStackErrorText = printer.formatComplexStackErrors(handledStackErrors, 2);
+          const formattedStackErrorText = tuiManager.formatComplexStackErrors(handledStackErrors, 2);
           return resolve({
             warningMessages: [
               `Stack was successfully updated, but errors occurred during old resources CLEANUP:\n${formattedStackErrorText}`
@@ -562,7 +716,8 @@ export class StackManager {
         cleanupMonitoring();
 
         const handledFailedEvents = await this.#handleFailedEvents({ potentialErrorCausingEvents });
-        const formattedStackErrorText = printer.formatComplexStackErrors(handledFailedEvents, 2);
+        tuiManager.writeInfo('handledFailedEvents', JSON.stringify(handledFailedEvents, null, 2));
+        const formattedStackErrorText = tuiManager.formatComplexStackErrors(handledFailedEvents, 2);
         const hints = getHintsAfterStackFailureOperation({
           cfStackAction,
           stackId,
@@ -571,7 +726,7 @@ export class StackManager {
         return reject(
           new ExpectedError(
             'STACK',
-            `Stack action ${this.stackActionType} failed.\nReasons:\n${formattedStackErrorText}`,
+            `Stack action ${this.stackActionType} failed.\n\n${formattedStackErrorText}\n`,
             hints
           )
         );
@@ -693,6 +848,7 @@ export class StackManager {
             // if the new event says that some resource is in progress, we add event into inProgressResources
             else if (status.endsWith('IN_PROGRESS')) {
               inProgressResources.add(LogicalResourceId);
+              seenResources.add(LogicalResourceId);
             }
             // if the new event says that some resource is complete, we add event into completedResources
             // however if some resource
@@ -704,6 +860,7 @@ export class StackManager {
             ) {
               completeResources.add(LogicalResourceId);
               inProgressResources.delete(LogicalResourceId);
+              seenResources.add(LogicalResourceId);
               delete potentialErrorCausingEvents[LogicalResourceId];
             }
             // if status of resource is failed, we should not fail entire operation

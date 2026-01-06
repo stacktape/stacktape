@@ -3,13 +3,13 @@ import type { FSWatcher } from 'chokidar';
 import type { Stats } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
 import { applicationManager } from '@application-services/application-manager';
+import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { configManager } from '@domain-services/config-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { inspectDockerContainer, listDockerContainers, stopDockerContainer } from '@shared/utils/docker';
-import { userPrompt } from '@shared/utils/user-prompt';
 import { getAugmentedEnvironment } from '@utils/environment';
-import { printer } from '@utils/printer';
 import { startPortForwardingSessions, substituteTunneledEndpointsInEnvironmentVars } from '@utils/ssm-session';
 import chokidar from 'chokidar';
 import { getLocalInvokeAwsCredentials, SESSION_DURATION_SECONDS } from '../_utils/assume-role';
@@ -158,9 +158,7 @@ export const getWorkloadEnvironmentVars = async (jobDetails: {
 
   setTimeout(
     () => {
-      printer.warn(
-        "Temporary AWS credentials used for the workload have expired. The workload won't have the IAM permissions that it has when running on AWS. To reload the credentials, please restart the dev command."
-      );
+      tuiManager.warn('Temporary AWS credentials expired. Restart dev to refresh permissions.');
     },
     (SESSION_DURATION_SECONDS - 120) * 1000
   );
@@ -202,16 +200,20 @@ export const resolveRunningContainersWithSamePort = async ({
   );
 
   if (containersWithConflictingPorts.length) {
-    const { shouldStopConflictingContainers } = await userPrompt({
-      type: 'confirm',
-      name: 'shouldStopConflictingContainers',
+    const shouldStopConflictingContainers = await tuiManager.promptConfirm({
       message: `The following containers have conflicting ports open. Would you like to remove them?:\n${containersWithConflictingPorts.map(
         (c) => `${c.Names.join(', ')} (${c.Id}).`
       )}`
     });
     if (shouldStopConflictingContainers) {
-      printer.info('Stopping containers with conflicting ports...');
-      await Promise.all(containersWithConflictingPorts.map((container) => gracefullyStopContainer(container.Id)));
+      await eventManager.startEvent({
+        eventType: 'STOP_CONTAINER',
+        description: `Stopping ${containersWithConflictingPorts.length} conflicting container${containersWithConflictingPorts.length > 1 ? 's' : ''}`
+      });
+      await Promise.all(
+        containersWithConflictingPorts.map((container) => stopDockerContainer(container.Id, getContainerStopWaitTime()))
+      );
+      await eventManager.finishEvent({ eventType: 'STOP_CONTAINER' });
     }
     if (onContainerStopped) {
       onContainerStopped();
@@ -222,7 +224,8 @@ export const resolveRunningContainersWithSamePort = async ({
 export const gracefullyStopContainer = async (containerName: string) => {
   const containerInfo = await inspectDockerContainer(containerName);
   if (containerInfo?.State?.Running) {
-    printer.info('Stopping last container...');
+    await eventManager.startEvent({ eventType: 'STOP_CONTAINER', description: 'Stopping previous container' });
     await stopDockerContainer(containerName, getContainerStopWaitTime());
+    await eventManager.finishEvent({ eventType: 'STOP_CONTAINER' });
   }
 };

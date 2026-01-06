@@ -1,5 +1,6 @@
 import type { IntrinsicFunction } from '@cloudform/dataTypes';
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { GetAtt, ImportValue, Ref, Sub } from '@cloudform/functions';
 import { IDENTIFIER_FOR_MISSING_OUTPUT } from '@config';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
@@ -13,7 +14,6 @@ import { SubWithoutMapping } from '@utils/cloudformation';
 import { ExpectedError } from '@utils/errors';
 import { loadFromAnySupportedFile, loadRawFileContent } from '@utils/file-loaders';
 import { gitInfoManager } from '@utils/git-info-manager';
-import { printer } from '@utils/printer';
 import { getAllReferencableParams, referenceableTypes } from '@utils/referenceable-types';
 import { validateFormatDirectiveParams, validateStackOutputName } from '@utils/validator';
 import { getNonExistingResourceError, getReferencableParamsError } from './utils/resource-references';
@@ -34,14 +34,14 @@ export const builtInDirectives: Directive[] = [
       if (res === null) {
         throw new ExpectedError(
           'DIRECTIVE',
-          `$File directive cannot load data from file ${printer.makeBold(sourcePath)}. File directive can only load from .env, JSON, YAML or INI files. Loaded file is automatically parsed and its properties can be accessed like this:${printer.makeBold('$File("myfile.json").myProperty')}`,
+          `$File directive cannot load data from file ${tuiManager.makeBold(sourcePath)}. File directive can only load from .env, JSON, YAML or INI files. Loaded file is automatically parsed and its properties can be accessed like this:${tuiManager.makeBold('$File("myfile.json").myProperty')}`,
           'If you wish to load raw file content as string, use $FileRaw directive. Docs: https://docs.stacktape.com/configuration/directives/#file-raw'
         );
       }
       if (res === undefined) {
         throw new ExpectedError(
           'DIRECTIVE',
-          `$File directive that references file ${printer.makeBold(sourcePath)} did not return a value.`
+          `$File directive that references file ${tuiManager.makeBold(sourcePath)} did not return a value.`
         );
       }
       return res;
@@ -232,7 +232,7 @@ export const builtInDirectives: Directive[] = [
         throw new ExpectedError(
           'DIRECTIVE',
           `Error resolving directive \`$Secret('${secretName}')\`:\n${err}`,
-          `If you did not create the secret yet, create it using ${printer.prettyCommand('secret:create')}`
+          `If you did not create the secret yet, create it using ${tuiManager.prettyCommand('secret:create')}`
         );
       }
       if (jsonKey) {
@@ -242,13 +242,13 @@ export const builtInDirectives: Directive[] = [
         } catch {
           throw new ExpectedError(
             'DIRECTIVE',
-            `Error resolving directive \`$Secret('${secretName}')\`:\nThe key ${printer.makeBold(jsonKey)} cannot be resolved, because the secret ${printer.makeBold(secretName)} is not a valid JSON object.`
+            `Error resolving directive \`$Secret('${secretName}')\`:\nThe key ${tuiManager.makeBold(jsonKey)} cannot be resolved, because the secret ${tuiManager.makeBold(secretName)} is not a valid JSON object.`
           );
         }
         if (!parsedSecret[jsonKey]) {
           throw new ExpectedError(
             'DIRECTIVE',
-            `Error resolving directive \`$Secret('${secretName}')\`:\nThe key ${printer.makeBold(jsonKey)} is not specified in the JSON secret ${printer.makeBold(secretName)}.`
+            `Error resolving directive \`$Secret('${secretName}')\`:\nThe key ${tuiManager.makeBold(jsonKey)} is not specified in the JSON secret ${tuiManager.makeBold(secretName)}.`
           );
         }
       }
@@ -361,8 +361,8 @@ export const builtInDirectives: Directive[] = [
       if (!res) {
         throw new ExpectedError(
           'DIRECTIVE',
-          `$GitInfo directive argument "${printer.makeBold(property)}" is not a valid argument.`,
-          [`Valid arguments are: ${Object.keys(gitInfo).map(printer.makeBold).join(', ')}`]
+          `$GitInfo directive argument "${tuiManager.makeBold(property)}" is not a valid argument.`,
+          [`Valid arguments are: ${Object.keys(gitInfo).map(tuiManager.makeBold).join(', ')}`]
         );
       }
       return res;
@@ -371,7 +371,7 @@ export const builtInDirectives: Directive[] = [
 ];
 
 const getDisableEmulationHint = () =>
-  `If you want to disable the automatic injection, use the ${printer.colorize(
+  `If you want to disable the automatic injection, use the ${tuiManager.colorize(
     'yellow',
     '--disableEmulation'
   )} (--de) flag`;

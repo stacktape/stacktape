@@ -1,5 +1,6 @@
 import type { TemplateDiff } from '@aws-cdk/cloudformation-diff';
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { StackStatus } from '@aws-sdk/client-cloudformation';
 import { budgetManager } from '@domain-services/budget-manager';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
@@ -9,7 +10,6 @@ import { deployedStackOverviewManager } from '@domain-services/deployed-stack-ov
 import { stpErrors } from '@errors';
 import { fsPaths } from '@shared/naming/fs-paths';
 import { getIsConfigPotentiallyUsable } from '@utils/file-loaders';
-import { printer } from '@utils/printer';
 import { getDetailedStackInfoMap } from '@utils/stack-info-map-diff';
 import { saveDetailedStackInfoMap } from '../_utils/common';
 import {
@@ -54,9 +54,7 @@ export const commandStackInfo = async (): Promise<StackInfoReturnValue> => {
     });
   }
   if (existingStackDetails?.StackStatus === StackStatus.UPDATE_FAILED) {
-    printer.warn(
-      'Stack is in UPDATE_FAILED state. Shown values might be different from actual deployed infrastructure values.'
-    );
+    tuiManager.warn('Stack status is UPDATE_FAILED; values may be stale.');
   }
 
   const canUseConfig = getIsConfigPotentiallyUsable();

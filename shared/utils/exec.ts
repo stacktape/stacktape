@@ -23,6 +23,8 @@ type ExecProps = {
   prefixStdioOutput?: string;
   disableExtendEnv?: boolean;
   inheritEnvVarsExcept?: string[];
+  /** Callback to receive output lines instead of piping to stdout/stderr. When set, output goes to callback only. */
+  onOutputLine?: (line: string, stream: 'stdout' | 'stderr') => void;
 };
 
 const cancellableExec = (command: string, args: string[], params: ExecProps) => {
@@ -48,7 +50,8 @@ const getChildProcess = (
     pipeStdio,
     disableExtendEnv,
     inheritEnvVarsExcept = [],
-    rawOptions = {}
+    rawOptions = {},
+    onOutputLine
   }: ExecProps,
   useNodeExec?: boolean
 ) => {
@@ -71,7 +74,12 @@ const getChildProcess = (
       const putTransforms = Array.isArray(transformStdoutPut) ? transformStdoutPut : [transformStdoutPut];
       stdoutStream = childProcess.stdout.pipe(new StreamTransformer(lineTransforms, putTransforms));
     }
-    stdoutStream.pipe(process.stdout);
+    if (onOutputLine) {
+      // Capture output via callback instead of piping to stdout
+      setupLineCallback(stdoutStream, (line) => onOutputLine(line, 'stdout'));
+    } else {
+      stdoutStream.pipe(process.stdout);
+    }
     stdoutStream.pipe(logCollectorStream, { end: false });
   }
   if (!disableStderr) {
@@ -81,10 +89,39 @@ const getChildProcess = (
       const putTransforms = Array.isArray(transformStderrPut) ? transformStderrPut : [transformStderrPut];
       stderrStream = childProcess.stderr.pipe(new StreamTransformer(lineTransforms, putTransforms));
     }
-    stderrStream.pipe(process.stderr);
+    if (onOutputLine) {
+      // Capture output via callback instead of piping to stderr
+      setupLineCallback(stderrStream, (line) => onOutputLine(line, 'stderr'));
+    } else {
+      stderrStream.pipe(process.stderr);
+    }
     stderrStream.pipe(logCollectorStream, { end: false });
   }
   return childProcess;
+};
+
+/**
+ * Set up a line-by-line callback for a readable stream.
+ */
+const setupLineCallback = (stream: NodeJS.ReadableStream, callback: (line: string) => void) => {
+  let buffer = '';
+  stream.on('data', (chunk: Buffer | string) => {
+    buffer += String(chunk);
+    const lines = buffer.split('\n');
+    // Keep the last incomplete line in buffer
+    buffer = lines.pop() || '';
+    for (const line of lines) {
+      if (line.trim()) {
+        callback(line);
+      }
+    }
+  });
+  stream.on('end', () => {
+    // Flush remaining buffer
+    if (buffer.trim()) {
+      callback(buffer);
+    }
+  });
 };
 
 export const exec = async (command: string, args: string[], params: ExecProps) => {

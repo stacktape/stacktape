@@ -1,5 +1,5 @@
 import { globalStateManager } from '@application-services/global-state-manager';
-import { printer } from '@utils/printer';
+import { tuiManager } from '@application-services/tui-manager';
 import orderBy from 'lodash/orderBy';
 import { marked } from 'marked';
 import { markedTerminal } from 'marked-terminal';
@@ -11,30 +11,30 @@ marked.use(
     // width: 70,
     showSectionPrefix: false,
     tab: 2,
-    firstHeading: printer.makeBold
+    firstHeading: tuiManager.makeBold.bind(tuiManager)
   })
 );
 
 const logHints = ({ showOptionsHint }: { showOptionsHint: boolean }) => {
-  console.info(`\n${printer.makeBold('Hints:')}\n`);
+  console.info(`\n${tuiManager.makeBold('Hints:')}\n`);
   if (showOptionsHint) {
     console.info(
-      `  To show available options for selected command, use \`${printer.colorize(
+      `  To show available options for selected command, use \`${tuiManager.colorize(
         'yellow',
         'stacktape help --command'
       )} <command>\``
     );
   }
-  console.info(`  For more information about CLI, visit ${printer.getLink('docsCli', 'CLI Documentation')}`);
-  console.info(`  To see the full documentation, visit ${printer.getLink('docs', 'Stacktape Docs')}`);
+  console.info(`  For more information about CLI, visit ${tuiManager.getLink('docsCli', 'CLI Documentation')}`);
+  console.info(`  To see the full documentation, visit ${tuiManager.getLink('docs', 'Stacktape Docs')}`);
 };
 
 const logUsage = ({ command }: { command: StacktapeCommand }) => {
   console.info(
-    `\n${printer.makeBold('Usage')}:\n\n  ${printer.colorize('yellow', 'stacktape')} (or ${printer.colorize(
+    `\n${tuiManager.makeBold('Usage')}:\n\n  ${tuiManager.colorize('yellow', 'stacktape')} (or ${tuiManager.colorize(
       'yellow',
       'stp'
-    )}) ${command ? printer.colorize('yellow', command) : '[command]'} ${printer.colorize(
+    )}) ${command ? tuiManager.colorize('yellow', command) : '[command]'} ${tuiManager.colorize(
       'gray',
       '--option'
     )} [option value]`
@@ -69,12 +69,12 @@ export const commandHelp = async () => {
   const command = globalStateManager.args.command;
   if (command) {
     logUsage({ command: command as StacktapeCommand });
-    console.info(`\n${printer.makeBold('Options:\n')}`);
+    console.info(`\n${tuiManager.makeBold('Options:\n')}`);
     const lines = [];
     for (const cliArg of getSortedCliArgs(command as StacktapeCliCommand)) {
       const description: string = (cliArg as any).description;
       lines.push(
-        `${printer.makeBold(printer.colorize('yellow', cliArg.argName))} ${
+        `${tuiManager.makeBold(tuiManager.colorize('yellow', cliArg.argName))} ${
           cliArg.required ? '(required)' : ''
         }\n  ${getDescription(description || '')}`
       );
@@ -83,12 +83,14 @@ export const commandHelp = async () => {
     logHints({ showOptionsHint: false });
   } else {
     logUsage({ command: null });
-    console.info(`\n${printer.makeBold('Available commands:\n')}`);
+    console.info(`\n${tuiManager.makeBold('Available commands:\n')}`);
 
     const lines = [];
     for (const commandName in commandsInfo) {
       const description: string = commandsInfo[commandName].description;
-      lines.push(`${printer.makeBold(printer.colorize('yellow', commandName))}\n  ${getDescription(description)}`);
+      lines.push(
+        `${tuiManager.makeBold(tuiManager.colorize('yellow', commandName))}\n  ${getDescription(description)}`
+      );
     }
     console.info(lines.join('\n'));
     logHints({ showOptionsHint: true });

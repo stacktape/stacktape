@@ -1,4 +1,4 @@
-import { printer } from './printer';
+import { tuiManager } from '@application-services/tui-manager';
 
 export const getPrettyTime = (durationInMillis: number) => {
   const formatTime = (num, prefix) => `${num} ${prefix}`;
@@ -22,7 +22,7 @@ export const getPrettyTime = (durationInMillis: number) => {
 
 export const getPrettyPrintedFlatObject = (obj: Record<string, string | number | boolean>) => {
   return Object.entries(obj)
-    .map(([name, val]) => ` ○ ${printer.makeBold(name)}: ${val}`)
+    .map(([name, val]) => ` ○ ${tuiManager.makeBold(name)}: ${val}`)
     .join('\n');
 };
 

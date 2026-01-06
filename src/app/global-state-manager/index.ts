@@ -2,6 +2,7 @@ import { dirname, isAbsolute, join } from 'node:path';
 import { applicationManager } from '@application-services/application-manager';
 import { eventManager } from '@application-services/event-manager';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { commandsNotRequiringApiKey } from '@cli-config';
 import {
   DEFAULT_CLOUDFORMATION_REGISTRY_BUCKET_NAME,
@@ -13,12 +14,10 @@ import { stpErrors } from '@errors';
 import { getRoleArnFromSessionArn } from '@shared/naming/utils';
 import { getGloballyUniqueStackHash } from '@shared/utils/hashing';
 import { propertyFromObjectOrNull } from '@shared/utils/misc';
-import { userPrompt } from '@shared/utils/user-prompt';
 import { listAwsProfiles, loadAwsConfigFileContent } from '@utils/aws-config';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { memoizeGetters } from '@utils/decorators';
 import { loadHelperLambdaDetails } from '@utils/helper-lambdas';
-import { printer } from '@utils/printer';
 import { getAwsSynchronizedTime } from '@utils/time';
 import { generateShortUuid, generateUuid } from '@utils/uuid';
 import {
@@ -128,13 +127,12 @@ export class GlobalStateManager {
     this.apiKey = process.env.STACKTAPE_API_KEY || this.persistedState?.otherDefaults?.apiKey;
     if (!this.apiKey && !commandsNotRequiringApiKey.includes(this.command) && this.invokedFrom !== 'server') {
       if (process.stdout.isTTY) {
-        const res = await userPrompt({
-          type: 'password',
-          name: 'apiKey',
-          message: `Your Stacktape API key (available in the ${printer.getLink('apiKeys', 'console')})`
+        const apiKey = await tuiManager.promptText({
+          isPassword: true,
+          message: `Your Stacktape API key (available in the ${tuiManager.getLink('apiKeys', 'console')})`
         });
-        this.apiKey = res.apiKey;
-        await this.saveApiKey({ apiKey: res.apiKey });
+        this.apiKey = apiKey;
+        await this.saveApiKey({ apiKey });
       } else {
         throw stpErrors.e501({ operation: this.command });
       }
@@ -421,7 +419,7 @@ export class GlobalStateManager {
     }[this.credentials.source];
     await eventManager.finishEvent({
       eventType: 'LOAD_AWS_CREDENTIALS',
-      finalMessage: `Loaded from ${printer.makeBold(loadedFrom)}.`
+      finalMessage: `Loaded from ${tuiManager.makeBold(loadedFrom)}.`
     });
     return this.credentials;
   };
@@ -471,12 +469,10 @@ export class GlobalStateManager {
   #resolveStage = async () => {
     let stage = this.args.stage || this.persistedState?.cliArgsDefaults.stage;
     if (!stage) {
-      ({ stage } = await userPrompt({
-        type: 'text',
-        name: 'stage',
+      stage = await tuiManager.promptText({
         message: 'Enter stage (environment) for the operation (i.e production, test or staging)',
-        initial: 'test'
-      }));
+        placeholder: 'test'
+      });
     }
     return stage;
   };
@@ -485,11 +481,9 @@ export class GlobalStateManager {
     const createNewProject = async (projectName?: string) => {
       let chosenProjectName = projectName;
       if (!chosenProjectName) {
-        ({ chosenProjectName } = await userPrompt({
-          type: 'text',
-          name: 'chosenProjectName',
+        chosenProjectName = await tuiManager.promptText({
           message: 'Enter name for your project (i.e "my-todo-app"). Use only letters, numbers and dashes.'
-        }));
+        });
       }
       validateProjectName(chosenProjectName);
       // console.log(' !!! do not forget to uncomment this !!!');
@@ -504,19 +498,19 @@ export class GlobalStateManager {
     };
 
     const chooseExistingProject = async () => {
-      const { existingProjectName } = await userPrompt({
-        type: 'select',
-        name: 'existingProjectName',
+      const existingProjectName = await tuiManager.promptSelect({
         message: 'Select existing project',
-        choices: this.projects
+        options: this.projects
           .sort((p1, p2) => p1.name.localeCompare(p2.name))
-          .map(({ name }) => ({ title: name, value: name }))
+          .map(({ name }) => ({ label: name, value: name }))
       });
       return this.projects.find(({ name }) => name === existingProjectName);
     };
     if (configManager.configResolver.rawConfig?.serviceName) {
-      printer.warn(
-        `Using ${printer.prettyConfigProperty('serviceName')} property in config is deprecated. Use "--projectName <<serviceName>>" (${printer.colorize('gray', `--projectName ${configManager.configResolver.rawConfig?.serviceName}`)}) option instead.`
+      tuiManager.warn(
+        `Config ${tuiManager.prettyConfigProperty('serviceName')} is deprecated. Use ${tuiManager.prettyOption(
+          'projectName'
+        )} (e.g. ${tuiManager.colorize('gray', `--projectName ${configManager.configResolver.rawConfig?.serviceName}`)}).`
       );
     }
     const projectName =
@@ -528,20 +522,11 @@ export class GlobalStateManager {
         throw stpErrors.e103(null);
       }
       if (this.projects.length) {
-        // Prompt user wether he wants to Choose existing project or create a new one
-        const { newOrExisting } = await userPrompt({
-          type: 'select',
-          name: 'newOrExisting',
-          message: `Which project do you want to use? (You can also specify it using ${printer.prettyOption('projectName')}).`,
-          choices: [
-            {
-              title: 'Create new project',
-              value: 'new'
-            },
-            {
-              title: 'Choose existing project',
-              value: 'existing'
-            }
+        const newOrExisting = await tuiManager.promptSelect({
+          message: `Which project do you want to use? (You can also specify it using ${tuiManager.prettyOption('projectName')}).`,
+          options: [
+            { label: 'Create new project', value: 'new' },
+            { label: 'Choose existing project', value: 'existing' }
           ]
         });
         if (newOrExisting === 'existing') {
@@ -577,19 +562,11 @@ export class GlobalStateManager {
     // if project name comes from serviceName we will skip this prompt and create project
     // otherwise we assume that user might have mistyped the "--projectName"
     if (!projectNameComesFromConfigServiceName) {
-      const { newOrExisting } = await userPrompt({
-        type: 'select',
-        name: 'newOrExisting',
-        message: `Project with name ${printer.colorize('gray', projectName)} does not exist.`,
-        choices: [
-          {
-            title: `Create project with name ${printer.colorize('gray', `"${projectName}"`)}.`,
-            value: 'new'
-          },
-          {
-            title: 'Choose existing project',
-            value: 'existing'
-          }
+      const newOrExisting = await tuiManager.promptSelect({
+        message: `Project with name ${tuiManager.colorize('gray', projectName)} does not exist.`,
+        options: [
+          { label: `Create project with name ${tuiManager.colorize('gray', `"${projectName}"`)}.`, value: 'new' },
+          { label: 'Choose existing project', value: 'existing' }
         ]
       });
 

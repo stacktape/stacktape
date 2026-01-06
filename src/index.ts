@@ -2,9 +2,9 @@ import { announcementsManager } from '@application-services/announcements-manage
 import { applicationManager } from '@application-services/application-manager';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { commandsWithDisabledAnnouncements } from '@cli-config';
 import { notificationManager } from '@domain-services/notification-manager';
-import { printer } from '@utils/printer';
 import { initializeSentry, setSentryTags } from '@utils/sentry';
 import { deleteTempFolder } from '@utils/temp-files';
 import { commandAwsProfileCreate } from './commands/aws-profile-create';
@@ -52,15 +52,26 @@ export const runCommand = async (opts: StacktapeProgrammaticOptions) => {
     await announcementsManager.init();
     setSentryTags({ invocationId: globalStateManager.invocationId, command: globalStateManager.command });
     await deleteTempFolder();
+
+    tuiManager.init({ logFormat: globalStateManager.logFormat, logLevel: globalStateManager.logLevel });
+    tuiManager.start();
+
     const executor = getCommandExecutor(globalStateManager.command);
     const commandResult = await executor();
     await eventManager.processHooks({ captureType: 'FINISH' });
+
+    // Commit pending completion (from setPendingCompletion) before stopping
+    tuiManager.commitPendingCompletion();
+
     await eventManager.processFinalActions();
+
+    await tuiManager.stop();
+
     await applicationManager.cleanUpAfterSuccess();
     const result = { result: commandResult, eventLog: eventManager.formattedEventLogData };
     // console.dir(result.eventLog, { depth: 7 });
     if (globalStateManager.invokedFrom === 'sdk') {
-      printer.printStacktapeLog({ type: 'FINISH', data: result });
+      tuiManager.printStacktapeLog({ type: 'FINISH', data: result });
     } else if (!commandsWithDisabledAnnouncements.includes(globalStateManager.command)) {
       await announcementsManager.checkForUpdates();
       await announcementsManager.printAnnouncements();
@@ -71,6 +82,7 @@ export const runCommand = async (opts: StacktapeProgrammaticOptions) => {
     }
     const returnableError = await applicationManager.handleError(err);
     await notificationManager.reportError(returnableError.stack);
+    await tuiManager.stop();
     throw returnableError;
   }
 };

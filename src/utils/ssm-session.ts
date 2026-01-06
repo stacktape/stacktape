@@ -3,6 +3,7 @@ import type { StartSessionCommandInput } from '@aws-sdk/client-ssm';
 import type { ExecaChildProcess } from 'execa';
 import readline from 'node:readline';
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { CommandInvocationStatus } from '@aws-sdk/client-ssm';
 import { stpErrors } from '@errors';
 import { fsPaths } from '@shared/naming/fs-paths';
@@ -14,7 +15,6 @@ import findFreePorts from 'find-free-ports';
 import pRetry from 'p-retry';
 import { awsSdkManager } from './aws-sdk-manager';
 import { SsmExecuteScriptCloudwatchLogPrinter } from './cloudwatch-logs';
-import { printer } from './printer';
 
 export class SsmPortForwardingTunnel {
   #instanceId: string;
@@ -93,7 +93,7 @@ export class SsmPortForwardingTunnel {
             if (!`${error}`.includes('TargetNotConnected')) {
               throw error;
             }
-            printer.debug(`Tunneling through ${this.#instanceId} failed. Attempting reconnect`);
+            tuiManager.debug(`Tunnel via ${this.#instanceId} failed. Reconnecting...`);
           }
         }
       ).catch((error) => reject(error));

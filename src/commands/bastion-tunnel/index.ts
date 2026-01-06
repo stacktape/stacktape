@@ -1,9 +1,9 @@
 import { applicationManager } from '@application-services/application-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { stpErrors } from '@errors';
 import { wait } from '@shared/utils/misc';
-import { printer } from '@utils/printer';
 import { startPortForwardingSessions } from '@utils/ssm-session';
 import { initializeStackServicesForWorkingWithDeployedStack } from '../_utils/initialization';
 
@@ -36,15 +36,15 @@ export const commandBastionTunnel = async () => {
     startAtPort: globalStateManager.args.localTunnelingPort
   });
 
-  printer.info(
-    `Following tunnels are open:\n\n${targets
+  tuiManager.info(
+    `Tunnels open (local -> remote):\n\n${targets
       .map(({ label, additionalStringToSubstitute, remoteHost, remotePort }, index) => {
-        return ` - ${printer.prettyResourceName(resourceName)} ${printer.colorize(
+        return ` - ${tuiManager.prettyResourceName(resourceName)} ${tuiManager.colorize(
           'gray',
           label
-        )} --> ${printer.colorize('green', `127.0.0.1:${tunnels[index].localPort}`)}${
+        )} --> ${tuiManager.colorize('green', `127.0.0.1:${tunnels[index].localPort}`)}${
           additionalStringToSubstitute
-            ? ` ( ${printer.colorize(
+            ? ` ( ${tuiManager.colorize(
                 'gray',
                 additionalStringToSubstitute.replace(
                   `${remoteHost}:${remotePort}`,

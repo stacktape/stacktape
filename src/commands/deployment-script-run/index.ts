@@ -1,10 +1,10 @@
+import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { configManager } from '@domain-services/config-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { stpErrors } from '@errors';
 import { tagNames } from '@shared/naming/tag-names';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
-import { printer } from '@utils/printer';
 import { buildAndUpdateFunctionCode } from '../_utils/fn-deployment';
 import { initializeStackServicesForHotSwapDeploy } from '../_utils/initialization';
 
@@ -33,18 +33,24 @@ export const commandDeploymentScriptRun = async (): Promise<DeploymentScriptRunR
     })
   ]);
 
-  printer.info(`Running deployment-script ${printer.colorize('cyan', resourceName)}`);
+  await eventManager.startEvent({
+    eventType: 'RUN_DEPLOYMENT_SCRIPT',
+    description: `Running deployment script ${resourceName}`
+  });
   const response = await awsSdkManager.invokeLambdaFunction({
     lambdaResourceName: lambdaArn,
     payload: scriptParametersResolvedLocally
   });
-
-  printInformationAboutScriptResult({ stpResourceName: resourceName, response });
+  const resultMessage = getScriptResultMessage({ stpResourceName: resourceName, response });
+  await eventManager.finishEvent({
+    eventType: 'RUN_DEPLOYMENT_SCRIPT',
+    finalMessage: resultMessage
+  });
 
   return { success: !response.FunctionError, returnedPayload: response.Payload };
 };
 
-const printInformationAboutScriptResult = ({
+const getScriptResultMessage = ({
   stpResourceName,
   response
 }: {
@@ -57,23 +63,10 @@ const printInformationAboutScriptResult = ({
   } catch {
     // do nothing
   }
-
   if (response.FunctionError) {
-    printer.info(
-      `${printer.colorize(
-        'red',
-        'Deployment-script FAILED.\nERROR'
-      )} returned from deployment-script ${printer.colorize('cyan', stpResourceName)}:\n${
-        formattedJsonResponse || response.Payload
-      }`
-    );
-  } else {
-    printer.success(
-      `Deployment-script ${printer.colorize('cyan', stpResourceName)} finished successfully. Returned payload:\n${
-        formattedJsonResponse || response.Payload
-      }`
-    );
+    return `Failed. Error from ${stpResourceName}:\n${formattedJsonResponse || response.Payload}`;
   }
+  return `Succeeded. Payload:\n${formattedJsonResponse || response.Payload}`;
 };
 
 const validateCorrectResourceExistence = ({

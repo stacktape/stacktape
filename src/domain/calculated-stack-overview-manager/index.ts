@@ -73,7 +73,11 @@ export class CalculatedStackOverviewManager {
   };
 
   resolveAllResources = async () => {
-    await eventManager.startEvent({ eventType: 'RESOLVE_CONFIG', description: 'Resolving configuration' });
+    await eventManager.startEvent({
+      eventType: 'RESOLVE_CONFIG',
+      description: 'Resolving configuration',
+      phase: 'INITIALIZE'
+    });
     await Promise.all([
       resolveStackOutputs(),
       resolveCustomResources(),
@@ -121,7 +125,7 @@ export class CalculatedStackOverviewManager {
       resolveNextjsWebs(),
       resolveEfsFilesystems()
     ]);
-    await eventManager.finishEvent({ eventType: 'RESOLVE_CONFIG' });
+    await eventManager.finishEvent({ eventType: 'RESOLVE_CONFIG', phase: 'INITIALIZE' });
   };
 
   get resourceCount() {

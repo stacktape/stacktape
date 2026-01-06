@@ -1,19 +1,19 @@
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { configManager } from '@domain-services/config-manager';
 import { WebClient } from '@slack/web-api';
 import compose from '@utils/basic-compose-shim';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
 import { getPrettyPrintedFlatObject } from '@utils/formatting';
 import { jsonFetch } from '@utils/http-client';
-import { printer } from '@utils/printer';
 
 const getWarnOnFailedNotificationHandler =
   (args: { type: DeploymentNotificationUserIntegration['type']; [arg: string]: any }) => (err) => {
     const { type, ...restArgs } = args;
-    printer.warn(
-      `Failed to send notification to ${printer.colorize('cyan', type)}. Details:\n${getPrettyPrintedFlatObject(
+    tuiManager.warn(
+      `Notification to ${tuiManager.colorize('cyan', type)} failed.\nDetails:\n${getPrettyPrintedFlatObject(
         restArgs
-      )}\n${printer.colorize('red', 'Error')}: ${err}`
+      )}\n${tuiManager.colorize('red', 'Error')}: ${err}`
     );
   };
 

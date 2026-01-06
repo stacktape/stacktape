@@ -1,11 +1,10 @@
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { DesiredStatus } from '@aws-sdk/client-ecs';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { stpErrors } from '@errors';
-import { userPrompt } from '@shared/utils/user-prompt';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
-import { printer } from '@utils/printer';
 import { runEcsExecSsmShellSession } from '@utils/ssm-session';
 import { initializeStackServicesForWorkingWithDeployedStack } from '../_utils/initialization';
 
@@ -64,19 +63,17 @@ const resolveTargetContainer = async () => {
 
   let taskArn = tasks[0]?.taskArn;
   if (tasks.length > 1) {
-    ({ taskArn } = await userPrompt({
-      type: 'select',
-      name: 'taskArn',
+    taskArn = await tuiManager.promptSelect({
       message: 'There are multiple instances running. Please select the one you want to connect to.',
-      choices: tasks
+      options: tasks
         .sort((t1, t2) => t1.taskArn.localeCompare(t2.taskArn))
         .map(({ taskArn: ta, startedAt }) => ({
-          title: `${ta.split('/').pop()} (started at: ${startedAt})`,
+          label: `${ta.split('/').pop()} (started at: ${startedAt})`,
           value: ta
         }))
-    }));
+    });
   }
-  printer.debug(JSON.stringify(tasks, null, 2));
+  tuiManager.debug(JSON.stringify(tasks, null, 2));
   const task = tasks.find(({ taskArn: tArn }) => tArn === taskArn);
   return { task, containerName: container || containersInTaskDefinition[0] };
 };

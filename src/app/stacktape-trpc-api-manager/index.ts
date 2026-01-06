@@ -1,8 +1,8 @@
+import { tuiManager } from '@application-services/tui-manager';
 import { ApiKeyProtectedClient } from '../../../shared/trpc/api-key-protected';
 import { stpErrors } from '../../config/error-messages';
 import { IS_DEV } from '../../config/random';
 import { gitInfoManager } from '../../utils/git-info-manager';
-import { printer } from '../../utils/printer';
 import { getStacktapeVersion } from '../../utils/versioning';
 import { globalStateManager } from '../global-state-manager';
 
@@ -17,15 +17,15 @@ class StacktapeTrpcApiManager {
         this.apiClient[prop] = async (...args) => {
           const start = Date.now();
           try {
-            printer.debug(`Performing TRPC operation ${prop}.`);
+            tuiManager.debug(`TRPC ${prop}: start.`);
             const res = await oldMethod(...args);
-            printer.debug(`Stacktape TRPC operation ${prop} took ${Date.now() - start}ms.`);
+            tuiManager.debug(`TRPC ${prop}: ${Date.now() - start}ms.`);
             return res;
           } catch (err) {
             if (IS_DEV) {
-              printer.warn(`Communication with Stacktape API has failed:\n${err}`);
+              tuiManager.warn(`Stacktape API request failed:\n${err}`);
             }
-            printer.debug(`Stacktape TRPC API operation ${prop} took ${Date.now() - start}ms.`);
+            tuiManager.debug(`TRPC API ${prop}: ${Date.now() - start}ms.`);
             const errCode = err?.shape?.data.code;
             if (errCode === 'UNAUTHORIZED' && apiKey) {
               throw stpErrors.e503({ message: 'Invalid API key.' });
