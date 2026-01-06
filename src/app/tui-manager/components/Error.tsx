@@ -16,6 +16,44 @@ type ErrorDisplayProps = {
   error: ErrorDisplayData;
 };
 
+// Map error codes to human-readable labels
+const ERROR_TYPE_LABELS: Record<string, string> = {
+  API_KEY: 'API Key Error',
+  API_SERVER: 'API Server Error',
+  AWS_ACCOUNT: 'AWS Account Error',
+  BUDGET: 'Budget Error',
+  CLI: 'CLI Error',
+  CODEBUILD: 'CodeBuild Error',
+  CONFIG: 'Configuration Error',
+  CONFIG_GENERATION: 'Config Generation Error',
+  CONFIG_VALIDATION: 'Config Validation Error',
+  CONFIRMATION_REQUIRED: 'Confirmation Required',
+  CREDENTIALS: 'Credentials Error',
+  DIRECTIVE: 'Directive Error',
+  DOCKER: 'Docker Error',
+  DOMAIN_MANAGEMENT: 'Domain Management Error',
+  EXISTING_STACK: 'Existing Stack Error',
+  INPUT: 'Input Error',
+  MISSING_OUTPUT: 'Missing Output Error',
+  MISSING_PREREQUISITE: 'Missing Prerequisite',
+  NON_EXISTING_RESOURCE: 'Resource Not Found',
+  NON_EXISTING_STACK: 'Stack Not Found',
+  NOT_YET_IMPLEMENTED: 'Not Yet Implemented',
+  PACKAGING_CONFIG: 'Packaging Config Error',
+  PARAMETER: 'Parameter Error',
+  SCRIPT: 'Script Error',
+  SOURCE_CODE: 'Source Code Error',
+  STACK: 'Stack Error',
+  STACK_MONITORING: 'Stack Monitoring Error',
+  SUBSCRIPTION_REQUIRED: 'Subscription Required',
+  SYNC_BUCKET: 'Bucket Sync Error',
+  UNSUPPORTED_RESOURCE: 'Unsupported Resource'
+};
+
+const getErrorLabel = (errorType: string): string => {
+  return ERROR_TYPE_LABELS[errorType] || errorType.replace(/_/g, ' ') + ' Error';
+};
+
 const HintSection: React.FC<{ hints: string[] }> = ({ hints }) => {
   if (hints.length === 0) return null;
 
@@ -68,7 +106,7 @@ const SentrySection: React.FC<{ sentryEventId: string }> = ({ sentryEventId }) =
 
 export const ErrorDisplay: React.FC<ErrorDisplayProps> = ({ error }) => {
   const hints = error.hints || [];
-  const typeLabel = error.isExpected === false ? 'UNEXPECTED ERROR' : error.errorType;
+  const typeLabel = error.isExpected === false ? 'Unexpected Error' : getErrorLabel(error.errorType);
 
   return (
     <Box flexDirection="column" marginY={1}>
@@ -162,9 +200,9 @@ export const renderErrorToString = (
   makeBold: (text: string) => string
 ): string => {
   const lines: string[] = [];
-  const boxWidth = 56;
+  const boxWidth = 44;
   const contentWidth = boxWidth - 2;
-  const typeLabel = error.isExpected === false ? 'UNEXPECTED ERROR' : error.errorType;
+  const typeLabel = error.isExpected === false ? 'Unexpected Error' : getErrorLabel(error.errorType);
 
   // Top border
   lines.push(colorize('red', `${CORNER_TL}${BORDER_CHAR.repeat(boxWidth)}${CORNER_TR}`));
