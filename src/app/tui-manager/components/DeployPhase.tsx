@@ -134,7 +134,7 @@ const renderResourceList = (label: string, items: string) => {
   return (
     <Box>
       <Text color="gray">{label}</Text>
-      <Text> {list.join(' • ')}</Text>
+      <Text wrap="truncate"> {list.join(' • ')}</Text>
     </Box>
   );
 };
@@ -186,7 +186,7 @@ export const DeployPhase: React.FC<DeployPhaseProps> = ({ phase, phaseNumber, wa
       : isCreateArtifactsOperation
         ? 'Creating resources'
         : 'Deploying';
-  const currentlyLabel = isDeleteOperation ? 'Currently deleting:' : 'Currently updating:';
+  const currentlyLabel = isDeleteOperation ? 'Deleting:' : 'Updating:';
 
   // For hotswap deployments, render the deploy event as an Event component to show its children nested
   // For CloudFormation, we use custom UI instead
