@@ -27,19 +27,13 @@ const StatusIcon: React.FC<{ status: TuiEvent['status'] }> = ({ status }) => {
   }
 };
 
-/**
- * Format an instanceId or key into a readable description.
- * e.g., "stack-data" -> "Stack data", "previous-artifacts" -> "Previous artifacts"
- */
-const formatDescription = (id: string): string => {
-  return id.replace(/[-_]/g, ' ').replace(/^./, (c) => c.toUpperCase());
-};
+type AggregatedEvent = TuiEvent & { boldPrefix?: string };
 
 /**
  * In TTY mode, aggregate children by instanceId (workload name) to show a cleaner summary.
  * Shows "Workload: current action" while running, "Workload: Done" or "Workload: Skipped" when finished.
  */
-const getAggregatedChildren = (children: TuiEvent[]): TuiEvent[] => {
+const getAggregatedChildren = (children: TuiEvent[]): AggregatedEvent[] => {
   if (children.length === 0) return [];
 
   const byInstanceId = new Map<string, TuiEvent[]>();
@@ -71,33 +65,29 @@ const getAggregatedChildren = (children: TuiEvent[]): TuiEvent[] => {
     const endTimes = events.filter((e) => e.endTime).map((e) => e.endTime!);
     const endTime = allFinished && endTimes.length > 0 ? Math.max(...endTimes) : undefined;
 
-    // Build description: "Workload: current action" while running, "Workload: Done/Skipped" when finished
-    const workloadName = formatDescription(instanceId);
-    let description: string;
+    // Build description: "instanceId: current action" while running, "instanceId: Done/Skipped" when finished
+    // boldPrefix contains the workload name to be rendered in bold
+    let descriptionSuffix: string;
     if (allFinished) {
-      // Check if all events were skipped (finalMessage contains "Skipped" or outcome was skipped)
       const wasSkipped = events.length === 1 && events[0].finalMessage?.toLowerCase().includes('skipped');
-      description = anyError
-        ? `${workloadName}: Failed`
-        : wasSkipped
-          ? `${workloadName}: Skipped`
-          : `${workloadName}: Done`;
+      descriptionSuffix = anyError ? 'Failed' : wasSkipped ? 'Skipped' : 'Done';
     } else if (runningEvent) {
-      description = `${workloadName}: ${runningEvent.description}`;
+      descriptionSuffix = runningEvent.description;
     } else {
-      description = workloadName;
+      descriptionSuffix = '';
     }
 
     return {
       ...firstEvent,
       id: `aggregated-${instanceId}`,
-      description,
+      boldPrefix: instanceId,
+      description: descriptionSuffix,
       status: runningEvent ? 'running' : allFinished ? (anyError ? 'error' : 'success') : 'running',
       startTime,
       endTime,
       duration: allFinished && endTime ? endTime - startTime : undefined,
-      children: [] // Don't show nested children in aggregated view
-    } as TuiEvent;
+      children: []
+    } as AggregatedEvent;
   });
 };
 
@@ -105,7 +95,7 @@ const getAggregatedChildren = (children: TuiEvent[]): TuiEvent[] => {
  * Aggregate hotswap children by workload, showing current action while running
  * and "Hotswap done" when finished.
  */
-const getAggregatedHotswapChildren = (children: TuiEvent[]): TuiEvent[] => {
+const getAggregatedHotswapChildren = (children: TuiEvent[]): AggregatedEvent[] => {
   if (children.length === 0) return [];
 
   const byInstanceId = new Map<string, TuiEvent[]>();
@@ -136,28 +126,27 @@ const getAggregatedHotswapChildren = (children: TuiEvent[]): TuiEvent[] => {
     const endTimes = events.filter((e) => e.endTime).map((e) => e.endTime!);
     const endTime = allFinished && endTimes.length > 0 ? Math.max(...endTimes) : undefined;
 
-    // Build description: "Workload: current action" while running, "Workload: Hotswap done" when finished
-    const workloadName = formatDescription(instanceId);
-    let description: string;
+    // Build description suffix, boldPrefix contains the workload name
+    let descriptionSuffix: string;
     if (allFinished) {
-      description = anyError ? `${workloadName}: Hotswap failed` : `${workloadName}: Hotswap done`;
+      descriptionSuffix = anyError ? 'Hotswap failed' : 'Hotswap done';
     } else if (runningEvent) {
-      description = `${workloadName}: ${runningEvent.description}`;
+      descriptionSuffix = runningEvent.description;
     } else {
-      // Pending or unknown state
-      description = `${workloadName}: ${firstEvent.description}`;
+      descriptionSuffix = firstEvent.description;
     }
 
     return {
       ...firstEvent,
       id: `hotswap-${instanceId}`,
-      description,
+      boldPrefix: instanceId,
+      description: descriptionSuffix,
       status: runningEvent ? 'running' : allFinished ? (anyError ? 'error' : 'success') : 'running',
       startTime,
       endTime,
       duration: allFinished && endTime ? endTime - startTime : undefined,
       children: []
-    } as TuiEvent;
+    } as AggregatedEvent;
   });
 };
 
@@ -175,7 +164,7 @@ export const Event: React.FC<EventProps> = ({ event, isChild = false, isLast = f
   const shouldAggregateHotswap = isTTY && hasChildren && isHotswapParent;
   const shouldAggregateNormal = isTTY && hasChildren && !isHotswapParent;
 
-  let displayChildren: TuiEvent[];
+  let displayChildren: AggregatedEvent[];
   if (shouldAggregateHotswap) {
     displayChildren = getAggregatedHotswapChildren(event.children);
   } else if (shouldAggregateNormal) {
@@ -184,20 +173,38 @@ export const Event: React.FC<EventProps> = ({ event, isChild = false, isLast = f
     displayChildren = event.children;
   }
 
-  const displayDescription = event.description;
+  // Flatten single-child events: show "Parent Child: status" instead of nested display
+  const shouldFlatten = isTTY && displayChildren.length === 1 && !hasOutputLines;
+  const flattenedChild = shouldFlatten ? displayChildren[0] : null;
+
+  // Use child's status/duration when flattened
+  const displayStatus = flattenedChild ? flattenedChild.status : event.status;
+  const displayDuration = flattenedChild ? flattenedChild.duration : event.duration;
+  const displayFinalMessage = flattenedChild ? flattenedChild.finalMessage : event.finalMessage;
+  const displayAdditionalMessage = flattenedChild ? flattenedChild.additionalMessage : event.additionalMessage;
+
+  // Get bold prefix (workload name) when flattened
+  const boldPrefix = flattenedChild?.boldPrefix;
+  // Build description parts
+  const descriptionPrefix = event.description;
+  const descriptionSuffix = flattenedChild?.description || '';
 
   return (
     <Box flexDirection="column">
       <Box>
         <Text>{indent}</Text>
         {isChild && <Text color="gray">{prefix} </Text>}
-        <StatusIcon status={event.status} />
-        <Text> {displayDescription}</Text>
-        {event.duration !== undefined && event.status !== 'running' && (
-          <Text color="yellow"> {formatDuration(event.duration)}</Text>
+        <StatusIcon status={displayStatus} />
+        <Text> {descriptionPrefix}</Text>
+        {boldPrefix && <Text bold> {boldPrefix}</Text>}
+        {descriptionSuffix && <Text>: {descriptionSuffix}</Text>}
+        {displayDuration !== undefined && displayStatus !== 'running' && (
+          <Text color="yellow"> {formatDuration(displayDuration)}</Text>
         )}
-        {event.finalMessage && event.status !== 'running' && <Text color="gray"> {event.finalMessage}</Text>}
-        {event.additionalMessage && event.status === 'running' && <Text color="gray"> {event.additionalMessage}</Text>}
+        {displayFinalMessage && displayStatus !== 'running' && <Text color="gray"> {displayFinalMessage}</Text>}
+        {displayAdditionalMessage && displayStatus === 'running' && (
+          <Text color="gray"> {displayAdditionalMessage}</Text>
+        )}
       </Box>
 
       {/* Render captured output lines (e.g., from script execution) */}
@@ -213,7 +220,8 @@ export const Event: React.FC<EventProps> = ({ event, isChild = false, isLast = f
         </Box>
       )}
 
-      {hasChildren && !shouldHideChildren && (
+      {/* Don't show children when flattened */}
+      {hasChildren && !shouldHideChildren && !shouldFlatten && (
         <Box flexDirection="column" marginLeft={2}>
           {displayChildren.map((child, index) => (
             <Event

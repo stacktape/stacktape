@@ -18,5 +18,7 @@
 
 # Code style
 
-- Ignore formatting errors (from eslint or prettier) if they are not easy for you to fix.
 - Don't add unnecessary comments to the code
+- Ignore formatting errors (from eslint or prettier) if they are not easy for you to fix.
+- If you need to run `tsc`, don't run it on the whole project. Run it only on the changed files. The repository has
+  pre-existing typescript errors.

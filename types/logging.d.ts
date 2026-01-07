@@ -66,7 +66,9 @@ type LoggableEventType =
   | 'STOP_CONTAINER'
   | 'RUN_DEPLOYMENT_SCRIPT'
   | 'ASSUME_ROLE'
-  | 'REBUILD_AND_RESTART';
+  | 'REBUILD_AND_RESTART'
+  | 'DEV_SESSION_READY'
+  | 'DEV_SESSION_ERROR';
 
 type EventLogEntryType = 'START' | 'UPDATE' | 'FINISH';
 

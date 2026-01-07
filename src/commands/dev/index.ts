@@ -2,12 +2,12 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import { configManager } from '@domain-services/config-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { stpErrors } from '@errors';
-import { initializeStackServicesForHotSwapDeploy } from '../_utils/initialization';
+import { initializeStackServicesForDev } from '../_utils/initialization';
 import { runDevContainer } from './container';
 import { runDevLambdaFunction } from './lambda-function';
 
 export const commandDev = async (): Promise<DevReturnValue> => {
-  await initializeStackServicesForHotSwapDeploy();
+  await initializeStackServicesForDev();
 
   const { resourceName } = globalStateManager.args;
 

@@ -25,7 +25,7 @@ export const getGroupedEventsWithDetails = (
       duration,
       started: first.timestamp || null,
       finished: isFinished ? last.timestamp : null,
-      message: first.description || null,
+      message: first.description || '',
       additionalMessage: last.additionalMessage,
       data: allEvents
         .map((e) => {

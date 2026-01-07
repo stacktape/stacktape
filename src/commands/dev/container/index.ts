@@ -4,6 +4,7 @@ import { applicationManager } from '@application-services/application-manager';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
+import { renderErrorToString } from '@application-services/tui-manager/components/Error';
 import { DEFAULT_CONTAINER_NODE_VERSION } from '@config';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
@@ -13,7 +14,8 @@ import { stpErrors } from '@errors';
 import { getJobName, getLocalInvokeContainerName } from '@shared/naming/utils';
 import { dockerRun } from '@shared/utils/docker';
 import { isJson } from '@shared/utils/misc';
-import { getErrorFromString } from '@utils/errors';
+import { parseContainerError } from '@utils/errors';
+import { tuiState } from '@application-services/tui-manager/state';
 import { addCallerToAssumeRolePolicy } from 'src/commands/_utils/assume-role';
 import {
   getBastionTunnelsForResource,
@@ -179,11 +181,16 @@ const runDockerContainer = async (
     return res as ExecaReturnBase<string>;
   });
   if (exitCode !== 0 && !(isNewContainerRunStarted && exitCode === 143)) {
-    console.error(
-      `\n[${tuiManager.colorize('red', 'CONTAINER_ERROR')}] Container ${tuiManager.makeBold(
-        userDefinedContainerName
-      )} has exited with error. Exit code: ${exitCode}.` //  Error:\n${err}
+    const errorOutput = renderErrorToString(
+      {
+        errorType: 'CONTAINER',
+        message: `Container "${userDefinedContainerName}" exited with code ${exitCode}.`,
+        hints: ['Check container logs above for error details', "Type 'rs' + enter to rebuild and restart"]
+      },
+      tuiManager.colorize.bind(tuiManager),
+      tuiManager.makeBold.bind(tuiManager)
     );
+    console.error(errorOutput);
   }
 };
 
@@ -194,6 +201,7 @@ const prepareImage = async ({
   resources
 }: EnrichedCwContainerProps): Promise<{ imageName: string; sourceFiles: string[] }> => {
   eventManager.reset();
+  tuiState.reset();
 
   if (packaging.type === 'prebuilt-image') {
     return { imageName: packaging.properties.image, sourceFiles: [] };
@@ -224,7 +232,19 @@ const transformContainerWorkloadStdout = (stdput: string) => {
   const isJsonError = isJson(stdput);
   const shouldTransform = !isJsonError && colonOccurrences >= 2 && hasErrorLine;
   if (shouldTransform) {
-    return getErrorFromString(stdput);
+    const { message, stackTrace } = parseContainerError(stdput);
+    // Format error message and stack trace without a box (box is shown on container exit)
+    const lines: string[] = ['', tuiManager.makeBold(tuiManager.colorize('red', message))];
+    if (stackTrace) {
+      lines.push('', tuiManager.colorize('gray', 'Stack trace:'));
+      for (const line of stackTrace.split('\n')) {
+        if (line.trim()) {
+          lines.push(`  ${tuiManager.colorize('gray', line)}`);
+        }
+      }
+    }
+    lines.push(''); // Add trailing newline
+    return lines.join('\n');
   }
   return stdput;
 };

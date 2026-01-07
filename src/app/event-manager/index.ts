@@ -25,6 +25,7 @@ export class EventManager implements ProgressLogger {
   progressPrintingInterval: any;
   finalActions: AnyFunction[];
   currentPhase: DeploymentPhase | null = null;
+  private _silentMode = false;
 
   /**
    * Context for this logger instance. Used by child loggers to inherit context.
@@ -47,6 +48,10 @@ export class EventManager implements ProgressLogger {
     this._eventContext = eventContext;
     this.finalActions = [];
   }
+
+  setSilentMode = (silent: boolean) => {
+    this._silentMode = silent;
+  };
 
   get eventContext(): EventContext {
     return this._eventContext;
@@ -224,6 +229,11 @@ export class EventManager implements ProgressLogger {
     description?: string;
     finalMessage?: string;
   }) => {
+    // Skip event handling in silent mode
+    if (this._silentMode) {
+      return;
+    }
+
     // Merge context: explicit params override inherited context
     const resolvedInstanceId = instanceId ?? this._eventContext.instanceId;
     const resolvedParentEventType = parentEventType ?? this._eventContext.parentEventType;
@@ -279,6 +289,11 @@ export class EventManager implements ProgressLogger {
     for (const event of this.formattedEventLogData) {
       const identifier = event.eventType;
       const isEventFinished = event.duration !== null;
+
+      // Skip events with no printable text or null message
+      if (!event.printableText || event.printableText === 'null') {
+        continue;
+      }
 
       // Skip if already printed as finished
       if (this.printedEvents.has(`${identifier}-finished`)) {

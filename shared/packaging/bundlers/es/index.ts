@@ -232,7 +232,7 @@ export const buildEsCode = async ({
       banner: sourceMapBanner,
       bundle: true,
       external: ['fsevents', ...externals],
-      sourcemap: sourceMaps !== 'disabled' ? sourceMaps : false,
+      sourcemap: sourceMaps === 'disabled' ? false : sourceMaps === 'external' ? true : sourceMaps,
       keepNames: keepNames || false,
       minify: minify !== undefined ? minify : true,
       platform: 'node',
@@ -591,14 +591,19 @@ const analyzeDependency = async ({
   } else if (DEPENDENCIES_TO_EXCLUDE_FROM_BUNDLE.includes(dependency.name)) {
     dependenciesToInstallInDocker.push({ ...packageInfo, note: 'EXCLUDED_FROM_BUNDLE_BY_STACKTAPE' });
   }
+  // Only externalize peer dependencies that have native binaries
+  // Pure JS peer deps (like zod, ajv) can be safely bundled by esbuild
   packageInfo.optionalPeerDependencies
     .filter((dep) => !IGNORED_OPTIONAL_PEER_DEPS_FROM_INSTALL_IN_DOCKER.includes(dep.name))
+    .filter((dep) => dep.hasBinary)
     .forEach((dep) => {
       dependenciesToInstallInDocker.push({ ...dep, note: 'OPTIONAL_PEER_DEPENDENCY' });
     });
-  packageInfo.peerDependencies.forEach((dep) => {
-    dependenciesToInstallInDocker.push({ ...dep, note: 'PEER_DEPENDENCY' });
-  });
+  packageInfo.peerDependencies
+    .filter((dep) => dep.hasBinary)
+    .forEach((dep) => {
+      dependenciesToInstallInDocker.push({ ...dep, note: 'PEER_DEPENDENCY' });
+    });
 
   return { dependenciesToInstallInDocker, specialTreatmentPackage, allExternalDeps };
 };

@@ -218,6 +218,61 @@ export const initializeStackServicesForHotSwapDeploy = async () => {
   await eventManager.processHooks({ captureType: 'START' });
 };
 
+export const initializeStackServicesForDev = async () => {
+  // Start single grouped loading event
+  await eventManager.startEvent({
+    eventType: 'LOAD_METADATA_FROM_AWS',
+    description: 'Loading metadata from AWS'
+  });
+
+  // Suppress individual events during loading - show only the grouped "Loading" event
+  eventManager.setSilentMode(true);
+
+  // Load user credentials (without its own event - grouped under parent)
+  await globalStateManager.loadUserCredentials();
+  awsSdkManager.init({
+    credentials: globalStateManager.credentials,
+    region: globalStateManager.region,
+    getErrorHandlerFn: getErrorHandler,
+    plugins: [loggingPlugin, retryPlugin, redirectPlugin],
+    printer: tuiManager
+  });
+
+  await globalStateManager.loadTargetStackInfo();
+  await configManager.init({ configRequired: true });
+
+  await settleAllBeforeThrowing([
+    stackManager.init({
+      stackName: globalStateManager.targetStack.stackName,
+      commandModifiesStack: false,
+      commandRequiresDeployedStack: false
+    }),
+    vpcManager.init({
+      reuseVpc: configManager.reuseVpcConfig,
+      resourcesRequiringPrivateSubnet: configManager.allResourcesRequiringPrivateSubnets
+    })
+  ]);
+
+  await Promise.all([
+    deployedStackOverviewManager.init({
+      stackDetails: stackManager.existingStackDetails,
+      stackResources: stackManager.existingStackResources
+    }),
+    packagingManager.init(),
+    deploymentArtifactManager.init({
+      globallyUniqueStackHash: globalStateManager.targetStack.globallyUniqueStackHash,
+      accountId: globalStateManager.targetAwsAccount.awsAccountId,
+      stackActionType: globalStateManager.command as any
+    })
+  ]);
+
+  // Re-enable events for the rest of the dev command
+  eventManager.setSilentMode(false);
+
+  // Finish the grouped loading event
+  await eventManager.finishEvent({ eventType: 'LOAD_METADATA_FROM_AWS' });
+};
+
 export const initializeStackServicesForWorkingWithDeployedStack = async ({
   commandModifiesStack,
   commandRequiresConfig
