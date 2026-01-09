@@ -158,10 +158,14 @@ import {
   waitUntilRoleExists
 } from '@aws-sdk/client-iam';
 import {
+  DeleteLayerVersionCommand,
   GetFunctionConfigurationCommand,
+  GetLayerVersionCommand,
   InvokeCommand,
   LambdaClient,
+  ListLayerVersionsCommand,
   ListTagsCommand,
+  PublishLayerVersionCommand,
   PublishVersionCommand,
   TagResourceCommand as TagLambdaResource,
   UpdateAliasCommand,
@@ -3135,5 +3139,115 @@ export class AwsSdkManager {
       .send(new DescribeDBClustersCommand({ DBClusterIdentifier: rdsClusterIdentifier }))
       .catch(errHandler);
     return response.DBClusters?.[0];
+  };
+
+  /**
+   * Publish a Lambda layer version.
+   */
+  publishLambdaLayer = async ({
+    layerName,
+    zipFilePath,
+    compatibleRuntimes,
+    description
+  }: {
+    layerName: string;
+    zipFilePath: string;
+    compatibleRuntimes: string[];
+    description?: string;
+  }): Promise<{ layerArn: string; layerVersionArn: string; version: number }> => {
+    const errHandler = this.#getErrorHandler(`Failed to publish Lambda layer ${layerName}.`);
+    const { readFile } = await import('fs-extra');
+    const zipContent = await readFile(zipFilePath);
+
+    const response = await this.#lambda()
+      .send(
+        new PublishLayerVersionCommand({
+          LayerName: layerName,
+          Content: { ZipFile: zipContent },
+          CompatibleRuntimes: compatibleRuntimes,
+          Description: description
+        })
+      )
+      .catch(errHandler);
+
+    return {
+      layerArn: response.LayerArn,
+      layerVersionArn: response.LayerVersionArn,
+      version: response.Version
+    };
+  };
+
+  /**
+   * Delete a specific Lambda layer version.
+   */
+  deleteLambdaLayerVersion = async ({
+    layerName,
+    versionNumber
+  }: {
+    layerName: string;
+    versionNumber: number;
+  }): Promise<void> => {
+    const errHandler = this.#getErrorHandler(`Failed to delete Lambda layer version ${layerName}:${versionNumber}.`);
+    await this.#lambda()
+      .send(
+        new DeleteLayerVersionCommand({
+          LayerName: layerName,
+          VersionNumber: versionNumber
+        })
+      )
+      .catch(errHandler);
+  };
+
+  /**
+   * List all versions of a Lambda layer.
+   */
+  listLambdaLayerVersions = async ({
+    layerName
+  }: {
+    layerName: string;
+  }): Promise<{ versionNumber: number; createdDate: string; description?: string }[]> => {
+    const errHandler = this.#getErrorHandler(`Failed to list Lambda layer versions for ${layerName}.`);
+    const versions: { versionNumber: number; createdDate: string; description?: string }[] = [];
+
+    let marker: string | undefined;
+    do {
+      const response = await this.#lambda()
+        .send(
+          new ListLayerVersionsCommand({
+            LayerName: layerName,
+            Marker: marker
+          })
+        )
+        .catch(errHandler);
+
+      for (const version of response.LayerVersions || []) {
+        versions.push({
+          versionNumber: version.Version,
+          createdDate: version.CreatedDate,
+          description: version.Description
+        });
+      }
+
+      marker = response.NextMarker;
+    } while (marker);
+
+    return versions;
+  };
+
+  /**
+   * Check if a Lambda layer exists.
+   */
+  checkLambdaLayerExists = async ({ layerName }: { layerName: string }): Promise<boolean> => {
+    try {
+      const response = await this.#lambda().send(
+        new ListLayerVersionsCommand({
+          LayerName: layerName,
+          MaxItems: 1
+        })
+      );
+      return (response.LayerVersions?.length ?? 0) > 0;
+    } catch {
+      return false;
+    }
   };
 }

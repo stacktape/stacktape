@@ -22,7 +22,7 @@ export const getPrettyTime = (durationInMillis: number) => {
 
 export const getPrettyPrintedFlatObject = (obj: Record<string, string | number | boolean>) => {
   return Object.entries(obj)
-    .map(([name, val]) => ` ○ ${tuiManager.makeBold(name)}: ${val}`)
+    .map(([name, val]) => ` • ${tuiManager.makeBold(name)}: ${val}`)
     .join('\n');
 };
 

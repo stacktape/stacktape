@@ -239,7 +239,7 @@ export const allowedCliArgs: { [_command in StacktapeCliCommand]: StacktapeCliAr
 export const requiredCliArgs: { [_command in StacktapeCliCommand]: StacktapeCliArg[] } = {
   deploy: ['stage', 'region'],
   'codebuild:deploy': ['stage', 'region'],
-  dev: ['resourceName', 'region', 'stage'],
+  dev: ['region', 'stage'],
   delete: ['region'],
   'stack:info': ['region'],
   'param:get': ['region', 'resourceName', 'paramName'],

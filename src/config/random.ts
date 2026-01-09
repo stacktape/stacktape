@@ -295,7 +295,7 @@ export const SUPPORTED_CF_INFRASTRUCTURE_MODULES: {
   }
 } as const;
 
-export const PRINT_LOGS_INTERVAL = 1000;
+export const PRINT_LOGS_INTERVAL = 500;
 
 export const HELPER_LAMBDAS: HelperLambdaName[] = [
   'batchJobTriggerLambda',

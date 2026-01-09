@@ -13,8 +13,14 @@ export const buildUsingStacktapeEsLambdaBuildpack = async ({
   zippedSizeLimit,
   languageSpecificConfig,
   dockerBuildOutputArchitecture,
+  sharedLayerExternals = [],
   ...otherProps
-}: StpBuildpackInput & { zippedSizeLimit: number; nodeTarget: string; minify: boolean }): Promise<PackagingOutput> => {
+}: StpBuildpackInput & {
+  zippedSizeLimit: number;
+  nodeTarget: string;
+  minify: boolean;
+  sharedLayerExternals?: string[];
+}): Promise<PackagingOutput> => {
   const bundlingOutput = await createEsBundle({
     ...otherProps,
     ...languageSpecificConfig,
@@ -23,14 +29,15 @@ export const buildUsingStacktapeEsLambdaBuildpack = async ({
     name,
     progressLogger,
     dockerBuildOutputArchitecture,
-    isLambda: true
+    isLambda: true,
+    externals: sharedLayerExternals
   });
 
-  const { digest, outcome, distFolderPath, sourceFiles, ...otherOutputProps } = bundlingOutput;
+  const { digest, outcome, distFolderPath, sourceFiles, resolvedModules, ...otherOutputProps } = bundlingOutput;
 
   if (outcome === 'skipped') {
     // await remove(distFolderPath);
-    return { ...bundlingOutput, size: null, jobName: name };
+    return { ...bundlingOutput, size: null, jobName: name, resolvedModules };
   }
 
   const unzippedSize = await getFolderSize(distFolderPath, FILE_SIZE_UNIT, 2);
@@ -78,6 +85,7 @@ export const buildUsingStacktapeEsLambdaBuildpack = async ({
     size: unzippedSize,
     artifactPath: adjustedZipPath,
     details: { ...otherOutputProps },
-    jobName: name
+    jobName: name,
+    resolvedModules
   };
 };

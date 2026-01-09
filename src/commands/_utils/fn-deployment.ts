@@ -1,5 +1,6 @@
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
 import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
@@ -9,48 +10,78 @@ import { cfLogicalNames } from '@shared/naming/logical-names';
 import { tagNames } from '@shared/naming/tag-names';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 
-export const buildAndUpdateFunctionCode = async (stpResourceName: string) => {
+export const buildAndUpdateFunctionCode = async (stpResourceName: string, options: { devMode?: boolean } = {}) => {
+  const { devMode } = options;
   const lambdaProps = configManager.allLambdasEligibleForHotswap.find(({ name }) => name === stpResourceName);
-  await eventManager.startEvent({
-    eventType: 'PACKAGE_ARTIFACTS',
-    description: 'Packaging function'
-  });
+
+  // Dev mode: use spinners for progress feedback
+  const spinner = devMode ? tuiManager.createSpinner({ text: 'Packaging function' }) : null;
+
+  if (!devMode) {
+    await eventManager.startEvent({
+      eventType: 'PACKAGE_ARTIFACTS',
+      description: 'Packaging function'
+    });
+  }
+
   const packagingOutput = (await packagingManager.packageWorkload({
     jobName: lambdaProps.name,
     packaging: lambdaProps.packaging,
     workloadName: lambdaProps.name,
     commandCanUseCache: false,
-    dockerBuildOutputArchitecture: lambdaProps.architecture === 'arm64' ? 'linux/arm64' : 'linux/amd64'
+    dockerBuildOutputArchitecture: lambdaProps.architecture === 'arm64' ? 'linux/arm64' : 'linux/amd64',
+    ...(devMode && { customProgressLogger: tuiManager.createSpinnerProgressLogger(spinner, lambdaProps.name) })
   })) as PackagingOutput;
 
-  await eventManager.finishEvent({
-    eventType: 'PACKAGE_ARTIFACTS'
-  });
+  if (!devMode) {
+    await eventManager.finishEvent({ eventType: 'PACKAGE_ARTIFACTS' });
+  } else {
+    spinner.success({ details: `${packagingOutput.size} MB` });
+  }
 
   const { artifactInfo, lambdaResourceName, aliasName } = getLambdaFunctionHotswapInformation({ lambdaProps });
 
-  await eventManager.startEvent({
-    eventType: 'UPLOAD_DEPLOYMENT_ARTIFACTS',
-    description: 'Uploading deployment artifacts'
-  });
+  // Upload phase
+  const uploadSpinner = devMode ? tuiManager.createSpinner({ text: 'Uploading to S3' }) : null;
+
+  if (!devMode) {
+    await eventManager.startEvent({
+      eventType: 'UPLOAD_DEPLOYMENT_ARTIFACTS',
+      description: 'Uploading deployment artifacts'
+    });
+  }
 
   await deploymentArtifactManager.uploadLambda(artifactInfo);
 
-  await eventManager.finishEvent({ eventType: 'UPLOAD_DEPLOYMENT_ARTIFACTS' });
+  if (!devMode) {
+    await eventManager.finishEvent({ eventType: 'UPLOAD_DEPLOYMENT_ARTIFACTS' });
+  } else {
+    uploadSpinner.success();
+  }
 
-  await eventManager.startEvent({
-    eventType: 'HOTSWAP_UPDATE',
-    description: 'Performing hotswap update'
-  });
+  // Hotswap update phase
+  const updateSpinner = devMode ? tuiManager.createSpinner({ text: 'Updating function code' }) : null;
+
+  if (!devMode) {
+    await eventManager.startEvent({
+      eventType: 'HOTSWAP_UPDATE',
+      description: 'Performing hotswap update'
+    });
+  }
 
   const { FunctionArn } = await updateFunctionCode({
     workloadName: lambdaProps.name,
     lambdaResourceName,
     artifactInfo,
-    aliasName
+    aliasName,
+    devMode
   });
 
-  await eventManager.finishEvent({ eventType: 'HOTSWAP_UPDATE' });
+  if (!devMode) {
+    await eventManager.finishEvent({ eventType: 'HOTSWAP_UPDATE' });
+  } else {
+    updateSpinner.success();
+  }
 
   return { packagingOutput, lambdaArn: FunctionArn };
 };
@@ -84,21 +115,29 @@ export const updateFunctionCode = async ({
   workloadName,
   lambdaResourceName,
   artifactInfo: { s3Key, digest },
-  aliasName
+  aliasName,
+  devMode
 }: {
   workloadName: string;
   lambdaResourceName: string;
   artifactInfo: { s3Key: string; digest: string };
   aliasName?: string;
+  devMode?: boolean;
 }) => {
-  const updateWorkloadLogger = eventManager.createChildLogger({
-    parentEventType: 'HOTSWAP_UPDATE',
-    instanceId: workloadName
-  });
-  await updateWorkloadLogger.startEvent({
-    eventType: 'UPDATE_FUNCTION_CODE',
-    description: 'Updating function code'
-  });
+  const updateWorkloadLogger = devMode
+    ? null
+    : eventManager.createChildLogger({
+        parentEventType: 'HOTSWAP_UPDATE',
+        instanceId: workloadName
+      });
+
+  if (!devMode) {
+    await updateWorkloadLogger.startEvent({
+      eventType: 'UPDATE_FUNCTION_CODE',
+      description: 'Updating function code'
+    });
+  }
+
   const { FunctionArn } = await awsSdkManager.updateExistingLambdaFunctionCode({
     lambdaResourceName,
     artifactBucketName: awsResourceNames.deploymentBucket(globalStateManager.targetStack.globallyUniqueStackHash),
@@ -121,6 +160,10 @@ export const updateFunctionCode = async ({
       ]
     })
   ]);
-  await updateWorkloadLogger.finishEvent({ eventType: 'UPDATE_FUNCTION_CODE' });
+
+  if (!devMode) {
+    await updateWorkloadLogger.finishEvent({ eventType: 'UPDATE_FUNCTION_CODE' });
+  }
+
   return { FunctionArn };
 };

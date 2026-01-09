@@ -136,10 +136,14 @@ export const cfFailedEventHandlers: {
         cfLogicalName: event.LogicalResourceId
       });
       const poller = additionalProps?.ecsDeploymentStatusPollers?.[event.LogicalResourceId];
+      const failureDetails = poller?.getFailureMessage();
+
+      // Build a clean error message
+      const resourceLabel = parentResourceName || event.LogicalResourceId;
+      const baseMessage = `Service ${tuiManager.colorize('red', resourceLabel)} failed to start`;
+
       return {
-        errorMessage: `Deployment of ${tuiManager.colorize('red', event.LogicalResourceId)}${
-          parentResourceName ? ` (part of ${tuiManager.colorize('red', parentResourceName)})` : ''
-        } failed after multiple attempts:\n${poller.getFailureMessage() || event.ResourceStatusReason}`
+        errorMessage: failureDetails ? `${baseMessage}\n\n${failureDetails}` : `${baseMessage}: ${event.ResourceStatusReason}`
       };
     }
   },
@@ -177,10 +181,33 @@ export const cfFailedEventHandlers: {
       const parentResourceName = calculatedStackOverviewManager.findStpParentNameOfCfResource({
         cfLogicalName: event.LogicalResourceId
       });
+
+      // Clean up AWS error messages by removing internal metadata
+      let cleanedReason = event.ResourceStatusReason;
+      // Remove (RequestToken: ..., HandlerErrorCode: ...) pattern first
+      cleanedReason = cleanedReason.replace(/\s*\(RequestToken:[^,]+,\s*HandlerErrorCode:[^)]+\)/gi, '');
+      // Remove standalone (RequestToken: ...) pattern
+      cleanedReason = cleanedReason.replace(/\s*\(RequestToken:[^)]+\)/gi, '');
+      // Remove standalone (HandlerErrorCode: ...) pattern
+      cleanedReason = cleanedReason.replace(/\s*\(HandlerErrorCode:[^)]+\)/gi, '');
+      // Remove "Resource handler returned message: " prefix and extract the quoted message
+      const handlerMatch = cleanedReason.match(/^Resource handler returned message:\s*"([\s\S]+)"\.?\s*$/);
+      if (handlerMatch) {
+        cleanedReason = handlerMatch[1];
+      }
+      // Remove AWS SDK details like (Service: Lambda, Status Code: 404, Request ID: ..., SDK Attempt Count: 1)
+      cleanedReason = cleanedReason.replace(/\s*\(Service:[^,]+,\s*Status Code:\s*\d+,\s*Request ID:[^,]+,\s*SDK Attempt Count:\s*\d+\)/gi, '');
+      // Remove separate (Service: ...) pattern
+      cleanedReason = cleanedReason.replace(/\s*\(Service:[^)]+\)/gi, '');
+      // Remove separate (SDK Attempt Count: ...) pattern
+      cleanedReason = cleanedReason.replace(/\s*\(SDK Attempt Count:\s*\d+\)/gi, '');
+      // Clean up any double spaces that might result
+      cleanedReason = cleanedReason.replace(/\s{2,}/g, ' ').trim();
+
       return {
         errorMessage: `Resource ${tuiManager.colorize('red', event.LogicalResourceId)}${
           parentResourceName ? ` (part of ${tuiManager.colorize('red', parentResourceName)})` : ''
-        }: ${event.ResourceStatusReason}`
+        }: ${cleanedReason}`
       };
     }
   }

@@ -224,8 +224,8 @@ export const resolveRunningContainersWithSamePort = async ({
 export const gracefullyStopContainer = async (containerName: string) => {
   const containerInfo = await inspectDockerContainer(containerName);
   if (containerInfo?.State?.Running) {
-    await eventManager.startEvent({ eventType: 'STOP_CONTAINER', description: 'Stopping previous container' });
+    const spinner = tuiManager.createSpinner({ text: 'Stopping container' });
     await stopDockerContainer(containerName, getContainerStopWaitTime());
-    await eventManager.finishEvent({ eventType: 'STOP_CONTAINER' });
+    spinner.success();
   }
 };

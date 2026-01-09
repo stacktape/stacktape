@@ -13,6 +13,7 @@ import { getJobName } from '@shared/naming/utils';
 import { buildUsingCustomArtifact } from '@shared/packaging/custom-artifact';
 import { buildUsingCustomDockerfile } from '@shared/packaging/custom-dockerfile';
 import { buildUsingExternalBuildpack } from '@shared/packaging/external-buildpack';
+import { SharedLayerManager, analyzeDependencies } from '@shared/packaging/lambda-shared-layer';
 import { createNextjsWebArtifacts } from '@shared/packaging/nextjs-web';
 import { buildUsingNixpacks } from '@shared/packaging/nixpacks';
 import { buildUsingStacktapeEsImageBuildpack } from '@shared/packaging/stacktape-es-image-buildpack';
@@ -31,10 +32,26 @@ import {
 } from '@shared/utils/docker';
 import { getFileExtension } from '@shared/utils/fs-utils';
 import { processConcurrently } from '@shared/utils/misc';
+import { awsSdkManager } from '@utils/aws-sdk-manager';
 import compose from '@utils/basic-compose-shim';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
 import objectHash from 'object-hash';
 import { resolveEnvironmentDirectives } from 'src/commands/dev/utils';
+
+type SharedLayerInfo = {
+  layerArn: string;
+  layerVersionArn: string;
+  externalizedDependencies: string[];
+};
+
+type FirstPassResult = {
+  jobName: string;
+  functionName: string;
+  resolvedModules: string[];
+  packaging: LambdaPackaging;
+  architecture: 'x86_64' | 'arm64';
+  runtime?: LambdaRuntime;
+};
 
 const getCacheRef = (jobName: string) => {
   const repositoryUrl = deploymentArtifactManager.repositoryUrl;
@@ -58,16 +75,148 @@ const shouldUseRemoteDockerCache = () => {
 
 export class PackagingManager {
   #packagedJobs: PackageWorkloadOutput[] = [];
+  #sharedLayerInfo: SharedLayerInfo | null = null;
 
   init = async () => {};
 
   clearPackagedJobs() {
     this.#packagedJobs = [];
+    this.#sharedLayerInfo = null;
   }
 
   getPackagingOutputForJob(jobName: string) {
     return this.#packagedJobs.find((job) => job.jobName === jobName) || null;
   }
+
+  getSharedLayerInfo(): SharedLayerInfo | null {
+    return this.#sharedLayerInfo;
+  }
+
+  #shouldUseSharedLayers(): boolean {
+    // Only use shared layers for Node.js Lambda functions
+    // Require at least 2 functions to make shared layers worthwhile
+    const nodeLambdas = configManager.allUserCodeLambdas.filter(({ packaging }) => {
+      const ext = getFileExtension((packaging?.properties as { entryfilePath?: string })?.entryfilePath || '');
+      return ['js', 'ts', 'jsx', 'mjs', 'tsx'].includes(ext);
+    });
+    return nodeLambdas.length >= 2;
+  }
+
+  /**
+   * Build and publish shared layer using actual dependency data from first-pass bundling.
+   * @param firstPassResults - Results from first-pass bundling containing resolved modules per function
+   */
+  #buildAndPublishSharedLayer = async (firstPassResults: FirstPassResult[]): Promise<void> => {
+    if (firstPassResults.length < 2) {
+      // Need at least 2 functions for shared layers to be worthwhile
+      return;
+    }
+
+    const { stackName, region, accountId } = globalStateManager.targetStack;
+
+    // Get node version from first lambda (they should all be compatible)
+    const firstLambda = configManager.allUserCodeLambdas.find(({ name }) =>
+      firstPassResults.some((r) => r.functionName === name)
+    );
+    const languageSpecificConfig = (
+      firstLambda?.packaging?.properties as { languageSpecificConfig?: EsLanguageSpecificConfig }
+    )?.languageSpecificConfig;
+    const nodeVersionFromRuntime = Number(firstLambda?.runtime?.match(/nodejs(\d+)/)?.[1]) || null;
+    const nodeVersion =
+      languageSpecificConfig?.nodeVersion || nodeVersionFromRuntime || DEFAULT_LAMBDA_NODE_VERSION;
+
+    // Check if all lambdas have the same architecture - if so, we can include native deps
+    const architectures = firstPassResults.map(({ architecture }) => architecture || 'x86_64');
+    const uniqueArchitectures = [...new Set(architectures)];
+    const allSameArchitecture = uniqueArchitectures.length === 1;
+    const architecture = allSameArchitecture
+      ? (uniqueArchitectures[0] === 'arm64' ? 'linux/arm64' : 'linux/amd64')
+      : undefined;
+
+    const sharedLayerManager = new SharedLayerManager({
+      stackName,
+      region,
+      accountId,
+      cwd: globalStateManager.workingDir,
+      distFolderPath: fsPaths.absoluteSharedLayerFolderPath({ invocationId: globalStateManager.invocationId }),
+      nodeVersion,
+      packageManager: 'npm', // Could be detected from lockfile
+      ...(architecture && { architecture }),
+      publishLayer: awsSdkManager.publishLambdaLayer,
+      deleteLayerVersion: awsSdkManager.deleteLambdaLayerVersion,
+      listLayerVersions: awsSdkManager.listLambdaLayerVersions,
+      checkLayerExists: awsSdkManager.checkLambdaLayerExists
+    });
+
+    await eventManager.startEvent({
+      eventType: 'BUILD_SHARED_LAYER',
+      description: 'Analyzing dependencies for shared layer'
+    });
+
+    try {
+      // Convert first-pass results to the format expected by analyzeDependencies
+      // Filter out node built-ins and non-npm modules, get unique module names per function
+      const functions = firstPassResults.map(({ functionName, resolvedModules }) => {
+        // Filter to only npm packages (not built-ins, not relative imports)
+        const npmModules = [...new Set(resolvedModules)].filter((mod) => {
+          // Exclude node built-ins
+          if (mod.startsWith('node:') || ['fs', 'path', 'os', 'util', 'crypto', 'http', 'https', 'stream', 'events', 'buffer', 'url', 'querystring', 'zlib', 'child_process', 'cluster', 'dgram', 'dns', 'net', 'readline', 'repl', 'tls', 'tty', 'v8', 'vm', 'worker_threads', 'perf_hooks', 'async_hooks', 'trace_events', 'inspector', 'assert', 'constants', 'domain', 'module', 'process', 'punycode', 'string_decoder', 'sys', 'timers', 'wasi'].includes(mod)) {
+            return false;
+          }
+          return true;
+        });
+
+        return {
+          name: functionName,
+          dependencies: npmModules.map((name) => ({ name, version: '*' })) // Version will be resolved from node_modules
+        };
+      });
+
+      await sharedLayerManager.analyze(functions);
+
+      if (!sharedLayerManager.hasSharedDependencies()) {
+        await eventManager.finishEvent({
+          eventType: 'BUILD_SHARED_LAYER',
+          finalMessage: 'No shared dependencies found, skipping layer creation.'
+        });
+        return;
+      }
+
+      const { totalSavings, layerSize, depsCount } = sharedLayerManager.getSavingsSummary();
+      const savingsMB = Math.round(totalSavings / (1024 * 1024));
+      const layerSizeMB = Math.round(layerSize / (1024 * 1024));
+
+      await eventManager.updateEvent({
+        eventType: 'BUILD_SHARED_LAYER',
+        description: `Building shared layer (${depsCount} deps, ~${layerSizeMB}MB, saves ~${savingsMB}MB)`
+      });
+
+      await sharedLayerManager.build();
+
+      await eventManager.updateEvent({
+        eventType: 'BUILD_SHARED_LAYER',
+        description: 'Publishing shared layer'
+      });
+
+      const layerInfo = await sharedLayerManager.publish();
+
+      this.#sharedLayerInfo = {
+        layerArn: layerInfo.layerArn,
+        layerVersionArn: layerInfo.layerVersionArn,
+        externalizedDependencies: sharedLayerManager.getLayerDependencyNames()
+      };
+
+      await eventManager.finishEvent({
+        eventType: 'BUILD_SHARED_LAYER',
+        finalMessage: `Shared layer published (${depsCount} deps, ~${layerSizeMB}MB, saves ~${savingsMB}MB)`
+      });
+    } catch (error) {
+      await eventManager.finishEvent({
+        eventType: 'BUILD_SHARED_LAYER',
+        finalMessage: `Shared layer skipped: ${(error as Error).message}`
+      });
+    }
+  };
 
   packageAllWorkloads = async ({
     commandCanUseCache
@@ -89,8 +238,139 @@ export class PackagingManager {
       }
     }
 
-    const packagingJobs = [
-      ...configManager.allUserCodeLambdas.map(({ name, type, packaging, architecture, runtime }) => {
+    // Identify Node.js Lambda functions that can use shared layers
+    const nodeLambdas = configManager.allUserCodeLambdas.filter(({ packaging }) => {
+      const ext = getFileExtension((packaging?.properties as { entryfilePath?: string })?.entryfilePath || '');
+      return ['js', 'ts', 'jsx', 'mjs', 'tsx'].includes(ext);
+    });
+
+    // Determine concurrency limits
+    const logicalCores = cpus().length;
+    const physicalCores = Math.max(1, Math.floor(logicalCores / 2));
+
+    // TWO-PASS BUNDLING FOR SHARED LAYERS
+    // If we have 2+ Node.js lambdas, we do two-pass bundling:
+    // 1. First pass: Bundle all lambdas to discover dependencies
+    // 2. Analyze shared dependencies and build layer
+    // 3. Second pass: Re-bundle with shared deps as externals
+
+    let sharedLayerExternals: string[] = [];
+
+    if (this.#shouldUseSharedLayers()) {
+      // FIRST PASS: Bundle Node.js lambdas to discover dependencies
+      const firstPassJobs = nodeLambdas.map(({ name, type, packaging, architecture, runtime }) => {
+        return async (): Promise<FirstPassResult | null> => {
+          const jobName = getJobName({ workloadName: name, workloadType: type });
+          const result = await this.packageWorkload({
+            commandCanUseCache,
+            jobName,
+            workloadName: name,
+            packaging,
+            runtime,
+            dockerBuildOutputArchitecture: architecture === 'arm64' ? 'linux/arm64' : 'linux/amd64',
+            sharedLayerExternals: [], // No externals in first pass
+            isFirstPass: true
+          });
+
+          if (result?.resolvedModules?.length) {
+            return {
+              jobName,
+              functionName: name,
+              resolvedModules: result.resolvedModules,
+              packaging,
+              architecture: architecture || 'x86_64',
+              runtime
+            };
+          }
+          return null;
+        };
+      });
+
+      const maxConcurrent = Math.min(firstPassJobs.length, physicalCores);
+      const firstPassResults: (FirstPassResult | null)[] = [];
+
+      // Run first pass bundling concurrently
+      await processConcurrently(
+        firstPassJobs.map((job) => async () => {
+          const result = await job();
+          firstPassResults.push(result);
+        }),
+        maxConcurrent
+      );
+
+      const validFirstPassResults = firstPassResults.filter((r): r is FirstPassResult => r !== null);
+
+      // Build and publish shared layer based on first-pass results
+      await this.#buildAndPublishSharedLayer(validFirstPassResults);
+      sharedLayerExternals = this.#sharedLayerInfo?.externalizedDependencies || [];
+
+      // SECOND PASS: If we have shared dependencies, re-bundle with externals
+      if (sharedLayerExternals.length > 0) {
+        // Remove first-pass results from packaged jobs (they'll be replaced)
+        const firstPassJobNames = new Set(validFirstPassResults.map((r) => r.jobName));
+        this.#packagedJobs = this.#packagedJobs.filter((job) => !firstPassJobNames.has(job.jobName));
+
+        // Re-bundle with externals
+        const secondPassJobs = validFirstPassResults.map(({ functionName, jobName, packaging, architecture, runtime }) => {
+          return () =>
+            this.packageWorkload({
+              commandCanUseCache,
+              jobName,
+              workloadName: functionName,
+              packaging,
+              runtime,
+              dockerBuildOutputArchitecture: architecture === 'arm64' ? 'linux/arm64' : 'linux/amd64',
+              sharedLayerExternals
+            });
+        });
+
+        await processConcurrently(secondPassJobs, maxConcurrent);
+      }
+
+      // Package remaining Node.js lambdas that weren't in first pass (unlikely but handle edge case)
+      const processedNames = new Set(validFirstPassResults.map((r) => r.functionName));
+      const remainingNodeLambdas = nodeLambdas.filter(({ name }) => !processedNames.has(name));
+
+      if (remainingNodeLambdas.length > 0) {
+        const remainingJobs = remainingNodeLambdas.map(({ name, type, packaging, architecture, runtime }) => {
+          return () =>
+            this.packageWorkload({
+              commandCanUseCache,
+              jobName: getJobName({ workloadName: name, workloadType: type }),
+              workloadName: name,
+              packaging,
+              runtime,
+              dockerBuildOutputArchitecture: architecture === 'arm64' ? 'linux/arm64' : 'linux/amd64',
+              sharedLayerExternals
+            });
+        });
+        await processConcurrently(remainingJobs, Math.min(remainingJobs.length, physicalCores));
+      }
+    } else {
+      // No shared layers - package Node.js lambdas normally
+      const nodeLambdaJobs = nodeLambdas.map(({ name, type, packaging, architecture, runtime }) => {
+        return () =>
+          this.packageWorkload({
+            commandCanUseCache,
+            jobName: getJobName({ workloadName: name, workloadType: type }),
+            workloadName: name,
+            packaging,
+            runtime,
+            dockerBuildOutputArchitecture: architecture === 'arm64' ? 'linux/arm64' : 'linux/amd64',
+            sharedLayerExternals: []
+          });
+      });
+      await processConcurrently(nodeLambdaJobs, Math.min(nodeLambdaJobs.length, physicalCores));
+    }
+
+    // Package non-Node.js lambdas
+    const nonNodeLambdas = configManager.allUserCodeLambdas.filter(({ packaging }) => {
+      const ext = getFileExtension((packaging?.properties as { entryfilePath?: string })?.entryfilePath || '');
+      return !['js', 'ts', 'jsx', 'mjs', 'tsx'].includes(ext);
+    });
+
+    const otherPackagingJobs = [
+      ...nonNodeLambdas.map(({ name, type, packaging, architecture, runtime }) => {
         return () =>
           this.packageWorkload({
             commandCanUseCache,
@@ -119,12 +399,12 @@ export class PackagingManager {
           });
       })
     ];
-    // Use limited concurrency to prevent event loop starvation and allow UI updates
-    // Limit to number of physical CPU cores (logical cores / 2 for hyperthreaded systems)
-    const logicalCores = cpus().length;
-    const physicalCores = Math.max(1, Math.floor(logicalCores / 2));
-    const maxConcurrentPackaging = Math.min(packagingJobs.length, physicalCores);
-    await processConcurrently(packagingJobs, maxConcurrentPackaging);
+
+    if (otherPackagingJobs.length > 0) {
+      const maxConcurrent = Math.min(otherPackagingJobs.length, physicalCores);
+      await processConcurrently(otherPackagingJobs, maxConcurrent);
+    }
+
     await eventManager.finishEvent({
       eventType: 'PACKAGE_ARTIFACTS',
       data: { packagedJobs: this.#packagedJobs }
@@ -348,7 +628,11 @@ export class PackagingManager {
     packaging,
     runtime,
     dockerBuildOutputArchitecture = 'linux/amd64',
-    parentEventType = 'PACKAGE_ARTIFACTS'
+    parentEventType = 'PACKAGE_ARTIFACTS',
+    devMode,
+    customProgressLogger,
+    sharedLayerExternals = [],
+    isFirstPass = false
   }: {
     workloadName: string;
     jobName: string;
@@ -361,12 +645,19 @@ export class PackagingManager {
     runtime?: LambdaRuntime;
     dockerBuildOutputArchitecture?: DockerBuildOutputArchitecture;
     parentEventType?: Subtype<LoggableEventType, 'PACKAGE_ARTIFACTS' | 'REPACKAGE_ARTIFACTS'>;
-  }) => {
+    devMode?: boolean;
+    customProgressLogger?: ProgressLogger;
+    sharedLayerExternals?: string[];
+    /** When true, this is the first pass of two-pass bundling for shared layer analysis */
+    isFirstPass?: boolean;
+  }): Promise<PackagingOutput | undefined> => {
     const shouldUseCache = this.#shouldWorkloadUseCache({ workloadName, commandCanUseCache });
 
     const existingDigests = shouldUseCache ? deploymentArtifactManager.getExistingDigestsForJob(jobName) : [];
     const packagingType = packaging.type;
-    const progressLogger = eventManager.createChildLogger({ parentEventType, instanceId: jobName });
+
+    const progressLogger =
+      customProgressLogger || eventManager.createChildLogger({ parentEventType, instanceId: jobName });
 
     const cacheRef = shouldUseRemoteDockerCache() ? getCacheRef(jobName) : undefined;
 
@@ -445,9 +736,14 @@ export class PackagingManager {
                 jobName,
                 invocationId: globalStateManager.invocationId
               }),
-              additionalDigestInput
+              additionalDigestInput,
+              sharedLayerExternals
             });
-            this.#packagedJobs.push({ ...result, skipped: result.outcome === 'skipped' });
+            this.#packagedJobs.push({
+              ...result,
+              skipped: result.outcome === 'skipped',
+              resolvedModules: result.resolvedModules
+            });
             return result;
           }
           if (packagingType === 'stacktape-image-buildpack') {
@@ -460,7 +756,8 @@ export class PackagingManager {
                 jobName,
                 invocationId: globalStateManager.invocationId
               }),
-              additionalDigestInput
+              additionalDigestInput,
+              devMode
             });
             this.#packagedJobs.push({ ...result, skipped: result.outcome === 'skipped' });
             return result;

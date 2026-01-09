@@ -27,6 +27,12 @@ const cleanErrorMessage = (message: string): string => {
   if (handlerMatch) {
     cleaned = handlerMatch[1];
   }
+  // Remove AWS SDK details like (Service: Lambda, Status Code: 404, Request ID: ..., SDK Attempt Count: 1)
+  cleaned = cleaned.replace(/\s*\(Service:[^,]+,\s*Status Code:\s*\d+,\s*Request ID:[^,]+,\s*SDK Attempt Count:\s*\d+\)/gi, '');
+  // Remove separate (Service: ...) pattern
+  cleaned = cleaned.replace(/\s*\(Service:[^)]+\)/gi, '');
+  // Remove separate (SDK Attempt Count: ...) pattern
+  cleaned = cleaned.replace(/\s*\(SDK Attempt Count:\s*\d+\)/gi, '');
   // Clean up any double spaces that might result
   cleaned = cleaned.replace(/\s{2,}/g, ' ').trim();
   return cleaned;

@@ -54,7 +54,10 @@ export const runCommand = async (opts: StacktapeProgrammaticOptions) => {
     await deleteTempFolder();
 
     tuiManager.init({ logFormat: globalStateManager.logFormat, logLevel: globalStateManager.logLevel });
-    tuiManager.start();
+    // Dev mode uses simple spinners instead of TUI
+    if (globalStateManager.command !== 'dev') {
+      tuiManager.start();
+    }
 
     const executor = getCommandExecutor(globalStateManager.command);
     const commandResult = await executor();

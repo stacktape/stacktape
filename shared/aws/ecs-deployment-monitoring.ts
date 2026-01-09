@@ -6,7 +6,7 @@ import type { AwsSdkManager } from './sdk-manager';
 import { ResourceStatus } from '@aws-sdk/client-cloudformation';
 import { DeploymentControllerType, DesiredStatus } from '@aws-sdk/client-ecs';
 import { consoleLinks } from '@shared/naming/console-links';
-import { splitStringIntoLines, wait } from '@shared/utils/misc';
+import { wait } from '@shared/utils/misc';
 
 export class EcsServiceDeploymentStatusPoller {
   #serviceArn: string;
@@ -130,70 +130,101 @@ export class EcsServiceDeploymentStatusPoller {
     this.#pollInProgress = false;
   };
 
+  /**
+   * Formats the failure message for display.
+   * Returns a clean, readable error message focused on actionable information.
+   */
   getFailureMessage() {
-    if (this.#printer && this.#failedTask && !this.#pollInProgress) {
-      const failedTaskId = this.#failedTask.taskArn.split('/').at(-1);
-      let message = `${this.#printer.colorize('gray', `${'˅'.repeat(120)}\n`)}[${this.#printer.colorize(
-        'red',
-        this.#pollerPrintName
-      )}] - ${this.#printer.colorize(
-        'yellow',
-        'There seems to be a problem when starting the task.'
-      )}\n${this.#printer.makeBold('Reason: ')}${this.#printer.colorize(
-        'gray',
-        this.#failedTask.stoppedReason
-      )}${this.#printer.colorize('gray', `\n${'^'.repeat(120)}\n`)}`;
-      const containersMessage = this.#failedContainersDetail
-        // .filter(({ exitCode }) => Number.isInteger(exitCode))
-        .map(({ name, exitCode, reason, logStreamLink, logs }) => {
-          const stringifiedLogs =
-            logs?.length &&
-            logs
-              .map(
-                ({ timestamp, message: logMessage }) =>
-                  `${this.#printer.colorize(
-                    'gray',
-                    `[${new Date(timestamp).toTimeString().split(' ')[0]}]`
-                  )}: ${this.#printer.colorize('cyan', logMessage)}`
-              )
-              .join('\n');
-          return `** Container${
-            (this.#failedTask.containers || []).length > 1 ? ` ${this.#printer.makeBold(name)}` : ''
-          } ${Number.isInteger(exitCode) ? `is exiting with exitcode ${this.#printer.makeBold(exitCode)}` : 'failure'}${reason ? ` (${reason})` : ''}. **${
-            stringifiedLogs
-              ? `\n${this.#printer.colorize('blue', 'Container logs:')}\n${
-                  stringifiedLogs.length > 2000
-                    ? `${this.#printer.colorize('gray', '...')}\n${stringifiedLogs.slice(
-                        -2000
-                      )}\n${this.#printer.colorize('gray', '...')}\n${this.#printer.terminalLink(
-                        logStreamLink,
-                        'See logs here'
-                      )}`
-                    : stringifiedLogs
-                }`
-              : ''
-          }\nSee more information about the failing container in\n${this.#printer.terminalLink(
-            consoleLinks.ecsTask({
-              clusterName: this.#clusterName,
-              region: this.#awsSdkManager.region,
-              taskId: failedTaskId,
-              selectedContainer: name
-            }),
-            'AWS console'
-          )}`;
-        })
-        .join(`\n${'-'.repeat(30)}\n`);
-      message = message.concat(containersMessage);
-      return splitStringIntoLines(message, 160, 40).join('\n');
+    if (!this.#printer || !this.#failedTask || this.#pollInProgress) {
+      return undefined;
     }
+
+    const failedTaskId = this.#failedTask.taskArn.split('/').at(-1);
+    const lines: string[] = [];
+
+    // Container failure details
+    for (const { name, exitCode, reason, logStreamLink, logs } of this.#failedContainersDetail) {
+      const hasMultipleContainers = (this.#failedTask.containers || []).length > 1;
+
+      // Exit code info
+      if (Number.isInteger(exitCode)) {
+        const containerLabel = hasMultipleContainers ? `Container ${this.#printer.makeBold(name)} exited` : 'Exited';
+        lines.push(`${containerLabel} with code ${this.#printer.colorize('red', String(exitCode))}${reason ? ` (${reason})` : ''}`);
+      } else if (reason) {
+        const containerLabel = hasMultipleContainers ? `Container ${this.#printer.makeBold(name)}` : 'Container';
+        lines.push(`${containerLabel} failed: ${reason}`);
+      }
+
+      // Container logs - filter noise and show only relevant lines
+      if (logs?.length) {
+        const relevantLogs = this.#filterRelevantLogs(logs);
+        if (relevantLogs.length > 0) {
+          lines.push('');
+          lines.push(this.#printer.colorize('gray', 'Last logs before exit:'));
+
+          // Limit to last 15 relevant log lines
+          const logsToShow = relevantLogs.slice(-15);
+          for (const { timestamp, message: logMessage } of logsToShow) {
+            const time = new Date(timestamp).toTimeString().split(' ')[0];
+            const trimmedMessage = logMessage.trim();
+            lines.push(`  ${this.#printer.colorize('gray', time)} ${trimmedMessage}`);
+          }
+
+          if (relevantLogs.length > 15) {
+            lines.push(`  ${this.#printer.colorize('gray', `... ${relevantLogs.length - 15} earlier lines omitted`)}`);
+          }
+        }
+      }
+
+      // AWS Console links
+      lines.push('');
+      const taskLink = consoleLinks.ecsTask({
+        clusterName: this.#clusterName,
+        region: this.#awsSdkManager.region,
+        taskId: failedTaskId,
+        selectedContainer: name
+      });
+      lines.push(`${this.#printer.colorize('gray', 'Task details:')} ${this.#printer.terminalLink(taskLink, taskLink)}`);
+      if (logStreamLink) {
+        lines.push(`${this.#printer.colorize('gray', 'Full logs:')} ${this.#printer.terminalLink(logStreamLink, logStreamLink)}`);
+      }
+    }
+
+    return lines.join('\n');
+  }
+
+  /**
+   * Filters out noisy log messages that aren't useful for debugging.
+   * Keeps error messages, stack traces, and startup failures.
+   */
+  #filterRelevantLogs(logs: FilteredLogEvent[]): FilteredLogEvent[] {
+    const noisePatterns = [
+      /DeprecationWarning/i,
+      /ExperimentalWarning/i,
+      /\(Use `node --trace/i,
+      /FastifyWarning.*deprecated/i,
+      /Server listening at http:\/\/127\.0\.0\.1/i,
+      /Server listening at http:\/\/169\.254/i, // AWS metadata IP
+      /Server listening at http:\/\/172\./i // Internal Docker IPs
+    ];
+
+    return logs.filter(({ message }) => {
+      if (!message) return false;
+      // Always keep error-related messages
+      if (/error|exception|fatal|failed|crash/i.test(message)) return true;
+      if (/^\s+at\s+/.test(message)) return true; // Stack trace lines
+      // Filter out noise
+      return !noisePatterns.some((pattern) => pattern.test(message));
+    });
   }
 
   printWarningMessage = () => {
     if (this.#printer) {
-      this.#printer.warn(`${this.getFailureMessage()}`);
-      this.#printer.hint(
-        'Information about failed containers/tasks is only available temporary during deployment.\nAfter deployment fails and rolls-back the information will not be available'
-      );
+      const failureMessage = this.getFailureMessage();
+      if (failureMessage) {
+        this.#printer.warn(`[${this.#pollerPrintName}] Container startup failed\n${failureMessage}`);
+        this.#printer.hint('Task logs are only available during deployment. Save the links above if needed.');
+      }
       this.#warnMessagePrinted = true;
     }
   };

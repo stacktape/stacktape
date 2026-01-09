@@ -36,6 +36,9 @@ export const fsPaths = {
   absoluteLambdaArtifactFolderPath({ invocationId, jobName }: { jobName: string; invocationId: string }) {
     return `${fsPaths.absoluteBuildFolderPath({ invocationId })}/lambdas/${jobName}`;
   },
+  absoluteSharedLayerFolderPath({ invocationId }: { invocationId: string }) {
+    return `${fsPaths.absoluteBuildFolderPath({ invocationId })}/shared-layer`;
+  },
   absoluteAwsCdkConstructArtifactFolderPath({
     invocationId,
     constructName

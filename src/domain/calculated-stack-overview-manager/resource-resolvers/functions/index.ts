@@ -14,6 +14,7 @@ import { getLambdaRuntime } from '@domain-services/config-manager/utils/lambdas'
 import { resolveConnectToList } from '@domain-services/config-manager/utils/resource-references';
 import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
 import { domainManager } from '@domain-services/domain-manager';
+import { packagingManager } from '@domain-services/packaging-manager';
 import { templateManager } from '@domain-services/template-manager';
 import { thirdPartyProviderManager } from '@domain-services/third-party-provider-credentials-manager';
 import { vpcManager } from '@domain-services/vpc-manager';
@@ -296,8 +297,14 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
       });
     }
   }
-  if (layers) {
-    lambdaFunctionResource.Properties.Layers = layers;
+  // Add layers: user-defined layers + shared layer from packaging
+  const sharedLayerInfo = packagingManager.getSharedLayerInfo();
+  const allLayers = [
+    ...(layers || []),
+    ...(sharedLayerInfo?.layerVersionArn ? [sharedLayerInfo.layerVersionArn] : [])
+  ];
+  if (allLayers.length > 0) {
+    lambdaFunctionResource.Properties.Layers = allLayers;
   }
   if (reservedConcurrency) {
     lambdaFunctionResource.Properties.ReservedConcurrentExecutions = reservedConcurrency;

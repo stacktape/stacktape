@@ -23,7 +23,7 @@ const StatusIcon: React.FC<{ status: TuiEvent['status'] }> = ({ status }) => {
     case 'warning':
       return <Text color="yellow">!</Text>;
     default:
-      return <Text color="gray">○</Text>;
+      return <Text color="gray">•</Text>;
   }
 };
 
@@ -65,23 +65,21 @@ const getAggregatedChildren = (children: TuiEvent[]): AggregatedEvent[] => {
     const endTimes = events.filter((e) => e.endTime).map((e) => e.endTime!);
     const endTime = allFinished && endTimes.length > 0 ? Math.max(...endTimes) : undefined;
 
-    // Build description: "instanceId: current action" while running, "instanceId: Done/Skipped" when finished
-    // boldPrefix contains the workload name to be rendered in bold
-    let descriptionSuffix: string;
-    if (allFinished) {
-      const wasSkipped = events.length === 1 && events[0].finalMessage?.toLowerCase().includes('skipped');
-      descriptionSuffix = anyError ? 'Failed' : wasSkipped ? 'Skipped' : 'Done';
-    } else if (runningEvent) {
-      descriptionSuffix = runningEvent.description;
-    } else {
-      descriptionSuffix = '';
-    }
+    // Get the last event's finalMessage (most relevant for display)
+    const finishedEvents = events.filter((e) => e.status === 'success' || e.status === 'error');
+    const lastFinishedEvent = finishedEvents[finishedEvents.length - 1];
+    const aggregatedFinalMessage = lastFinishedEvent?.finalMessage;
+
+    // For running events, show the current action as additional message
+    const runningDescription = runningEvent?.description || '';
 
     return {
       ...firstEvent,
       id: `aggregated-${instanceId}`,
       boldPrefix: instanceId,
-      description: descriptionSuffix,
+      description: '', // Empty - boldPrefix is the main identifier
+      additionalMessage: runningEvent ? runningDescription : undefined,
+      finalMessage: allFinished ? aggregatedFinalMessage : undefined,
       status: runningEvent ? 'running' : allFinished ? (anyError ? 'error' : 'success') : 'running',
       startTime,
       endTime,
@@ -126,21 +124,19 @@ const getAggregatedHotswapChildren = (children: TuiEvent[]): AggregatedEvent[] =
     const endTimes = events.filter((e) => e.endTime).map((e) => e.endTime!);
     const endTime = allFinished && endTimes.length > 0 ? Math.max(...endTimes) : undefined;
 
-    // Build description suffix, boldPrefix contains the workload name
-    let descriptionSuffix: string;
-    if (allFinished) {
-      descriptionSuffix = anyError ? 'Hotswap failed' : 'Hotswap done';
-    } else if (runningEvent) {
-      descriptionSuffix = runningEvent.description;
-    } else {
-      descriptionSuffix = firstEvent.description;
-    }
+    // Get the status message for finished hotswap
+    const hotswapStatus = allFinished ? (anyError ? 'Hotswap failed' : 'Hotswap done') : undefined;
+
+    // For running events, show the current action as additional message
+    const runningDescription = runningEvent?.description || firstEvent.description;
 
     return {
       ...firstEvent,
       id: `hotswap-${instanceId}`,
       boldPrefix: instanceId,
-      description: descriptionSuffix,
+      description: '', // Empty - boldPrefix is the main identifier
+      additionalMessage: runningEvent ? runningDescription : undefined,
+      finalMessage: hotswapStatus,
       status: runningEvent ? 'running' : allFinished ? (anyError ? 'error' : 'success') : 'running',
       startTime,
       endTime,
@@ -183,8 +179,8 @@ export const Event: React.FC<EventProps> = ({ event, isChild = false, isLast = f
   const displayFinalMessage = flattenedChild ? flattenedChild.finalMessage : event.finalMessage;
   const displayAdditionalMessage = flattenedChild ? flattenedChild.additionalMessage : event.additionalMessage;
 
-  // Get bold prefix (workload name) when flattened
-  const boldPrefix = flattenedChild?.boldPrefix;
+  // Get bold prefix (workload name) - from flattened child OR from the event itself if it's an aggregated child
+  const boldPrefix = flattenedChild?.boldPrefix ?? (event as AggregatedEvent).boldPrefix;
   // Build description parts
   const descriptionPrefix = event.description;
   const descriptionSuffix = flattenedChild?.description || '';
@@ -195,8 +191,10 @@ export const Event: React.FC<EventProps> = ({ event, isChild = false, isLast = f
         <Text>{indent}</Text>
         {isChild && <Text color="gray">{prefix} </Text>}
         <StatusIcon status={displayStatus} />
-        <Text> {descriptionPrefix}</Text>
-        {boldPrefix && <Text bold> {boldPrefix}</Text>}
+        <Text> </Text>
+        {descriptionPrefix && <Text>{descriptionPrefix}</Text>}
+        {descriptionPrefix && boldPrefix && <Text> </Text>}
+        {boldPrefix && <Text bold>{boldPrefix}</Text>}
         {descriptionSuffix && <Text>: {descriptionSuffix}</Text>}
         {displayDuration !== undefined && displayStatus !== 'running' && (
           <Text color="yellow"> {formatDuration(displayDuration)}</Text>

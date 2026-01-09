@@ -14,7 +14,6 @@ import { getAwsCredentialsIdentity } from './aws-sdk-manager/utils';
 import { getCommandShortDescription, getPrettyCommand } from './validation-utils';
 
 export const validateDomain = (domain: string) => {
-  // eslint-disable-next-line regexp/no-super-linear-backtracking
   if (!domain.match(/^((?:(?:\w[.\-+]?)*\w)+)((?:(?:\w[.\-+]?){0,62}\w)+)\.(\w{2,6})$/)?.length) {
     throw new ExpectedError('CONFIG_VALIDATION', `Domain name '${domain}' is not a valid domain name.`);
   }
@@ -205,9 +204,9 @@ export const validateArgs = ({
       if (!mergedArgs[requiredCliArg]) {
         throw getError({
           type: 'CLI',
-          message: `Missing required argument --${requiredCliArg} for command ${
+          message: `Missing required argument ${tuiManager.prettyOption(requiredCliArg)} for command ${
             globalStateManager.command
-          }. Required arguments: ${requiredCliArgs.join(', ')}.`,
+          }. Required arguments: ${requiredCliArgs.map((arg) => tuiManager.prettyOption(arg)).join(', ')}.`,
           hint: [multiCharacterHint, helpHint]
         });
       }

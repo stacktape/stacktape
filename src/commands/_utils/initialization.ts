@@ -218,17 +218,14 @@ export const initializeStackServicesForHotSwapDeploy = async () => {
   await eventManager.processHooks({ captureType: 'START' });
 };
 
-export const initializeStackServicesForDev = async () => {
-  // Start single grouped loading event
-  await eventManager.startEvent({
-    eventType: 'LOAD_METADATA_FROM_AWS',
-    description: 'Loading metadata from AWS'
-  });
-
-  // Suppress individual events during loading - show only the grouped "Loading" event
+/**
+ * Phase 1: Initialize credentials, config, and packagingManager.
+ * This is enough to start building. Call phase 2 after (or in parallel) to fetch AWS stack data.
+ */
+export const initializeStackServicesForDevPhase1 = async () => {
+  // Suppress eventManager logs - dev mode uses spinners instead
   eventManager.setSilentMode(true);
 
-  // Load user credentials (without its own event - grouped under parent)
   await globalStateManager.loadUserCredentials();
   awsSdkManager.init({
     credentials: globalStateManager.credentials,
@@ -240,7 +237,14 @@ export const initializeStackServicesForDev = async () => {
 
   await globalStateManager.loadTargetStackInfo();
   await configManager.init({ configRequired: true });
+  await packagingManager.init();
+};
 
+/**
+ * Phase 2: Fetch AWS stack data (stackManager, deployedStackOverviewManager, deploymentArtifactManager).
+ * Can run in parallel with build since it only needs credentials from phase 1.
+ */
+export const initializeStackServicesForDevPhase2 = async () => {
   await settleAllBeforeThrowing([
     stackManager.init({
       stackName: globalStateManager.targetStack.stackName,
@@ -258,19 +262,17 @@ export const initializeStackServicesForDev = async () => {
       stackDetails: stackManager.existingStackDetails,
       stackResources: stackManager.existingStackResources
     }),
-    packagingManager.init(),
     deploymentArtifactManager.init({
-      globallyUniqueStackHash: globalStateManager.targetStack.globallyUniqueStackHash,
       accountId: globalStateManager.targetAwsAccount.awsAccountId,
-      stackActionType: globalStateManager.command as any
+      globallyUniqueStackHash: globalStateManager.targetStack.globallyUniqueStackHash,
+      stackActionType: stackManager.stackActionType
     })
   ]);
+};
 
-  // Re-enable events for the rest of the dev command
-  eventManager.setSilentMode(false);
-
-  // Finish the grouped loading event
-  await eventManager.finishEvent({ eventType: 'LOAD_METADATA_FROM_AWS' });
+export const initializeStackServicesForDev = async () => {
+  await initializeStackServicesForDevPhase1();
+  await initializeStackServicesForDevPhase2();
 };
 
 export const initializeStackServicesForWorkingWithDeployedStack = async ({

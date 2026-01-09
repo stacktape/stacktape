@@ -1,5 +1,4 @@
 import { applicationManager } from '@application-services/application-manager';
-import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { IS_DEV, PRINT_LOGS_INTERVAL } from '@config';
@@ -41,21 +40,39 @@ export const runDevLambdaFunction = async (): Promise<DevReturnValue> => {
     });
   } else {
     hookToRestartStdinInput(async () => {
-      await eventManager.startEvent({
-        eventType: 'REBUILD_AND_RESTART',
-        description: 'Rebuilding and redeploying function'
-      });
       await buildAndDeployFunction();
       await cloudwatchLogPrinter.startUsingNewLogStream();
-      await eventManager.finishEvent({ eventType: 'REBUILD_AND_RESTART' });
     });
   }
 
   let failedPrints = 0;
+  let isRefreshingCredentials = false;
   const printingInterval = setInterval(async () => {
+    if (isRefreshingCredentials) return;
     try {
       await cloudwatchLogPrinter.printLogs();
+      failedPrints = 0; // Reset on success
     } catch (err) {
+      const isExpiredToken =
+        err?.name === 'ExpiredTokenException' ||
+        err?.message?.includes('expired') ||
+        err?.code === 'ExpiredTokenException';
+
+      if (isExpiredToken && !isRefreshingCredentials) {
+        isRefreshingCredentials = true;
+        tuiManager.info('AWS credentials expired. Refreshing...');
+        try {
+          await globalStateManager.loadUserCredentials();
+          tuiManager.success('AWS credentials refreshed.');
+          failedPrints = 0;
+        } catch (refreshErr) {
+          tuiManager.warn('Failed to refresh AWS credentials. Restart dev to continue.');
+          if (IS_DEV) console.error(refreshErr);
+        }
+        isRefreshingCredentials = false;
+        return;
+      }
+
       tuiManager.warn('Failed to fetch logs.');
       if (IS_DEV) {
         console.error(err);
@@ -72,9 +89,8 @@ export const runDevLambdaFunction = async (): Promise<DevReturnValue> => {
 };
 
 const buildAndDeployFunction = async () => {
-  eventManager.reset();
   const { resourceName } = globalStateManager.args;
-  const result = await buildAndUpdateFunctionCode(resourceName);
+  const result = await buildAndUpdateFunctionCode(resourceName, { devMode: true });
   // clear packaged jobs, so that the packagingManager method getPackagingOutputForJob
   // returns correct information on subsequent builds
   packagingManager.clearPackagedJobs();
@@ -110,8 +126,8 @@ const printLambdaFunctionInfo = (resourceName: string) => {
     }
   });
   tuiManager.success(
-    `Deployed new version. ${restartMessage}.\n○ Logs stream with a short delay.${
-      eventsInfo.length ? '\n○ Events:\n' : ''
+    `Deployed new version. ${restartMessage}.\n${
+      eventsInfo.length ? '\n• Events:\n' : ''
     }    ${eventsInfo.join('\n    ')}`
   );
 };

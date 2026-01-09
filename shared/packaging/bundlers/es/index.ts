@@ -369,7 +369,8 @@ export const createEsBundle = async ({
   isLambda,
   requiresGlibcBinaries,
   dockerBuildOutputArchitecture,
-  outputModuleFormat
+  outputModuleFormat,
+  skipDigestCalculation
 }: StpBuildpackInput &
   EsLanguageSpecificConfig & {
     minify: boolean;
@@ -378,6 +379,7 @@ export const createEsBundle = async ({
     sourceMaps?: 'inline' | 'external' | 'disabled';
     sourceMapBannerType?: 'node_modules' | 'pre-compiled' | 'disabled';
     isLambda?: boolean;
+    skipDigestCalculation?: boolean;
   }) => {
   await dependencyInstaller.install({ rootProjectDirPath: cwd, progressLogger });
 
@@ -452,37 +454,42 @@ export const createEsBundle = async ({
     );
   }
 
-  await progressLogger.startEvent({
-    eventType: 'CALCULATE_CHECKSUM',
-    description: 'Calculating checksum for caching'
-  });
-  const explicitlyIncludedFilesDigestHex = explicitlyIncludedFilesDigest.digest('hex');
-  const digest = await getBundleDigest({
-    externalDependencies: dependenciesToInstallInDocker.map((dep) => ({ name: dep.name, version: dep.version })),
-    cwd,
-    workloadPath: distIndexFilePath,
-    additionalDigestInput: [
-      additionalDigestInput,
-      explicitlyIncludedFilesDigestHex,
-      dockerBuildOutputArchitecture
-    ].join('')
-  });
-  if (existingDigests.includes(digest)) {
-    await progressLogger.finishEvent({
+  let digest = 'dev-mode-no-digest';
+
+  if (!skipDigestCalculation) {
+    await progressLogger.startEvent({
       eventType: 'CALCULATE_CHECKSUM',
-      finalMessage: 'Same artifact is already deployed, skipping.'
+      description: 'Calculating checksum for caching'
     });
-    return {
-      digest,
-      outcome: 'skipped' as const,
-      distFolderPath,
-      distIndexFilePath,
-      dynamicallyImportedModules,
-      sourceFiles: absoluteWorkloadSourceFiles,
-      languageSpecificBundleOutput: { es: {} }
-    };
+    const explicitlyIncludedFilesDigestHex = explicitlyIncludedFilesDigest.digest('hex');
+    digest = await getBundleDigest({
+      externalDependencies: dependenciesToInstallInDocker.map((dep) => ({ name: dep.name, version: dep.version })),
+      cwd,
+      workloadPath: distIndexFilePath,
+      additionalDigestInput: [
+        additionalDigestInput,
+        explicitlyIncludedFilesDigestHex,
+        dockerBuildOutputArchitecture
+      ].join('')
+    });
+    if (existingDigests.includes(digest)) {
+      await progressLogger.finishEvent({
+        eventType: 'CALCULATE_CHECKSUM',
+        finalMessage: 'Same artifact is already deployed, skipping.'
+      });
+      return {
+        digest,
+        outcome: 'skipped' as const,
+        distFolderPath,
+        distIndexFilePath,
+        dynamicallyImportedModules,
+        sourceFiles: absoluteWorkloadSourceFiles,
+        languageSpecificBundleOutput: { es: {} },
+        resolvedModules: allModules
+      };
+    }
+    await progressLogger.finishEvent({ eventType: 'CALCULATE_CHECKSUM' });
   }
-  await progressLogger.finishEvent({ eventType: 'CALCULATE_CHECKSUM' });
 
   await progressLogger.startEvent({
     eventType: 'RESOLVE_DEPENDENCIES',
@@ -536,7 +543,8 @@ export const createEsBundle = async ({
         packageManager,
         dynamicallyImportedModules
       }
-    }
+    },
+    resolvedModules: allModules
   };
 };
 

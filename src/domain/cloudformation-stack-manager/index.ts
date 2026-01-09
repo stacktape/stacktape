@@ -712,7 +712,7 @@ export class StackManager {
         cleanupMonitoring();
 
         const handledFailedEvents = await this.#handleFailedEvents({ potentialErrorCausingEvents });
-        tuiManager.writeInfo('handledFailedEvents', JSON.stringify(handledFailedEvents, null, 2));
+        tuiManager.debug(`Processed ${handledFailedEvents.length} failed stack event(s)`);
         const formattedStackErrorText = tuiManager.formatComplexStackErrors(handledFailedEvents, 2);
         const hints = getHintsAfterStackFailureOperation({
           cfStackAction,
