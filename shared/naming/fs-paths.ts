@@ -115,16 +115,7 @@ export const fsPaths = {
       ? join(SCRIPTS_ASSETS_PATH, 'pack', PACK_BINARY_FILE_NAMES[getPlatform()])
       : join(fsPaths.absoluteExecutableDirname(), 'pack', getPlatform() === 'win' ? 'pack.exe' : 'pack');
   },
-  esbuildRegisterPath() {
-    return IS_DEV
-      ? join(process.cwd(), 'node_modules', 'esbuild-register', 'register')
-      : join(fsPaths.absoluteExecutableDirname(), 'esbuild', 'esbuild-register.js');
-  },
-  esbuildBinaryPath() {
-    return IS_DEV
-      ? null // development mode uses node_modules esbuild
-      : join(fsPaths.absoluteExecutableDirname(), 'esbuild', getPlatform() === 'win' ? 'exec.exe' : 'exec');
-  },
+
   nixpacksPath() {
     return IS_DEV
       ? join(SCRIPTS_ASSETS_PATH, 'nixpacks', NIXPACKS_BINARY_FILE_NAMES[getPlatform()])

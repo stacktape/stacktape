@@ -13,10 +13,8 @@ $BinDirPath = "$Home\.stacktape\bin"
 $CompletionsFilePath = "$BinDirPath\completions\powershell.ps1"
 $ExecutableFilePath = "$BinDirPath\stacktape.exe"
 $AltExecutableFilePath = "$BinDirPath\stp.exe"
-$EsbuildExecutableFilePath = "$BinDirPath\esbuild\exec.exe"
 $PackExecutableFilePath = "$BinDirPath\pack\pack.exe"
 $NixpacksExecutableFilePath = "$BinDirPath\nixpacks\nixpacks.exe"
-$EsbuildRegisterFilePath = "$BinDirPath\esbuild\esbuild-register.js"
 $BridgeFilesFolderPath = "$BinDirPath\bridge-files"
 $ZipFilePath = "$BinDirPath\stacktape.zip"
 $ZipSourceUrl = "https://github.com/stacktape/stacktape/releases/download/$Version/windows.zip"
@@ -33,7 +31,6 @@ if (Get-Command Expand-Archive -ErrorAction SilentlyContinue) {
   Expand-Archive $ZipFilePath -Destination $BinDirPath -Force
 } else {
   Remove-Item $ExecutableFilePath -ErrorAction SilentlyContinue
-  Remove-Item $EsbuildExecutableFilePath -ErrorAction SilentlyContinue
   Remove-Item $BridgeFilesFolderPath -ErrorAction SilentlyContinue
   Add-Type -AssemblyName System.IO.Compression.FileSystem
   [IO.Compression.ZipFile]::ExtractToDirectory($ZipFilePath, $BinDirPath)

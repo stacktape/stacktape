@@ -20,7 +20,7 @@ const compileSdkSource = async ({ distFolderPath }: { distFolderPath: string }) 
     minify: false,
     nodeTarget: '22',
     cwd: process.cwd(),
-    externals: ['esbuild'],
+    externals: [],
     tsConfigPath: localBuildTsConfigPath,
     sourcePath: SDK_SOURCE_PATH,
     distPath: join(distFolderPath, 'sdk.js')

@@ -11,9 +11,7 @@ import { packageHelperLambdas } from './package-helper-lambdas';
 import { getCliArgs } from './release/args';
 import {
   buildBinaryFile,
-  buildEsbuildRegister,
   copyConfigSchema,
-  copyEsbuildBinary,
   copyNixpacksBinary,
   copyPackBinary,
   copySessionsManagerPluginBinary,
@@ -67,8 +65,6 @@ const buildEverything = async () => {
     copyPackBinary({ distFolderPath, platform }),
     copyNixpacksBinary({ distFolderPath, platform }),
     copySessionsManagerPluginBinary({ distFolderPath, platform }),
-    copyEsbuildBinary({ distFolderPath, platform }),
-    buildEsbuildRegister({ distFolderPath: platformDistFolderPath }),
     copyConfigSchema({ distFolderPath: platformDistFolderPath }),
     generateStarterProjectsMetadata({ distFolderPath: platformDistFolderPath }),
     packageHelperLambdas({ isDev: false, distFolderPath: platformDistFolderPath }),

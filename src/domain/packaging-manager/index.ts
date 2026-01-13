@@ -942,7 +942,7 @@ export class PackagingManager {
               sharedLayerExternals,
               // Only show "Uses shared layer" if this specific function has shared deps
               usesSharedLayer: this.#lambdasUsingSharedLayer.has(workloadName),
-              // First pass only needs to run esbuild to discover dependencies - skip zipping/size checks
+              // First pass only needs to run bundler to discover dependencies - skip zipping/size checks
               dependencyDiscoveryOnly: isFirstPass
             });
             // Only add to packaged jobs if not first-pass (first pass is just for dependency discovery)

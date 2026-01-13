@@ -30,7 +30,6 @@ export const createNextjsWebArtifacts = async ({
 }: NextjsWebBundlingProps) => {
   await progressLogger.startEvent({ eventType: 'BUILD_NEXTJS_PROJECT', description: 'Building Nextjs project' });
   const copyEnv = serialize(process.env);
-  copyEnv.ESBUILD_BINARY_PATH = '';
 
   const configFileName = await createTemporaryOpenNextConfigFile({ resource, cwd });
   const absoluteAppDirectory = join(cwd, resource.appDirectory || '.');
@@ -57,7 +56,7 @@ export const createNextjsWebArtifacts = async ({
         env: { ...copyEnv }, // OPEN_NEXT_DEBUG: true
         disableStderr: true,
         disableStdout: true,
-        inheritEnvVarsExcept: ['ESBUILD_BINARY_PATH']
+        inheritEnvVarsExcept: []
       }
     );
   } catch (err) {

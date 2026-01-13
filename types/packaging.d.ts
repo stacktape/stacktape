@@ -56,7 +56,7 @@ type PackagingOutput = {
   distFolderPath?: string;
   details?: Record<string, any>;
   jobName: string;
-  /** All npm modules resolved during esbuild bundling (for Lambda functions) */
+  /** All npm modules resolved during bundling (for Lambda functions) */
   resolvedModules?: string[];
 };
 
@@ -91,7 +91,7 @@ type PackageWorkloadOutput = {
   skipped: boolean;
   size: number;
   artifactPath?: string;
-  /** All npm modules resolved during esbuild bundling (for Lambda functions) */
+  /** All npm modules resolved during bundling (for Lambda functions) */
   resolvedModules?: string[];
 };
 

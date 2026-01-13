@@ -14,12 +14,11 @@ import {
   PACK_BINARY_FILE_NAMES,
   SESSION_MANAGER_PLUGIN_BINARY_FILE_NAMES
 } from '@shared/utils/constants';
-import { downloadFile } from '@shared/utils/download-file';
 import { exec } from '@shared/utils/exec';
 import { logInfo, logSuccess } from '@shared/utils/logging';
 import { localBuildTsConfigPath } from '@shared/utils/misc';
-import { archiveItem, extractTgzArchive } from '@shared/utils/zip';
-import { chmod, copy, ensureDir, pathExists, readdir, readFile, readJsonSync, remove, writeJson } from 'fs-extra';
+import { archiveItem } from '@shared/utils/zip';
+import { chmod, copy, ensureDir, pathExists, readdir, readFile, writeJson } from 'fs-extra';
 import {
   createBashCompletionScript,
   createPowershellCompletionScript,
@@ -37,24 +36,6 @@ export const ALL_SUPPORTED_PLATFORMS: SupportedPlatform[] = [
   'linux-arm'
 ];
 
-export const buildEsbuildRegister = async ({ distFolderPath }: { distFolderPath?: string }) => {
-  logInfo('Copying esbuild-register...');
-  const esbuildRegisterDistFolderPath = join(distFolderPath, 'esbuild', 'esbuild-register.js');
-  await buildEsCode({
-    rawCode: 'require("esbuild-register/dist/node").register();',
-    distPath: esbuildRegisterDistFolderPath,
-    externals: [],
-    sourceMaps: 'disabled',
-    sourceMapBannerType: 'disabled',
-    tsConfigPath: localBuildTsConfigPath,
-    keepNames: false,
-    minify: true,
-    nodeTarget: '18',
-    cwd: process.cwd()
-  });
-  logSuccess('esbuild-register copied successfully.');
-};
-
 const BINARY_FOLDER_NAMES: { [_platform in SupportedPlatform]: string } = {
   win: 'windows',
   macos: 'macos',
@@ -62,23 +43,6 @@ const BINARY_FOLDER_NAMES: { [_platform in SupportedPlatform]: string } = {
   'macos-arm': 'macos-arm',
   alpine: 'alpine',
   'linux-arm': 'linux-arm'
-};
-
-const ESBUILD_BINARY_PACKAGE_NAMES: { [_platform in SupportedPlatform]: string } = {
-  win: '@esbuild/win32-x64',
-  macos: '@esbuild/darwin-x64',
-  linux: '@esbuild/linux-x64',
-  'macos-arm': '@esbuild/darwin-arm64',
-  alpine: '@esbuild/linux-x64',
-  'linux-arm': '@esbuild/linux-arm64'
-};
-const ESBUILD_BINARY_FILE_LOCATIONS: { [_platform in SupportedPlatform]: string[] } = {
-  win: ['esbuild.exe'],
-  macos: ['bin', 'esbuild'],
-  linux: ['bin', 'esbuild'],
-  'macos-arm': ['bin', 'esbuild'],
-  alpine: ['bin', 'esbuild'],
-  'linux-arm': ['bin', 'esbuild']
 };
 
 // File patterns that should have executable permissions in archives
@@ -90,9 +54,7 @@ export const EXECUTABLE_FILE_PATTERNS = [
   '*/nixpacks',
   '*/nixpacks.exe',
   '*/smp',
-  '*/smp.exe',
-  '*/exec',
-  '*/exec.exe'
+  '*/smp.exe'
 ];
 
 export const generateSourceMapInstall = async ({ distFolderPath }: { distFolderPath: string }) => {
@@ -168,7 +130,7 @@ export const buildBinaryFile = async ({
 
   if (!debug) {
     buildArgs.push('--minify');
-    // buildArgs.push('--bytecode');
+    buildArgs.push('--bytecode');
   }
 
   try {
@@ -243,43 +205,6 @@ export const copySessionsManagerPluginBinary = async ({
     platform === 'win' ? 'smp.exe' : 'smp'
   );
   return await copy(sourcePath, distPath);
-};
-
-export const copyEsbuildBinary = async ({
-  distFolderPath,
-  platform
-}: {
-  distFolderPath?: string;
-  platform: SupportedPlatform;
-}) => {
-  const { dependencies } = readJsonSync(join(process.cwd(), 'package.json'));
-  const version = dependencies.esbuild.replace('^', '').replace('~', '');
-  const esbuildPackageName = ESBUILD_BINARY_PACKAGE_NAMES[platform];
-  const esbuildSubPackageName = esbuildPackageName.replace('@esbuild/', '');
-  const downloadUrl = `https://registry.yarnpkg.com/${esbuildPackageName}/-/${esbuildSubPackageName}-${version}.tgz`;
-  const downloadDir = join(distFolderPath, 'downloaded');
-  await downloadFile({ url: downloadUrl, downloadTo: downloadDir });
-  const downloadedFilePath = join(downloadDir, `${esbuildSubPackageName}-${version}.tgz`);
-  const extractedPath = await extractTgzArchive({
-    sourcePath: downloadedFilePath,
-    distDirPath: downloadDir
-  });
-  const esbuildBinFileLocations = ESBUILD_BINARY_FILE_LOCATIONS[platform];
-  const binaryDist = join(distFolderPath, BINARY_FOLDER_NAMES[platform]);
-  const esbuildExecutableSourcePath = join(extractedPath, ...esbuildBinFileLocations);
-  const esbuildExecutableDistPath = join(
-    binaryDist,
-    'esbuild',
-    esbuildBinFileLocations[esbuildBinFileLocations.length - 1].replace('esbuild', 'exec')
-  );
-  if (platform !== 'win') {
-    await chmod(esbuildExecutableSourcePath, '755');
-  }
-  await copy(esbuildExecutableSourcePath, esbuildExecutableDistPath);
-  if (platform !== 'win') {
-    await chmod(esbuildExecutableDistPath, '755');
-  }
-  await Promise.all([remove(extractedPath), remove(downloadedFilePath)]);
 };
 
 export const generateAutocompletionsScripts = async ({

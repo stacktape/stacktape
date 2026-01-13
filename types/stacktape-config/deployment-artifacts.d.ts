@@ -221,7 +221,7 @@ interface StpBuildpackLambdaPackagingProps extends StpBuildpackSharedProps {
  *
  * **Supported languages:** JavaScript, TypeScript, Python, Java, and Go.
  *
- * For JS/TS, your code is bundled into a single file using esbuild. Source maps are automatically generated.
+ * For JS/TS, your code is bundled into a single file. Source maps are automatically generated.
  * Packages are cached based on a checksum, so unchanged code is not re-packaged.
  */
 interface StpBuildpackLambdaPackaging {
@@ -596,7 +596,7 @@ interface StpBuildpackBjImagePackaging {
  *
  * **Supported languages:** JavaScript, TypeScript, Python, Java, and Go.
  *
- * For JS/TS, your code is bundled into a single file using esbuild with source maps.
+ * For JS/TS, your code is bundled into a single file with source maps.
  * The resulting image is uploaded to a managed ECR repository.
  */
 interface StpBuildpackCwImagePackaging {

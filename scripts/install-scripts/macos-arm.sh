@@ -38,7 +38,6 @@ archive_source_url=https://github.com/stacktape/stacktape/releases/download/$ver
 bin_dir_path="$HOME/.stacktape/bin"
 executable_file_path="$bin_dir_path/stacktape"
 alt_executable_file_path="$bin_dir_path/stp"
-esbuild_executable_file_path="$bin_dir_path/esbuild/exec"
 session_manager_plugin_executable_file_path="$bin_dir_path/session-manager-plugin/smp"
 pack_executable_file_path="$bin_dir_path/pack/pack"
 nixpacks_executable_file_path="$bin_dir_path/nixpacks/nixpacks"
@@ -55,7 +54,6 @@ cd $bin_dir_path
 tar xzf "$executable_file_path.tar.gz"
 
 chmod +x "$executable_file_path"
-chmod +x "$esbuild_executable_file_path"
 chmod +x "$session_manager_plugin_executable_file_path"
 chmod +x "$pack_executable_file_path"
 chmod +x "$nixpacks_executable_file_path"

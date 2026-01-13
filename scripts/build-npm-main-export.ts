@@ -130,7 +130,7 @@ const compileTsConfigHelpersSource = async () => {
     minify: false,
     nodeTarget: '22',
     cwd: process.cwd(),
-    externals: ['esbuild'],
+    externals: [],
     tsConfigPath: localBuildTsConfigPath,
     sourcePath: PATHS.source,
     distPath: PATHS.distJs

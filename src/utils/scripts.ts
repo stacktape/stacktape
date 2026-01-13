@@ -1,9 +1,7 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
-import { IS_DEV } from '@config';
 import { stpErrors } from '@errors';
-import { fsPaths } from '@shared/naming/fs-paths';
 import { checkExecutableInPath } from '@shared/utils/bin-executable';
 import { exec } from '@shared/utils/exec';
 import { getFileExtension } from '@shared/utils/fs-utils';
@@ -76,7 +74,6 @@ export const executeCommandHook = ({
     env,
     // maybe use powershell.exe for windows? Originally cmd.exe was used so it could be a breaking change
     rawOptions: { shell: process.platform === 'win32' ? undefined : '/bin/bash' },
-    inheritEnvVarsExcept: ['ESBUILD_BINARY_PATH'],
     pipeStdio,
     disableStderr: !pipeStdio,
     disableStdout: !pipeStdio,
@@ -116,8 +113,13 @@ export const executeScriptHook = ({
   });
 };
 
-// @note pkg is monkey patching node spawn/exec... this is a workaround to use not-monkey-patched version
-let absoluteNodeExecPath: string;
+// Get the Bun executable path - use the bundled Bun runtime or system Bun
+const getBunExecutable = (): string => {
+  // When running from compiled binary, process.execPath is the Stacktape binary itself
+  // which is a Bun compiled binary and can run JS/TS files directly
+  // When running in dev mode, use system bun
+  return checkExecutableInPath('bun') || process.execPath;
+};
 
 const execScriptInNewProcess = async ({
   absoluteScriptPath,
@@ -139,33 +141,20 @@ const execScriptInNewProcess = async ({
   onOutputLine?: (line: string) => void;
 }) => {
   const ext = getFileExtension(absoluteScriptPath);
-  if ((ext === 'js' || ext === 'ts') && !absoluteNodeExecPath) {
-    absoluteNodeExecPath = checkExecutableInPath('node') || checkExecutableInPath('nodejs');
-  }
   const stdioOpts = pipeStdio ? { pipeStdio: true } : { disableStderr: true, disableStdout: true };
   const outputCallback = onOutputLine ? { onOutputLine: (line: string) => onOutputLine(line) } : {};
   if (!existsSync(absoluteScriptPath)) {
     throw stpErrors.e18({ absoluteScriptPath });
   }
   switch (ext) {
-    case 'js': {
-      await exec(absoluteNodeExecPath, [absoluteScriptPath], {
+    case 'js':
+    case 'ts': {
+      // Use Bun to run JS/TS files - Bun has native TypeScript support
+      const bunExec = getBunExecutable();
+      await exec(bunExec, ['run', absoluteScriptPath], {
         env,
         ...stdioOpts,
         ...outputCallback,
-        cwd: scriptCwd,
-        inheritEnvVarsExcept: ['ESBUILD_BINARY_PATH'],
-        transformStderrLine,
-        transformStdoutLine
-      });
-      break;
-    }
-    case 'ts': {
-      await exec(absoluteNodeExecPath, ['-r', fsPaths.esbuildRegisterPath(), absoluteScriptPath], {
-        env: { ...env, ESBUILD_BINARY_PATH: process.env.ESBUILD_BINARY_PATH },
-        ...stdioOpts,
-        ...outputCallback,
-        inheritEnvVarsExcept: ['ESBUILD_BINARY_PATH'],
         cwd: scriptCwd,
         transformStderrLine,
         transformStdoutLine
@@ -178,7 +167,6 @@ const execScriptInNewProcess = async ({
         ...stdioOpts,
         ...outputCallback,
         cwd: scriptCwd,
-        inheritEnvVarsExcept: ['ESBUILD_BINARY_PATH'],
         transformStderrLine,
         transformStdoutLine
       });

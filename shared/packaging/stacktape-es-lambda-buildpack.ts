@@ -23,7 +23,7 @@ export const buildUsingStacktapeEsLambdaBuildpack = async ({
   minify: boolean;
   sharedLayerExternals?: string[];
   usesSharedLayer?: boolean;
-  /** When true, only run esbuild to discover dependencies - skip zipping and size checks */
+  /** When true, only run bundler to discover dependencies - skip zipping and size checks */
   dependencyDiscoveryOnly?: boolean;
 }): Promise<PackagingOutput> => {
   const bundlingOutput = await createEsBundle({
