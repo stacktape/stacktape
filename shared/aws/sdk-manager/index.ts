@@ -161,12 +161,14 @@ import {
   DeleteLayerVersionCommand,
   GetFunctionConfigurationCommand,
   GetLayerVersionCommand,
+  GetProvisionedConcurrencyConfigCommand,
   InvokeCommand,
   LambdaClient,
   ListLayerVersionsCommand,
   ListTagsCommand,
   PublishLayerVersionCommand,
   PublishVersionCommand,
+  Runtime,
   TagResourceCommand as TagLambdaResource,
   UpdateAliasCommand,
   UpdateFunctionCodeCommand,
@@ -583,10 +585,19 @@ export class AwsSdkManager {
       .catch(errHandler);
   };
 
-  continueUpdateRollback = (stackName: string, { roleArn }: { roleArn: string }) => {
+  continueUpdateRollback = (
+    stackName: string,
+    { roleArn, resourcesToSkip }: { roleArn: string; resourcesToSkip?: string[] }
+  ) => {
     const errHandler = this.#getErrorHandler('Failed to initiate stack rollback continuation.');
     return this.#cloudformation()
-      .send(new ContinueUpdateRollbackCommand({ StackName: stackName, RoleARN: roleArn }))
+      .send(
+        new ContinueUpdateRollbackCommand({
+          StackName: stackName,
+          RoleARN: roleArn,
+          ResourcesToSkip: resourcesToSkip
+        })
+      )
       .catch(errHandler);
   };
 
@@ -2193,6 +2204,19 @@ export class AwsSdkManager {
     );
   };
 
+  getProvisionedConcurrencyConfig = async ({
+    functionName,
+    qualifier
+  }: {
+    functionName: string;
+    qualifier: string;
+  }) => {
+    const errHandler = this.#getErrorHandler('Failed to get provisioned concurrency config.');
+    return this.#lambda()
+      .send(new GetProvisionedConcurrencyConfigCommand({ FunctionName: functionName, Qualifier: qualifier }))
+      .catch(errHandler);
+  };
+
   tagLambdaFunction = async ({ lambdaArn, tags }: { lambdaArn: string; tags: { key: string; value: string }[] }) => {
     const errHandler = this.#getErrorHandler('Failed to tag lambda.');
     const tagObject = {};
@@ -3164,7 +3188,7 @@ export class AwsSdkManager {
         new PublishLayerVersionCommand({
           LayerName: layerName,
           Content: { ZipFile: zipContent },
-          CompatibleRuntimes: compatibleRuntimes,
+          CompatibleRuntimes: compatibleRuntimes as Runtime[],
           Description: description
         })
       )

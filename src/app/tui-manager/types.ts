@@ -110,6 +110,15 @@ export type TuiPromptText = {
 
 export type TuiPrompt = TuiPromptSelect | TuiPromptConfirm | TuiPromptText;
 
+export type TuiCancelDeployment = {
+  /** Message to display in the banner */
+  message: string;
+  /** Callback to invoke when user confirms cancellation */
+  onCancel: () => void;
+  /** Whether cancellation is in progress */
+  isCancelling?: boolean;
+};
+
 export type TuiState = {
   header?: TuiDeploymentHeader;
   phases: TuiPhase[];
@@ -128,6 +137,8 @@ export type TuiState = {
   isFinalizing?: boolean;
   /** Stored completion info to be committed after hooks finish */
   pendingCompletion?: { success: boolean; message: string; links: TuiLink[]; consoleUrl?: string };
+  /** When set, shows a cancel deployment banner that user can trigger with 'c' key */
+  cancelDeployment?: TuiCancelDeployment;
 };
 
 export const PHASE_NAMES: Record<DeploymentPhase, string> = {

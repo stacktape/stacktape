@@ -167,7 +167,15 @@ function generateAugmentedPropsType(
 
   // Special handling for ContainerWorkloadProps - also omit 'containers' to replace with augmented container type
   const isContainerWorkload = resourceType === 'MultiContainerWorkload';
-  const omitFields = isContainerWorkload ? "'connectTo' | 'environment' | 'containers'" : "'connectTo' | 'environment'";
+  // Special handling for BatchJobProps - also omit 'container' to replace with augmented container type
+  const isBatchJob = resourceType === 'BatchJob';
+
+  let omitFields = "'connectTo' | 'environment'";
+  if (isContainerWorkload) {
+    omitFields = "'connectTo' | 'environment' | 'containers'";
+  } else if (isBatchJob) {
+    omitFields = "'connectTo' | 'environment' | 'container'";
+  }
 
   // Start the type declaration
   lines.push(`export type ${propsType} = Omit<${originalPropsType}, ${omitFields}> & {`);
@@ -187,6 +195,14 @@ function generateAugmentedPropsType(
    * Containers within the same workload share computing resources and scale together.
    */
   containers: ContainerWithObjectEnv[];`);
+  }
+
+  // Add container with augmented type for BatchJob
+  if (isBatchJob) {
+    lines.push(`  /**
+   * Container configuration for the batch job.
+   */
+  container: BatchJobContainerWithObjectEnv;`);
   }
 
   // Add overrides and transforms if needed
@@ -215,6 +231,18 @@ function generateContainerAugmentedTypes(): string {
 export type ContainerWithObjectEnv = Omit<import('./sdk').ContainerWorkloadContainer, 'environment'> & {
   /**
    * Environment variables to inject into the container.
+   * Specified as key-value pairs: { PORT: '3000', NODE_ENV: 'production' }
+   */
+  environment?: { [envVarName: string]: string | number | boolean };
+};
+
+/**
+ * Batch job container configuration with object-style environment variables.
+ * Environment is specified as { KEY: 'value' } for better developer experience.
+ */
+export type BatchJobContainerWithObjectEnv = Omit<import('./sdk').BatchJobContainer, 'environment'> & {
+  /**
+   * Environment variables to inject into the batch job container.
    * Specified as key-value pairs: { PORT: '3000', NODE_ENV: 'production' }
    */
   environment?: { [envVarName: string]: string | number | boolean };

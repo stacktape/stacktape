@@ -2,7 +2,15 @@
   "permissions": {
     "allow": [
       "Bash(bun run tsc:*)",
-      "Bash(bun run tsc:ui:*)"
+      "Bash(bun run tsc:ui:*)",
+      "Bash(bun run:*)",
+      "Bash(bun gen:schema:*)",
+      "Bash(cat:*)",
+      "Bash(xargs cat:*)",
+      "Bash(timeout 10 bun test:*)",
+      "Bash(npx tsc:*)",
+      "Bash(dir /s /b C:Projectsstacktape.stacktape*debug*.json)",
+      "Bash(dir /s /b C:Projectsstacktape.stacktape)"
     ]
   }
 }

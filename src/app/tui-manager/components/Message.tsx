@@ -19,11 +19,22 @@ const MESSAGE_ICONS: Record<TuiMessageType, { symbol: string; color: string }> =
 
 export const Message: React.FC<MessageProps> = ({ message }) => {
   const { symbol, color } = MESSAGE_ICONS[message.type];
+  const lines = message.message.split('\n');
 
   return (
-    <Box>
-      <Text color={color}>{symbol}</Text>
-      <Text> {message.message}</Text>
+    <Box flexDirection="column">
+      {lines.map((line, index) => (
+        <Box key={index}>
+          {index === 0 ? (
+            <>
+              <Text color={color}>{symbol}</Text>
+              <Text> {line}</Text>
+            </>
+          ) : (
+            <Text>  {line}</Text>
+          )}
+        </Box>
+      ))}
     </Box>
   );
 };

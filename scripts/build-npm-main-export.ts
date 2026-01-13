@@ -74,18 +74,28 @@ function extractEssentialDeclarations(configDts: string): string {
   const classPatterns = [
     'export declare class ResourceParamReference',
     'export declare class BaseTypeProperties',
+    'export declare class BaseTypeOnly',
+    'export declare class Alarm',
     'export declare class BaseResource',
     'export type GetConfigParams'
   ];
 
   for (const pattern of classPatterns) {
-    const startIdx = configDts.indexOf(pattern);
+    let startIdx = configDts.indexOf(pattern);
     if (startIdx !== -1) {
+      // Look back for JSDoc comment (/** ... */)
+      const searchStart = Math.max(0, startIdx - 1000);
+      const beforePattern = configDts.substring(searchStart, startIdx);
+      const jsdocMatch = beforePattern.match(/\/\*\*[\s\S]*?\*\/\s*$/);
+      if (jsdocMatch) {
+        startIdx = searchStart + beforePattern.lastIndexOf(jsdocMatch[0]);
+      }
+
       let braceCount = 0;
       let inBlock = false;
       let endIdx = startIdx;
 
-      for (let i = startIdx; i < configDts.length; i++) {
+      for (let i = configDts.indexOf(pattern); i < configDts.length; i++) {
         const char = configDts[i];
 
         if (char === '{') {
@@ -170,6 +180,8 @@ function removeDuplicateDeclarations(content: string): string {
     'export declare class BaseResource',
     'export declare class ResourceParamReference',
     'export declare class BaseTypeProperties',
+    'export declare class BaseTypeOnly',
+    'export declare class Alarm',
     'export type GetConfigParams'
   ];
 
@@ -292,7 +304,9 @@ export async function generateTypeDeclarations(): Promise<void> {
   // Get all class names for re-export
   const resourceClassNames = RESOURCES_CONVERTIBLE_TO_CLASSES.map((r) => r.className);
   const typePropertiesClassNames = MISC_TYPES_CONVERTIBLE_TO_CLASSES.map((t) => t.className);
-  const allClassNames = [...resourceClassNames, ...typePropertiesClassNames];
+  // Additional utility classes from config.ts
+  const utilityClassNames = ['Alarm'];
+  const allClassNames = [...resourceClassNames, ...typePropertiesClassNames, ...utilityClassNames];
 
   // Generate types.d.ts - contains all types AND class declarations
   // Classes must be here so ConnectTo types can reference them

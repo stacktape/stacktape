@@ -669,6 +669,16 @@ interface StacktapeCliArgs {
    */
   hotSwap?: boolean;
   /**
+   * #### Disable Layer Caching
+   *
+   * ---
+   *
+   * If `true`, disables caching of shared Lambda layers. By default, Stacktape checks if a layer with the same dependencies already exists in AWS and reuses it. Use this flag to force rebuilding and republishing the layer.
+   *
+   * @default false
+   */
+  disableLayerCaching?: boolean;
+  /**
    * #### API Key
    *
    * ---
@@ -723,6 +733,20 @@ interface StacktapeCliArgs {
    * - For resources requiring multiple ports (e.g., databases with replicas), ports increment sequentially.
    */
   localTunnelingPort?: number;
+  /**
+   * #### Resources to Skip
+   *
+   * ---
+   *
+   * A list of logical resource IDs to skip during rollback. Use this when a rollback fails because certain resources
+   * cannot be restored to their previous state (e.g., a Lambda alias pointing to a deleted version).
+   *
+   * **Warning:** Skipping resources means CloudFormation won't restore them to their previous state, which may leave
+   * your stack in an inconsistent state. Use with caution.
+   *
+   * @example ["LambdaMcpServerStpAlias", "MyOtherResource"]
+   */
+  resourcesToSkip?: string[];
 }
 
 interface StacktapeSdkArgs

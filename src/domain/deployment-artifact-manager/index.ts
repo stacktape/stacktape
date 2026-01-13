@@ -437,6 +437,12 @@ export class DeploymentArtifactManager {
         });
       });
     });
+
+    // Publish shared Lambda layer if one was built
+    if (packagingManager.getPendingSharedLayer()) {
+      jobs.push(() => this.uploadSharedLayer());
+    }
+
     if (jobs.length) {
       await eventManager.startEvent({
         eventType: 'UPLOAD_DEPLOYMENT_ARTIFACTS',
@@ -694,6 +700,33 @@ export class DeploymentArtifactManager {
     this.successfullyUploadedImages.push({ tag, name: jobName });
     await uploadLogger.finishEvent({ eventType: 'UPLOAD_IMAGE' });
     return { jobName, imageTagWithUrl };
+  };
+
+  uploadSharedLayer = async () => {
+    // Layer is published during packaging phase (before CF template generation)
+    // Skip if no pending layer or already published
+    const pendingLayer = packagingManager.getPendingSharedLayer();
+    const sharedLayerInfo = packagingManager.getSharedLayerInfo();
+    if (!pendingLayer || sharedLayerInfo) {
+      return;
+    }
+
+    const uploadLogger = eventManager.createChildLogger({
+      parentEventType: 'UPLOAD_DEPLOYMENT_ARTIFACTS',
+      instanceId: 'shared-lambda-layer'
+    });
+    await uploadLogger.startEvent({ eventType: 'UPLOAD_SHARED_LAYER', description: 'Publishing shared Lambda layer' });
+
+    try {
+      await packagingManager.publishSharedLayer();
+      await uploadLogger.finishEvent({ eventType: 'UPLOAD_SHARED_LAYER' });
+    } catch (error) {
+      await uploadLogger.finishEvent({
+        eventType: 'UPLOAD_SHARED_LAYER',
+        finalMessage: `Layer publish failed: ${(error as Error).message}`
+      });
+      throw error;
+    }
   };
 
   getBucketsContent = async () => {

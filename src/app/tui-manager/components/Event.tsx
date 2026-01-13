@@ -170,7 +170,9 @@ export const Event: React.FC<EventProps> = ({ event, isChild = false, isLast = f
   }
 
   // Flatten single-child events: show "Parent Child: status" instead of nested display
-  const shouldFlatten = isTTY && displayChildren.length === 1 && !hasOutputLines;
+  // Don't flatten for certain event types that should always show hierarchy (packaging, uploads)
+  const NEVER_FLATTEN_EVENT_TYPES: LoggableEventType[] = ['PACKAGE_ARTIFACTS', 'UPLOAD_DEPLOYMENT_ARTIFACTS', 'SYNC_BUCKET'];
+  const shouldFlatten = isTTY && displayChildren.length === 1 && !hasOutputLines && !NEVER_FLATTEN_EVENT_TYPES.includes(event.eventType);
   const flattenedChild = shouldFlatten ? displayChildren[0] : null;
 
   // Use child's status/duration when flattened

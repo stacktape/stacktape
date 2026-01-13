@@ -79,6 +79,29 @@ export type DependencyAnalysisResult = {
   estimatedSavings: number;
 };
 
+// Multi-layer optimization types
+
+export type FunctionLayerContext = {
+  name: string;
+  dependencies: DependencyInfo[];
+  availableLayerSlots: number; // 5 - userDefinedLayers.length
+};
+
+export type LayerAssignment = {
+  layerId: string;
+  dependencies: DependencyInfo[];
+  functions: string[]; // Functions that get this layer
+  estimatedSize: number;
+  estimatedSavings: number;
+};
+
+export type MultiLayerAnalysisResult = {
+  layers: LayerAssignment[];
+  functionLayerMap: Map<string, string[]>; // function -> layer IDs
+  remainingDeps: Map<string, DependencyInfo[]>; // function -> deps to keep bundled
+  totalEstimatedSavings: number;
+};
+
 /**
  * Check if a dependency is provided by Lambda runtime and the user's version range accepts it.
  */
@@ -114,9 +137,14 @@ export const isAwsSdkV3 = (packageName: string): boolean => {
   return packageName.startsWith('@aws-sdk/') || packageName.startsWith('@smithy/');
 };
 
-const MINIMUM_SAVINGS_BYTES = 200_000; // 200KB minimum savings to include in layer
-const MINIMUM_USAGE_COUNT = 2; // Must be used by at least 2 functions
-const MAX_LAYER_SIZE_BYTES = 40_000_000; // 40MB max layer size (leaving room for function code)
+// Per-dependency threshold: must be used by at least 2 functions to be worth including
+const MINIMUM_USAGE_COUNT = 2;
+
+// Total layer thresholds (to decide whether to build a layer at all)
+const MAX_LAYER_SIZE_BYTES = 100_000_000; // 100MB max layer size (leaving 150MB for function code)
+export const MINIMUM_TOTAL_SAVINGS_BYTES = 5_000_000; // 5MB - minimum total savings to justify layer overhead
+export const MINIMUM_LAYER_SIZE_BYTES = 2_000_000; // 2MB - minimum layer size to be worth the overhead
+export const MINIMUM_FUNCTIONS_FOR_LAYER = 3; // Need at least 3 lambdas to consider shared layers
 
 /**
  * Determine if a dependency should be included in the shared layer.
@@ -144,10 +172,6 @@ export const shouldIncludeInLayer = ({
     return false;
   }
 
-  // Calculate savings: size * (usedBy - 1) since we still need it once in the layer
-  const savings = dep.size * (dep.usedBy.length - 1);
-  if (savings < MINIMUM_SAVINGS_BYTES) return false;
-
   return true;
 };
 
@@ -163,10 +187,12 @@ export const selectDependenciesForLayer = ({
   maxSize?: number;
 }): DependencyInfo[] => {
   // Sort by savings (descending) - prioritize deps that save the most
+  // Use name as secondary sort key for deterministic ordering
   const sorted = [...candidates].sort((a, b) => {
     const savingsA = a.size * (a.usedBy.length - 1);
     const savingsB = b.size * (b.usedBy.length - 1);
-    return savingsB - savingsA;
+    if (savingsB !== savingsA) return savingsB - savingsA;
+    return a.name.localeCompare(b.name);
   });
 
   let totalSize = 0;
@@ -360,5 +386,190 @@ export const analyzeDependenciesFromPackageJson = async ({
     sharedDependencies,
     estimatedLayerSize,
     estimatedSavings
+  };
+};
+
+// Minimum savings threshold for creating a layer (2MB)
+const MINIMUM_LAYER_SAVINGS_BYTES = 2_000_000;
+
+/**
+ * Group dependencies by their exact usage pattern (which functions use them).
+ * Returns a map from usage pattern key to list of dependencies.
+ */
+const groupDepsByUsagePattern = (
+  dependencies: DependencyInfo[]
+): Map<string, { deps: DependencyInfo[]; functions: string[] }> => {
+  const groups = new Map<string, { deps: DependencyInfo[]; functions: string[] }>();
+
+  for (const dep of dependencies) {
+    // Create a stable key from sorted function names
+    const key = [...dep.usedBy].sort().join(',');
+    const existing = groups.get(key);
+    if (existing) {
+      existing.deps.push(dep);
+    } else {
+      groups.set(key, { deps: [dep], functions: [...dep.usedBy].sort() });
+    }
+  }
+
+  return groups;
+};
+
+/**
+ * Calculate savings for a potential layer.
+ * Savings = layerSize * (functionsUsingIt - 1)
+ */
+const calculateLayerSavings = (deps: DependencyInfo[], functionCount: number): number => {
+  const totalSize = deps.reduce((sum, dep) => sum + dep.size, 0);
+  return totalSize * (functionCount - 1);
+};
+
+/**
+ * Check if a layer can be assigned to all target functions without exceeding their slot limits.
+ */
+const canAssignLayerToFunctions = (
+  targetFunctions: string[],
+  functionSlots: Map<string, number>
+): boolean => {
+  return targetFunctions.every((fn) => (functionSlots.get(fn) ?? 0) > 0);
+};
+
+/**
+ * Analyze optimal layer assignments using a greedy weighted algorithm.
+ *
+ * Algorithm:
+ * 1. Group dependencies by exact usage pattern (same set of functions)
+ * 2. Calculate savings for each group
+ * 3. Greedily assign groups to layers, respecting per-function slot limits
+ * 4. Continue until no more beneficial layers can be created
+ */
+export const analyzeOptimalLayers = ({
+  functionContexts,
+  nodeVersion,
+  allSameArchitecture = false
+}: {
+  functionContexts: FunctionLayerContext[];
+  nodeVersion: number;
+  allSameArchitecture?: boolean;
+}): MultiLayerAnalysisResult => {
+  // Initialize available slots per function
+  const functionSlots = new Map<string, number>();
+  for (const ctx of functionContexts) {
+    functionSlots.set(ctx.name, ctx.availableLayerSlots);
+  }
+
+  // Collect all unique dependencies across functions
+  const allDepsMap = new Map<string, DependencyInfo>();
+  for (const ctx of functionContexts) {
+    for (const dep of ctx.dependencies) {
+      const existing = allDepsMap.get(dep.name);
+      if (existing) {
+        // Merge usedBy lists
+        for (const fn of dep.usedBy) {
+          if (!existing.usedBy.includes(fn)) {
+            existing.usedBy.push(fn);
+          }
+        }
+      } else {
+        allDepsMap.set(dep.name, { ...dep, usedBy: [...dep.usedBy] });
+      }
+    }
+  }
+
+  // Filter dependencies that are candidates for shared layers
+  const candidates = Array.from(allDepsMap.values()).filter((dep) =>
+    shouldIncludeInLayer({
+      dep,
+      totalFunctions: functionContexts.length,
+      nodeVersion,
+      allSameArchitecture
+    })
+  );
+
+  // Group candidates by usage pattern
+  const usageGroups = groupDepsByUsagePattern(candidates);
+
+  // Convert to array and sort by savings (descending)
+  const sortedGroups = Array.from(usageGroups.entries())
+    .map(([key, { deps, functions }]) => ({
+      key,
+      deps,
+      functions,
+      size: deps.reduce((sum, dep) => sum + dep.size, 0),
+      savings: calculateLayerSavings(deps, functions.length)
+    }))
+    .filter((group) => group.savings >= MINIMUM_LAYER_SAVINGS_BYTES)
+    .sort((a, b) => {
+      // Primary sort: savings descending
+      if (b.savings !== a.savings) return b.savings - a.savings;
+      // Secondary sort: key for deterministic ordering
+      return a.key.localeCompare(b.key);
+    });
+
+  const layers: LayerAssignment[] = [];
+  const assignedDeps = new Set<string>();
+  let layerCounter = 0;
+
+  // Greedy layer assignment
+  for (const group of sortedGroups) {
+    // Skip if any dep in this group is already assigned
+    if (group.deps.some((dep) => assignedDeps.has(dep.name))) {
+      continue;
+    }
+
+    // Check if we can assign a layer to all target functions
+    if (!canAssignLayerToFunctions(group.functions, functionSlots)) {
+      continue;
+    }
+
+    // Create the layer
+    const layerId = `shared-layer-${layerCounter++}`;
+    layers.push({
+      layerId,
+      dependencies: group.deps,
+      functions: group.functions,
+      estimatedSize: group.size,
+      estimatedSavings: group.savings
+    });
+
+    // Mark deps as assigned
+    for (const dep of group.deps) {
+      assignedDeps.add(dep.name);
+    }
+
+    // Decrement available slots for affected functions
+    for (const fn of group.functions) {
+      const currentSlots = functionSlots.get(fn) ?? 0;
+      functionSlots.set(fn, currentSlots - 1);
+    }
+  }
+
+  // Build function -> layer IDs map
+  const functionLayerMap = new Map<string, string[]>();
+  for (const ctx of functionContexts) {
+    functionLayerMap.set(ctx.name, []);
+  }
+  for (const layer of layers) {
+    for (const fn of layer.functions) {
+      const fnLayers = functionLayerMap.get(fn) ?? [];
+      fnLayers.push(layer.layerId);
+      functionLayerMap.set(fn, fnLayers);
+    }
+  }
+
+  // Build remaining deps map (deps that stay bundled per function)
+  const remainingDeps = new Map<string, DependencyInfo[]>();
+  for (const ctx of functionContexts) {
+    const remaining = ctx.dependencies.filter((dep) => !assignedDeps.has(dep.name));
+    remainingDeps.set(ctx.name, remaining);
+  }
+
+  const totalEstimatedSavings = layers.reduce((sum, layer) => sum + layer.estimatedSavings, 0);
+
+  return {
+    layers,
+    functionLayerMap,
+    remainingDeps,
+    totalEstimatedSavings
   };
 };

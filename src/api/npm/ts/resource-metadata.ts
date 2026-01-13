@@ -110,5 +110,14 @@ export const REFERENCEABLE_PARAMS: Record<string, Array<{ name: string; descript
     { name: 'id', description: 'EFS ID' }
   ],
   'nextjs-web': [{ name: 'url', description: 'Website URL' }],
-  'multi-container-workload': [{ name: 'logGroupArn', description: 'Log group ARN' }]
+  'multi-container-workload': [{ name: 'logGroupArn', description: 'Log group ARN' }],
+  'sqs-queue': [
+    { name: 'arn', description: 'Queue ARN' },
+    { name: 'url', description: 'Queue URL' },
+    { name: 'name', description: 'Queue name' }
+  ],
+  'sns-topic': [
+    { name: 'arn', description: 'Topic ARN' },
+    { name: 'name', description: 'Topic name' }
+  ]
 };

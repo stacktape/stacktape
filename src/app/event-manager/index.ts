@@ -266,6 +266,7 @@ export class EventManager implements ProgressLogger {
         tuiManager.updateEvent({
           eventType,
           additionalMessage,
+          description,
           parentEventType: resolvedParentEventType,
           instanceId: resolvedInstanceId
         });
@@ -278,7 +279,9 @@ export class EventManager implements ProgressLogger {
           instanceId: resolvedInstanceId
         });
       }
-    } else {
+    } else if (!tuiManager.wasEverStarted) {
+      // Only use printProgress() fallback if TUI was never started.
+      // If TUI was started and then stopped (e.g., after error), events were already displayed.
       this.printProgress();
     }
   };
@@ -300,16 +303,17 @@ export class EventManager implements ProgressLogger {
         continue;
       }
 
-      // Print start
-      if (!this.printedEvents.has(`${identifier}-started`)) {
-        tuiManager.info(event.printableText);
-        this.printedEvents.add(`${identifier}-started`);
-      }
-
-      // Print finish
+      // If event is already finished when we first see it, only print the success message
       if (isEventFinished) {
         tuiManager.success(event.printableText);
         this.printedEvents.add(`${identifier}-finished`);
+        continue;
+      }
+
+      // Print start (only for events that are still running)
+      if (!this.printedEvents.has(`${identifier}-started`)) {
+        tuiManager.info(event.printableText);
+        this.printedEvents.add(`${identifier}-started`);
       }
     }
   };

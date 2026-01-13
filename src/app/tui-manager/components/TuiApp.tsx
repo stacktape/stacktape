@@ -2,6 +2,7 @@ import type { TuiEvent, TuiMessage, TuiPhase, TuiState } from '../types';
 import { Box, Static, Text } from 'ink';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { tuiState } from '../state';
+import { CancelBanner } from './CancelBanner';
 import { Event } from './Event';
 import { Header } from './Header';
 import { Message } from './Message';
@@ -24,9 +25,9 @@ type StaticItem =
   | { type: 'message'; id: string; data: TuiMessage };
 
 // Module-level tracking to survive React concurrent mode re-renders
-// Reset when the module is first loaded (app start)
+// Only track IDs that have been committed to Static - items are derived from state + IDs
+// This prevents duplicates when React discards and re-runs renders in concurrent mode
 let globalRenderedIds = new Set<string>();
-let globalStaticItems: StaticItem[] = [];
 
 export const TuiApp: React.FC<TuiAppProps> = ({ isTTY }) => {
   const [state, setState] = useState<TuiState>(tuiState.getState());
@@ -38,7 +39,6 @@ export const TuiApp: React.FC<TuiAppProps> = ({ isTTY }) => {
     // Reset tracking on first mount (new TUI session)
     if (isFirstMount.current) {
       globalRenderedIds = new Set<string>();
-      globalStaticItems = [];
       isFirstMount.current = false;
     }
     return tuiState.subscribe(setState);
@@ -54,9 +54,15 @@ export const TuiApp: React.FC<TuiAppProps> = ({ isTTY }) => {
   // Simple mode: no header, render events and messages in timestamp order
   const isSimpleMode = !state.header;
 
-  // Compute static items synchronously during render using module-level tracking
-  // This avoids React's async useEffect timing issues
+  // Track newly rendered IDs this cycle to add to globalRenderedIds after commit
+  const newlyRenderedIds = useRef<string[]>([]);
+
+  // Build static items from current state, filtering out already-rendered items
+  // Items are added to globalRenderedIds via useEffect after React commits the render
   const staticItems = useMemo(() => {
+    const items: StaticItem[] = [];
+    newlyRenderedIds.current = [];
+
     if (isSimpleMode) {
       // Simple mode: add completed events and messages in timestamp order
       const allEvents = state.phases.flatMap((p) => p.events);
@@ -73,26 +79,27 @@ export const TuiApp: React.FC<TuiAppProps> = ({ isTTY }) => {
       }
 
       for (const msg of state.messages) {
-        if (!globalRenderedIds.has(`msg-${msg.id}`)) {
-          itemsToAdd.push({ type: 'message', timestamp: msg.timestamp, id: `msg-${msg.id}`, data: msg });
+        const msgId = `msg-${msg.id}`;
+        if (!globalRenderedIds.has(msgId)) {
+          itemsToAdd.push({ type: 'message', timestamp: msg.timestamp, id: msgId, data: msg });
         }
       }
 
-      // Sort by timestamp and add to static items
+      // Sort by timestamp
       itemsToAdd.sort((a, b) => a.timestamp - b.timestamp);
       for (const item of itemsToAdd) {
         if (item.type === 'event') {
-          globalStaticItems = [...globalStaticItems, { type: 'event', id: item.id, data: item.data as TuiEvent }];
+          items.push({ type: 'event', id: item.id, data: item.data as TuiEvent });
         } else {
-          globalStaticItems = [...globalStaticItems, { type: 'message', id: item.id, data: item.data as TuiMessage }];
+          items.push({ type: 'message', id: item.id, data: item.data as TuiMessage });
         }
-        globalRenderedIds.add(item.id);
+        newlyRenderedIds.current.push(item.id);
       }
     } else {
       // Phase mode: add header and completed phases
       if (state.header && !globalRenderedIds.has('header')) {
-        globalStaticItems = [...globalStaticItems, { type: 'header', id: 'header', data: state.header }];
-        globalRenderedIds.add('header');
+        items.push({ type: 'header', id: 'header', data: state.header });
+        newlyRenderedIds.current.push('header');
       }
 
       for (let i = 0; i < state.phases.length; i++) {
@@ -114,20 +121,17 @@ export const TuiApp: React.FC<TuiAppProps> = ({ isTTY }) => {
                   duration: phase.startTime ? Date.now() - phase.startTime : 0
                 }
               : phase;
-          globalStaticItems = [
-            ...globalStaticItems,
-            {
-              type: 'phase',
-              id: phase.id,
-              data: { phase: phaseSnapshot, phaseNumber, warnings: state.warnings, messages: state.messages }
-            }
-          ];
-          globalRenderedIds.add(phase.id);
+          items.push({
+            type: 'phase',
+            id: phase.id,
+            data: { phase: phaseSnapshot, phaseNumber, warnings: state.warnings, messages: state.messages }
+          });
+          newlyRenderedIds.current.push(phase.id);
         }
       }
     }
 
-    return globalStaticItems;
+    return items;
   }, [
     isSimpleMode,
     state.header,
@@ -139,47 +143,95 @@ export const TuiApp: React.FC<TuiAppProps> = ({ isTTY }) => {
     isTTY
   ]);
 
+  // After React commits the render, mark items as rendered
+  // This runs AFTER the render is committed, so discarded renders won't affect globalRenderedIds
+  useEffect(() => {
+    for (const id of newlyRenderedIds.current) {
+      globalRenderedIds.add(id);
+    }
+    newlyRenderedIds.current = [];
+  }, [staticItems]);
+
+  // Ensure we only pass items to Static that haven't been rendered yet by Ink
+  // This is a second layer of protection against duplicates
+  const deduplicatedStaticItems = useMemo(() => {
+    const seen = new Set<string>();
+    return staticItems.filter((item) => {
+      if (seen.has(item.id)) return false;
+      seen.add(item.id);
+      return true;
+    });
+  }, [staticItems]);
+
   // Messages without a phase are rendered at the bottom (global messages) - only for phase mode
   const globalMessages = useMemo(() => {
     if (isSimpleMode) return []; // In simple mode, messages are handled in staticItems
     return state.messages.filter((m) => !m.phase);
   }, [state.messages, isSimpleMode]);
 
+  // Build a set of phase IDs that are being rendered to Static this frame
+  // This is needed to prevent showing a phase in BOTH static and dynamic sections during the transition frame
+  const staticPhaseIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const item of staticItems) {
+      if (item.type === 'phase') {
+        ids.add(item.id);
+      }
+    }
+    return ids;
+  }, [staticItems]);
+
   // Active phases: running or pending with events, not yet committed to Static
-  // IMPORTANT: Use globalRenderedIds to check if already in Static, not just completion status.
+  // IMPORTANT: Check BOTH globalRenderedIds (already committed) AND staticPhaseIds (being committed this frame)
   // This prevents duplicate rendering during the transition frame.
-  // Also ensures a phase only shows in dynamic if all previous phases are in Static.
   const activePhases = useMemo(() => {
     if (isSimpleMode) return []; // In simple mode, we don't use phases
     return state.phases.filter((p, index) => {
-      // If already committed to Static, never show in dynamic section
-      if (globalRenderedIds.has(p.id)) {
+      // If already committed to Static OR being added to Static this frame, never show in dynamic section
+      if (globalRenderedIds.has(p.id) || staticPhaseIds.has(p.id)) {
         return false;
       }
-      // Only show this phase if all previous phases are already in Static
+      // Only show this phase if all previous phases are already in Static (or being added this frame)
       // This prevents showing a new phase header before the previous phase content is rendered
       const allPreviousPhasesInStatic = state.phases
         .slice(0, index)
-        .every((prevPhase) => globalRenderedIds.has(prevPhase.id) || prevPhase.status === 'pending');
+        .every(
+          (prevPhase) =>
+            globalRenderedIds.has(prevPhase.id) || staticPhaseIds.has(prevPhase.id) || prevPhase.status === 'pending'
+        );
       if (!allPreviousPhasesInStatic) {
         return false;
       }
       const isVisible = isTTY ? p.status !== 'pending' || p.events.length > 0 : p.events.length > 0;
       return isVisible;
     });
-  }, [state.phases, isTTY, staticItems, isSimpleMode]);
+  }, [state.phases, isTTY, staticPhaseIds, isSimpleMode]);
+
+  // Build a set of event IDs being rendered to Static this frame (for simple mode)
+  const staticEventIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const item of staticItems) {
+      if (item.type === 'event') {
+        ids.add(item.id);
+      }
+    }
+    return ids;
+  }, [staticItems]);
 
   // Active events for simple mode (running events not yet in Static)
   const activeEvents = useMemo(() => {
     if (!isSimpleMode) return [];
     const allEvents = state.phases.flatMap((p) => p.events);
-    return allEvents.filter((e) => e.status === 'running' && !globalRenderedIds.has(e.id));
-  }, [state.phases, staticItems, isSimpleMode]);
+    // Check both globalRenderedIds and staticEventIds to prevent duplicates during transition
+    return allEvents.filter(
+      (e) => e.status === 'running' && !globalRenderedIds.has(e.id) && !staticEventIds.has(e.id)
+    );
+  }, [state.phases, staticEventIds, isSimpleMode]);
 
   return (
     <>
       {/* Static content: header + completed phases/events - rendered once, never re-rendered */}
-      <Static items={staticItems}>
+      <Static items={deduplicatedStaticItems}>
         {(item) => {
           if (item.type === 'header') {
             return <Header key={item.id} header={item.data!} />;
@@ -219,7 +271,6 @@ export const TuiApp: React.FC<TuiAppProps> = ({ isTTY }) => {
         ) : (
           <>
             {/* Phase mode: show active phases */}
-            {staticItems.length > 0 && activePhases.length > 0 && <Text> </Text>}
             {activePhases.map((phase) => {
               const phaseNumber = state.phases.findIndex((p) => p.id === phase.id) + 1;
               return (
@@ -231,6 +282,7 @@ export const TuiApp: React.FC<TuiAppProps> = ({ isTTY }) => {
                   messages={state.messages}
                   isTTY={isTTY}
                   showPhaseHeader={!!state.header}
+                  cancelDeployment={state.cancelDeployment}
                 />
               );
             })}
@@ -243,6 +295,8 @@ export const TuiApp: React.FC<TuiAppProps> = ({ isTTY }) => {
             )}
           </>
         )}
+
+        {state.cancelDeployment && <CancelBanner cancelDeployment={state.cancelDeployment} />}
 
         {state.activePrompt && <Prompt key={promptKey} prompt={state.activePrompt} />}
 

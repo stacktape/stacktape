@@ -1,5 +1,6 @@
 import type { StackEvent } from '@aws-sdk/client-cloudformation';
 import type { EcsServiceDeploymentStatusPoller } from '@shared/aws/ecs-deployment-monitoring';
+import type { LambdaProvisionedConcurrencyPoller } from '@shared/aws/lambda-provisioned-concurrency-monitoring';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
@@ -14,6 +15,7 @@ export const cfFailedEventHandlers: {
     event: StackEvent,
     additionalProps?: {
       ecsDeploymentStatusPollers?: { [serviceCfLogicalName: string]: EcsServiceDeploymentStatusPoller };
+      lambdaProvisionedConcurrencyPollers?: { [aliasCfLogicalName: string]: LambdaProvisionedConcurrencyPoller };
     }
   ) => Promise<{ errorMessage: string; hints?: string[] }>;
 }[] = [
@@ -143,7 +145,39 @@ export const cfFailedEventHandlers: {
       const baseMessage = `Service ${tuiManager.colorize('red', resourceLabel)} failed to start`;
 
       return {
-        errorMessage: failureDetails ? `${baseMessage}\n\n${failureDetails}` : `${baseMessage}: ${event.ResourceStatusReason}`
+        errorMessage: failureDetails
+          ? `${baseMessage}\n\n${failureDetails}`
+          : `${baseMessage}: ${event.ResourceStatusReason}`
+      };
+    }
+  },
+  // Lambda provisioned concurrency failure
+  {
+    eventMatchFunction: (event) => {
+      return (
+        event.ResourceType === 'AWS::Lambda::Alias' && event.ResourceStatusReason?.includes('Provisioned Concurrency')
+      );
+    },
+    handlerFunction: async (event, additionalProps) => {
+      const parentResourceName = calculatedStackOverviewManager.findStpParentNameOfCfResource({
+        cfLogicalName: event.LogicalResourceId
+      });
+      const poller = additionalProps?.lambdaProvisionedConcurrencyPollers?.[event.LogicalResourceId];
+
+      // Wait for logs to be fetched before getting the failure message
+      if (poller) {
+        await poller.handleFailure(event.ResourceStatusReason);
+      }
+
+      const failureDetails = poller?.getFailureMessage();
+
+      const resourceLabel = parentResourceName || event.LogicalResourceId;
+      const baseMessage = `Function ${tuiManager.colorize('red', resourceLabel)} provisioned concurrency failed`;
+
+      return {
+        errorMessage: failureDetails
+          ? `${baseMessage}\n\n${failureDetails}`
+          : `${baseMessage}: ${event.ResourceStatusReason}`
       };
     }
   },
@@ -196,7 +230,10 @@ export const cfFailedEventHandlers: {
         cleanedReason = handlerMatch[1];
       }
       // Remove AWS SDK details like (Service: Lambda, Status Code: 404, Request ID: ..., SDK Attempt Count: 1)
-      cleanedReason = cleanedReason.replace(/\s*\(Service:[^,]+,\s*Status Code:\s*\d+,\s*Request ID:[^,]+,\s*SDK Attempt Count:\s*\d+\)/gi, '');
+      cleanedReason = cleanedReason.replace(
+        /\s*\(Service:[^,]+,\s*Status Code:\s*\d+,\s*Request ID:[^,]+,\s*SDK Attempt Count:\s*\d+\)/gi,
+        ''
+      );
       // Remove separate (Service: ...) pattern
       cleanedReason = cleanedReason.replace(/\s*\(Service:[^)]+\)/gi, '');
       // Remove separate (SDK Attempt Count: ...) pattern

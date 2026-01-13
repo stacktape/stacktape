@@ -83,7 +83,8 @@ const buildEverything = async () => {
   const archivePath = await archiveItem({
     absoluteSourcePath: platformDistFolderPath,
     format: platform === 'win' ? 'zip' : 'tgz',
-    executablePatterns: EXECUTABLE_FILE_PATTERNS
+    executablePatterns: EXECUTABLE_FILE_PATTERNS,
+    useNativeZip: platform === 'win' // Native zip for Windows archives
   });
 
   if (!keepUnarchived) {

@@ -195,6 +195,14 @@
         ],
         "alias": "hs",
         "required": false
+      },
+      "disableLayerCaching": {
+        "description": "#### Disable Layer Caching\n\n---\n\nIf `true`, disables caching of shared Lambda layers. By default, Stacktape checks if a layer with the same dependencies already exists in AWS and reuses it. Use this flag to force rebuilding and republishing the layer.",
+        "allowedTypes": [
+          "boolean"
+        ],
+        "alias": "dlc",
+        "required": false
       }
     }
   },
@@ -567,6 +575,14 @@
           "boolean"
         ],
         "alias": "hs",
+        "required": false
+      },
+      "disableLayerCaching": {
+        "description": "#### Disable Layer Caching\n\n---\n\nIf `true`, disables caching of shared Lambda layers. By default, Stacktape checks if a layer with the same dependencies already exists in AWS and reuses it. Use this flag to force rebuilding and republishing the layer.",
+        "allowedTypes": [
+          "boolean"
+        ],
+        "alias": "dlc",
         "required": false
       }
     }
@@ -963,6 +979,14 @@
           "string"
         ],
         "alias": "ti",
+        "required": false
+      },
+      "resourcesToSkip": {
+        "description": "#### Resources to Skip\n\n---\n\nA list of logical resource IDs to skip during rollback. Use this when a rollback fails because certain resources\ncannot be restored to their previous state (e.g., a Lambda alias pointing to a deleted version).\n\n**Warning:** Skipping resources means CloudFormation won't restore them to their previous state, which may leave\nyour stack in an inconsistent state. Use with caution.",
+        "allowedTypes": [
+          "array"
+        ],
+        "alias": "rts",
         "required": false
       }
     }

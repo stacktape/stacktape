@@ -99,7 +99,8 @@ export const allowedCliArgs: { [_command in StacktapeCliCommand]: StacktapeCliAr
     'disableAutoRollback',
     'autoConfirmOperation',
     'showSensitiveValues',
-    'hotSwap'
+    'hotSwap',
+    'disableLayerCaching'
   ],
   'codebuild:deploy': [
     ...universalCliArgs,
@@ -113,7 +114,8 @@ export const allowedCliArgs: { [_command in StacktapeCliCommand]: StacktapeCliAr
     'disableAutoRollback',
     'autoConfirmOperation',
     'showSensitiveValues',
-    'hotSwap'
+    'hotSwap',
+    'disableLayerCaching'
   ],
   dev: [
     ...universalCliArgs,
@@ -169,7 +171,12 @@ export const allowedCliArgs: { [_command in StacktapeCliCommand]: StacktapeCliAr
   'aws-profile:update': ['logLevel', 'logFormat'],
   'aws-profile:delete': ['logLevel', 'logFormat'],
   'aws-profile:list': ['logLevel', 'logFormat'],
-  rollback: [...universalCliArgs, ...argsForCommandsWorkingWithStack, ...cliArgsForConfigDependentCommands],
+  rollback: [
+    ...universalCliArgs,
+    ...argsForCommandsWorkingWithStack,
+    ...cliArgsForConfigDependentCommands,
+    'resourcesToSkip'
+  ],
   'preview-changes': [
     ...universalCliArgs,
     ...argsForCommandsWorkingWithStack,
@@ -286,7 +293,8 @@ export const allowedSdkArgs: { [_command in StacktapeSdkCommand]: StacktapeSdkAr
     'noCache',
     'disableDockerRemoteCache',
     'disableAutoRollback',
-    'hotSwap'
+    'hotSwap',
+    'disableLayerCaching'
   ],
   'codebuild:deploy': [
     ...universalSdkArgs,
@@ -298,7 +306,8 @@ export const allowedSdkArgs: { [_command in StacktapeSdkCommand]: StacktapeSdkAr
     'noCache',
     'disableDockerRemoteCache',
     'disableAutoRollback',
-    'hotSwap'
+    'hotSwap',
+    'disableLayerCaching'
   ],
   dev: [
     ...universalSdkArgs,
@@ -341,7 +350,12 @@ export const allowedSdkArgs: { [_command in StacktapeSdkCommand]: StacktapeSdkAr
   'aws-profile:update': [],
   'aws-profile:delete': [],
   'aws-profile:list': [],
-  rollback: [...universalSdkArgs, ...argsForCommandsWorkingWithStack, ...sdkArgsForConfigDependentCommands],
+  rollback: [
+    ...universalSdkArgs,
+    ...argsForCommandsWorkingWithStack,
+    ...sdkArgsForConfigDependentCommands,
+    'resourcesToSkip'
+  ],
   'preview-changes': [
     ...universalSdkArgs,
     ...argsForCommandsWorkingWithStack,
@@ -453,5 +467,7 @@ export const cliArgsAliases: { [_cliArg in StacktapeCliArg | StacktapeSdkArg]: s
   assumeRoleOfResource: 'aror',
   configFormat: 'cf',
   localTunnelingPort: 'ltp',
-  disableDockerRemoteCache: 'drc'
+  disableDockerRemoteCache: 'drc',
+  resourcesToSkip: 'rts',
+  disableLayerCaching: 'dlc'
 };

@@ -76,3 +76,19 @@ export const $CfStackOutput = (stackName: string, outputName: string) => {
 export const $GitInfo = () => {
   return '$GitInfo()';
 };
+
+/**
+ * Returns the current AWS region where the stack is being deployed.
+ * Example: `us-east-1`
+ */
+export const $Region = () => {
+  return '$Region()';
+};
+
+/**
+ * Returns the current stage name.
+ * Example: `production`, `staging`, `dev`
+ */
+export const $Stage = () => {
+  return '$Stage()';
+};

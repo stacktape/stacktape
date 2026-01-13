@@ -370,7 +370,8 @@ export const createEsBundle = async ({
   requiresGlibcBinaries,
   dockerBuildOutputArchitecture,
   outputModuleFormat,
-  skipDigestCalculation
+  skipDigestCalculation,
+  dependencyDiscoveryOnly
 }: StpBuildpackInput &
   EsLanguageSpecificConfig & {
     minify: boolean;
@@ -380,11 +381,23 @@ export const createEsBundle = async ({
     sourceMapBannerType?: 'node_modules' | 'pre-compiled' | 'disabled';
     isLambda?: boolean;
     skipDigestCalculation?: boolean;
+    /** When true, only run esbuild to discover dependencies - skip digest, zipping, and dependency resolution */
+    dependencyDiscoveryOnly?: boolean;
   }) => {
   await dependencyInstaller.install({ rootProjectDirPath: cwd, progressLogger });
 
   const distIndexFilePath = join(distFolderPath, 'index.js');
-  await progressLogger.startEvent({ eventType: 'BUILD_CODE', description: 'Building code' });
+
+  // For dependency discovery (first-pass), we skip progress events to avoid showing lambdas as "done"
+  // before the shared layer is built and they're re-bundled
+  if (!dependencyDiscoveryOnly) {
+    const hasSharedLayerExternals = externals.length > 0;
+    const buildDescription = hasSharedLayerExternals
+      ? 'Re-building code without dependencies in shared layer'
+      : 'Building code';
+    await progressLogger.startEvent({ eventType: 'BUILD_CODE', description: buildDescription });
+  }
+
   const { packageManager } = await getLockFileData(cwd);
   const { dependenciesToInstallInDocker, dynamicallyImportedModules, sourceFiles, allModules, externalModules } =
     await buildEsCode({
@@ -412,6 +425,22 @@ export const createEsBundle = async ({
         'Failed to load dependency lockfile. You need to install your dependencies first. Supported package managers are npm and yarn.'
     });
   }
+
+  // For dependency discovery (first-pass bundling), return early after esbuild
+  // We only need the resolved modules list, not the full bundle - no progress events shown
+  if (dependencyDiscoveryOnly) {
+    return {
+      digest: 'discovery-only',
+      outcome: 'bundled' as const,
+      distFolderPath,
+      distIndexFilePath,
+      dynamicallyImportedModules,
+      sourceFiles: sourceFiles.map(({ path }) => ({ path: isAbsolute(path) ? path : join(cwd, path) })),
+      languageSpecificBundleOutput: { es: {} },
+      resolvedModules: allModules
+    };
+  }
+
   await progressLogger.finishEvent({ eventType: 'BUILD_CODE' });
 
   const explicitlyIncludedFiles = includeFiles ? await getMatchingFilesByGlob({ globPattern: includeFiles, cwd }) : [];

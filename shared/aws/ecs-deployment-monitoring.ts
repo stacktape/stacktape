@@ -149,7 +149,9 @@ export class EcsServiceDeploymentStatusPoller {
       // Exit code info
       if (Number.isInteger(exitCode)) {
         const containerLabel = hasMultipleContainers ? `Container ${this.#printer.makeBold(name)} exited` : 'Exited';
-        lines.push(`${containerLabel} with code ${this.#printer.colorize('red', String(exitCode))}${reason ? ` (${reason})` : ''}`);
+        lines.push(
+          `${containerLabel} with code ${this.#printer.colorize('red', String(exitCode))}${reason ? ` (${reason})` : ''}`
+        );
       } else if (reason) {
         const containerLabel = hasMultipleContainers ? `Container ${this.#printer.makeBold(name)}` : 'Container';
         lines.push(`${containerLabel} failed: ${reason}`);
@@ -184,9 +186,9 @@ export class EcsServiceDeploymentStatusPoller {
         taskId: failedTaskId,
         selectedContainer: name
       });
-      lines.push(`${this.#printer.colorize('gray', 'Task details:')} ${this.#printer.terminalLink(taskLink, taskLink)}`);
+      lines.push(this.#printer.terminalLink('Task details', taskLink));
       if (logStreamLink) {
-        lines.push(`${this.#printer.colorize('gray', 'Full logs:')} ${this.#printer.terminalLink(logStreamLink, logStreamLink)}`);
+        lines.push(this.#printer.terminalLink('Full logs', logStreamLink));
       }
     }
 
@@ -228,6 +230,10 @@ export class EcsServiceDeploymentStatusPoller {
       this.#warnMessagePrinted = true;
     }
   };
+
+  get hasFailedTask() {
+    return Boolean(this.#failedTask) && !this.#pollInProgress;
+  }
 
   stopPolling = () => {
     clearInterval(this.#pollInterval);

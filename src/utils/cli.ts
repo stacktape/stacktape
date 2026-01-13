@@ -70,7 +70,14 @@ export const getCliInput = (): {
         return '--version';
       }
       return arg;
-    })
+    }),
+    {
+      array: ['dockerArgs', 'portMapping', 'env', 'resourcesToSkip'],
+      configuration: {
+        'camel-case-expansion': true,
+        'strip-dashed': true
+      }
+    }
   );
 
   const commands: string[] = rawCommands as string[];

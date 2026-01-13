@@ -297,12 +297,17 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
       });
     }
   }
-  // Add layers: user-defined layers + shared layer from packaging
-  const sharedLayerInfo = packagingManager.getSharedLayerInfo();
-  const allLayers = [
-    ...(layers || []),
-    ...(sharedLayerInfo?.layerVersionArn ? [sharedLayerInfo.layerVersionArn] : [])
-  ];
+  // Add layers: user-defined layers + shared layer(s) from packaging
+  // Uses getLayerArnsForFunction which supports both single-layer and multi-layer modes
+  const sharedLayerArns = packagingManager.getLayerArnsForFunction(name);
+  const allLayers = [...(layers || []), ...sharedLayerArns];
+  if (allLayers.length > 5) {
+    throw new ExpectedError(
+      'CONFIG_VALIDATION',
+      `Function "${name}" exceeds AWS limit of 5 layers. User-defined: ${(layers || []).length}, shared: ${sharedLayerArns.length}. ` +
+        `Reduce user-defined layers or shared layer usage.`
+    );
+  }
   if (allLayers.length > 0) {
     lambdaFunctionResource.Properties.Layers = allLayers;
   }

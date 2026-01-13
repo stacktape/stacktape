@@ -1,11 +1,122 @@
-import { join, dirname } from 'node:path';
-import { outputJSON, remove, ensureDir, copy, outputFile } from 'fs-extra';
-import objectHash from 'object-hash';
-import { archiveItem } from '@shared/utils/zip';
+import type { DependencyInfo, LayerAssignment } from './dependency-analyzer';
+import { dirname, join } from 'node:path';
 import { buildDockerImage } from '@shared/utils/docker';
 import { getFileSize, getFolder } from '@shared/utils/fs-utils';
-import type { DependencyInfo } from './dependency-analyzer';
+import { archiveItem, createZipFast } from '@shared/utils/zip';
 import execa from 'execa';
+import { copy, ensureDir, outputFile, outputJSON, pathExists, remove } from 'fs-extra';
+import { glob } from 'glob';
+import objectHash from 'object-hash';
+
+/**
+ * Files and directories to remove from node_modules to reduce layer size.
+ * These are typically not needed at runtime.
+ */
+const PRUNE_PATTERNS = [
+  // Documentation and metadata
+  '**/*.md',
+  '**/*.markdown',
+  '**/README*',
+  '**/CHANGELOG*',
+  '**/HISTORY*',
+  '**/LICENSE*',
+  '**/LICENCE*',
+  '**/NOTICE*',
+  '**/AUTHORS*',
+  '**/CONTRIBUTORS*',
+  '**/.npmignore',
+  '**/.gitignore',
+  '**/.gitattributes',
+  '**/.editorconfig',
+  '**/.eslintrc*',
+  '**/.prettierrc*',
+  '**/tsconfig*.json',
+  '**/jsconfig*.json',
+  '**/tslint.json',
+  '**/.travis.yml',
+  '**/.github/**',
+  '**/docs/**',
+  '**/doc/**',
+  '**/documentation/**',
+
+  // Test files
+  '**/test/**',
+  '**/tests/**',
+  '**/__tests__/**',
+  '**/spec/**',
+  '**/__mocks__/**',
+  '**/coverage/**',
+  '**/*.test.js',
+  '**/*.spec.js',
+  '**/*.test.ts',
+  '**/*.spec.ts',
+  '**/*.test.mjs',
+  '**/*.spec.mjs',
+
+  // TypeScript source and declarations (we only need JS at runtime)
+  '**/*.ts',
+  '!**/*.d.ts', // Keep .d.ts files for now (some packages need them)
+  '**/src/**/*.ts',
+
+  // Build artifacts and configs
+  '**/Makefile',
+  '**/Gruntfile.js',
+  '**/Gulpfile.js',
+  '**/rollup.config.*',
+  '**/webpack.config.*',
+  '**/babel.config.*',
+  '**/.babelrc*',
+  '**/jest.config.*',
+  '**/karma.conf.*',
+  '**/mocha.opts',
+
+  // Examples and extras
+  '**/example/**',
+  '**/examples/**',
+  '**/demo/**',
+  '**/sample/**',
+  '**/samples/**',
+
+  // Source maps (not needed for production Lambda)
+  '**/*.map',
+  '**/*.js.map',
+  '**/*.mjs.map'
+];
+
+/**
+ * Remove unnecessary files from node_modules to reduce layer size.
+ * This can significantly reduce the final zip size and speed up zipping.
+ */
+const pruneNodeModules = async (nodeModulesPath: string): Promise<{ prunedCount: number; savedBytes: number }> => {
+  let prunedCount = 0;
+  let savedBytes = 0;
+
+  // Use glob to find all files matching prune patterns
+  const filesToRemove = await glob(PRUNE_PATTERNS, {
+    cwd: nodeModulesPath,
+    absolute: true,
+    nodir: false,
+    dot: true
+  });
+
+  // Remove files in parallel batches
+  const batchSize = 100;
+  for (let i = 0; i < filesToRemove.length; i += batchSize) {
+    const batch = filesToRemove.slice(i, i + batchSize);
+    await Promise.all(
+      batch.map(async (filePath) => {
+        try {
+          await remove(filePath);
+          prunedCount++;
+        } catch {
+          // Ignore errors (file may already be deleted or directory)
+        }
+      })
+    );
+  }
+
+  return { prunedCount, savedBytes };
+};
 
 export type LayerBuildResult = {
   layerZipPath: string;
@@ -140,7 +251,8 @@ export const buildSharedLayer = async ({
     absoluteSourcePath: layerOutputDir,
     absoluteDestDirPath: getFolder(layerZipPath),
     fileNameBase: `layer-${layerHash}`,
-    format: 'zip'
+    format: 'zip',
+    useNativeZip: true
   });
 
   // Get the zip size
@@ -155,6 +267,39 @@ export const buildSharedLayer = async ({
     dependencies: dependencies.map((d) => ({ name: d.name, version: d.version })),
     size
   };
+};
+
+/**
+ * Collect all transitive dependencies for a package by reading its package.json.
+ * Returns a set of all dependency names (including the package itself).
+ */
+const collectTransitiveDependencies = async (
+  packageName: string,
+  nodeModulesPath: string,
+  visited: Set<string> = new Set()
+): Promise<Set<string>> => {
+  if (visited.has(packageName)) {
+    return visited;
+  }
+  visited.add(packageName);
+
+  const packageJsonPath = join(nodeModulesPath, packageName, 'package.json');
+  try {
+    const { readJson } = await import('fs-extra');
+    const packageJson = await readJson(packageJsonPath);
+    const deps = {
+      ...packageJson.dependencies,
+      ...packageJson.optionalDependencies
+    };
+
+    for (const depName of Object.keys(deps || {})) {
+      await collectTransitiveDependencies(depName, nodeModulesPath, visited);
+    }
+  } catch {
+    // Package doesn't exist or no package.json - skip
+  }
+
+  return visited;
 };
 
 /**
@@ -176,32 +321,46 @@ export const buildSharedLayerSimple = async ({
 
   await ensureDir(nodejsDir);
 
-  // Copy each dependency from node_modules
+  // Collect all transitive dependencies
   const nodeModulesPath = join(cwd, 'node_modules');
-  for (const dep of dependencies) {
-    const srcPath = join(nodeModulesPath, dep.name);
-    const destPath = join(nodejsDir, dep.name);
-    try {
-      await copy(srcPath, destPath);
+  const allDepsToInclude = new Set<string>();
 
-      // Also copy scoped package parent if needed (e.g., @aws-sdk)
-      if (dep.name.startsWith('@')) {
-        const scopeDir = dep.name.split('/')[0];
-        await ensureDir(join(nodejsDir, scopeDir));
-      }
-    } catch (err) {
-      // Skip if dependency not found (might be a transitive dep)
-      console.warn(`Warning: Could not copy ${dep.name}: ${(err as Error).message}`);
-    }
+  for (const dep of dependencies) {
+    await collectTransitiveDependencies(dep.name, nodeModulesPath, allDepsToInclude);
   }
 
-  // Create the layer zip
+  // Ensure scoped package directories exist first
+  const scopeDirs = new Set<string>();
+  for (const depName of allDepsToInclude) {
+    if (depName.startsWith('@')) {
+      scopeDirs.add(depName.split('/')[0]);
+    }
+  }
+  await Promise.all([...scopeDirs].map((scope) => ensureDir(join(nodejsDir, scope))));
+
+  // Copy all dependencies (including transitive) in parallel for speed
+  const depsArray = [...allDepsToInclude];
+  await Promise.all(
+    depsArray.map(async (depName) => {
+      const srcPath = join(nodeModulesPath, depName);
+      const destPath = join(nodejsDir, depName);
+      try {
+        await copy(srcPath, destPath);
+      } catch {
+        // Skip if dependency not found
+      }
+    })
+  );
+
+  // Prune unnecessary files to reduce size and speed up zipping
+  await pruneNodeModules(nodejsDir);
+
+  // Create the layer zip using fastest available tool
   const layerZipPath = join(distFolderPath, `layer-${layerHash}.zip`);
-  await archiveItem({
-    absoluteSourcePath: layerBuildDir,
-    absoluteDestDirPath: getFolder(layerZipPath),
-    fileNameBase: `layer-${layerHash}`,
-    format: 'zip'
+  await createZipFast({
+    sourceDir: layerBuildDir,
+    outputPath: layerZipPath,
+    compressionLevel: 1 // Low compression for speed (Lambda layers have 250MB limit)
   });
 
   // Get the zip size
@@ -216,4 +375,62 @@ export const buildSharedLayerSimple = async ({
     dependencies: dependencies.map((d) => ({ name: d.name, version: d.version })),
     size
   };
+};
+
+export type MultiLayerBuildResult = Map<string, LayerBuildResult>;
+
+/**
+ * Build multiple shared layers in parallel from layer assignments.
+ * Returns a map from layerId to build result.
+ */
+export const buildMultipleLayers = async ({
+  layerAssignments,
+  cwd,
+  distFolderPath,
+  nodeVersion,
+  packageManager,
+  hasNativeDeps = false,
+  architecture = 'linux/amd64'
+}: {
+  layerAssignments: LayerAssignment[];
+  cwd: string;
+  distFolderPath: string;
+  nodeVersion?: number;
+  packageManager?: 'npm' | 'yarn' | 'pnpm' | 'bun';
+  hasNativeDeps?: boolean;
+  architecture?: 'linux/amd64' | 'linux/arm64';
+}): Promise<MultiLayerBuildResult> => {
+  const results = new Map<string, LayerBuildResult>();
+
+  if (layerAssignments.length === 0) {
+    return results;
+  }
+
+  // Build all layers in parallel
+  const buildPromises = layerAssignments.map(async (assignment) => {
+    const buildResult = hasNativeDeps && nodeVersion && packageManager
+      ? await buildSharedLayer({
+          dependencies: assignment.dependencies,
+          cwd,
+          distFolderPath,
+          nodeVersion,
+          packageManager,
+          architecture
+        })
+      : await buildSharedLayerSimple({
+          dependencies: assignment.dependencies,
+          cwd,
+          distFolderPath
+        });
+
+    return { layerId: assignment.layerId, result: buildResult };
+  });
+
+  const buildResults = await Promise.all(buildPromises);
+
+  for (const { layerId, result } of buildResults) {
+    results.set(layerId, result);
+  }
+
+  return results;
 };

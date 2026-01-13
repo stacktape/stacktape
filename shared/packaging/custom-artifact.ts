@@ -93,7 +93,8 @@ export const buildUsingCustomArtifact = async ({
     artifactPath = await archiveItem({
       absoluteSourcePath: absolutePackagePath,
       absoluteDestDirPath: distFolderPath,
-      format: 'zip'
+      format: 'zip',
+      useNativeZip: true
     });
     await progressLogger.finishEvent({ eventType: 'ZIP_PACKAGE' });
   } else {

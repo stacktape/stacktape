@@ -2,6 +2,7 @@ import type { ExpectedError, UnexpectedError } from '@utils/errors';
 import type { Instance } from 'ink';
 import type { ErrorDisplayData, NextStep } from './components';
 import type {
+  TuiCancelDeployment,
   TuiDeploymentHeader,
   TuiEventStatus,
   TuiLink,
@@ -60,6 +61,11 @@ class TuiManager {
   private logFormat: LogFormat = 'fancy';
   private logLevel: LogLevel = 'info';
   private nonTTYUnsubscribe: (() => void) | null = null;
+  /**
+   * Tracks whether TUI was ever started this session.
+   * Used to prevent printProgress() fallback after TUI stops, since events were already displayed.
+   */
+  private _wasEverStarted: boolean = false;
 
   constructor() {
     this.isTTY = process.stdout.isTTY && !ci.isCI;
@@ -67,6 +73,11 @@ class TuiManager {
 
   get enabled(): boolean {
     return this._isEnabled;
+  }
+
+  /** Returns true if TUI was started at some point (even if now stopped). */
+  get wasEverStarted(): boolean {
+    return this._wasEverStarted;
   }
 
   get isPaused(): boolean {
@@ -90,6 +101,7 @@ class TuiManager {
     }
 
     this._isEnabled = true;
+    this._wasEverStarted = true;
     tuiState.reset();
 
     if (this.isTTY) {
@@ -287,6 +299,7 @@ class TuiManager {
   updateEvent(params: {
     eventType: LoggableEventType;
     additionalMessage?: string;
+    description?: string;
     parentEventType?: LoggableEventType;
     instanceId?: string;
   }) {
@@ -318,6 +331,32 @@ class TuiManager {
 
   commitPendingCompletion() {
     tuiState.commitPendingCompletion();
+  }
+
+  // ============================================================
+  // Cancel Deployment Banner
+  // ============================================================
+
+  /**
+   * Show a cancel deployment banner that the user can trigger with 'c' key.
+   * Used when a deployment failure is detected (e.g., ECS task failed to start).
+   */
+  setCancelDeployment(cancelDeployment: TuiCancelDeployment) {
+    tuiState.setCancelDeployment(cancelDeployment);
+  }
+
+  /**
+   * Update the cancel deployment state (e.g., to show cancelling in progress).
+   */
+  updateCancelDeployment(updates: Partial<TuiCancelDeployment>) {
+    tuiState.updateCancelDeployment(updates);
+  }
+
+  /**
+   * Clear the cancel deployment banner.
+   */
+  clearCancelDeployment() {
+    tuiState.clearCancelDeployment();
   }
 
   // ============================================================
