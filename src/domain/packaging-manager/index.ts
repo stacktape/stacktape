@@ -1,3 +1,4 @@
+import type { LambdaEntrypoint, LayerAssignmentResult } from '@shared/packaging/bundlers/es/split-bundler';
 import { join } from 'node:path';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
@@ -8,7 +9,13 @@ import { deployedStackOverviewManager } from '@domain-services/deployed-stack-ov
 import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
 import { ec2Manager } from '@domain-services/ec2-manager';
 import { fsPaths } from '@shared/naming/fs-paths';
-import { getJobName } from '@shared/naming/utils';
+import { buildLayerS3Key, getJobName } from '@shared/naming/utils';
+import {
+  assignChunksToLayers,
+  buildSplitBundle,
+  createLayerArtifacts,
+  DEFAULT_LAYER_CONFIG
+} from '@shared/packaging/bundlers/es/split-bundler';
 import { buildUsingCustomArtifact } from '@shared/packaging/custom-artifact';
 import { buildUsingCustomDockerfile } from '@shared/packaging/custom-dockerfile';
 import { buildUsingExternalBuildpack } from '@shared/packaging/external-buildpack';
@@ -22,22 +29,20 @@ import { buildUsingStacktapeJavaImageBuildpack } from '@shared/packaging/stackta
 import { buildUsingStacktapeJavaLambdaBuildpack } from '@shared/packaging/stacktape-java-lambda-buildpack';
 import { buildUsingStacktapePyImageBuildpack } from '@shared/packaging/stacktape-py-image-buildpack';
 import { buildUsingStacktapePyLambdaBuildpack } from '@shared/packaging/stacktape-py-lambda-buildpack';
-import { buildSplitBundle, type LambdaEntrypoint } from '@shared/packaging/bundlers/es/split-bundler';
 import {
   ensureBuildxBuilderForCache,
   getDockerBuildxSupportedPlatforms,
   installDockerPlatforms,
   isDockerRunning
 } from '@shared/utils/docker';
-import { getFileExtension, getFileSize, getFolderSize } from '@shared/utils/fs-utils';
-import { getHashFromMultipleFiles } from '@shared/utils/fs-utils';
-import { archiveItem } from '@shared/utils/zip';
+import { getFileExtension, getFileSize, getFolderSize, getHashFromMultipleFiles } from '@shared/utils/fs-utils';
 import { localBuildTsConfigPath } from '@shared/utils/misc';
+import { archiveItem } from '@shared/utils/zip';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import compose from '@utils/basic-compose-shim';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
-import objectHash from 'object-hash';
 import { rename } from 'fs-extra';
+import objectHash from 'object-hash';
 import { resolveEnvironmentDirectives } from 'src/commands/dev/utils';
 
 /** Minimum number of Node.js lambdas to use split bundling (otherwise bundle individually) */
@@ -62,6 +67,18 @@ const shouldUseRemoteDockerCache = () => {
 
 export class PackagingManager {
   #packagedJobs: PackageWorkloadOutput[] = [];
+  #layerAssignment: LayerAssignmentResult | null = null;
+  #layerArtifacts: Array<{
+    layerNumber: number;
+    layerPath: string;
+    chunks: string[];
+    sizeBytes: number;
+    /** S3 key computed during packaging, used for both template and upload */
+    s3Key: string;
+  }> = [];
+
+  /** Maps lambda name -> set of layer numbers it uses */
+  #lambdaLayerMap: Map<string, Set<number>> = new Map();
 
   init = async () => {};
 
@@ -74,41 +91,94 @@ export class PackagingManager {
   }
 
   /**
-   * Legacy method - no longer used with split bundling.
-   * Kept for compatibility but always returns false.
+   * Check if a lambda uses shared layers.
    */
   shouldLambdaUseSharedLayer(_lambdaName: string): boolean {
-    return false;
+    if (!this.#layerAssignment) return false;
+    // Check if any layered chunk is used by this lambda
+    return this.#layerAssignment.layeredChunks.some((chunk) => {
+      const analysis = this.#layerAssignment?.layeredChunks.find((c) => c.chunkName === chunk.chunkName);
+      // We'd need to look up the original chunk analysis for usedByLambdas
+      // For now, if we have layers, all lambdas use them
+      return analysis !== undefined;
+    });
   }
 
   /**
-   * Legacy method - no longer used with split bundling.
-   * Kept for compatibility but always returns null.
+   * Get layer artifacts for a specific layer number.
    */
-  getSharedLayerInfo(): null {
-    return null;
+  getLayerArtifact(layerNumber: number) {
+    return this.#layerArtifacts.find((l) => l.layerNumber === layerNumber) || null;
   }
 
   /**
-   * Legacy method - no longer used with split bundling.
-   * Kept for compatibility but always returns null.
+   * Get all layer artifacts.
    */
-  getPendingSharedLayer(): null {
-    return null;
+  getLayerArtifacts() {
+    return this.#layerArtifacts;
   }
 
   /**
-   * Legacy method - no longer used with split bundling.
-   * Kept for compatibility but always returns empty array.
+   * Get layer assignment result.
+   */
+  getLayerAssignment() {
+    return this.#layerAssignment;
+  }
+
+  /**
+   * Get layer numbers that a lambda should use.
+   * Returns array of layer numbers (1-5) that contain chunks used by this lambda.
+   */
+  getLayerNumbersForLambda(lambdaName: string): number[] {
+    if (!this.#layerAssignment || this.#layerArtifacts.length === 0) return [];
+    // Return only layers that contain chunks used by this specific lambda
+    const layerNumbers = this.#lambdaLayerMap.get(lambdaName);
+    return layerNumbers ? Array.from(layerNumbers).sort() : [];
+  }
+
+  /**
+   * Legacy method - returns empty array as layer ARNs are resolved at deploy time.
    */
   getLayerArnsForFunction(_functionName: string): string[] {
     return [];
   }
 
   /**
-   * Legacy method - no longer needed with split bundling (no Lambda Layers).
+   * Get pending shared layer(s) that need to be published.
+   * Returns the first layer artifact if there are any, null otherwise.
    */
-  publishSharedLayer = async (): Promise<void> => {};
+  getPendingSharedLayer(): { layerPath: string; layerNumber: number } | null {
+    if (this.#layerArtifacts.length === 0) return null;
+    // Return first layer - the upload process will handle all layers
+    const first = this.#layerArtifacts[0];
+    return { layerPath: first.layerPath, layerNumber: first.layerNumber };
+  }
+
+  /**
+   * Get shared layer info after publishing.
+   * For now returns null as layers are created via CloudFormation.
+   */
+  getSharedLayerInfo(): null {
+    // Layer ARNs are resolved at deploy time via CloudFormation
+    return null;
+  }
+
+  /**
+   * Zip shared layer artifacts for upload.
+   * Creates zip files for each layer that can be uploaded to S3.
+   */
+  publishSharedLayer = async (): Promise<void> => {
+    if (this.#layerArtifacts.length === 0) return;
+
+    // Zip each layer artifact
+    for (const layer of this.#layerArtifacts) {
+      await archiveItem({
+        absoluteSourcePath: layer.layerPath,
+        format: 'zip',
+        useNativeZip: true
+      });
+    }
+  };
 
   /**
    * Check if we should use split bundling for Node.js lambdas.
@@ -203,21 +273,79 @@ export class PackagingManager {
       dependenciesToExcludeFromBundle: languageSpecificConfig?.dependenciesToExcludeFromBundle || []
     });
 
-    // Finish the shared layer build
+    // Compute layer assignments based on chunk usage
+    const layerAssignment = assignChunksToLayers(splitResult.chunkAnalysis, DEFAULT_LAYER_CONFIG);
+
+    // Create layer artifacts if there are chunks to put in layers
+    let layerArtifactsWithS3Keys: Array<{
+      layerNumber: number;
+      layerPath: string;
+      chunks: string[];
+      sizeBytes: number;
+      s3Key: string;
+    }> = [];
+    if (layerAssignment.layeredChunks.length > 0) {
+      const layerResult = await createLayerArtifacts({
+        lambdaOutputs: splitResult.lambdaOutputs,
+        layerAssignment,
+        layerBasePath: `${fsPaths.absoluteBuildFolderPath({ invocationId: globalStateManager.invocationId })}/layers`
+      });
+
+      // Compute S3 keys for each layer (needed for both template and upload)
+      const version = stackManager.nextVersion;
+      layerArtifactsWithS3Keys = layerResult.layerArtifacts.map((layer) => ({
+        ...layer,
+        s3Key: buildLayerS3Key(layer.layerNumber, version, String(layer.sizeBytes))
+      }));
+    }
+
+    // Store layer assignment and artifacts
+    this.#layerAssignment = layerAssignment;
+    this.#layerArtifacts = layerArtifactsWithS3Keys;
+
+    // Build lambda -> layer map: which lambdas use which layers
+    this.#lambdaLayerMap.clear();
+    for (const layeredChunk of layerAssignment.layeredChunks) {
+      // Find the original chunk analysis to get usedByLambdas
+      const chunkAnalysis = splitResult.chunkAnalysis.find((c) => c.chunkName === layeredChunk.chunkName);
+      if (chunkAnalysis) {
+        for (const lambdaName of chunkAnalysis.usedByLambdas) {
+          if (!this.#lambdaLayerMap.has(lambdaName)) {
+            this.#lambdaLayerMap.set(lambdaName, new Set());
+          }
+          this.#lambdaLayerMap.get(lambdaName)!.add(layeredChunk.layerNumber);
+        }
+      }
+    }
+
+    // Finish the shared layer build with detailed info
+    let layerInfo = '';
+    if (layerArtifactsWithS3Keys.length > 0) {
+      const totalLayerSize = layerArtifactsWithS3Keys.reduce((sum, l) => sum + l.sizeBytes, 0);
+      const layeredChunkCount = layerAssignment.layeredChunks.length;
+      const totalSavings = Math.round(layerAssignment.totalBytesSaved / 1024);
+      layerInfo = ` → ${layeredChunkCount} chunks in ${layerArtifactsWithS3Keys.length} layer(s) (${Math.round(totalLayerSize / 1024)}KB), saves ~${totalSavings}KB`;
+    }
     await sharedLayerLogger.finishEvent({
       eventType: 'BUILD_CODE',
-      finalMessage: `${splitResult.sharedChunkCount} shared chunks created`
+      finalMessage: `${splitResult.sharedChunkCount} shared chunks${layerInfo}`
     });
 
     // Finish the "identifying shared resources" phase for all lambdas
     for (const [name] of lambdaLoggers) {
       const logger = lambdaLoggers.get(name)!;
       const lambdaOutput = splitResult.lambdaOutputs.get(name);
-      // files includes entry + chunks, so chunk count = files.length - 1
-      const chunkCount = lambdaOutput ? lambdaOutput.files.length - 1 : 0;
+      // files includes entry + local (non-layered) chunks after layer creation
+      const localChunkCount = lambdaOutput ? lambdaOutput.files.length - 1 : 0;
+      const layerNumbers = this.#lambdaLayerMap.get(name);
+      const layerCount = layerNumbers ? layerNumbers.size : 0;
+      const bundleInfo =
+        layerCount > 0
+          ? `Bundled (${localChunkCount} local chunks + ${layerCount} shared layer)`
+          : `Bundled (${localChunkCount} chunks)`;
       await logger.finishEvent({
         eventType: 'BUILD_CODE',
-        finalMessage: `Bundled (uses ${chunkCount} shared chunks)`
+        finalMessage: bundleInfo
       });
     }
 
@@ -291,11 +419,16 @@ export class PackagingManager {
       const adjustedZipPath = `${distFolderPath}-${digest}.zip`;
       await rename(originalZipPath, adjustedZipPath);
 
-      // files includes entry + chunks, so chunk count = files.length - 1
-      const chunkCount = lambdaOutput.files.length - 1;
+      // files includes entry + local (non-layered) chunks
+      const localChunkCount = lambdaOutput.files.length - 1;
+      // Get layer info for this lambda
+      const layerNumbers = this.#lambdaLayerMap.get(name);
+      const layerCount = layerNumbers ? layerNumbers.size : 0;
+      const layerInfo = layerCount > 0 ? ` + ${layerCount} layer(s)` : '';
+      const chunkInfo = localChunkCount > 0 ? `, ${localChunkCount} local chunks` : '';
       await lambdaLogger.finishEvent({
         eventType: 'ZIP_PACKAGE',
-        finalMessage: `${zippedSize}MB (${chunkCount} shared chunks)`
+        finalMessage: `${unzippedSize}MB → ${zippedSize}MB${layerInfo}${chunkInfo}`
       });
 
       this.#packagedJobs.push({

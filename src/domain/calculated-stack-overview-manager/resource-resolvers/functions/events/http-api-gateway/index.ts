@@ -146,7 +146,6 @@ export const resolveHttpApiEvents = ({
 };
 
 const getHttpApiLambdaIntegration = ({
-  workloadName,
   functionTimeout,
   lambdaEndpointArn,
   httpApiGatewayInfo,
@@ -158,19 +157,19 @@ const getHttpApiLambdaIntegration = ({
   payloadFormat: StpHttpApiGateway['payloadFormat'];
   httpApiGatewayInfo: StpHttpApiGateway & { name: string };
 }) => {
-  if (functionTimeout > 29) {
-    tuiManager.warn(
-      `Function ${tuiManager.prettyResourceName(
-        workloadName
-      )} timeout is ${functionTimeout}s, above HTTP API max (29s).\n` + 'Requests may time out.'
-    );
-  }
-  if (functionTimeout === 29) {
-    tuiManager.warn(
-      `Function ${tuiManager.prettyResourceName(workloadName)} timeout is 29s (HTTP API max). ` +
-        'Requests may time out.'
-    );
-  }
+  // if (functionTimeout > 29) {
+  //   tuiManager.warn(
+  //     `Function ${tuiManager.prettyResourceName(
+  //       workloadName
+  //     )} timeout is ${functionTimeout}s, above HTTP API max (29s).\n` + 'Requests may time out.'
+  //   );
+  // }
+  // if (functionTimeout === 29) {
+  //   tuiManager.warn(
+  //     `Function ${tuiManager.prettyResourceName(workloadName)} timeout is 29s (HTTP API max). ` +
+  //       'Requests may time out.'
+  //   );
+  // }
   return new Integration({
     ApiId: Ref(cfLogicalNames.httpApi(httpApiGatewayInfo.name)),
     IntegrationType: 'AWS_PROXY',

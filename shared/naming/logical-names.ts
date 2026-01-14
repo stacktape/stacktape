@@ -1249,6 +1249,12 @@ export const cfLogicalNames = {
       suffix: { cloudformationResourceType: 'AWS::CodeDeploy::Application' }
     });
   },
+  sharedChunkLayer(layerNumber: number) {
+    return buildCfLogicalName({
+      specifier: { type: `SharedChunkLayer${layerNumber}` },
+      suffix: { cloudformationResourceType: 'AWS::Lambda::LayerVersion' }
+    });
+  },
   ecsCodeDeployApp() {
     return buildCfLogicalName({
       specifier: { type: 'ECSCodeDeploy' },

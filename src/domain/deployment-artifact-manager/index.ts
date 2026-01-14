@@ -53,6 +53,7 @@ export class DeploymentArtifactManager {
   repositoryUrl: string;
   previouslyUploadedLambdaS3KeysUsedInDeployment: string[] = [];
   previouslyUploadedImageTagsUsedInDeployment: string[] = [];
+  uploadedLayerS3Keys: Map<number, string> = new Map(); // layerNumber -> s3Key
 
   getLambdasToUpload({ hotSwapDeploy }: { hotSwapDeploy: boolean }) {
     return configManager.allLambdasToUpload
@@ -703,31 +704,82 @@ export class DeploymentArtifactManager {
   };
 
   uploadSharedLayer = async () => {
-    // Layer is published during packaging phase (before CF template generation)
-    // Skip if no pending layer or already published
+    // Skip if no pending layers
     const pendingLayer = packagingManager.getPendingSharedLayer();
-    const sharedLayerInfo = packagingManager.getSharedLayerInfo();
-    if (!pendingLayer || sharedLayerInfo) {
+    if (!pendingLayer) {
+      return;
+    }
+
+    const layerArtifacts = packagingManager.getLayerArtifacts();
+    if (layerArtifacts.length === 0) {
       return;
     }
 
     const uploadLogger = eventManager.createChildLogger({
       parentEventType: 'UPLOAD_DEPLOYMENT_ARTIFACTS',
-      instanceId: 'shared-lambda-layer'
+      instanceId: 'shared-lambda-layers'
     });
-    await uploadLogger.startEvent({ eventType: 'UPLOAD_SHARED_LAYER', description: 'Publishing shared Lambda layer' });
+    await uploadLogger.startEvent({
+      eventType: 'UPLOAD_SHARED_LAYER',
+      description: `Uploading ${layerArtifacts.length} shared layer(s)`
+    });
 
     try {
+      // Zip the layer artifacts
       await packagingManager.publishSharedLayer();
-      await uploadLogger.finishEvent({ eventType: 'UPLOAD_SHARED_LAYER' });
+
+      // Upload each layer to S3 using the S3 key computed during packaging
+      for (const layer of layerArtifacts) {
+        const zipPath = `${layer.layerPath}.zip`;
+        // Use the S3 key computed during packaging (ensures consistency with CF template)
+        const s3Key = layer.s3Key;
+
+        await awsSdkManager.uploadToBucket({
+          s3Key,
+          filePath: zipPath,
+          bucketName: this.deploymentBucketName
+        });
+
+        this.uploadedLayerS3Keys.set(layer.layerNumber, s3Key);
+        this.successfullyCreatedObjects.push({
+          s3Key,
+          name: `shared-layer-${layer.layerNumber}`
+        });
+      }
+
+      await uploadLogger.finishEvent({
+        eventType: 'UPLOAD_SHARED_LAYER',
+        finalMessage: `${layerArtifacts.length} layer(s) uploaded`
+      });
     } catch (error) {
       await uploadLogger.finishEvent({
         eventType: 'UPLOAD_SHARED_LAYER',
-        finalMessage: `Layer publish failed: ${(error as Error).message}`
+        finalMessage: `Layer upload failed: ${(error as Error).message}`
       });
       throw error;
     }
   };
+
+  /**
+   * Get S3 info for a specific layer.
+   * Used by CloudFormation to reference the layer artifact.
+   */
+  getLayerS3Info(layerNumber: number): { bucket: string; key: string } | null {
+    const s3Key = this.uploadedLayerS3Keys.get(layerNumber);
+    if (!s3Key) return null;
+    return { bucket: this.deploymentBucketName, key: s3Key };
+  }
+
+  /**
+   * Get all uploaded layer S3 info.
+   */
+  getAllLayerS3Info(): Array<{ layerNumber: number; bucket: string; key: string }> {
+    const result: Array<{ layerNumber: number; bucket: string; key: string }> = [];
+    for (const [layerNumber, s3Key] of this.uploadedLayerS3Keys) {
+      result.push({ layerNumber, bucket: this.deploymentBucketName, key: s3Key });
+    }
+    return result;
+  }
 
   getBucketsContent = async () => {
     const objectsToRemove: { [bucketName: string]: _Object[] } = {};

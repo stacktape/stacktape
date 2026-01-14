@@ -303,16 +303,9 @@ export class AwsSdkManager {
   }
 
   #getClientArgs() {
-    // default keep-alive off (safe)
-    const httpsAgent = new HttpsAgent({ keepAlive: false });
     return {
       region: this.region,
-      credentials: this.credentials,
-      requestHandler: new NodeHttpHandler({
-        connectionTimeout: 10000,
-        socketTimeout: 20000,
-        httpsAgent
-      })
+      credentials: this.credentials
     };
   }
 

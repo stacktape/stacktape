@@ -39,6 +39,9 @@ export const fsPaths = {
   absoluteSharedLayerFolderPath({ invocationId }: { invocationId: string }) {
     return `${fsPaths.absoluteBuildFolderPath({ invocationId })}/shared-layer`;
   },
+  absoluteSharedLayerNumberedPath({ invocationId, layerNumber }: { invocationId: string; layerNumber: number }) {
+    return `${fsPaths.absoluteBuildFolderPath({ invocationId })}/shared-layers/layer-${layerNumber}`;
+  },
   absoluteSplitBundleOutdir({ invocationId }: { invocationId: string }) {
     return `${fsPaths.absoluteBuildFolderPath({ invocationId })}/split-bundle`;
   },

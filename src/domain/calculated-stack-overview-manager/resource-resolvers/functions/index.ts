@@ -5,6 +5,7 @@ import Application from '@cloudform/codeDeploy/application';
 import { GetAtt, Join, Ref } from '@cloudform/functions';
 import EventInvokeConfig from '@cloudform/lambda/eventInvokeConfig';
 import CfLambdaFunction from '@cloudform/lambda/function';
+import LayerVersion from '@cloudform/lambda/layerVersion';
 import { DEFAULT_LAMBDA_NODE_VERSION } from '@config';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
@@ -71,6 +72,29 @@ import {
 } from './utils';
 
 export const resolveFunctions = async () => {
+  // Create shared chunk layer resources (from split bundling) before resolving individual functions
+  const layerArtifacts = packagingManager.getLayerArtifacts();
+  for (const layer of layerArtifacts) {
+    const layerLogicalName = cfLogicalNames.sharedChunkLayer(layer.layerNumber);
+
+    // Create the LayerVersion resource with the S3 key computed during packaging
+    const layerResource = new LayerVersion({
+      LayerName: `${globalStateManager.targetStack.stackName}-shared-chunk-layer-${layer.layerNumber}`,
+      Description: `Shared chunk layer ${layer.layerNumber} for code splitting`,
+      CompatibleRuntimes: [`nodejs${DEFAULT_LAMBDA_NODE_VERSION}.x`],
+      Content: {
+        S3Bucket: deploymentArtifactManager.deploymentBucketName,
+        S3Key: layer.s3Key
+      }
+    });
+
+    calculatedStackOverviewManager.addCfChildResource({
+      cfLogicalName: layerLogicalName,
+      resource: layerResource,
+      nameChain: [PARENT_IDENTIFIER_SHARED_GLOBAL]
+    });
+  }
+
   configManager.functions.forEach((lambdaProps) => {
     resolveFunction({ lambdaProps });
   });
@@ -297,14 +321,16 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
       });
     }
   }
-  // Add layers: user-defined layers + shared layer(s) from packaging
-  // Uses getLayerArnsForFunction which supports both single-layer and multi-layer modes
-  const sharedLayerArns = packagingManager.getLayerArnsForFunction(name);
-  const allLayers = [...(layers || []), ...sharedLayerArns];
+  // Add layers: user-defined layers + shared chunk layers from split bundling
+  const sharedLayerNumbers = packagingManager.getLayerNumbersForLambda(name);
+  const sharedLayerRefs = sharedLayerNumbers.map((layerNumber) =>
+    GetAtt(cfLogicalNames.sharedChunkLayer(layerNumber), 'LayerVersionArn')
+  );
+  const allLayers = [...(layers || []), ...sharedLayerRefs];
   if (allLayers.length > 5) {
     throw new ExpectedError(
       'CONFIG_VALIDATION',
-      `Function "${name}" exceeds AWS limit of 5 layers. User-defined: ${(layers || []).length}, shared: ${sharedLayerArns.length}. ` +
+      `Function "${name}" exceeds AWS limit of 5 layers. User-defined: ${(layers || []).length}, shared: ${sharedLayerRefs.length}. ` +
         `Reduce user-defined layers or shared layer usage.`
     );
   }

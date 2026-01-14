@@ -26,7 +26,7 @@ import { SOURCE_MAP_INSTALL_DIST_PATH } from '@shared/naming/project-fs-paths';
 import { dependencyInstaller } from '@shared/utils/dependency-installer';
 import { getFirstExistingPath, isFileAccessible } from '@shared/utils/fs-utils';
 import { builtinModules, filterDuplicates, getError, getTsconfigAliases } from '@shared/utils/misc';
-import { copy, ensureDir, outputJSON, readFile, remove, writeFile } from 'fs-extra';
+import { copy, ensureDir, outputJSON, readdir, readFile, remove, writeFile } from 'fs-extra';
 import { DEPENDENCIES_TO_EXCLUDE_FROM_BUNDLE, IGNORED_MODULES } from './config';
 import { determineIfAlias, getInfoFromPackageJson, getLockFileData } from './utils';
 
@@ -48,6 +48,170 @@ export type SplitBundleResult = {
   sharedChunkCount: number;
   /** Time taken to bundle (ms) */
   bundleTimeMs: number;
+  /** Chunk usage analysis for layer optimization */
+  chunkAnalysis: ChunkUsageAnalysis[];
+};
+
+export type ChunkUsageAnalysis = {
+  /** Chunk filename (e.g., "chunk-abc123.js") */
+  chunkName: string;
+  /** Full path to the chunk file in shared outdir */
+  chunkPath: string;
+  /** Size in bytes */
+  sizeBytes: number;
+  /** Lambda names that use this chunk */
+  usedByLambdas: string[];
+  /** Number of lambdas using this chunk */
+  usageCount: number;
+  /** Deduplication value: sizeBytes * (usageCount - 1) - bytes saved if put in layer */
+  deduplicationValue: number;
+};
+
+/** Layer assignment for a chunk */
+export type ChunkLayerAssignment = {
+  chunkName: string;
+  chunkPath: string;
+  /** Layer number (1-5) or 0 if chunk stays in lambda package */
+  layerNumber: number;
+};
+
+/** Configuration for layer assignment heuristics */
+export type LayerConfig = {
+  /** Minimum number of lambdas that must use a chunk for it to go in a layer */
+  minUsageCount: number;
+  /** Minimum chunk size (bytes) to consider for layer */
+  minChunkSize: number;
+  /** Maximum number of layers to create (1-5) */
+  maxLayers: number;
+  /** Maximum size per layer in bytes (AWS limit is 250MB unzipped) */
+  maxLayerSize: number;
+};
+
+export const DEFAULT_LAYER_CONFIG: LayerConfig = {
+  minUsageCount: 3, // Chunk must be used by at least 3 lambdas
+  minChunkSize: 1024, // At least 1KB
+  maxLayers: 3, // Use up to 3 layers (leave 2 for user's custom layers)
+  maxLayerSize: 50 * 1024 * 1024 // 50MB per layer (conservative)
+};
+
+/** Result of layer assignment computation */
+export type LayerAssignmentResult = {
+  /** Chunks assigned to layers (layer 1-5) */
+  layeredChunks: ChunkLayerAssignment[];
+  /** Chunks that stay in lambda packages (layer 0) */
+  unLayeredChunks: ChunkLayerAssignment[];
+  /** Layer summaries */
+  layers: Array<{
+    layerNumber: number;
+    chunks: string[];
+    totalSizeBytes: number;
+  }>;
+  /** Total bytes saved by using layers */
+  totalBytesSaved: number;
+};
+
+/**
+ * Assign chunks to Lambda Layers based on usage analysis and configuration.
+ *
+ * Uses a greedy bin-packing algorithm:
+ * 1. Filter chunks by minimum usage count and size
+ * 2. Sort by deduplication value (already done in analysis)
+ * 3. Assign to layers using first-fit decreasing (FFD)
+ * 4. Respect layer count and size limits
+ *
+ * @param chunkAnalysis - Chunk usage analysis from buildSplitBundle
+ * @param config - Layer configuration (defaults provided)
+ */
+export const assignChunksToLayers = (
+  chunkAnalysis: ChunkUsageAnalysis[],
+  config: LayerConfig = DEFAULT_LAYER_CONFIG,
+  _totalLambdaCount?: number
+): LayerAssignmentResult => {
+  const layeredChunks: ChunkLayerAssignment[] = [];
+  const unLayeredChunks: ChunkLayerAssignment[] = [];
+
+  // Track layer contents: layerNumber -> { chunks, totalSize }
+  const layerContents = new Map<number, { chunks: string[]; totalSize: number }>();
+
+  // Initialize layers
+  for (let i = 1; i <= config.maxLayers; i++) {
+    layerContents.set(i, { chunks: [], totalSize: 0 });
+  }
+
+  // Filter and process chunks (already sorted by deduplication value)
+  for (const chunk of chunkAnalysis) {
+    // Skip chunks that don't meet minimum criteria
+    if (chunk.usageCount < config.minUsageCount) {
+      unLayeredChunks.push({
+        chunkName: chunk.chunkName,
+        chunkPath: chunk.chunkPath,
+        layerNumber: 0
+      });
+      continue;
+    }
+
+    if (chunk.sizeBytes < config.minChunkSize) {
+      unLayeredChunks.push({
+        chunkName: chunk.chunkName,
+        chunkPath: chunk.chunkPath,
+        layerNumber: 0
+      });
+      continue;
+    }
+
+    // Find first layer with enough space (First Fit Decreasing)
+    let assignedLayer = 0;
+    for (let layerNum = 1; layerNum <= config.maxLayers; layerNum++) {
+      const layer = layerContents.get(layerNum)!;
+      if (layer.totalSize + chunk.sizeBytes <= config.maxLayerSize) {
+        layer.chunks.push(chunk.chunkName);
+        layer.totalSize += chunk.sizeBytes;
+        assignedLayer = layerNum;
+        break;
+      }
+    }
+
+    if (assignedLayer > 0) {
+      layeredChunks.push({
+        chunkName: chunk.chunkName,
+        chunkPath: chunk.chunkPath,
+        layerNumber: assignedLayer
+      });
+    } else {
+      // No layer has space, chunk stays in lambda packages
+      unLayeredChunks.push({
+        chunkName: chunk.chunkName,
+        chunkPath: chunk.chunkPath,
+        layerNumber: 0
+      });
+    }
+  }
+
+  // Build layer summaries
+  const layers: LayerAssignmentResult['layers'] = [];
+  for (let i = 1; i <= config.maxLayers; i++) {
+    const content = layerContents.get(i)!;
+    if (content.chunks.length > 0) {
+      layers.push({
+        layerNumber: i,
+        chunks: content.chunks,
+        totalSizeBytes: content.totalSize
+      });
+    }
+  }
+
+  // Calculate total bytes saved
+  const totalBytesSaved = layeredChunks.reduce((sum, assignment) => {
+    const analysis = chunkAnalysis.find((c) => c.chunkName === assignment.chunkName);
+    return sum + (analysis?.deduplicationValue || 0);
+  }, 0);
+
+  return {
+    layeredChunks,
+    unLayeredChunks,
+    layers,
+    totalBytesSaved
+  };
 };
 
 export type LambdaSplitOutput = {
@@ -81,7 +245,7 @@ export const buildSplitBundle = async ({
   sharedOutdir,
   cwd,
   tsConfigPath,
-  nodeTarget,
+  nodeTarget: _nodeTarget,
   minify = true,
   sourceMaps = 'external',
   sourceMapBannerType = 'pre-compiled',
@@ -307,6 +471,9 @@ export const buildSplitBundle = async ({
   // Process each lambda: copy its entry file and required chunks to its dist folder
   const lambdaOutputs = new Map<string, LambdaSplitOutput>();
 
+  // Track chunk usage across lambdas for layer optimization
+  const chunkUsageMap = new Map<string, Set<string>>(); // chunkPath -> Set<lambdaName>
+
   for (const entrypoint of entrypoints) {
     // Find the output file by matching the original entrypoint path
     // The output structure mirrors the input: [outdir]/[relative-path-from-cwd].js
@@ -353,6 +520,14 @@ export const buildSplitBundle = async ({
           chunksToProcess.push(nestedChunk);
         }
       }
+    }
+
+    // Track which lambdas use each chunk for layer optimization
+    for (const chunk of allRequiredChunks) {
+      if (!chunkUsageMap.has(chunk)) {
+        chunkUsageMap.set(chunk, new Set());
+      }
+      chunkUsageMap.get(chunk)!.add(entrypoint.name);
     }
 
     // Ensure dist folder exists
@@ -407,10 +582,35 @@ export const buildSplitBundle = async ({
 
   const bundleTimeMs = Date.now() - startTime;
 
+  // Build chunk usage analysis for layer optimization
+  const chunkAnalysis: ChunkUsageAnalysis[] = [];
+  for (const [chunkPath, lambdaNames] of chunkUsageMap) {
+    const chunkName = basename(chunkPath);
+    const sizeBytes = Bun.file(chunkPath).size;
+    const usedByLambdas = Array.from(lambdaNames);
+    const usageCount = usedByLambdas.length;
+    // Deduplication value: bytes saved if chunk is put in a shared layer
+    // Each lambda except one would no longer need the chunk in its package
+    const deduplicationValue = sizeBytes * (usageCount - 1);
+
+    chunkAnalysis.push({
+      chunkName,
+      chunkPath,
+      sizeBytes,
+      usedByLambdas,
+      usageCount,
+      deduplicationValue
+    });
+  }
+
+  // Sort by deduplication value (highest first) - best candidates for layers
+  chunkAnalysis.sort((a, b) => b.deduplicationValue - a.deduplicationValue);
+
   return {
     lambdaOutputs,
     sharedChunkCount: chunkFiles.length,
-    bundleTimeMs
+    bundleTimeMs,
+    chunkAnalysis
   };
 };
 
@@ -567,4 +767,156 @@ const __stp_dirname = __stp_pathDirname(__stp_filename);`
   } catch {
     return { js: '' };
   }
+};
+
+/** Layer path in AWS Lambda runtime */
+const LAYER_CHUNKS_PATH = '/opt/nodejs/chunks/';
+
+/**
+ * Create layer artifacts and update lambda packages to use layers.
+ *
+ * This function:
+ * 1. Creates layer directories with the assigned chunks
+ * 2. Updates lambda packages to remove layered chunks
+ * 3. Rewrites imports to use layer paths for layered chunks
+ *
+ * @param lambdaOutputs - Lambda outputs from buildSplitBundle
+ * @param layerAssignment - Layer assignment from assignChunksToLayers
+ * @param layerBasePath - Base path for layer directories (e.g., /build/shared-layers/)
+ */
+export const createLayerArtifacts = async ({
+  lambdaOutputs,
+  layerAssignment,
+  layerBasePath
+}: {
+  lambdaOutputs: Map<string, LambdaSplitOutput>;
+  layerAssignment: LayerAssignmentResult;
+  layerBasePath: string;
+}): Promise<{
+  layerArtifacts: Array<{
+    layerNumber: number;
+    layerPath: string;
+    chunks: string[];
+    sizeBytes: number;
+  }>;
+}> => {
+  const layerArtifacts: Array<{
+    layerNumber: number;
+    layerPath: string;
+    chunks: string[];
+    sizeBytes: number;
+  }> = [];
+
+  // Build set of layered chunk names for quick lookup
+  const layeredChunkNames = new Set(layerAssignment.layeredChunks.map((c) => c.chunkName));
+
+  // Create layer directories and copy chunks
+  for (const layer of layerAssignment.layers) {
+    const layerDir = join(layerBasePath, `layer-${layer.layerNumber}`);
+    // Lambda layer structure: nodejs/chunks/
+    const layerChunksDir = join(layerDir, 'nodejs', 'chunks');
+    await ensureDir(layerChunksDir);
+
+    // Copy chunks to layer, rewriting inter-chunk imports
+    for (const chunkName of layer.chunks) {
+      const chunkAssignment = layerAssignment.layeredChunks.find((c) => c.chunkName === chunkName);
+      if (!chunkAssignment) continue;
+
+      const sourcePath = chunkAssignment.chunkPath;
+      const destPath = join(layerChunksDir, chunkName);
+
+      // Read chunk content and rewrite imports
+      let content = await readFile(sourcePath, 'utf-8');
+      // For chunks in the same layer, use relative paths
+      // For chunks in different layers or lambda, this gets complex
+      // Simplification: all layered chunks use absolute layer path
+      content = rewriteChunkImportsSelective(content, layeredChunkNames, LAYER_CHUNKS_PATH, './');
+      await writeFile(destPath, content);
+
+      // Copy source map if exists
+      const sourceMapPath = `${sourcePath}.map`;
+      if (existsSync(sourceMapPath)) {
+        await copy(sourceMapPath, `${destPath}.map`);
+      }
+    }
+
+    // Create package.json for ESM in the layer
+    await outputJSON(join(layerDir, 'nodejs', 'package.json'), { type: 'module' });
+
+    layerArtifacts.push({
+      layerNumber: layer.layerNumber,
+      layerPath: layerDir,
+      chunks: layer.chunks,
+      sizeBytes: layer.totalSizeBytes
+    });
+  }
+
+  // Update lambda packages: remove layered chunks and rewrite imports
+  for (const [_lambdaName, output] of lambdaOutputs) {
+    const lambdaChunksDir = join(dirname(output.entryFile), 'chunks');
+
+    // Remove layered chunks from lambda's chunks directory
+    for (const chunkName of layeredChunkNames) {
+      const chunkPath = join(lambdaChunksDir, chunkName);
+      if (existsSync(chunkPath)) {
+        await remove(chunkPath);
+        // Also remove source map
+        const mapPath = `${chunkPath}.map`;
+        if (existsSync(mapPath)) {
+          await remove(mapPath);
+        }
+      }
+    }
+
+    // Rewrite imports in entry file
+    let entryContent = await readFile(output.entryFile, 'utf-8');
+    entryContent = rewriteChunkImportsSelective(entryContent, layeredChunkNames, LAYER_CHUNKS_PATH, './chunks/');
+    await writeFile(output.entryFile, entryContent);
+
+    // Rewrite imports in remaining (non-layered) chunks
+    if (existsSync(lambdaChunksDir)) {
+      const allFiles = await readdir(lambdaChunksDir).catch(() => [] as string[]);
+      const remainingChunks = allFiles.filter((f) => f.endsWith('.js'));
+
+      for (const chunkFile of remainingChunks) {
+        const chunkPath = join(lambdaChunksDir, chunkFile);
+        if (existsSync(chunkPath)) {
+          let content = await readFile(chunkPath, 'utf-8');
+          content = rewriteChunkImportsSelective(content, layeredChunkNames, LAYER_CHUNKS_PATH, './');
+          await writeFile(chunkPath, content);
+        }
+      }
+    }
+
+    // Update the files list to remove layered chunks
+    output.files = output.files.filter((f) => {
+      const fileName = basename(f);
+      return !layeredChunkNames.has(fileName);
+    });
+  }
+
+  return { layerArtifacts };
+};
+
+/**
+ * Rewrite chunk imports selectively based on whether chunks are layered.
+ *
+ * @param content - File content to process
+ * @param layeredChunkNames - Set of chunk names that are in layers
+ * @param layerPrefix - Prefix for layered chunk imports (e.g., "/opt/nodejs/chunks/")
+ * @param localPrefix - Prefix for non-layered chunk imports (e.g., "./chunks/" or "./")
+ */
+const rewriteChunkImportsSelective = (
+  content: string,
+  layeredChunkNames: Set<string>,
+  layerPrefix: string,
+  localPrefix: string
+): string => {
+  const chunkPathPattern = /(from\s*["']|import\s*\(\s*["'])([^"']*?)(chunk-[^"']+)(["'])/g;
+
+  return content.replace(chunkPathPattern, (_match, importPrefix, _oldPath, chunkFile, closingQuote) => {
+    const isLayered = layeredChunkNames.has(chunkFile);
+    const newPrefix = isLayered ? layerPrefix : localPrefix;
+    return `${importPrefix}${newPrefix}${chunkFile}${closingQuote}`;
+  });
 };

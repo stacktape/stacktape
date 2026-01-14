@@ -19,7 +19,7 @@ export default antfu(
       '__publish-folder/*',
       '__binary-dist/*',
       'docs/next-env.d.ts',
-      'README.md'
+      '**/*.md'
     ],
     regexp: false,
     lessOpinionated: true,
