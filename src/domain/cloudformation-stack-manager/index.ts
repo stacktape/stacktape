@@ -642,6 +642,7 @@ export class StackManager {
     const cleanupMonitoring = () => {
       clearInterval(this.stackMonitoringInterval);
       Object.values(this.#ecsDeploymentStatusPoller).forEach((statusPoller) => statusPoller.stopPolling());
+      Object.values(this.#lambdaProvisionedConcurrencyPoller).forEach((poller) => poller.stopPolling());
       tuiManager.clearCancelDeployment();
     };
 
@@ -650,12 +651,18 @@ export class StackManager {
       if (cancelBannerShown || cancelRequested) return;
       if (cfStackAction !== 'create' && cfStackAction !== 'update') return;
 
-      // Check if any ECS poller has a failed task
+      // Check if any ECS poller has a failed task or Lambda poller has a failure
       const hasFailedEcsTask = Object.values(this.#ecsDeploymentStatusPoller).some((poller) => poller.hasFailedTask);
-      if (hasFailedEcsTask) {
+      const hasFailedLambdaProvisionedConcurrency = Object.values(this.#lambdaProvisionedConcurrencyPoller).some(
+        (poller) => poller.hasFailure
+      );
+      if (hasFailedEcsTask || hasFailedLambdaProvisionedConcurrency) {
         cancelBannerShown = true;
+        const message = hasFailedEcsTask
+          ? 'Container startup failed. CloudFormation will eventually time out and rollback.'
+          : 'Lambda provisioned concurrency failed. CloudFormation will eventually time out and rollback.';
         tuiManager.setCancelDeployment({
-          message: 'Container startup failed. CloudFormation will eventually time out and rollback.',
+          message,
           onCancel: async () => {
             if (cancelRequested) return;
             cancelRequested = true;

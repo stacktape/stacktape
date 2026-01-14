@@ -269,20 +269,33 @@ export const buildEsCode = async ({
       (outputModuleFormat === 'cjs' && sourceMapBannerType !== 'disabled') ||
       (outputModuleFormat === 'esm' && sourceMapBannerType === 'pre-compiled');
 
-    const buildResult = await Bun.build({
-      entrypoints: entryPoints,
-      outdir,
-      target: 'node',
-      format: splitting ? 'esm' : outputModuleFormat,
-      splitting: splitting && outputModuleFormat === 'esm',
-      minify: minify !== undefined ? minify : true,
-      sourcemap: sourceMaps === 'disabled' ? 'none' : sourceMaps === 'external' ? 'linked' : 'inline',
-      external: ['fsevents', ...externals, ...externalModules.map((m) => m.name)],
-      define: { ...esmDefines, ...define },
-      plugins: allBunPlugins,
-      root: cwd,
-      banner: shouldInjectBanner && banner.js ? banner.js : undefined
-    });
+    let buildResult: Awaited<ReturnType<typeof Bun.build>>;
+    try {
+      buildResult = await Bun.build({
+        entrypoints: entryPoints,
+        outdir,
+        target: 'node',
+        format: splitting ? 'esm' : outputModuleFormat,
+        splitting: splitting && outputModuleFormat === 'esm',
+        minify: minify !== undefined ? minify : true,
+        sourcemap: sourceMaps === 'disabled' ? 'none' : sourceMaps === 'external' ? 'linked' : 'inline',
+        external: ['fsevents', ...externals, ...externalModules.map((m) => m.name)],
+        define: { ...esmDefines, ...define },
+        plugins: allBunPlugins,
+        root: cwd,
+        banner: shouldInjectBanner && banner.js ? banner.js : undefined
+      });
+    } catch (err: any) {
+      // Bun can throw AggregateError with message "Bundle failed" for severe errors
+      const errorDetails = err.errors
+        ? err.errors.map((e: any) => e?.message || e?.toString()).join('\n')
+        : err.message || err.toString();
+      throw getError({
+        type: 'BUILD_CODE',
+        message: `Build failed: ${errorDetails}`,
+        hint: 'Check that the entrypoint file exists and is valid TypeScript/JavaScript.'
+      });
+    }
 
     // Clean up temp file
     if (tempEntryFile) {

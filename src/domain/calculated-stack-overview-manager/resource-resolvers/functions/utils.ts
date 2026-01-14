@@ -161,6 +161,9 @@ export const getLambdaAliasResource = ({
     FunctionVersion: GetAtt(cfLogicalNames.lambdaVersionPublisherCustomResource(lambdaProps.name), 'version'),
     Name: awsResourceNames.lambdaStpAlias()
   });
+  // Explicit DependsOn ensures version publisher custom resource has completed before alias is created.
+  // CloudFormation doesn't always properly detect dependencies via GetAtt on custom resource attributes.
+  resource.DependsOn = [cfLogicalNames.lambdaVersionPublisherCustomResource(lambdaProps.name)];
   const effectiveProvisionedConcurrency = provisionedConcurrency ?? lambdaProps.provisionedConcurrency;
   if (effectiveProvisionedConcurrency) {
     resource.Properties.ProvisionedConcurrencyConfig = {
@@ -213,6 +216,9 @@ export const getLambdaVersionPublisherCustomResource = ({
     forceUpdate: Date.now()
   };
   resource.Properties = { ...resource.Properties, ...additionalProperties };
+  // Explicit DependsOn ensures Lambda function code is fully deployed before publishing version.
+  // This is critical because the custom resource publishes whatever code is currently deployed.
+  resource.DependsOn = [lambdaProps.cfLogicalName];
   return resource;
 };
 

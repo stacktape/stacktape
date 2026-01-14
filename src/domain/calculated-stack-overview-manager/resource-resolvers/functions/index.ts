@@ -468,10 +468,11 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
     });
   }
   if (destinations) {
+    // Use alias qualifier when alias exists (either for deployment or provisioned concurrency)
     const lambdaEventInvokeConfig = new EventInvokeConfig({
       FunctionName: Ref(cfLogicalName),
       DestinationConfig: {},
-      Qualifier: deployment ? awsResourceNames.lambdaStpAlias() : '$LATEST'
+      Qualifier: lambdaProps.aliasLogicalName ? awsResourceNames.lambdaStpAlias() : '$LATEST'
     });
     if (destinations.onFailure) {
       lambdaEventInvokeConfig.Properties.DestinationConfig.OnFailure = { Destination: destinations.onFailure };
@@ -512,14 +513,14 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
       resource: getLambdaAliasResource({ lambdaProps })
     });
   }
-  // add monitoring link
+  // add monitoring link (use alias when available for deployment or provisioned concurrency)
   calculatedStackOverviewManager.addStacktapeResourceLink({
     linkName: configParentResourceType === 'batch-job' ? 'metrics-trigger-lambda' : 'metrics',
     nameChain,
     linkValue: cfEvaluatedLinks.lambda({
       awsLambdaName: Ref(cfLogicalName),
       tab: 'monitoring',
-      alias: deployment && awsResourceNames.lambdaStpAlias()
+      alias: lambdaProps.aliasLogicalName && awsResourceNames.lambdaStpAlias()
     })
   });
   calculatedStackOverviewManager.addStacktapeResourceLink({
@@ -528,7 +529,7 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
     linkValue: cfEvaluatedLinks.lambda({
       awsLambdaName: Ref(cfLogicalName),
       tab: 'testing',
-      alias: deployment && awsResourceNames.lambdaStpAlias()
+      alias: lambdaProps.aliasLogicalName && awsResourceNames.lambdaStpAlias()
     })
   });
   if (cdn?.enabled) {

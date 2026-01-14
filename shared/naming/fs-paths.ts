@@ -39,6 +39,9 @@ export const fsPaths = {
   absoluteSharedLayerFolderPath({ invocationId }: { invocationId: string }) {
     return `${fsPaths.absoluteBuildFolderPath({ invocationId })}/shared-layer`;
   },
+  absoluteSplitBundleOutdir({ invocationId }: { invocationId: string }) {
+    return `${fsPaths.absoluteBuildFolderPath({ invocationId })}/split-bundle`;
+  },
   absoluteAwsCdkConstructArtifactFolderPath({
     invocationId,
     constructName

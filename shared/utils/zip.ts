@@ -165,7 +165,6 @@ export const createZipFast = async ({
 }): Promise<{ usedNative: boolean; tool: string }> => {
   const tool = await detectNativeZipTool();
 
-  console.log('tool', tool);
   try {
     switch (tool.name) {
       case 'zip':
