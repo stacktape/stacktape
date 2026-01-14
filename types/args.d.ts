@@ -669,15 +669,15 @@ interface StacktapeCliArgs {
    */
   hotSwap?: boolean;
   /**
-   * #### Disable Layer Caching
+   * #### Disable Layer Optimization
    *
    * ---
    *
-   * If `true`, disables caching of shared Lambda layers. By default, Stacktape checks if a layer with the same dependencies already exists in AWS and reuses it. Use this flag to force rebuilding and republishing the layer.
+   * If `true`, disables the shared Lambda layer optimization. By default, Stacktape extracts shared code into Lambda layers to reduce deployment size. Use this flag to bundle all code directly into each Lambda function.
    *
    * @default false
    */
-  disableLayerCaching?: boolean;
+  disableLayerOptimization?: boolean;
   /**
    * #### API Key
    *

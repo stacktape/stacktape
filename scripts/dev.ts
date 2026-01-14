@@ -3,7 +3,6 @@ import { dynamicRequire } from '@shared/utils/fs-utils';
 import { logError, logInfo, logWarn } from '@shared/utils/logging';
 import packageJson from '../package.json';
 import { packageHelperLambdas } from './package-helper-lambdas';
-import { generateSourceMapInstall } from './release/build-cli-sources';
 
 const buildSource = async () => {
   const result = await Bun.build({
@@ -26,8 +25,7 @@ const buildSource = async () => {
 export const runDev = async () => {
   const [cliDistPath] = await Promise.all([
     buildSource(),
-    packageHelperLambdas({ isDev: true, distFolderPath: DEV_TMP_FOLDER_PATH }),
-    generateSourceMapInstall({ distFolderPath: DEV_TMP_FOLDER_PATH })
+    packageHelperLambdas({ isDev: true, distFolderPath: DEV_TMP_FOLDER_PATH })
   ]);
 
   logInfo('----- RUN -----');

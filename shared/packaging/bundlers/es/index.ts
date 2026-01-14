@@ -334,6 +334,16 @@ export const buildEsCode = async ({
       await outputJSON(join(outputDir, 'package.json'), { type: 'module' });
     }
 
+    // Ensure default export exists for Lambda runtime compatibility
+    // If user exports `handler` but not `default`, append a re-export
+    if (outputModuleFormat === 'esm' && distPath) {
+      const content = await readFile(distPath, 'utf-8');
+      const updatedContent = ensureDefaultExport(content);
+      if (updatedContent !== content) {
+        await Bun.write(distPath, updatedContent);
+      }
+    }
+
     // Convert source files set to array
     const sourceFiles = Array.from(sourceFilesSet)
       .filter(filterDuplicates)
@@ -762,4 +772,39 @@ const __stp_dirname = __stp_pathDirname(__stp_filename);`
   } catch {
     return { js: '' };
   }
+};
+
+/**
+ * Ensure the entry file has a default export for Lambda runtime compatibility.
+ *
+ * If the code exports `handler` but not `default`, append a re-export.
+ * This handles the common pattern where users write `export const handler = ...`
+ * instead of `export default ...`.
+ *
+ * Bun's ESM output format is: `export { varName as exportName }`
+ */
+const ensureDefaultExport = (content: string): string => {
+  // Check if there's already a default export
+  // Bun outputs: `export { something as default }` or `export { something_default as default }`
+  if (/export\s*\{[^}]*\bas\s+default\b[^}]*\}/.test(content)) {
+    return content;
+  }
+
+  // Check if there's a named `handler` export
+  // Bun outputs: `export { handler }` or `export { something as handler }`
+  const handlerExportMatch = content.match(/export\s*\{([^}]*)\}/g);
+  if (!handlerExportMatch) {
+    return content;
+  }
+
+  // Look for `handler` in any export block
+  for (const exportBlock of handlerExportMatch) {
+    // Match: `handler` or `something as handler`
+    if (/\bhandler\b/.test(exportBlock)) {
+      // Append re-export of handler as default
+      return content + '\nexport { handler as default };\n';
+    }
+  }
+
+  return content;
 };

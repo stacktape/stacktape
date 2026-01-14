@@ -81,6 +81,33 @@ export const cfFailedEventHandlers: {
       };
     }
   },
+  // VPC has dependencies and cannot be deleted
+  {
+    eventMatchFunction: (event) => {
+      return event.ResourceStatusReason.includes('has dependencies and cannot be deleted');
+    },
+    handlerFunction: async (event) => {
+      // Extract VPC ID from error message if present
+      const vpcIdMatch = event.ResourceStatusReason.match(/vpc-[a-z0-9]+/i);
+      const vpcId = vpcIdMatch ? vpcIdMatch[0] : null;
+      const vpcConsoleUrl = vpcId
+        ? `https://${globalStateManager.region}.console.aws.amazon.com/vpcconsole/home?region=${globalStateManager.region}#VpcDetails:VpcId=${vpcId}`
+        : null;
+      return {
+        errorMessage: `Deletion of VPC resource ${tuiManager.colorize(
+          'red',
+          event.LogicalResourceId
+        )} failed. There are still resources attached to this VPC. This can happen when another stack uses this VPC (e.g., via connectTo or vpc.useExisting), or when AWS is still cleaning up resources like ENIs.`,
+        hints: [
+          'Check if another stack is using this VPC. If so, delete or update that stack first.',
+          `Wait a few minutes and re-run ${tuiManager.prettyCommand(globalStateManager.command)} command.`,
+          vpcConsoleUrl
+            ? `Check attached resources in AWS console: ${vpcConsoleUrl}`
+            : 'Check the AWS VPC console for remaining attached resources.'
+        ]
+      };
+    }
+  },
   // update of stack cancelled by user
   {
     eventMatchFunction: (event) => {

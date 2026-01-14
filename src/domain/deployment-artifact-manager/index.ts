@@ -715,21 +715,36 @@ export class DeploymentArtifactManager {
       return;
     }
 
+    // Check which layers already exist in S3 (content-hash based caching)
+    const existingS3Keys = new Set(this.previousObjects.map((obj) => obj.s3Key));
+    const layersToUpload = layerArtifacts.filter((layer) => !existingS3Keys.has(layer.s3Key));
+    const cachedLayers = layerArtifacts.filter((layer) => existingS3Keys.has(layer.s3Key));
+
+    // Mark cached layers as uploaded (they already exist in S3)
+    for (const layer of cachedLayers) {
+      this.uploadedLayerS3Keys.set(layer.layerNumber, layer.s3Key);
+    }
+
+    // If all layers are cached, skip upload entirely
+    if (layersToUpload.length === 0) {
+      return;
+    }
+
     const uploadLogger = eventManager.createChildLogger({
       parentEventType: 'UPLOAD_DEPLOYMENT_ARTIFACTS',
       instanceId: 'shared-lambda-layers'
     });
     await uploadLogger.startEvent({
       eventType: 'UPLOAD_SHARED_LAYER',
-      description: `Uploading ${layerArtifacts.length} shared layer(s)`
+      description: `Uploading ${layersToUpload.length} shared layer(s)${cachedLayers.length > 0 ? ` (${cachedLayers.length} cached)` : ''}`
     });
 
     try {
-      // Zip the layer artifacts
+      // Zip only the layers that need uploading
       await packagingManager.publishSharedLayer();
 
       // Upload each layer to S3 using the S3 key computed during packaging
-      for (const layer of layerArtifacts) {
+      for (const layer of layersToUpload) {
         const zipPath = `${layer.layerPath}.zip`;
         // Use the S3 key computed during packaging (ensures consistency with CF template)
         const s3Key = layer.s3Key;
@@ -749,7 +764,7 @@ export class DeploymentArtifactManager {
 
       await uploadLogger.finishEvent({
         eventType: 'UPLOAD_SHARED_LAYER',
-        finalMessage: `${layerArtifacts.length} layer(s) uploaded`
+        finalMessage: `${layersToUpload.length} layer(s) uploaded${cachedLayers.length > 0 ? `, ${cachedLayers.length} cached` : ''}`
       });
     } catch (error) {
       await uploadLogger.finishEvent({

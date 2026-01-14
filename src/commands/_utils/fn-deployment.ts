@@ -24,13 +24,25 @@ export const buildAndUpdateFunctionCode = async (stpResourceName: string, option
     });
   }
 
+  // In dev mode, check if deployed stack has shared layers
+  // If native binary layer (layer 0) exists, we can externalize those deps for faster upload
+  const hasNativeBinaryLayer =
+    devMode &&
+    Boolean(
+      stackManager.existingStackResources.find(
+        ({ LogicalResourceId, PhysicalResourceId }) =>
+          LogicalResourceId === cfLogicalNames.sharedChunkLayer(0) && PhysicalResourceId
+      )
+    );
+
   const packagingOutput = (await packagingManager.packageWorkload({
     jobName: lambdaProps.name,
     packaging: lambdaProps.packaging,
     workloadName: lambdaProps.name,
     commandCanUseCache: false,
     dockerBuildOutputArchitecture: lambdaProps.architecture === 'arm64' ? 'linux/arm64' : 'linux/amd64',
-    ...(devMode && { customProgressLogger: tuiManager.createSpinnerProgressLogger(spinner, lambdaProps.name) })
+    ...(devMode && { customProgressLogger: tuiManager.createSpinnerProgressLogger(spinner, lambdaProps.name) }),
+    ...(devMode && hasNativeBinaryLayer && { useDeployedLayers: true })
   })) as PackagingOutput;
 
   if (!devMode) {

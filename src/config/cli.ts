@@ -100,7 +100,7 @@ export const allowedCliArgs: { [_command in StacktapeCliCommand]: StacktapeCliAr
     'autoConfirmOperation',
     'showSensitiveValues',
     'hotSwap',
-    'disableLayerCaching'
+    'disableLayerOptimization'
   ],
   'codebuild:deploy': [
     ...universalCliArgs,
@@ -115,7 +115,7 @@ export const allowedCliArgs: { [_command in StacktapeCliCommand]: StacktapeCliAr
     'autoConfirmOperation',
     'showSensitiveValues',
     'hotSwap',
-    'disableLayerCaching'
+    'disableLayerOptimization'
   ],
   dev: [
     ...universalCliArgs,
@@ -294,7 +294,7 @@ export const allowedSdkArgs: { [_command in StacktapeSdkCommand]: StacktapeSdkAr
     'disableDockerRemoteCache',
     'disableAutoRollback',
     'hotSwap',
-    'disableLayerCaching'
+    'disableLayerOptimization'
   ],
   'codebuild:deploy': [
     ...universalSdkArgs,
@@ -307,7 +307,7 @@ export const allowedSdkArgs: { [_command in StacktapeSdkCommand]: StacktapeSdkAr
     'disableDockerRemoteCache',
     'disableAutoRollback',
     'hotSwap',
-    'disableLayerCaching'
+    'disableLayerOptimization'
   ],
   dev: [
     ...universalSdkArgs,
@@ -469,5 +469,5 @@ export const cliArgsAliases: { [_cliArg in StacktapeCliArg | StacktapeSdkArg]: s
   localTunnelingPort: 'ltp',
   disableDockerRemoteCache: 'drc',
   resourcesToSkip: 'rts',
-  disableLayerCaching: 'dlc'
+  disableLayerOptimization: 'dlo'
 };

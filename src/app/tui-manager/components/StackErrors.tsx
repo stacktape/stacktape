@@ -28,13 +28,16 @@ const cleanErrorMessage = (message: string): string => {
     cleaned = handlerMatch[1];
   }
   // Remove AWS SDK details like (Service: Lambda, Status Code: 404, Request ID: ..., SDK Attempt Count: 1)
-  cleaned = cleaned.replace(/\s*\(Service:[^,]+,\s*Status Code:\s*\d+,\s*Request ID:[^,]+,\s*SDK Attempt Count:\s*\d+\)/gi, '');
+  cleaned = cleaned.replace(
+    /\s*\(Service:[^,]+,\s*Status Code:\s*\d+,\s*Request ID:[^,]+,\s*SDK Attempt Count:\s*\d+\)/gi,
+    ''
+  );
   // Remove separate (Service: ...) pattern
   cleaned = cleaned.replace(/\s*\(Service:[^)]+\)/gi, '');
   // Remove separate (SDK Attempt Count: ...) pattern
   cleaned = cleaned.replace(/\s*\(SDK Attempt Count:\s*\d+\)/gi, '');
-  // Clean up any double spaces that might result
-  cleaned = cleaned.replace(/\s{2,}/g, ' ').trim();
+  // Clean up any double horizontal spaces that might result (preserve newlines)
+  cleaned = cleaned.replace(/[ \t]{2,}/g, ' ').trim();
   return cleaned;
 };
 
@@ -93,17 +96,7 @@ const ErrorItem: React.FC<{ error: StackError; index: number }> = ({ error, inde
         <Text color="white">{parsed.error}</Text>
       </Box>
 
-      {/* Hints */}
-      {error.hints && error.hints.length > 0 && (
-        <Box flexDirection="column" marginLeft={3} marginTop={0}>
-          {error.hints.map((hint, hintIndex) => (
-            <Box key={hintIndex}>
-              <Text color="blue">hint: </Text>
-              <Text color="gray">{hint}</Text>
-            </Box>
-          ))}
-        </Box>
-      )}
+      {/* Hints are now displayed in the main Hints section, not inline */}
     </Box>
   );
 };
@@ -134,6 +127,7 @@ export const StackErrors: React.FC<StackErrorsProps> = ({ errors, title }) => {
 
 /**
  * Render stack errors to a plain string (for non-TTY mode).
+ * Note: Hints are not rendered here - they are displayed in the main Hints section.
  */
 export const renderStackErrorsToString = (
   errors: StackError[],
@@ -156,15 +150,11 @@ export const renderStackErrorsToString = (
     }
     lines.push(header);
 
-    // Error message (indented)
-    lines.push(`   ${parsed.error}`);
-
-    // Hints
-    if (error.hints && error.hints.length > 0) {
-      error.hints.forEach((hint) => {
-        lines.push(`   ${colorize('blue', 'hint:')} ${hint}`);
-      });
-    }
+    // Error message (indented, handle multi-line)
+    const errorLines = parsed.error.split('\n');
+    errorLines.forEach((line) => {
+      lines.push(`   ${line}`);
+    });
 
     // Add spacing between errors
     if (index < errors.length - 1) {

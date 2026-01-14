@@ -1,0 +1,110 @@
+{
+  "timestamp": "2026-01-14T22:49:04.750Z",
+  "totalDurationMs": 2473,
+  "phases": [
+    {
+      "phase": "prepare-entrypoints",
+      "startMs": 1768430944750,
+      "details": {
+        "lambdaCount": 3
+      },
+      "durationMs": 0
+    },
+    {
+      "phase": "bun-split-bundle",
+      "startMs": 1768430944751,
+      "details": {
+        "sharedChunkCount": 4,
+        "bundleTimeMs": 161
+      },
+      "durationMs": 161
+    },
+    {
+      "phase": "build-native-binary-layer",
+      "startMs": 1768430945057,
+      "details": {
+        "lambdasWithNativeDeps": 3,
+        "dependencyCount": 1,
+        "layerSizeMB": "2.4"
+      },
+      "durationMs": 876
+    },
+    {
+      "phase": "layer-assignment",
+      "startMs": 1768430945933,
+      "details": {
+        "layeredChunkCount": 2
+      },
+      "durationMs": 0
+    },
+    {
+      "phase": "create-layer-artifacts",
+      "startMs": 1768430945933,
+      "details": {
+        "layerCount": 1
+      },
+      "durationMs": 6
+    },
+    {
+      "phase": "compute-source-hash",
+      "startMs": 1768430945940,
+      "details": {
+        "sourceFileCount": 4
+      },
+      "durationMs": 2
+    },
+    {
+      "phase": "zip-all-lambdas",
+      "startMs": 1768430946569,
+      "durationMs": 654
+    }
+  ],
+  "lambdaTimings": [
+    {
+      "name": "lambda2",
+      "getFolderSizeMs": 9,
+      "zipMs": 637,
+      "getZipSizeMs": 0,
+      "renameMs": 0,
+      "totalMs": 646,
+      "unzippedSizeMB": 0,
+      "zippedSizeMB": 0,
+      "skipped": false
+    },
+    {
+      "name": "lambda3",
+      "getFolderSizeMs": 1,
+      "zipMs": 644,
+      "getZipSizeMs": 1,
+      "renameMs": 1,
+      "totalMs": 647,
+      "unzippedSizeMB": 0,
+      "zippedSizeMB": 0,
+      "skipped": false
+    },
+    {
+      "name": "lambda1",
+      "getFolderSizeMs": 17,
+      "zipMs": 635,
+      "getZipSizeMs": 0,
+      "renameMs": 1,
+      "totalMs": 653,
+      "unzippedSizeMB": 0,
+      "zippedSizeMB": 0,
+      "skipped": false
+    }
+  ],
+  "summary": {
+    "lambdaCount": 3,
+    "skippedCount": 0,
+    "totalZipTimeMs": 1916,
+    "avgZipTimeMs": 638.6666666666666,
+    "maxZipTimeMs": 644,
+    "totalGetFolderSizeMs": 27,
+    "zipTool": "powershell",
+    "sourceFileCount": 4,
+    "sourceHashTimeMs": 2,
+    "sharedChunkCount": 4,
+    "layeredChunkCount": 2
+  }
+}

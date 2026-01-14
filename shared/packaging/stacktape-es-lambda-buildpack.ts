@@ -1,7 +1,7 @@
 import { getFileSize, getFolderSize } from '@shared/utils/fs-utils';
 import { getError } from '@shared/utils/misc';
 import { archiveItem } from '@shared/utils/zip';
-import { rename } from 'fs-extra';
+import { emptyDir, rename } from 'fs-extra';
 import { createEsBundle } from './bundlers/es';
 
 const FILE_SIZE_UNIT = 'MB';
@@ -16,6 +16,7 @@ export const buildUsingStacktapeEsLambdaBuildpack = async ({
   sharedLayerExternals = [],
   usesSharedLayer = false,
   dependencyDiscoveryOnly = false,
+  distFolderPath,
   ...otherProps
 }: StpBuildpackInput & {
   zippedSizeLimit: number;
@@ -26,8 +27,11 @@ export const buildUsingStacktapeEsLambdaBuildpack = async ({
   /** When true, only run bundler to discover dependencies - skip zipping and size checks */
   dependencyDiscoveryOnly?: boolean;
 }): Promise<PackagingOutput> => {
+  await emptyDir(distFolderPath);
+
   const bundlingOutput = await createEsBundle({
     ...otherProps,
+    distFolderPath,
     ...languageSpecificConfig,
     installNonStaticallyBuiltDepsInDocker: true,
     ...((languageSpecificConfig as EsLanguageSpecificConfig)?.disableSourceMaps && { sourceMaps: 'disabled' }),
@@ -36,10 +40,18 @@ export const buildUsingStacktapeEsLambdaBuildpack = async ({
     dockerBuildOutputArchitecture,
     isLambda: true,
     externals: sharedLayerExternals,
+    ...(sharedLayerExternals?.length && { dependenciesToExcludeFromDeploymentPackage: sharedLayerExternals }),
     dependencyDiscoveryOnly
   });
 
-  const { digest, outcome, distFolderPath, sourceFiles, resolvedModules, ...otherOutputProps } = bundlingOutput;
+  const {
+    digest,
+    outcome,
+    distFolderPath: bundledDistFolderPath,
+    sourceFiles,
+    resolvedModules,
+    ...otherOutputProps
+  } = bundlingOutput;
 
   if (outcome === 'skipped') {
     // await remove(distFolderPath);
@@ -58,7 +70,7 @@ export const buildUsingStacktapeEsLambdaBuildpack = async ({
     };
   }
 
-  const unzippedSize = await getFolderSize(distFolderPath, FILE_SIZE_UNIT, 2);
+  const unzippedSize = await getFolderSize(bundledDistFolderPath, FILE_SIZE_UNIT, 2);
 
   if (sizeLimit && unzippedSize > sizeLimit) {
     throw getError({
@@ -74,11 +86,11 @@ export const buildUsingStacktapeEsLambdaBuildpack = async ({
   });
 
   await archiveItem({
-    absoluteSourcePath: distFolderPath,
+    absoluteSourcePath: bundledDistFolderPath,
     format: 'zip',
     useNativeZip: true
   });
-  const originalZipPath = `${distFolderPath}.zip`;
+  const originalZipPath = `${bundledDistFolderPath}.zip`;
 
   zippedSize = await getFileSize(originalZipPath, FILE_SIZE_UNIT, 2);
   if (zippedSizeLimit && zippedSize > zippedSizeLimit) {
@@ -88,7 +100,7 @@ export const buildUsingStacktapeEsLambdaBuildpack = async ({
     });
   }
 
-  const adjustedZipPath = `${distFolderPath}-${digest}.zip`;
+  const adjustedZipPath = `${bundledDistFolderPath}-${digest}.zip`;
   await rename(originalZipPath, adjustedZipPath);
 
   const layerInfo = usesSharedLayer ? ' Uses shared layer.' : '';

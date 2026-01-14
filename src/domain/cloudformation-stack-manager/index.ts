@@ -716,7 +716,9 @@ export class StackManager {
       }
 
       const inProgressPart =
-        inProgressAmount === 0 && completedAmount === 0 ? `Performing ${cfStackAction}` : `In progress: ${inProgressAmount}`;
+        inProgressAmount === 0 && completedAmount === 0
+          ? `Performing ${cfStackAction}`
+          : `In progress: ${inProgressAmount}`;
       const finishedPart =
         cfStackAction === 'create'
           ? `Finished: ${completedAmount}/${isResourceToHandleCountPossiblyInaccurate ? '~' : ''}${resourcesToHandleCount}`
@@ -726,7 +728,8 @@ export class StackManager {
         startTime: lastStackActionTimestamp,
         now: new Date()
       });
-      const estimatePart = remainingPercent === null ? '' : ` Estimate: ~${remainingPercent === 100 ? '<1' : 100 - remainingPercent}%`;
+      const estimatePart =
+        remainingPercent === null ? '' : ` Estimate: ~${remainingPercent === 100 ? '<1' : 100 - remainingPercent}%`;
       const plannedResources =
         updatedResourceLogicalNames && updatedResourceLogicalNames.length > 0
           ? new Set(updatedResourceLogicalNames)
@@ -807,16 +810,20 @@ export class StackManager {
         const handledFailedEvents = await this.#handleFailedEvents({ potentialErrorCausingEvents });
         tuiManager.debug(`Processed ${handledFailedEvents.length} failed stack event(s)`);
         const formattedStackErrorText = tuiManager.formatComplexStackErrors(handledFailedEvents, 2);
-        const hints = getHintsAfterStackFailureOperation({
+        // Collect hints from individual error handlers
+        const errorSpecificHints = handledFailedEvents.flatMap((event) => event.hints || []);
+        const generalHints = getHintsAfterStackFailureOperation({
           cfStackAction,
           stackId,
           isAutoRollbackEnabled: this.isAutoRollbackEnabled
         });
+        // Merge all hints - error-specific hints first, then general hints
+        const allHints = [...errorSpecificHints, ...generalHints];
         return reject(
           new ExpectedError(
             'STACK',
             `Stack action ${this.stackActionType} failed.\n\n${formattedStackErrorText}\n`,
-            hints
+            allHints
           )
         );
       };
@@ -1026,13 +1033,15 @@ export class StackManager {
         });
         // Derive log group name from function name
         const logGroupName = `/aws/lambda/${functionName}`;
-        this.#lambdaProvisionedConcurrencyPoller[stackEvent.LogicalResourceId] = new LambdaProvisionedConcurrencyPoller({
-          functionName,
-          aliasName,
-          pollerPrintName: stpParentResourceName,
-          awsSdkManager,
-          logGroupName
-        });
+        this.#lambdaProvisionedConcurrencyPoller[stackEvent.LogicalResourceId] = new LambdaProvisionedConcurrencyPoller(
+          {
+            functionName,
+            aliasName,
+            pollerPrintName: stpParentResourceName,
+            awsSdkManager,
+            logGroupName
+          }
+        );
       }
     }
   };

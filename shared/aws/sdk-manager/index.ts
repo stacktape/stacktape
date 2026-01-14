@@ -1199,7 +1199,12 @@ export class AwsSdkManager {
 
   batchDeleteObjects = async (bucketName: string, objectKeys: ObjectIdentifier[]) => {
     const errHandler = this.#getErrorHandler(`Failed to batch delete objects from bucket ${bucketName}.`);
-    const validObjectKeys = objectKeys.filter((obj) => obj?.Key);
+    // Explicitly extract only Key and VersionId to ensure clean ObjectIdentifier objects.
+    // This prevents issues when ObjectVersion/DeleteMarkerEntry objects are passed directly,
+    // which can contain extra properties that may cause serialization issues.
+    const validObjectKeys: ObjectIdentifier[] = objectKeys
+      .filter((obj) => obj?.Key)
+      .map(({ Key, VersionId }) => (VersionId ? { Key, VersionId } : { Key }));
     if (validObjectKeys.length) {
       return Promise.all(
         chunkArray(validObjectKeys, 1000).map((chunk) =>
@@ -1224,14 +1229,14 @@ export class AwsSdkManager {
       .send(new ListObjectsV2Command({ Bucket: bucketName }))
       .catch(errHandler);
 
-    result = result.concat(Contents);
+    if (Contents) result = result.concat(Contents);
     while (NextContinuationToken) {
       ({ Contents, NextContinuationToken } = await (injectedS3Client || this.#s3())
         .send(new ListObjectsV2Command({ Bucket: bucketName, ContinuationToken: NextContinuationToken }))
         .catch(errHandler));
-      result = result.concat(Contents);
+      if (Contents) result = result.concat(Contents);
     }
-    return result.filter((obj) => obj !== null && obj !== undefined);
+    return result;
   };
 
   listAllVersionedObjectsInBucket = async (bucketName: string, injectedS3Client?: S3Client) => {
@@ -1241,7 +1246,8 @@ export class AwsSdkManager {
       .send(new ListObjectVersionsCommand({ Bucket: bucketName }))
       .catch(errHandler);
 
-    result = result.concat(Versions, DeleteMarkers);
+    if (Versions) result = result.concat(Versions);
+    if (DeleteMarkers) result = result.concat(DeleteMarkers);
     while (NextKeyMarker || NextVersionIdMarker) {
       ({ Versions, DeleteMarkers, NextKeyMarker, NextVersionIdMarker } = await (injectedS3Client || this.#s3())
         .send(
@@ -1252,9 +1258,10 @@ export class AwsSdkManager {
           })
         )
         .catch(errHandler));
-      result = result.concat(Versions, DeleteMarkers);
+      if (Versions) result = result.concat(Versions);
+      if (DeleteMarkers) result = result.concat(DeleteMarkers);
     }
-    return result.filter((obj) => obj !== null && obj !== undefined);
+    return result;
   };
 
   emptyBucket = async (bucketName: string) => {
