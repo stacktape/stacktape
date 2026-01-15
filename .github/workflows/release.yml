@@ -16,7 +16,7 @@ on:
 
 permissions:
   contents: write
-  id-token: write  # Required for npm trusted publishing with OIDC
+  id-token: write # Required for npm trusted publishing with OIDC
 
 jobs:
   build-binaries:
@@ -82,7 +82,7 @@ jobs:
         run: |
           docker run --rm -v $(pwd):/workspace -w /workspace node:22-alpine sh -c "
             apk add --no-cache curl bash git
-            BUN_INSTALL_VERSION=1.2.23 curl -fsSL https://bun.sh/install | bash
+            curl -fsSL https://bun.sh/install | bash -s -- bun-v1.2.23
             export PATH=\$HOME/.bun/bin:\$PATH
             bun install
             bun run scripts/build-dist-package.ts --platform alpine --version ${{ inputs.version }}
@@ -102,8 +102,8 @@ jobs:
     needs: build-binaries
     runs-on: ubuntu-latest
     permissions:
-      contents: write  # Required for creating releases and pushing commits
-      id-token: write  # Required for npm OIDC authentication
+      contents: write # Required for creating releases and pushing commits
+      id-token: write # Required for npm OIDC authentication
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
