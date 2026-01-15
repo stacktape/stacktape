@@ -4,7 +4,7 @@ import type { ExecaReturnBase } from 'execa';
 import { applicationManager } from '@application-services/application-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
-import { renderErrorToString } from '@application-services/tui-manager/components/Error';
+import { renderErrorToString } from '@application-services/tui-manager/non-tty-renderer';
 import { DEFAULT_CONTAINER_NODE_VERSION } from '@config';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';

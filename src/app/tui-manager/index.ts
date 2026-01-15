@@ -20,8 +20,12 @@ import ci from 'ci-info';
 import kleur from 'kleur';
 import React from 'react';
 import terminalLink from 'terminal-link';
-import { renderErrorToString, renderNextStepsToString, renderStackErrorsToString, Table, TuiApp } from './components';
-import { nonTTYRenderer } from './non-tty-renderer';
+import {
+  nonTTYRenderer,
+  renderErrorToString,
+  renderNextStepsToString,
+  renderStackErrorsToString
+} from './non-tty-renderer';
 import { createSpinner, createSpinnerProgressLogger, MultiSpinner } from './spinners';
 import { tuiState } from './state';
 import { formatDuration, stripAnsi } from './utils';
@@ -29,6 +33,11 @@ import { formatDuration, stripAnsi } from './utils';
 type InkInstance = { unmount: () => void };
 
 type InkRender = (element: React.ReactElement, options: { patchConsole: boolean }) => InkInstance;
+
+type TuiComponents = {
+  TuiApp: React.FC<{ isTTY: boolean }>;
+  Table: React.FC<{ header: string[]; rows: string[][] }>;
+};
 
 const inkRequire = createRequire(import.meta.url);
 const TUI_DISABLED = (() => {
@@ -75,6 +84,7 @@ class TuiManager {
   private logLevel: LogLevel = 'info';
   private nonTTYUnsubscribe: (() => void) | null = null;
   private inkRender: InkRender | null = null;
+  private tuiComponents: TuiComponents | null = null;
   /**
    * Tracks whether TUI was ever started this session.
    * Used to prevent printProgress() fallback after TUI stops, since events were already displayed.
@@ -94,6 +104,16 @@ class TuiManager {
       this.inkRender = inkModule.render;
     }
     return this.inkRender;
+  }
+
+  private getTuiComponents(): TuiComponents | null {
+    if (TUI_DISABLED) {
+      return null;
+    }
+    if (!this.tuiComponents) {
+      this.tuiComponents = inkRequire('./components') as TuiComponents;
+    }
+    return this.tuiComponents;
   }
 
   get enabled(): boolean {
@@ -130,9 +150,10 @@ class TuiManager {
     tuiState.reset();
 
     const renderInk = this.getInkRender();
-    if (this.isTTY && renderInk) {
+    const components = this.getTuiComponents();
+    if (this.isTTY && renderInk && components) {
       console.info('');
-      this.inkInstance = renderInk(React.createElement(TuiApp, { isTTY: true }), {
+      this.inkInstance = renderInk(React.createElement(components.TuiApp, { isTTY: true }), {
         patchConsole: false
       });
     } else {
@@ -179,8 +200,9 @@ class TuiManager {
     this._isPaused = false;
 
     const renderInk = this.getInkRender();
-    if (this.isTTY && renderInk) {
-      this.inkInstance = renderInk(React.createElement(TuiApp, { isTTY: true }), {
+    const components = this.getTuiComponents();
+    if (this.isTTY && renderInk && components) {
+      this.inkInstance = renderInk(React.createElement(components.TuiApp, { isTTY: true }), {
         patchConsole: false
       });
     }
@@ -652,8 +674,9 @@ class TuiManager {
     }
 
     const renderInk = this.getInkRender();
-    if (this.isTTY && this.logFormat === 'fancy' && renderInk) {
-      const instance = renderInk(React.createElement(Table, { header, rows }), { patchConsole: false });
+    const components = this.getTuiComponents();
+    if (this.isTTY && this.logFormat === 'fancy' && renderInk && components) {
+      const instance = renderInk(React.createElement(components.Table, { header, rows }), { patchConsole: false });
       instance.unmount();
     } else {
       this.printAsciiTable(header, rows);
