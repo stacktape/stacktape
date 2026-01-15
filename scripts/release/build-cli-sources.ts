@@ -125,7 +125,7 @@ export const buildBinaryFile = async ({
     entrypoint,
     `--outfile=${outputPath}`,
     '--sourcemap=inline',
-    '--format=esm',
+    '--format=cjs',
     '--external=ink',
     '--external=yoga-layout',
     '--define=STACKTAPE_DISABLE_TUI=true',
