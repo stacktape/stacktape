@@ -134,7 +134,9 @@ export const buildBinaryFile = async ({
 
   if (!debug) {
     buildArgs.push('--minify');
-    buildArgs.push('--bytecode');
+    if (platform !== 'win') {
+      buildArgs.push('--bytecode');
+    }
   }
 
   try {
