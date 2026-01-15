@@ -14,7 +14,7 @@
  */
 
 // Core bundling
-export { buildSplitBundle } from './bundler';
+export { buildSplitBundle, getBundlerTiming, type BundlerDebugTiming } from './bundler';
 
 // Layer assignment
 export { assignChunksToLayers } from './layer-assignment';

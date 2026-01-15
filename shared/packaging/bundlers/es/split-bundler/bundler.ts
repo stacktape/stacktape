@@ -46,7 +46,7 @@ type LambdaProcessingTiming = {
   chunkCount: number;
 };
 
-type BundlerDebugTiming = {
+export type BundlerDebugTiming = {
   phases: BundlerTimingPhase[];
   lambdaProcessing: LambdaProcessingTiming[];
 };
@@ -63,9 +63,8 @@ const timePhase = async <T>(phase: string, fn: () => Promise<T>, details?: Recor
   return result;
 };
 
-const saveBundlerTiming = async () => {
-  await writeJSON(join(process.cwd(), '.debug-bundler.json'), bundlerTiming, { spaces: 2 });
-};
+/** Returns the collected bundler timing data for external use */
+export const getBundlerTiming = (): BundlerDebugTiming => bundlerTiming;
 // ============ END DEBUG TIMING ============
 
 /**
@@ -166,9 +165,6 @@ export const buildSplitBundle = async ({
   const chunkAnalysis = await timePhase('build-chunk-analysis', async () =>
     buildChunkAnalysis(chunkUsageMap, chunkContentCache, chunkFiles)
   );
-
-  // Save debug timing
-  await saveBundlerTiming();
 
   return {
     lambdaOutputs,

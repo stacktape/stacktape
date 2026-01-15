@@ -1,4 +1,5 @@
 import type { ExpectedError, UnexpectedError } from '@utils/errors';
+import type { Instance } from 'ink';
 import type { ErrorDisplayData, NextStep } from './components';
 import type {
   TuiCancelDeployment,
@@ -12,44 +13,20 @@ import type {
   TuiSelectOption
 } from './types';
 import { eventManager } from '@application-services/event-manager';
-import { INVOKED_FROM_ENV_VAR_NAME, IS_DEV, IS_TUI_DISABLED, linksMap } from '@config';
+import { INVOKED_FROM_ENV_VAR_NAME, IS_DEV, linksMap } from '@config';
 import { getRelativePath, transformToUnixPath } from '@shared/utils/fs-utils';
 import { logCollectorStream } from '@utils/log-collector';
-import { createRequire } from 'node:module';
 import ci from 'ci-info';
+import { render } from 'ink';
 import kleur from 'kleur';
 import React from 'react';
 import terminalLink from 'terminal-link';
-import {
-  nonTTYRenderer,
-  renderErrorToString,
-  renderNextStepsToString,
-  renderStackErrorsToString
-} from './non-tty-renderer';
+import { renderErrorToString, renderNextStepsToString, renderStackErrorsToString, Table, TuiApp } from './components';
+import { nonTTYRenderer } from './non-tty-renderer';
 import { createSpinner, createSpinnerProgressLogger, MultiSpinner } from './spinners';
 import { tuiState } from './state';
 import { formatDuration, stripAnsi } from './utils';
 
-type InkInstance = { unmount: () => void };
-
-type InkRender = (element: React.ReactElement, options: { patchConsole: boolean }) => InkInstance;
-
-type TuiComponents = {
-  TuiApp: React.FC<{ isTTY: boolean }>;
-  Table: React.FC<{ header: string[]; rows: string[][] }>;
-};
-
-const inkRequire = createRequire(import.meta.url);
-const TUI_DISABLED = (() => {
-  // @ts-expect-error - injected using define
-  if (typeof STACKTAPE_DISABLE_TUI !== 'undefined') {
-    // @ts-expect-error - injected using define
-    return Boolean(STACKTAPE_DISABLE_TUI);
-  }
-  return IS_TUI_DISABLED;
-})();
-
-// Re-export types
 export { tuiState } from './state';
 export type { Spinner } from './spinners';
 export { MultiSpinner } from './spinners';
@@ -76,15 +53,13 @@ export type {
  * For dev mode, use spinners directly without starting the TUI.
  */
 class TuiManager {
-  private inkInstance: InkInstance | null = null;
+  private inkInstance: Instance | null = null;
   private isTTY: boolean;
   private _isEnabled: boolean = false;
   private _isPaused: boolean = false;
   private logFormat: LogFormat = 'fancy';
   private logLevel: LogLevel = 'info';
   private nonTTYUnsubscribe: (() => void) | null = null;
-  private inkRender: InkRender | null = null;
-  private tuiComponents: TuiComponents | null = null;
   /**
    * Tracks whether TUI was ever started this session.
    * Used to prevent printProgress() fallback after TUI stops, since events were already displayed.
@@ -92,28 +67,7 @@ class TuiManager {
   private _wasEverStarted: boolean = false;
 
   constructor() {
-    this.isTTY = !TUI_DISABLED && process.stdout.isTTY && !ci.isCI;
-  }
-
-  private getInkRender(): InkRender | null {
-    if (TUI_DISABLED) {
-      return null;
-    }
-    if (!this.inkRender) {
-      const inkModule = inkRequire('ink') as { render: InkRender };
-      this.inkRender = inkModule.render;
-    }
-    return this.inkRender;
-  }
-
-  private getTuiComponents(): TuiComponents | null {
-    if (TUI_DISABLED) {
-      return null;
-    }
-    if (!this.tuiComponents) {
-      this.tuiComponents = inkRequire('./components') as TuiComponents;
-    }
-    return this.tuiComponents;
+    this.isTTY = process.stdout.isTTY && !ci.isCI;
   }
 
   get enabled(): boolean {
@@ -136,7 +90,7 @@ class TuiManager {
   init(options: { logFormat?: LogFormat; logLevel?: LogLevel } = {}) {
     this.logFormat = options.logFormat || 'fancy';
     this.logLevel = options.logLevel || 'info';
-    this.isTTY = !TUI_DISABLED && process.stdout.isTTY && !ci.isCI && this.logFormat === 'fancy';
+    this.isTTY = process.stdout.isTTY && !ci.isCI && this.logFormat === 'fancy';
   }
 
   /** Start the TUI (Ink-based UI). Call this for deploy/delete commands. */
@@ -149,11 +103,9 @@ class TuiManager {
     this._wasEverStarted = true;
     tuiState.reset();
 
-    const renderInk = this.getInkRender();
-    const components = this.getTuiComponents();
-    if (this.isTTY && renderInk && components) {
+    if (this.isTTY) {
       console.info('');
-      this.inkInstance = renderInk(React.createElement(components.TuiApp, { isTTY: true }), {
+      this.inkInstance = render(React.createElement(TuiApp, { isTTY: true }), {
         patchConsole: false
       });
     } else {
@@ -199,10 +151,8 @@ class TuiManager {
     if (!this._isEnabled || !this._isPaused) return;
     this._isPaused = false;
 
-    const renderInk = this.getInkRender();
-    const components = this.getTuiComponents();
-    if (this.isTTY && renderInk && components) {
-      this.inkInstance = renderInk(React.createElement(components.TuiApp, { isTTY: true }), {
+    if (this.isTTY) {
+      this.inkInstance = render(React.createElement(TuiApp, { isTTY: true }), {
         patchConsole: false
       });
     }
@@ -673,10 +623,8 @@ class TuiManager {
       return;
     }
 
-    const renderInk = this.getInkRender();
-    const components = this.getTuiComponents();
-    if (this.isTTY && this.logFormat === 'fancy' && renderInk && components) {
-      const instance = renderInk(React.createElement(components.Table, { header, rows }), { patchConsole: false });
+    if (this.isTTY && this.logFormat === 'fancy') {
+      const instance = render(React.createElement(Table, { header, rows }), { patchConsole: false });
       instance.unmount();
     } else {
       this.printAsciiTable(header, rows);

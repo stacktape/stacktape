@@ -14,7 +14,9 @@ import {
   assignChunksToLayers,
   buildSplitBundle,
   createLayerArtifacts,
-  DEFAULT_LAYER_CONFIG
+  DEFAULT_LAYER_CONFIG,
+  getBundlerTiming,
+  type BundlerDebugTiming
 } from '@shared/packaging/bundlers/es/split-bundler';
 import {
   buildNativeBinaryLayer,
@@ -76,6 +78,7 @@ type DebugTimingData = {
   totalDurationMs: number;
   phases: TimingEntry[];
   lambdaTimings: LambdaTimingEntry[];
+  bundler?: BundlerDebugTiming;
   summary: {
     lambdaCount: number;
     skippedCount: number;
@@ -135,6 +138,11 @@ const formatLambdaSize = ({ sizeMB, sizeKB }: { sizeMB: number; sizeKB: number }
 };
 
 const saveDebugTiming = async () => {
+  // Only save debug timing if --logLevel debug is set
+  if (globalStateManager.logLevel !== 'debug') {
+    return;
+  }
+
   // Compute summary stats
   const nonSkipped = debugTiming.lambdaTimings.filter((l) => !l.skipped);
   debugTiming.summary.lambdaCount = debugTiming.lambdaTimings.length;
@@ -144,7 +152,15 @@ const saveDebugTiming = async () => {
   debugTiming.summary.maxZipTimeMs = nonSkipped.length > 0 ? Math.max(...nonSkipped.map((l) => l.zipMs)) : 0;
   debugTiming.summary.totalGetFolderSizeMs = nonSkipped.reduce((sum, l) => sum + l.getFolderSizeMs, 0);
 
-  await writeJSON(join(process.cwd(), '.debug.json'), debugTiming, { spaces: 2 });
+  // Include bundler timing data
+  debugTiming.bundler = getBundlerTiming();
+
+  // Save to the invocation folder (.stacktape/{invocationId})
+  const debugFilePath = join(
+    fsPaths.absoluteTempFolderPath({ invocationId: globalStateManager.invocationId }),
+    'packaging-debug.json'
+  );
+  await writeJSON(debugFilePath, debugTiming, { spaces: 2 });
 };
 // ============ END DEBUG TIMING ============
 
