@@ -10,6 +10,7 @@ import { configManager } from '@domain-services/config-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { inspectDockerContainer, listDockerContainers, stopDockerContainer } from '@shared/utils/docker';
 import { getAugmentedEnvironment } from '@utils/environment';
+import { getDirectiveParams, getIsDirective, startsLikeGetParamDirective } from '@utils/directives';
 import { startPortForwardingSessions, substituteTunneledEndpointsInEnvironmentVars } from '@utils/ssm-session';
 import chokidar from 'chokidar';
 import { getLocalInvokeAwsCredentials, SESSION_DURATION_SECONDS } from '../_utils/assume-role';
@@ -82,6 +83,37 @@ export const resolveEnvironmentDirectives = async (environment: Record<string, a
   return configManager.resolveDirectives({ itemToResolve: environment, useLocalResolve: true, resolveRuntime: true });
 };
 
+/**
+ * Substitute $ResourceParam directives for local workloads with their local addresses.
+ * This allows env vars like $ResourceParam('privateService', 'address') to resolve locally.
+ */
+const substituteLocalWorkloadDirectives = (
+  envVars: Record<string, any>,
+  localWorkloadAddresses: Record<string, string>
+): Record<string, any> => {
+  const result: Record<string, any> = {};
+  for (const [key, value] of Object.entries(envVars)) {
+    if (typeof value === 'string' && getIsDirective(value) && startsLikeGetParamDirective(value)) {
+      try {
+        const params = getDirectiveParams('ResourceParam', value);
+        const resourceName = params[0]?.value;
+        const paramName = params[1]?.value;
+        if (typeof resourceName === 'string' && localWorkloadAddresses[resourceName]) {
+          // Substitute with local address if this is a local workload
+          if (paramName === 'address' || paramName === 'url') {
+            result[key] = localWorkloadAddresses[resourceName];
+            continue;
+          }
+        }
+      } catch {
+        // Ignore parsing errors, let directive resolution handle it
+      }
+    }
+    result[key] = value;
+  }
+  return result;
+};
+
 export const getDeployedBastionStpName = () => {
   const bastionResourceStpName =
     // ATM we do not allow specifying bastion during dev command but we might in future
@@ -111,7 +143,6 @@ export const getBastionTunnelsForResource = async ({
   return startPortForwardingSessions({ targets: allTunnelTargets });
 };
 
-let cachedEnvironment: Record<string, any>;
 export const getWorkloadEnvironmentVars = async (jobDetails: {
   workloadType: 'function' | 'batch-job' | 'multi-container-workload';
   jobName: string;
@@ -122,6 +153,12 @@ export const getWorkloadEnvironmentVars = async (jobDetails: {
   packagingType?: SupportedPackagingType;
   entryfilePath?: string;
   nodeVersion?: number;
+  localResourceEnvVars?: Record<string, string>;
+  skipAwsCredentials?: boolean;
+  /** Port for the container - will be set as PORT env var */
+  port?: number;
+  /** Local workload addresses for substituting $ResourceParam directives */
+  localWorkloadAddresses?: Record<string, string>;
 }): Promise<Record<string, any>> => {
   // Augment environment with source maps and experimental flags for JS/TS workloads
   const augmentedEnv = getAugmentedEnvironment({
@@ -136,11 +173,27 @@ export const getWorkloadEnvironmentVars = async (jobDetails: {
     return { ...acc, [item.name]: item.value };
   }, {} as any);
 
-  const [awsCredentialsEnvVars, resolvedEnvVars, resolvedInjectedVars] = await Promise.all([
-    getLocalInvokeAwsCredentials({ assumeRoleOfWorkload: jobDetails.workloadName }),
-    resolveEnvironmentDirectives(envVars),
-    deployedStackOverviewManager.locallyResolveEnvVariablesFromConnectTo(jobDetails.connectTo)
-  ]);
+  // Pre-substitute $ResourceParam directives for local workloads before directive resolution
+  const preSubstitutedEnvVars = substituteLocalWorkloadDirectives(envVars, jobDetails.localWorkloadAddresses || {});
+
+  const resolvedEnvVars = await resolveEnvironmentDirectives(preSubstitutedEnvVars);
+
+  // Get AWS credentials unless skipped (for local-only mode)
+  let awsCredentialsEnvVars: Record<string, string> = {};
+  if (!jobDetails.skipAwsCredentials) {
+    awsCredentialsEnvVars = await getLocalInvokeAwsCredentials({ assumeRoleOfWorkload: jobDetails.workloadName });
+    setTimeout(
+      () => {
+        tuiManager.warn('Temporary AWS credentials expired. Restart dev to refresh permissions.');
+      },
+      (SESSION_DURATION_SECONDS - 120) * 1000
+    );
+  }
+
+  // Resolve env vars from deployed connectTo resources
+  const resolvedInjectedVars = await deployedStackOverviewManager.locallyResolveEnvVariablesFromConnectTo(
+    jobDetails.connectTo || []
+  );
 
   // On Linux with --network host, container can access host's 127.0.0.1 directly.
   // On Windows/macOS, Docker runs in a VM, so we need to use host.docker.internal.
@@ -156,27 +209,26 @@ export const getWorkloadEnvironmentVars = async (jobDetails: {
     {} as Record<string, any>
   );
 
-  setTimeout(
-    () => {
-      tuiManager.warn('Temporary AWS credentials expired. Restart dev to refresh permissions.');
-    },
-    (SESSION_DURATION_SECONDS - 120) * 1000
-  );
-
-  if (!cachedEnvironment) {
-    cachedEnvironment = {
-      AWS_REGION: globalStateManager.region,
-      ...awsCredentialsEnvVars,
-      ...resolvedEnvVars,
-      ...substitutedInjectedEnvVars
-    };
+  // Adjust local resource env vars for Docker networking
+  const adjustedLocalEnvVars: Record<string, string> = {};
+  for (const [key, value] of Object.entries(jobDetails.localResourceEnvVars || {})) {
+    adjustedLocalEnvVars[key] = value.replace(/localhost/g, tunnelHost);
   }
 
-  return cachedEnvironment;
-  // return {
-  //   ...cachedEnvironment,
-  //   ...(jobDetails.workloadType === 'batch-job' && event ? { STP_TRIGGER_EVENT_DATA: JSON.stringify(event) } : {})
-  // };
+  const environment: Record<string, any> = {
+    AWS_REGION: globalStateManager.region,
+    ...awsCredentialsEnvVars,
+    ...resolvedEnvVars,
+    ...substitutedInjectedEnvVars,
+    ...adjustedLocalEnvVars
+  };
+
+  // Add PORT env var if specified
+  if (jobDetails.port) {
+    environment.PORT = String(jobDetails.port);
+  }
+
+  return environment;
 };
 
 // @todo take from config

@@ -377,6 +377,22 @@
         ],
         "alias": "da",
         "required": false
+      },
+      "local": {
+        "description": "#### Local\n\n---\n\nRun specified resources locally using Docker instead of connecting to deployed AWS resources.\nCan be a resource name or 'all' to run all supported resources locally.\nSpecify multiple times for multiple resources (e.g., --local myDb --local myRedis).\nSupported resource types: relational-database (postgres, mysql, mariadb), redis-cluster.",
+        "allowedTypes": [
+          "array"
+        ],
+        "alias": "loc",
+        "required": false
+      },
+      "noTunnel": {
+        "description": "#### No Tunnel\n\n---\n\nDisables automatic tunneling for Lambda functions to connect to local resources.\nBy default, when Lambda functions reference local resources (via connectTo or $ResourceParam),\nStacktape creates tunnels so that AWS Lambda can reach your local databases.",
+        "allowedTypes": [
+          "boolean"
+        ],
+        "alias": "nt",
+        "required": false
       }
     }
   },

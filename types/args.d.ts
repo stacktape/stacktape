@@ -367,6 +367,29 @@ interface StacktapeCliArgs {
    */
   watch?: boolean;
   /**
+   * #### Local
+   *
+   * ---
+   *
+   * Run specified resources locally using Docker instead of connecting to deployed AWS resources.
+   * Can be a resource name or 'all' to run all supported resources locally.
+   * Specify multiple times for multiple resources (e.g., --local myDb --local myRedis).
+   * Supported resource types: relational-database (postgres, mysql, mariadb), redis-cluster.
+   */
+  local?: string[];
+  /**
+   * #### No Tunnel
+   *
+   * ---
+   *
+   * Disables automatic tunneling for Lambda functions to connect to local resources.
+   * By default, when Lambda functions reference local resources (via connectTo or $ResourceParam),
+   * Stacktape creates tunnels so that AWS Lambda can reach your local databases.
+   *
+   * @default false
+   */
+  noTunnel?: boolean;
+  /**
    * #### Command
    *
    * ---

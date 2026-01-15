@@ -7,60 +7,43 @@ import { getError } from '@shared/utils/misc';
 import { initializeStackServicesForDevPhase1, initializeStackServicesForDevPhase2 } from '../_utils/initialization';
 import { runDevContainer } from './container';
 import { runDevLambdaFunction } from './lambda-function';
+import { getLocalEmulateableResources } from './local-resources';
+import { runParallelWorkloads } from './parallel-runner';
 
-const getDevCompatibleResources = () => {
+type DevCompatibleResource = {
+  name: string;
+  type: string;
+  category: 'container' | 'function';
+};
+
+const getDevCompatibleResources = (): DevCompatibleResource[] => {
   const containerWorkloads = configManager.allContainerWorkloads.map((r) => ({
     name: r.nameChain[0],
-    type: r.configParentResourceType
+    type: r.configParentResourceType,
+    category: 'container' as const
   }));
   const functions = configManager.functions.map((f) => ({
     name: f.name,
-    type: 'function' as const
+    type: 'function' as const,
+    category: 'function' as const
   }));
   return [...containerWorkloads, ...functions];
 };
 
-export const commandDev = async (): Promise<DevReturnValue> => {
-  // Phase 1: credentials, config, packagingManager - enough to start building
-  await initializeStackServicesForDevPhase1();
+const isContainerType = (type: string) => {
+  return ['multi-container-workload', 'web-service', 'private-service', 'worker-service'].includes(type);
+};
 
-  let { resourceName } = globalStateManager.args;
-
-  // If resourceName not provided, prompt user to select from available resources
-  if (!resourceName) {
-    const devCompatibleResources = getDevCompatibleResources();
-    if (devCompatibleResources.length === 0) {
-      throw getError({
-        type: 'CLI',
-        message: 'No dev-compatible resources found in your config.',
-        hint: 'Add a function or container workload (web-service, worker-service, etc.) to use the dev command.'
-      });
-    }
-    if (devCompatibleResources.length === 1) {
-      resourceName = devCompatibleResources[0].name;
-    } else {
-      // Start TUI for interactive prompt (dev command skips tuiManager.start() by default)
-      tuiManager.start();
-      resourceName = await tuiManager.promptSelect({
-        message: 'Select a resource to run in dev mode',
-        options: devCompatibleResources.map((r) => ({
-          label: `${r.name} (${r.type})`,
-          value: r.name
-        }))
-      });
-      await tuiManager.stop();
-    }
-    globalStateManager.args.resourceName = resourceName;
-  }
-
+const runSingleResource = async (resourceName: string): Promise<void> => {
   const { resource: inConfigStpResource } = configManager.findResourceInConfig({ nameChain: resourceName });
 
   if (!inConfigStpResource) {
     throw stpErrors.e1({ resourceName });
   }
 
+  globalStateManager.args.resourceName = resourceName;
+
   if (inConfigStpResource.type === 'function') {
-    // For lambdas, run phase 2 first (need deployed stack info before running)
     const spinner = tuiManager.createSpinner({ text: 'Loading metadata from AWS' });
     await initializeStackServicesForDevPhase2();
     spinner.success();
@@ -73,15 +56,80 @@ export const commandDev = async (): Promise<DevReturnValue> => {
       });
     }
     await runDevLambdaFunction();
-  } else if (
-    inConfigStpResource.type === 'multi-container-workload' ||
-    inConfigStpResource.type === 'web-service' ||
-    inConfigStpResource.type === 'private-service' ||
-    inConfigStpResource.type === 'worker-service'
-  ) {
-    // For containers, run phase 2 in parallel with build
+  } else if (isContainerType(inConfigStpResource.type)) {
     await runDevContainer();
   } else {
     throw stpErrors.e52({ resourceName, resourceType: inConfigStpResource.type });
   }
+};
+
+export const commandDev = async (): Promise<DevReturnValue> => {
+  await initializeStackServicesForDevPhase1();
+
+  const { resourceName } = globalStateManager.args;
+  const devCompatibleResources = getDevCompatibleResources();
+  const emulateableResources = getLocalEmulateableResources();
+
+  if (devCompatibleResources.length === 0) {
+    throw getError({
+      type: 'CLI',
+      message: 'No dev-compatible resources found in your config.',
+      hint: 'Add a function or container workload (web-service, worker-service, etc.) to use the dev command.'
+    });
+  }
+
+  // Handle --resourceName all
+  if (resourceName === 'all') {
+    const resourceNames = devCompatibleResources.map((r) => r.name);
+    tuiManager.info(`Running all ${resourceNames.length} dev-compatible resources: ${resourceNames.join(', ')}`);
+    await runMultipleResources(devCompatibleResources);
+    return;
+  }
+
+  // If resourceName provided, run single resource
+  if (resourceName) {
+    await runSingleResource(resourceName);
+    return;
+  }
+
+  // No resourceName - prompt for selection
+  if (devCompatibleResources.length === 1) {
+    await runSingleResource(devCompatibleResources[0].name);
+    return;
+  }
+
+  // Add 'all' option to run all resources
+  const selectOptions = [
+    { label: 'All resources', value: 'all' },
+    ...devCompatibleResources.map((r) => ({
+      label: `${r.name} (${r.type})`,
+      value: r.name
+    }))
+  ];
+
+  tuiManager.start();
+  const selectedName = await tuiManager.promptSelect({
+    message: 'Select resource(s) to run in dev mode',
+    options: selectOptions
+  });
+  await tuiManager.stop();
+
+  if (selectedName === 'all') {
+    tuiManager.info(
+      `Running all ${devCompatibleResources.length} dev-compatible resources: ${devCompatibleResources.map((r) => r.name).join(', ')}`
+    );
+    await runMultipleResources(devCompatibleResources);
+    return;
+  }
+
+  await runSingleResource(selectedName);
+};
+
+const runMultipleResources = async (resources: DevCompatibleResource[]): Promise<void> => {
+  if (resources.length === 1) {
+    await runSingleResource(resources[0].name);
+    return;
+  }
+
+  await runParallelWorkloads(resources);
 };

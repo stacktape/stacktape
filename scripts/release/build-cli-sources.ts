@@ -10,6 +10,7 @@ import {
 import { buildEsCode } from '@shared/packaging/bundlers/es';
 import { getPlatform } from '@shared/utils/bin-executable';
 import {
+  BORE_BINARY_FILE_NAMES,
   NIXPACKS_BINARY_FILE_NAMES,
   PACK_BINARY_FILE_NAMES,
   SESSION_MANAGER_PLUGIN_BINARY_FILE_NAMES
@@ -92,7 +93,9 @@ export const EXECUTABLE_FILE_PATTERNS = [
   '*/smp',
   '*/smp.exe',
   '*/exec',
-  '*/exec.exe'
+  '*/exec.exe',
+  '*/bore',
+  '*/bore.exe'
 ];
 
 export const generateSourceMapInstall = async ({ distFolderPath }: { distFolderPath: string }) => {
@@ -241,6 +244,24 @@ export const copySessionsManagerPluginBinary = async ({
     BINARY_FOLDER_NAMES[platform],
     'session-manager-plugin',
     platform === 'win' ? 'smp.exe' : 'smp'
+  );
+  return await copy(sourcePath, distPath);
+};
+
+export const copyBoreBinary = async ({
+  distFolderPath,
+  platform
+}: {
+  distFolderPath?: string;
+  platform: SupportedPlatform;
+}) => {
+  const binFileName = BORE_BINARY_FILE_NAMES[platform];
+  const sourcePath = join(SCRIPTS_ASSETS_PATH, 'bore', binFileName);
+  const distPath = join(
+    distFolderPath,
+    BINARY_FOLDER_NAMES[platform],
+    'bore',
+    platform === 'win' ? 'bore.exe' : 'bore'
   );
   return await copy(sourcePath, distPath);
 };

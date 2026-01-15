@@ -126,7 +126,9 @@ export const allowedCliArgs: { [_command in StacktapeCliCommand]: StacktapeCliAr
     'disableEmulation',
     'resourceName',
     'preserveTempFiles',
-    'dockerArgs'
+    'dockerArgs',
+    'local',
+    'noTunnel'
   ],
   'deployment-script:run': [
     ...universalCliArgs,
@@ -469,5 +471,7 @@ export const cliArgsAliases: { [_cliArg in StacktapeCliArg | StacktapeSdkArg]: s
   localTunnelingPort: 'ltp',
   disableDockerRemoteCache: 'drc',
   resourcesToSkip: 'rts',
-  disableLayerOptimization: 'dlo'
+  disableLayerOptimization: 'dlo',
+  local: 'loc',
+  noTunnel: 'nt'
 };

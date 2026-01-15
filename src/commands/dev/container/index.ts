@@ -2,6 +2,7 @@ import type { Spinner } from '@application-services/tui-manager';
 import type { SsmPortForwardingTunnel } from '@utils/ssm-session';
 import type { ExecaReturnBase } from 'execa';
 import { applicationManager } from '@application-services/application-manager';
+import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { renderErrorToString } from '@application-services/tui-manager/non-tty-renderer';
@@ -17,6 +18,7 @@ import { isJson } from '@shared/utils/misc';
 import { parseContainerError } from '@utils/errors';
 import { addCallerToAssumeRolePolicy } from 'src/commands/_utils/assume-role';
 import { initializeStackServicesForDevPhase2 } from 'src/commands/_utils/initialization';
+import { categorizeConnectToResources, getLocalResourceEnvVars, startLocalResources } from '../local-resources';
 import {
   getBastionTunnelsForResource,
   getDeployedBastionStpName,
@@ -62,37 +64,69 @@ export const runDevContainer = async (): Promise<DevReturnValue> => {
   packagingSpinner.success({ details: imageResult.details });
   const { imageName, sourceFiles, distFolderPath } = imageResult;
 
-  // After phase 2 completes, validate stack exists (unless emulation disabled)
-  if (!stackManager.existingStackDetails && !disableEmulation) {
-    throw stpErrors.e3({ region, stage });
+  // Categorize connectTo resources into local vs deployed
+  const forceLocal = globalStateManager.args.local;
+  const forceLocalAll = forceLocal?.includes('all');
+  const { local: localResourceNames, deployed: deployedResourceNames } = categorizeConnectToResources({
+    connectTo: resource.connectTo || [],
+    forceLocal: forceLocalAll ? true : forceLocal
+  });
+
+  // Start local resources (databases, redis)
+  const localResourceInstances = await startLocalResources(localResourceNames);
+  const localResourceEnvVars = getLocalResourceEnvVars(localResourceInstances);
+
+  // Run beforeDev hooks with local resource env vars available
+  if (localResourceInstances.length > 0) {
+    // Inject local resource env vars into process.env for hooks
+    Object.assign(process.env, localResourceEnvVars);
+    await eventManager.processHooks({ captureType: 'START' });
   }
 
-  // Validate deployed resource matches config
-  const deployedStpResource = deployedStackOverviewManager.getStpResource({ nameChain: resourceName });
-  if (!deployedStpResource || deployedStpResource.resourceType !== resource.type) {
-    throw stpErrors.e6({
-      resourceName,
-      resourceType: resource.type,
-      stackName: globalStateManager.targetStack.stackName
-    });
+  // Check if we need deployed stack (for deployed resources or IAM role)
+  const needsDeployedStack = deployedResourceNames.length > 0 || !disableEmulation;
+
+  if (needsDeployedStack) {
+    // Validate stack exists
+    if (!stackManager.existingStackDetails) {
+      if (localResourceNames.length > 0 && deployedResourceNames.length === 0) {
+        tuiManager.info('Running with local resources only (no deployed stack required)');
+      } else {
+        throw stpErrors.e3({ region, stage });
+      }
+    }
+
+    // Validate deployed resource matches config (only if stack exists)
+    if (stackManager.existingStackDetails) {
+      const deployedStpResource = deployedStackOverviewManager.getStpResource({ nameChain: resourceName });
+      if (!deployedStpResource || deployedStpResource.resourceType !== resource.type) {
+        throw stpErrors.e6({
+          resourceName,
+          resourceType: resource.type,
+          stackName: globalStateManager.targetStack.stackName
+        });
+      }
+    }
   }
 
   const bastionStpName = getDeployedBastionStpName();
   let tunnels: SsmPortForwardingTunnel[] = [];
 
-  // if we have a bastion, we will attempt to create tunnels to the resource which are part of the connectTo
-  if (bastionStpName) {
+  // Create tunnels only for deployed resources (not local ones)
+  if (bastionStpName && deployedResourceNames.length > 0) {
     tunnels = await getBastionTunnelsForResource({
-      resource,
+      resource: { ...resource, connectTo: deployedResourceNames },
       bastionStpName
     });
     applicationManager.registerCleanUpHook(async () => Promise.all(tunnels.map((tunnel) => tunnel.kill())));
   }
 
-  // Now we can get the IAM role (requires deployedStackOverviewManager from phase 2)
-  await addCallerToAssumeRolePolicy({
-    roleName: deployedStackOverviewManager.getIamRoleNameOfDeployedResource(containerDefinition.workloadName)
-  });
+  // Assume IAM role if stack exists
+  if (stackManager.existingStackDetails) {
+    await addCallerToAssumeRolePolicy({
+      roleName: deployedStackOverviewManager.getIamRoleNameOfDeployedResource(containerDefinition.workloadName)
+    });
+  }
 
   const packagingType = containerDefinition.packaging?.type;
   const entryfilePath = (containerDefinition.packaging?.properties as { entryfilePath?: string })?.entryfilePath;
@@ -101,16 +135,25 @@ export const runDevContainer = async (): Promise<DevReturnValue> => {
   )?.languageSpecificConfig;
   const nodeVersion = languageSpecificConfig?.nodeVersion || DEFAULT_CONTAINER_NODE_VERSION;
 
+  // Skip AWS credentials when running fully local (no deployed stack and disableEmulation)
+  const skipAwsCredentials = disableEmulation && !stackManager.existingStackDetails;
+
+  // Get primary port from container events
+  const primaryPort = containerDefinition.events?.[0]?.properties?.containerPort;
+
   const environment = await getWorkloadEnvironmentVars({
     jobEnvironment: containerDefinition.environment,
     jobName,
     workloadName: containerDefinition.workloadName,
-    connectTo: resource.connectTo,
+    connectTo: deployedResourceNames,
     workloadType: 'multi-container-workload',
     tunnels,
     packagingType,
     entryfilePath,
-    nodeVersion
+    nodeVersion,
+    localResourceEnvVars,
+    skipAwsCredentials,
+    port: primaryPort
   });
 
   // Store distFolderPath for volume mounting - will be updated on rebuilds
@@ -236,7 +279,7 @@ type PrepareImageResult = {
   details?: string;
 };
 
-const prepareImage = async (
+export const prepareImage = async (
   { jobName, workloadName, packaging, resources }: EnrichedCwContainerProps,
   options: PrepareImageOptions = {}
 ): Promise<PrepareImageResult> => {

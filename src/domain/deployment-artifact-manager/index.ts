@@ -101,7 +101,8 @@ export class DeploymentArtifactManager {
     this.repositoryName = awsResourceNames.deploymentEcrRepo(globallyUniqueStackHash);
     this.repositoryUrl = getEcrRepositoryUrl(accountId, globalStateManager.region, this.repositoryName);
     await this.loginToEcr();
-    if (stackActionType && stackActionType !== 'create') {
+    // Skip artifact lookup for create (nothing to look up) and dev (running locally)
+    if (stackActionType && stackActionType !== 'create' && stackActionType !== 'dev') {
       await eventManager.startEvent({
         eventType: 'FETCH_PREVIOUS_ARTIFACTS',
         description: 'Fetching previous deployment artifacts',

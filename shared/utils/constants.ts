@@ -47,6 +47,15 @@ export const SESSION_MANAGER_PLUGIN_BINARY_FILE_NAMES: { [_platform in Supported
   'linux-arm': 'smp-linux-arm'
 };
 
+export const BORE_BINARY_FILE_NAMES: { [_platform in SupportedPlatform]: string } = {
+  win: 'bore-win.exe',
+  macos: 'bore-macos',
+  linux: 'bore-linux',
+  'macos-arm': 'bore-macos-arm',
+  alpine: 'bore-linux',
+  'linux-arm': 'bore-linux-arm'
+};
+
 export const COMMENT_FOR_STACKTAPE_ZONE = 'STACKTAPE';
 
 export const EDGE_LAMBDA_ENV_ASSET_REPLACER_PLACEHOLDER = '"{{_STP_INJ_ENV_}}"';

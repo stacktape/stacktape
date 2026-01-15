@@ -235,9 +235,14 @@ export const initializeStackServicesForDevPhase1 = async () => {
     printer: tuiManager
   });
 
+  // Load raw config first to get serviceName for project resolution
+  await configManager.loadRawConfigOnly();
   await globalStateManager.loadTargetStackInfo();
   await configManager.init({ configRequired: true });
   await packagingManager.init();
+
+  // Register hooks (but don't process yet - local resources need to start first)
+  await eventManager.registerHooks(configManager.hooks);
 };
 
 /**
