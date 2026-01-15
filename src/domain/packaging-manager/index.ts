@@ -1,4 +1,10 @@
-import type { LambdaEntrypoint, LayerAssignmentResult, ModuleInfo } from '@shared/packaging/bundlers/es/split-bundler';
+import type { NativeBinaryLayerResult } from '@shared/packaging/bundlers/es/copy-docker-installed-modules';
+import type {
+  BundlerDebugTiming,
+  LambdaEntrypoint,
+  LayerAssignmentResult,
+  ModuleInfo
+} from '@shared/packaging/bundlers/es/split-bundler';
 import { join } from 'node:path';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
@@ -10,19 +16,15 @@ import { deploymentArtifactManager } from '@domain-services/deployment-artifact-
 import { ec2Manager } from '@domain-services/ec2-manager';
 import { fsPaths } from '@shared/naming/fs-paths';
 import { buildLayerS3Key, getJobName } from '@shared/naming/utils';
+import { DEPENDENCIES_WITH_BINARIES } from '@shared/packaging/bundlers/es/config';
+import { buildNativeBinaryLayer } from '@shared/packaging/bundlers/es/copy-docker-installed-modules';
 import {
   assignChunksToLayers,
   buildSplitBundle,
   createLayerArtifacts,
   DEFAULT_LAYER_CONFIG,
-  getBundlerTiming,
-  type BundlerDebugTiming
+  getBundlerTiming
 } from '@shared/packaging/bundlers/es/split-bundler';
-import {
-  buildNativeBinaryLayer,
-  type NativeBinaryLayerResult
-} from '@shared/packaging/bundlers/es/copy-docker-installed-modules';
-import { DEPENDENCIES_WITH_BINARIES } from '@shared/packaging/bundlers/es/config';
 import { getLambdaRuntimeFromNodeTarget, getLockFileData } from '@shared/packaging/bundlers/es/utils';
 import { buildUsingCustomArtifact } from '@shared/packaging/custom-artifact';
 import { buildUsingCustomDockerfile } from '@shared/packaging/custom-dockerfile';
@@ -503,7 +505,7 @@ export class PackagingManager {
 
       // Build native binaries into a shared layer
       const nativeLayer = await buildNativeBinaryLayer({
-        dependencies: Array.from(allNativeDeps.values()),
+        dependencies: Array.from(allNativeDeps.values()) as any[],
         invocationId: globalStateManager.invocationId,
         layerBasePath: `${fsPaths.absoluteBuildFolderPath({ invocationId: globalStateManager.invocationId })}/layers`,
         lambdaRuntimeVersion: getLambdaRuntimeFromNodeTarget(String(nodeVersion)),
