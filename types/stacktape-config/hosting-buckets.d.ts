@@ -24,6 +24,30 @@ interface HostingBucketProps {
    */
   uploadDirectoryPath: string;
   /**
+   * #### Build configuration for the hosting bucket.
+   *
+   * ---
+   *
+   * Configures the build process that produces the files to upload. The build runs during the packaging phase, in parallel with other packaging jobs.
+   *
+   * Supports common frontend build tools like Vite, Webpack, Angular CLI, Vue CLI, Create React App, and SvelteKit.
+   * Build output is parsed to display meaningful information (e.g., bundle size) in the deployment logs.
+   */
+  build?: HostingBucketBuild;
+  /**
+   * #### Dev server configuration for the hosting bucket.
+   *
+   * ---
+   *
+   * Configures the dev server process for local development. Used by the `dev` command.
+   *
+   * Example commands:
+   * - `npm run dev`
+   * - `vite`
+   * - `webpack serve`
+   */
+  dev?: HostingBucketBuild;
+  /**
    * #### Glob patterns for files to be excluded from the upload.
    *
    * ---
@@ -163,6 +187,38 @@ interface HostingBucketProps {
 }
 
 type WriteEnvFilesFormat = 'dotenv';
+
+/**
+ * #### Build configuration for hosting bucket.
+ *
+ * ---
+ *
+ * Defines how to build frontend assets before uploading them to the bucket.
+ */
+interface HostingBucketBuild {
+  /**
+   * #### The command to execute.
+   *
+   * ---
+   *
+   * Examples:
+   * - `npm run build`
+   * - `bun run build`
+   * - `vite build`
+   * - `webpack --mode production`
+   */
+  command: string;
+  /**
+   * #### The working directory for the command.
+   *
+   * ---
+   *
+   * Relative to the project root. Defaults to the project root.
+   *
+   * @default "."
+   */
+  workingDirectory?: string;
+}
 
 type StpHostingBucket = HostingBucket['properties'] & {
   name: string;

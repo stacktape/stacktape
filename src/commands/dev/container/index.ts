@@ -210,7 +210,9 @@ const hookToRestartContainer = (
   });
 };
 
-let isNewContainerRunStarted = false;
+// Track which containers are being restarted (by container name) to suppress SIGTERM exit messages
+const containersBeingRestarted = new Set<string>();
+
 const runDockerContainer = async (
   containerDefinition: Omit<EnrichedCwContainerProps, 'environment'> & {
     imageName: string;
@@ -224,7 +226,9 @@ const runDockerContainer = async (
     containerDefinition;
   const containerName = getLocalInvokeContainerName(jobName);
   const ports = (events || []).map((event) => event.properties.containerPort);
-  isNewContainerRunStarted = true;
+
+  // Mark this container as being restarted before stopping it
+  containersBeingRestarted.add(containerName);
   await gracefullyStopContainer(containerName);
   await resolveRunningContainersWithSamePort({
     ports,
@@ -245,13 +249,18 @@ const runDockerContainer = async (
     transformStderrPut: transformContainerWorkloadStdout,
     transformStdoutPut: transformContainerWorkloadStdout,
     onStart: () => {
+      // Clear the restart flag once container has started
+      containersBeingRestarted.delete(containerName);
       tuiManager.printDevContainerReady({ ports, isWatchMode: !!watch });
     },
     args: globalStateManager.args
   }).catch((res) => {
     return res as ExecaReturnBase<string>;
   });
-  if (exitCode !== 0 && !(isNewContainerRunStarted && exitCode === 143)) {
+
+  // Exit code 143 = SIGTERM (sent during restart), don't show error if we're restarting this container
+  const wasIntentionalShutdown = containersBeingRestarted.has(containerName) && exitCode === 143;
+  if (exitCode !== 0 && !wasIntentionalShutdown) {
     const errorOutput = renderErrorToString(
       {
         errorType: 'CONTAINER',

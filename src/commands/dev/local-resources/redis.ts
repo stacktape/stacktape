@@ -1,76 +1,59 @@
 import type { LocalResourceConfig, LocalResourceInstance } from './index';
-import { execDocker, inspectDockerContainer } from '@shared/utils/docker';
-import { isPortInUse } from '@shared/utils/ports';
-import findFreePorts from 'find-free-ports';
+import { execDocker } from '@shared/utils/docker';
+import {
+  buildLocalResourceInstance,
+  DEFAULT_LOCAL_HOST,
+  DEFAULT_PORTS,
+  findAvailablePort,
+  getContainerPort,
+  getImageTag,
+  isContainerRunning,
+  waitForReady
+} from './container-helpers';
 
 const REDIS_DATA_PATH = '/data';
 
-const waitForRedisReady = async (containerName: string, password?: string, timeoutMs = 30000): Promise<void> => {
-  const startTime = Date.now();
-  while (Date.now() - startTime < timeoutMs) {
-    try {
-      const pingArgs = password
-        ? ['exec', containerName, 'redis-cli', '-a', password, 'ping']
-        : ['exec', containerName, 'redis-cli', 'ping'];
-      const { stdout, exitCode } = await execDocker(pingArgs, { skipHandleError: true });
-      if (exitCode === 0 && stdout.includes('PONG')) return;
-    } catch {
-      // ignore
-    }
-    await new Promise((resolve) => setTimeout(resolve, 500));
+const buildConnectionInfo = (host: string, port: number, password?: string) => {
+  // Use redis:// (not rediss://) for local - no TLS
+  const connectionString = password ? `redis://default:${password}@${host}:${port}` : `redis://${host}:${port}`;
+
+  const referencableParams: Record<string, string> = {
+    host,
+    port: String(port),
+    connectionString,
+    sharding: 'disabled'
+  };
+
+  // Include username when credentials are configured (matches deployed Redis behavior)
+  if (password) {
+    referencableParams.username = 'default';
   }
-  throw new Error(`Redis container ${containerName} did not become ready within ${timeoutMs}ms`);
-};
 
-const isContainerRunning = async (containerName: string): Promise<boolean> => {
-  const info = await inspectDockerContainer(containerName);
-  return info?.State?.Running === true;
-};
-
-const getImageTag = (version: string): string => {
-  if (version === 'latest') return 'redis:latest';
-  return `redis:${version}`;
+  return { connectionString, referencableParams };
 };
 
 export const startLocalRedis = async (
   config: LocalResourceConfig & { containerName: string }
 ): Promise<LocalResourceInstance> => {
-  const { name, version, port, dataDir, credentials, containerName } = config;
-  const defaultPort = 6379;
+  const { version, port, dataDir, credentials, containerName } = config;
+  const defaultPort = DEFAULT_PORTS.redis;
   const password = credentials?.password;
 
+  // Return existing instance if container is already running
   if (await isContainerRunning(containerName)) {
-    const info = await inspectDockerContainer(containerName);
-    const portBindings = info?.NetworkSettings?.Ports?.[`${defaultPort}/tcp`] || [];
-    const actualPort = portBindings[0]?.HostPort ? parseInt(portBindings[0].HostPort, 10) : port;
+    const actualPort = await getContainerPort(containerName, defaultPort, port);
+    const connInfo = buildConnectionInfo(DEFAULT_LOCAL_HOST, actualPort, password);
 
-    const host = 'localhost';
-    // Use redis:// (not rediss://) for local - no TLS
-    const connectionString = password
-      ? `redis://default:${password}@${host}:${actualPort}`
-      : `redis://${host}:${actualPort}`;
-
-    return {
-      ...config,
-      host,
+    return buildLocalResourceInstance({
+      config,
+      host: DEFAULT_LOCAL_HOST,
       actualPort,
-      connectionString,
-      referencableParams: {
-        host,
-        port: String(actualPort),
-        connectionString,
-        sharding: 'disabled'
-      }
-    };
+      ...connInfo
+    });
   }
 
-  let actualPort = port;
-  if (await isPortInUse(port)) {
-    const [freePort] = await findFreePorts(1);
-    actualPort = freePort;
-  }
-
-  const imageTag = getImageTag(version);
+  const actualPort = await findAvailablePort(port);
+  const imageTag = getImageTag(version, 'redis');
 
   const dockerArgs = [
     'run',
@@ -86,24 +69,27 @@ export const startLocalRedis = async (
   ];
 
   await execDocker(dockerArgs);
-  await waitForRedisReady(containerName, password);
 
-  const host = 'localhost';
-  // Use redis:// (not rediss://) for local - no TLS
-  const connectionString = password
-    ? `redis://default:${password}@${host}:${actualPort}`
-    : `redis://${host}:${actualPort}`;
-
-  return {
-    ...config,
-    host,
-    actualPort,
-    connectionString,
-    referencableParams: {
-      host,
-      port: String(actualPort),
-      connectionString,
-      sharding: 'disabled'
+  await waitForReady({
+    containerName,
+    resourceType: 'Redis',
+    timeoutMs: 30000,
+    pollIntervalMs: 500,
+    checkFn: async () => {
+      const pingArgs = password
+        ? ['exec', containerName, 'redis-cli', '-a', password, 'ping']
+        : ['exec', containerName, 'redis-cli', 'ping'];
+      const { stdout, exitCode } = await execDocker(pingArgs, { skipHandleError: true });
+      return exitCode === 0 && stdout.includes('PONG');
     }
-  };
+  });
+
+  const connInfo = buildConnectionInfo(DEFAULT_LOCAL_HOST, actualPort, password);
+
+  return buildLocalResourceInstance({
+    config,
+    host: DEFAULT_LOCAL_HOST,
+    actualPort,
+    ...connInfo
+  });
 };

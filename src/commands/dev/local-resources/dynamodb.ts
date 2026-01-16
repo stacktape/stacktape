@@ -1,11 +1,19 @@
 import type { LocalResourceConfig, LocalResourceInstance } from './index';
+import { tuiManager } from '@application-services/tui-manager';
 import { configManager } from '@domain-services/config-manager';
-import { execDocker, inspectDockerContainer } from '@shared/utils/docker';
-import { isPortInUse } from '@shared/utils/ports';
-import findFreePorts from 'find-free-ports';
+import { execDocker } from '@shared/utils/docker';
+import {
+  buildLocalResourceInstance,
+  DEFAULT_LOCAL_HOST,
+  DEFAULT_PORTS,
+  findAvailablePort,
+  getContainerPort,
+  isContainerRunning,
+  waitForReady
+} from './container-helpers';
 
-const DYNAMODB_DEFAULT_PORT = 8000;
 const DYNAMODB_DATA_PATH = '/home/dynamodblocal/data';
+const DYNAMODB_IMAGE = 'amazon/dynamodb-local';
 
 const DYNAMODB_LOCAL_HEADERS = {
   'X-Amz-Target': 'DynamoDB_20120810.ListTables',
@@ -20,49 +28,87 @@ const getDynamoDbHeaders = (target: string) => ({
   'X-Amz-Target': target
 });
 
-const waitForDynamoDbReady = async (port: number, timeoutMs = 30000): Promise<void> => {
-  const startTime = Date.now();
-  while (Date.now() - startTime < timeoutMs) {
-    try {
-      const response = await fetch(`http://localhost:${port}`, {
-        method: 'POST',
-        headers: getDynamoDbHeaders('DynamoDB_20120810.ListTables'),
-        body: '{}'
-      });
-      if (response.ok) return;
-    } catch {
-      // ignore
+const buildConnectionInfo = (host: string, port: number, tableName: string) => {
+  const endpoint = `http://${host}:${port}`;
+  return {
+    connectionString: endpoint,
+    referencableParams: {
+      name: tableName,
+      arn: `arn:aws:dynamodb:local:000000000000:table/${tableName}`,
+      endpoint
     }
-    await new Promise((resolve) => setTimeout(resolve, 300));
+  };
+};
+
+type DynamoDbResponse<T> = T & { __type?: string; message?: string };
+
+const makeDynamoDbRequest = async <T>(
+  endpoint: string,
+  target: string,
+  body: Record<string, unknown> = {}
+): Promise<{ success: boolean; data?: T; error?: string }> => {
+  try {
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: getDynamoDbHeaders(target),
+      body: JSON.stringify(body)
+    });
+
+    const data = (await response.json()) as DynamoDbResponse<T>;
+
+    if (!response.ok || data.__type) {
+      return {
+        success: false,
+        error: data.message || data.__type || `HTTP ${response.status}`
+      };
+    }
+
+    return { success: true, data };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : String(err)
+    };
   }
-  throw new Error(`DynamoDB local did not become ready within ${timeoutMs}ms`);
 };
 
-const isContainerRunning = async (containerName: string): Promise<boolean> => {
-  const info = await inspectDockerContainer(containerName);
-  return info?.State?.Running === true;
+const listTables = async (endpoint: string): Promise<{ success: boolean; tables?: string[]; error?: string }> => {
+  const result = await makeDynamoDbRequest<{ TableNames?: string[] }>(endpoint, 'DynamoDB_20120810.ListTables');
+
+  if (!result.success) {
+    return { success: false, error: result.error };
+  }
+
+  return { success: true, tables: result.data?.TableNames || [] };
 };
 
-const createTableIfNotExists = async (port: number, tableName: string, tableConfig: any): Promise<void> => {
+const createTableIfNotExists = async (
+  port: number,
+  tableName: string,
+  tableConfig: {
+    primaryKey?: { partitionKey: { name: string; type: string }; sortKey?: { name: string; type: string } };
+  }
+): Promise<void> => {
   const endpoint = `http://localhost:${port}`;
 
   // Check if table exists
-  const listResponse = await fetch(endpoint, {
-    method: 'POST',
-    headers: getDynamoDbHeaders('DynamoDB_20120810.ListTables'),
-    body: '{}'
-  });
-  const listResult = (await listResponse.json()) as { TableNames?: string[] };
-  if (listResult.TableNames?.includes(tableName)) return;
+  const listResult = await listTables(endpoint);
+  if (!listResult.success) {
+    tuiManager.warn(`Failed to list DynamoDB tables: ${listResult.error}. Table creation may fail.`);
+  } else if (listResult.tables?.includes(tableName)) {
+    return; // Table already exists
+  }
 
   // Build attribute definitions and key schema from config
-  // In StpDynamoTable, primaryKey is at the top level (not under properties)
   const primaryKey = tableConfig.primaryKey;
-  if (!primaryKey) throw new Error(`Table ${tableName} has no primaryKey configuration`);
+  if (!primaryKey) {
+    tuiManager.warn(`Table "${tableName}" has no primaryKey configuration. Skipping table creation.`);
+    return;
+  }
 
   const attrTypeMap: Record<string, string> = { string: 'S', number: 'N', binary: 'B' };
-  const attributeDefinitions: any[] = [];
-  const keySchema: any[] = [];
+  const attributeDefinitions: Array<{ AttributeName: string; AttributeType: string }> = [];
+  const keySchema: Array<{ AttributeName: string; KeyType: string }> = [];
 
   // Partition key
   attributeDefinitions.push({
@@ -88,51 +134,49 @@ const createTableIfNotExists = async (port: number, tableName: string, tableConf
     BillingMode: 'PAY_PER_REQUEST'
   };
 
-  await fetch(endpoint, {
-    method: 'POST',
-    headers: getDynamoDbHeaders('DynamoDB_20120810.CreateTable'),
-    body: JSON.stringify(createPayload)
-  });
+  const createResult = await makeDynamoDbRequest(endpoint, 'DynamoDB_20120810.CreateTable', createPayload);
+
+  if (!createResult.success) {
+    // Check if it's a "table already exists" error (race condition)
+    if (createResult.error?.includes('ResourceInUseException') || createResult.error?.includes('already exists')) {
+      return;
+    }
+    tuiManager.warn(`Failed to create DynamoDB table "${tableName}": ${createResult.error}`);
+  }
 };
 
 export const startLocalDynamoDb = async (
   config: LocalResourceConfig & { containerName: string }
 ): Promise<LocalResourceInstance> => {
   const { name, port, dataDir, containerName } = config;
+  const defaultPort = DEFAULT_PORTS.dynamodb;
 
   // Get table config for creating the table
   const tableConfig = configManager.dynamoDbTables?.find((t) => t.name === name);
 
+  // Return existing instance if container is already running
   if (await isContainerRunning(containerName)) {
-    const info = await inspectDockerContainer(containerName);
-    const portBindings = info?.NetworkSettings?.Ports?.[`${DYNAMODB_DEFAULT_PORT}/tcp`] || [];
-    const actualPort = portBindings[0]?.HostPort ? parseInt(portBindings[0].HostPort, 10) : port;
-    const host = 'localhost';
-    const endpoint = `http://${host}:${actualPort}`;
+    const actualPort = await getContainerPort(containerName, defaultPort, port);
+    const connInfo = buildConnectionInfo(DEFAULT_LOCAL_HOST, actualPort, name);
 
-    // Ensure table exists
+    // Ensure table exists (may have been deleted or container restarted with empty data)
     if (tableConfig) {
-      await createTableIfNotExists(actualPort, name, tableConfig);
+      try {
+        await createTableIfNotExists(actualPort, name, tableConfig);
+      } catch (err) {
+        tuiManager.warn(`Failed to ensure DynamoDB table exists: ${err instanceof Error ? err.message : String(err)}`);
+      }
     }
 
-    return {
-      ...config,
-      host,
+    return buildLocalResourceInstance({
+      config,
+      host: DEFAULT_LOCAL_HOST,
       actualPort,
-      connectionString: endpoint,
-      referencableParams: {
-        name,
-        arn: `arn:aws:dynamodb:local:000000000000:table/${name}`,
-        endpoint
-      }
-    };
+      ...connInfo
+    });
   }
 
-  let actualPort = port;
-  if (await isPortInUse(port)) {
-    const [freePort] = await findFreePorts(1);
-    actualPort = freePort;
-  }
+  const actualPort = await findAvailablePort(port);
 
   const dockerArgs = [
     'run',
@@ -140,10 +184,10 @@ export const startLocalDynamoDb = async (
     '--name',
     containerName,
     '-p',
-    `${actualPort}:${DYNAMODB_DEFAULT_PORT}`,
+    `${actualPort}:${defaultPort}`,
     '-v',
     `${dataDir}:${DYNAMODB_DATA_PATH}`,
-    'amazon/dynamodb-local',
+    DYNAMODB_IMAGE,
     '-jar',
     'DynamoDBLocal.jar',
     '-sharedDb',
@@ -152,25 +196,33 @@ export const startLocalDynamoDb = async (
   ];
 
   await execDocker(dockerArgs);
-  await waitForDynamoDbReady(actualPort);
+
+  await waitForReady({
+    containerName,
+    resourceType: 'DynamoDB',
+    timeoutMs: 30000,
+    pollIntervalMs: 300,
+    checkFn: async () => {
+      const result = await listTables(`http://localhost:${actualPort}`);
+      return result.success;
+    }
+  });
 
   // Create the table
   if (tableConfig) {
-    await createTableIfNotExists(actualPort, name, tableConfig);
+    try {
+      await createTableIfNotExists(actualPort, name, tableConfig);
+    } catch (err) {
+      tuiManager.warn(`Failed to create DynamoDB table "${name}": ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
 
-  const host = 'localhost';
-  const endpoint = `http://${host}:${actualPort}`;
+  const connInfo = buildConnectionInfo(DEFAULT_LOCAL_HOST, actualPort, name);
 
-  return {
-    ...config,
-    host,
+  return buildLocalResourceInstance({
+    config,
+    host: DEFAULT_LOCAL_HOST,
     actualPort,
-    connectionString: endpoint,
-    referencableParams: {
-      name,
-      arn: `arn:aws:dynamodb:local:000000000000:table/${name}`,
-      endpoint
-    }
-  };
+    ...connInfo
+  });
 };

@@ -6,6 +6,7 @@ import { tuiManager } from '@application-services/tui-manager';
 import { configManager } from '@domain-services/config-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { injectedParameterEnvVarName } from '@shared/naming/utils';
+import { stopDockerContainer } from '@shared/utils/docker';
 import { startLocalDynamoDb } from './dynamodb';
 import { startLocalMysql } from './mysql';
 import { startLocalPostgres } from './postgres';
@@ -244,6 +245,17 @@ export const startLocalResources = async (resourceNames: string[]): Promise<Loca
 };
 
 export const stopLocalResources = async (): Promise<void> => {
+  if (localResourceInstances.length === 0) return;
+
+  const stopPromises = localResourceInstances.map(async (instance) => {
+    try {
+      await stopDockerContainer(instance.containerName, 5);
+    } catch {
+      // Container may have already stopped or been removed
+    }
+  });
+
+  await Promise.all(stopPromises);
   localResourceInstances.length = 0;
 };
 

@@ -1,20 +1,19 @@
 import {
   defineConfig,
-  DynamoDbTable,
-  LambdaFunction,
+  HostingBucket,
+  LocalScript,
+  NextjsWeb,
   PrivateService,
   RedisCluster,
   RelationalDatabase,
   StacktapeImageBuildpackPackaging,
-  StacktapeLambdaBuildpackPackaging,
   WebService
 } from '../../__release-npm';
 
 export default defineConfig(() => {
-  // Databases for testing local emulation
   const postgresDb = new RelationalDatabase({
     credentials: {
-      masterUserPassword: 'testpassword123'
+      masterUserPassword: 'testPassword123'
     },
     engine: {
       type: 'postgres',
@@ -27,111 +26,91 @@ export default defineConfig(() => {
     }
   });
 
-  const mysqlDb = new RelationalDatabase({
-    credentials: {
-      masterUserPassword: 'testpassword123'
-    },
-    engine: {
-      type: 'mysql',
-      properties: {
-        version: '8.0',
-        primaryInstance: {
-          instanceSize: 'db.t3.micro'
-        }
-      }
-    }
-  });
-
-  const mariaDb = new RelationalDatabase({
-    credentials: {
-      masterUserPassword: 'testpassword123'
-    },
-    engine: {
-      type: 'mariadb',
-      properties: {
-        version: '10.11',
-        primaryInstance: {
-          instanceSize: 'db.t3.micro'
-        }
-      }
-    }
-  });
-
   const redis = new RedisCluster({
     instanceSize: 'cache.t3.micro',
-    defaultUserPassword: 'redistestpassword1234'
+    defaultUserPassword: 'redisTestPassword1234'
   });
 
-  // DynamoDB table for testing local emulation
-  const usersTable = new DynamoDbTable({
-    primaryKey: {
-      partitionKey: { name: 'userId', type: 'string' },
-      sortKey: { name: 'createdAt', type: 'number' }
-    }
-  });
-
-  // Private service for inter-service communication testing
   const privateService = new PrivateService({
     packaging: new StacktapeImageBuildpackPackaging({
-      entryfilePath: './src/private-service.ts'
+      entryfilePath: './packages/private-service/src/index.ts'
     }),
     resources: {
       cpu: 0.25,
       memory: 512
     },
     port: 8080,
-    connectTo: [postgresDb]
+    connectTo: [postgresDb, redis]
   });
 
-  // Web service that connects to all databases and DynamoDB
-  // Uses $ResourceParam directive to reference privateService (instead of connectTo)
   const webService = new WebService({
     packaging: new StacktapeImageBuildpackPackaging({
-      entryfilePath: './src/web-service.ts'
+      entryfilePath: './packages/web-service/src/index.ts'
     }),
     resources: {
       cpu: 0.25,
       memory: 512
     },
-    connectTo: [postgresDb, mysqlDb, mariaDb, redis, usersTable],
+    connectTo: [privateService],
     environment: {
-      PRIVATE_SERVICE_ADDR: "$ResourceParam('privateService', 'address')"
+      PRIVATE_SERVICE_ADDR: privateService.address
     }
   });
 
-  // Lambda function for parallel runner testing
-  const apiFunction = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
-      entryfilePath: './src/lambda.ts'
-    }),
-    connectTo: [postgresDb],
-    url: {
-      enabled: true
+  const spaFrontend = new HostingBucket({
+    uploadDirectoryPath: './packages/spa-frontend/dist',
+    hostingContentType: 'single-page-app',
+    build: {
+      command: 'bun run build',
+      workingDirectory: './packages/spa-frontend'
+    },
+    dev: {
+      command: 'bun run dev',
+      workingDirectory: './packages/spa-frontend'
+    },
+    injectEnvironment: {
+      API_URL: webService.url
     }
+  });
+
+  const nextjsFrontend = new NextjsWeb({
+    appDirectory: './packages/nextjs-frontend',
+    connectTo: [webService],
+    dev: {
+      command: 'bun run dev'
+    },
+    environment: {
+      API_URL: webService.url,
+      NEXT_PUBLIC_API_URL: webService.url
+    }
+  });
+
+  const scriptMigrate = new LocalScript({
+    executeScript: './scripts/migrate.ts',
+    connectTo: [postgresDb]
+  });
+
+  const scriptSeed = new LocalScript({
+    executeScript: './scripts/seed.ts',
+    connectTo: [postgresDb]
   });
 
   return {
     serviceName: 'local-dev-mode-test',
     scripts: {
-      seedDatabase: {
-        type: 'local-script',
-        properties: {
-          executeScript: './src/seed.ts'
-        }
-      }
+      migrate: scriptMigrate,
+      seed: scriptSeed
     },
     hooks: {
-      beforeDev: [{ scriptName: 'seedDatabase' }]
+      beforeDev: [{ scriptName: 'migrate' }, { scriptName: 'seed' }]
     },
     resources: {
       postgresDb,
-      mysqlDb,
-      mariaDb,
       redis,
-      usersTable,
-      webService,
       privateService,
-      apiFunction
+      webService,
+      spaFrontend,
+      nextjsFrontend
     }
   };
 });

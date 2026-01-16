@@ -70,7 +70,8 @@ type LoggableEventType =
   | 'DEV_SESSION_READY'
   | 'DEV_SESSION_ERROR'
   | 'BUILD_SHARED_LAYER'
-  | 'UPLOAD_SHARED_LAYER';
+  | 'UPLOAD_SHARED_LAYER'
+  | 'BUILD_HOSTING_BUCKET';
 
 type EventLogEntryType = 'START' | 'UPDATE' | 'FINISH';
 

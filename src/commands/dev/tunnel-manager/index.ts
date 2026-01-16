@@ -3,11 +3,14 @@ import { stat } from 'node:fs/promises';
 import { applicationManager } from '@application-services/application-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { fsPaths } from '@shared/naming/fs-paths';
+import { DEV_CONFIG } from '../dev-config';
 
-const BORE_SERVER = 'bore.pub';
-const TUNNEL_STARTUP_TIMEOUT_MS = 30000;
-const TUNNEL_RETRY_ATTEMPTS = 2;
-const TUNNEL_RETRY_DELAY_MS = 2000;
+const {
+  server: BORE_SERVER,
+  startupTimeoutMs: TUNNEL_STARTUP_TIMEOUT_MS,
+  retryAttempts: TUNNEL_RETRY_ATTEMPTS,
+  retryDelayMs: TUNNEL_RETRY_DELAY_MS
+} = DEV_CONFIG.tunnels;
 
 export type TunnelInfo = {
   resourceName: string;

@@ -1,119 +1,99 @@
 import type { LocalResourceConfig, LocalResourceInstance } from './index';
-import { execDocker, inspectDockerContainer } from '@shared/utils/docker';
-import { isPortInUse } from '@shared/utils/ports';
-import findFreePorts from 'find-free-ports';
+import { execDocker } from '@shared/utils/docker';
+import {
+  buildDockerRunArgs,
+  buildLocalResourceInstance,
+  DEFAULT_LOCAL_HOST,
+  DEFAULT_PORTS,
+  findAvailablePort,
+  getContainerPort,
+  getDbCredentials,
+  getImageTag,
+  isContainerRunning,
+  waitForReady
+} from './container-helpers';
 import { getLocalDbParameters, postgresParamsToDockerArgs } from './db-parameters';
 
 const POSTGRES_DATA_PATH = '/var/lib/postgresql/data';
 
-const waitForPostgresReady = async (containerName: string, timeoutMs = 30000): Promise<void> => {
-  const startTime = Date.now();
-  while (Date.now() - startTime < timeoutMs) {
-    try {
-      const { exitCode } = await execDocker(['exec', containerName, 'pg_isready', '-U', 'postgres'], {
-        skipHandleError: true
-      });
-      if (exitCode === 0) return;
-    } catch {
-      // ignore
+const buildConnectionInfo = (user: string, pass: string, host: string, port: number, database: string) => {
+  const connectionString = `postgresql://${user}:${pass}@${host}:${port}/${database}`;
+  return {
+    connectionString,
+    referencableParams: {
+      host,
+      port: String(port),
+      dbName: database,
+      connectionString,
+      jdbcConnectionString: `jdbc:postgresql://${host}:${port}/${database}?user=${user}&password=${pass}`
     }
-    await new Promise((resolve) => setTimeout(resolve, 500));
-  }
-  throw new Error(`Postgres container ${containerName} did not become ready within ${timeoutMs}ms`);
-};
-
-const isContainerRunning = async (containerName: string): Promise<boolean> => {
-  const info = await inspectDockerContainer(containerName);
-  return info?.State?.Running === true;
-};
-
-const getImageTag = (version: string, type: 'postgres' | 'mysql' | 'mariadb' | 'redis'): string => {
-  if (version === 'latest') return `${type}:latest`;
-  return `postgres:${version}`;
+  };
 };
 
 export const startLocalPostgres = async (
   config: LocalResourceConfig & { containerName: string }
 ): Promise<LocalResourceInstance> => {
-  const { name, version, port, dataDir, credentials, dbName, containerName } = config;
-
-  if (await isContainerRunning(containerName)) {
-    const info = await inspectDockerContainer(containerName);
-    const portBindings = info?.NetworkSettings?.Ports?.['5432/tcp'] || [];
-    const actualPort = portBindings[0]?.HostPort ? parseInt(portBindings[0].HostPort, 10) : port;
-
-    const host = 'localhost';
-    const user = credentials?.username || 'postgres';
-    const pass = credentials?.password || 'localdevpassword';
-    const database = dbName || 'postgres';
-    const connectionString = `postgresql://${user}:${pass}@${host}:${actualPort}/${database}`;
-
-    return {
-      ...config,
-      host,
-      actualPort,
-      connectionString,
-      referencableParams: {
-        host,
-        port: String(actualPort),
-        dbName: database,
-        connectionString,
-        jdbcConnectionString: `jdbc:postgresql://${host}:${actualPort}/${database}?user=${user}&password=${pass}`
-      }
-    };
-  }
-
-  let actualPort = port;
-  if (await isPortInUse(port)) {
-    const [freePort] = await findFreePorts(1);
-    actualPort = freePort;
-  }
-
-  const imageTag = getImageTag(version, 'postgres');
-  const user = credentials?.username || 'postgres';
-  const pass = credentials?.password || 'localdevpassword';
+  const { name, version, port, dataDir, dbName, containerName } = config;
+  const { username: user, password: pass } = getDbCredentials(config, {
+    username: 'postgres',
+    password: 'localdevpassword'
+  });
   const database = dbName || 'postgres';
+
+  // Return existing instance if container is already running
+  if (await isContainerRunning(containerName)) {
+    const actualPort = await getContainerPort(containerName, DEFAULT_PORTS.postgres, port);
+    const connInfo = buildConnectionInfo(user, pass, DEFAULT_LOCAL_HOST, actualPort, database);
+
+    return buildLocalResourceInstance({
+      config,
+      host: DEFAULT_LOCAL_HOST,
+      actualPort,
+      ...connInfo
+    });
+  }
+
+  const actualPort = await findAvailablePort(port);
+  const imageTag = getImageTag(version, 'postgres');
 
   // Fetch and merge database parameters (AWS defaults + Stacktape config + user overrides)
   const dbParams = await getLocalDbParameters({ resourceName: name, engine: 'postgres', version });
   const postgresConfigArgs = postgresParamsToDockerArgs(dbParams);
 
-  const dockerArgs = [
-    'run',
-    '-d',
-    '--name',
+  const dockerArgs = buildDockerRunArgs({
     containerName,
-    '-e',
-    `POSTGRES_USER=${user}`,
-    '-e',
-    `POSTGRES_PASSWORD=${pass}`,
-    '-e',
-    `POSTGRES_DB=${database}`,
-    '-p',
-    `${actualPort}:5432`,
-    '-v',
-    `${dataDir}:${POSTGRES_DATA_PATH}`,
+    envVars: {
+      POSTGRES_USER: user,
+      POSTGRES_PASSWORD: pass,
+      POSTGRES_DB: database
+    },
+    portMapping: { host: actualPort, container: DEFAULT_PORTS.postgres },
+    volumeMapping: { host: dataDir, container: POSTGRES_DATA_PATH },
     imageTag,
-    ...postgresConfigArgs
-  ];
+    additionalArgs: postgresConfigArgs
+  });
 
   await execDocker(dockerArgs);
-  await waitForPostgresReady(containerName);
 
-  const host = 'localhost';
-  const connectionString = `postgresql://${user}:${pass}@${host}:${actualPort}/${database}`;
-
-  return {
-    ...config,
-    host,
-    actualPort,
-    connectionString,
-    referencableParams: {
-      host,
-      port: String(actualPort),
-      dbName: database,
-      connectionString,
-      jdbcConnectionString: `jdbc:postgresql://${host}:${actualPort}/${database}?user=${user}&password=${pass}`
+  await waitForReady({
+    containerName,
+    resourceType: 'Postgres',
+    timeoutMs: 30000,
+    pollIntervalMs: 500,
+    checkFn: async () => {
+      const { exitCode } = await execDocker(['exec', containerName, 'pg_isready', '-U', 'postgres'], {
+        skipHandleError: true
+      });
+      return exitCode === 0;
     }
-  };
+  });
+
+  const connInfo = buildConnectionInfo(user, pass, DEFAULT_LOCAL_HOST, actualPort, database);
+
+  return buildLocalResourceInstance({
+    config,
+    host: DEFAULT_LOCAL_HOST,
+    actualPort,
+    ...connInfo
+  });
 };

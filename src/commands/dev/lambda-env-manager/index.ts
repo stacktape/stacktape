@@ -9,6 +9,7 @@ import { applicationManager } from '@application-services/application-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { configManager } from '@domain-services/config-manager';
+import { DEV_CONFIG } from '../dev-config';
 import type { LocalResourceInstance } from '../local-resources';
 import type { TunnelInfo } from '../tunnel-manager';
 
@@ -20,17 +21,27 @@ type LambdaEnvBackup = {
 const envBackups: LambdaEnvBackup[] = [];
 let cleanupHookRegistered = false;
 
-const LAMBDA_UPDATE_RETRY_ATTEMPTS = 3;
-const LAMBDA_UPDATE_RETRY_DELAY_MS = 2000;
+const { updateRetryAttempts: LAMBDA_UPDATE_RETRY_ATTEMPTS, updateRetryDelayMs: LAMBDA_UPDATE_RETRY_DELAY_MS } =
+  DEV_CONFIG.lambda;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const getLambdaClient = (): LambdaClient => {
+// Cached Lambda client for performance
+let cachedLambdaClient: LambdaClient | null = null;
+let cachedRegion: string | null = null;
+
+const getLambdaClient = (): LambdaClient | null => {
   const region = globalStateManager.region || process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION;
   if (!region) {
-    throw new Error('AWS region not configured. Set AWS_REGION environment variable or configure Stacktape region.');
+    return null;
   }
-  return new LambdaClient({ region });
+  // Return cached client if region hasn't changed
+  if (cachedLambdaClient && cachedRegion === region) {
+    return cachedLambdaClient;
+  }
+  cachedLambdaClient = new LambdaClient({ region });
+  cachedRegion = region;
+  return cachedLambdaClient;
 };
 
 const buildLambdaFunctionName = (stpResourceName: string): string => {
@@ -40,6 +51,9 @@ const buildLambdaFunctionName = (stpResourceName: string): string => {
 
 const isLambdaDeployed = async (functionName: string): Promise<boolean> => {
   const client = getLambdaClient();
+  if (!client) {
+    return false;
+  }
   try {
     await client.send(new GetFunctionConfigurationCommand({ FunctionName: functionName }));
     return true;
@@ -92,6 +106,31 @@ export const detectLambdasNeedingTunnels = async (
     return { lambdasNeedingTunnels, skippedLambdas };
   }
 
+  // Check if AWS region is configured - if not, we can't check Lambda deployment status
+  const client = getLambdaClient();
+  if (!client) {
+    for (const lambda of functions) {
+      const referencedResources = getLambdaReferencedResources(lambda);
+      const referencedLocalResources = referencedResources.filter((r) => localResourceSet.has(r));
+      if (referencedLocalResources.length > 0) {
+        skippedLambdas.push({
+          name: lambda.name,
+          reason: 'AWS region not configured - cannot check Lambda deployment status'
+        });
+      }
+    }
+    return { lambdasNeedingTunnels, skippedLambdas };
+  }
+
+  // Pre-filter lambdas that reference local resources and aren't in VPC
+  type LambdaCandidate = {
+    lambda: (typeof functions)[0];
+    functionName: string;
+    referencedLocalResources: string[];
+  };
+
+  const candidates: LambdaCandidate[] = [];
+
   for (const lambda of functions) {
     const referencedResources = getLambdaReferencedResources(lambda);
     const referencedLocalResources = referencedResources.filter((r) => localResourceSet.has(r));
@@ -107,29 +146,42 @@ export const detectLambdasNeedingTunnels = async (
       continue;
     }
 
-    // Build function name and check if deployed
-    const functionName = buildLambdaFunctionName(lambda.name);
+    candidates.push({
+      lambda,
+      functionName: buildLambdaFunctionName(lambda.name),
+      referencedLocalResources
+    });
+  }
 
-    try {
-      const deployed = await isLambdaDeployed(functionName);
-
-      if (!deployed) {
-        skippedLambdas.push({
-          name: lambda.name,
-          reason: 'Lambda is not deployed yet - deploy first with: stacktape deploy'
-        });
-        continue;
+  // Check deployment status in parallel for better performance
+  const deploymentResults = await Promise.all(
+    candidates.map(async (candidate) => {
+      try {
+        const deployed = await isLambdaDeployed(candidate.functionName);
+        return { candidate, deployed, error: null };
+      } catch (err) {
+        return { candidate, deployed: false, error: err instanceof Error ? err.message : String(err) };
       }
+    })
+  );
 
-      lambdasNeedingTunnels.push({
-        name: lambda.name,
-        functionName,
-        referencedLocalResources
-      });
-    } catch (err) {
+  // Process results
+  for (const { candidate, deployed, error } of deploymentResults) {
+    if (error) {
       skippedLambdas.push({
-        name: lambda.name,
-        reason: `Failed to check Lambda deployment status: ${err.message}`
+        name: candidate.lambda.name,
+        reason: `Failed to check Lambda deployment status: ${error}`
+      });
+    } else if (!deployed) {
+      skippedLambdas.push({
+        name: candidate.lambda.name,
+        reason: 'Lambda is not deployed yet - deploy first with: stacktape deploy'
+      });
+    } else {
+      lambdasNeedingTunnels.push({
+        name: candidate.lambda.name,
+        functionName: candidate.functionName,
+        referencedLocalResources: candidate.referencedLocalResources
       });
     }
   }
@@ -196,6 +248,10 @@ export const updateLambdaEnvVarsWithTunnels = async ({
   localResources: LocalResourceInstance[];
 }): Promise<{ updated: string[]; failed: string[] }> => {
   const client = getLambdaClient();
+  if (!client) {
+    tuiManager.warn('AWS region not configured - cannot update Lambda environment variables');
+    return { updated: [], failed: lambdas.map((l) => l.name) };
+  }
   const tunnelMap = new Map(tunnels.map((t) => [t.resourceName, t]));
   const localResourceMap = new Map(localResources.map((r) => [r.name, r]));
   const updated: string[] = [];
@@ -332,6 +388,12 @@ export const restoreLambdaEnvVars = async (): Promise<{ restored: string[]; fail
   }
 
   const client = getLambdaClient();
+  if (!client) {
+    tuiManager.warn('AWS region not configured - cannot restore Lambda environment variables');
+    const failedFunctions = envBackups.map((b) => b.functionName);
+    envBackups.length = 0;
+    return { restored, failed: failedFunctions };
+  }
 
   tuiManager.info('Restoring Lambda env vars...');
 

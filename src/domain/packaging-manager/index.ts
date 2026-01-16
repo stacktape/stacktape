@@ -53,6 +53,7 @@ import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorator
 import { rename, writeJSON } from 'fs-extra';
 import objectHash from 'object-hash';
 import { resolveEnvironmentDirectives } from 'src/commands/dev/utils';
+import { buildHostingBucket } from '@shared/packaging/hosting-bucket-build';
 
 // ============ DEBUG TIMING INSTRUMENTATION ============
 type TimingEntry = {
@@ -809,6 +810,21 @@ export class PackagingManager {
       return !['js', 'ts', 'jsx', 'mjs', 'tsx'].includes(ext);
     });
 
+    // Hosting bucket builds
+    const hostingBucketBuildJobs = configManager.hostingBuckets
+      .filter(({ build }) => build)
+      .map(({ name, build }) => {
+        return () =>
+          buildHostingBucket({
+            name,
+            build: build!,
+            progressLogger: eventManager.createChildLogger({
+              instanceId: name,
+              parentEventType: 'PACKAGE_ARTIFACTS'
+            })
+          });
+      });
+
     // Prepare other packaging jobs (containers, non-Node lambdas, nextjs)
     const otherPackagingJobs = [
       ...nonNodeLambdas.map(({ name, type, packaging, architecture, runtime }) => {
@@ -838,7 +854,8 @@ export class PackagingManager {
             nextjsWebResource: resource,
             commandCanUseCache
           });
-      })
+      }),
+      ...hostingBucketBuildJobs
     ];
 
     // Run all packaging in parallel:

@@ -20,6 +20,8 @@ import { buildAndUpdateFunctionCode } from 'src/commands/_utils/fn-deployment';
 import { initializeStackServicesForDevPhase2 } from 'src/commands/_utils/initialization';
 import { getLogGroupInfoForStacktapeResource } from 'src/commands/_utils/logs';
 import { prepareImage } from '../container';
+import { startHostingBucketDevServer } from '../hosting-bucket';
+import { startNextjsWebDevServer } from '../nextjs-web';
 import { detectLambdasNeedingTunnels, updateLambdaEnvVarsWithTunnels } from '../lambda-env-manager';
 import {
   categorizeConnectToResources,
@@ -37,7 +39,7 @@ import {
   SourceCodeWatcher
 } from '../utils';
 
-type WorkloadType = 'container' | 'function';
+type WorkloadType = 'container' | 'function' | 'hosting-bucket' | 'nextjs-web';
 
 type WorkloadInfo = {
   name: string;
@@ -119,8 +121,11 @@ export const runParallelWorkloads = async (
   const localResourceEnvVars = getLocalResourceEnvVars(state.localResources);
 
   // Setup bore tunnels for Lambda functions that need to connect to local resources
-  // (only if --no-tunnel is not set)
-  if (state.localResources.length > 0 && !globalStateManager.args.noTunnel) {
+  // Skip when: --no-tunnel is set, --disableEmulation is set (local-only mode), or no local resources
+  const shouldSetupLambdaTunnels =
+    state.localResources.length > 0 && !globalStateManager.args.noTunnel && !disableEmulation;
+
+  if (shouldSetupLambdaTunnels) {
     const { lambdasNeedingTunnels, skippedLambdas } = await detectLambdasNeedingTunnels(localResourceNames);
 
     // Warn about skipped lambdas
@@ -211,8 +216,12 @@ export const runParallelWorkloads = async (
         deployedResourceNames,
         localWorkloadAddresses
       );
-    } else {
+    } else if (resource.category === 'function') {
       return startFunctionWorkload(resource.name);
+    } else if (resource.category === 'hosting-bucket') {
+      return startHostingBucketWorkload(resource.name, allLocalEnvVars);
+    } else if (resource.category === 'nextjs-web') {
+      return startNextjsWebWorkload(resource.name, allLocalEnvVars);
     }
   });
 
@@ -439,6 +448,53 @@ const startContainerWorkload = async (
       if (workload) {
         workload.sourceFiles = newSourceFiles;
       }
+    }
+  });
+};
+
+const startHostingBucketWorkload = async (
+  resourceName: string,
+  localEnvVars: Record<string, string>
+): Promise<void> => {
+  await startHostingBucketDevServer({
+    name: resourceName,
+    localWorkloadEnvVars: localEnvVars
+  });
+
+  // Dev server handles its own hot reload, no need to track source files
+  state.workloads.set(resourceName, {
+    name: resourceName,
+    type: 'hosting-bucket',
+    resourceType: 'hosting-bucket',
+    sourceFiles: [],
+    rebuild: async () => {
+      tuiManager.info(`[${resourceName}] Restarting dev server...`);
+      await startHostingBucketDevServer({
+        name: resourceName,
+        localWorkloadEnvVars: localEnvVars
+      });
+    }
+  });
+};
+
+const startNextjsWebWorkload = async (resourceName: string, localEnvVars: Record<string, string>): Promise<void> => {
+  await startNextjsWebDevServer({
+    name: resourceName,
+    localWorkloadEnvVars: localEnvVars
+  });
+
+  // Dev server handles its own hot reload, no need to track source files
+  state.workloads.set(resourceName, {
+    name: resourceName,
+    type: 'nextjs-web',
+    resourceType: 'nextjs-web',
+    sourceFiles: [],
+    rebuild: async () => {
+      tuiManager.info(`[${resourceName}] Restarting dev server...`);
+      await startNextjsWebDevServer({
+        name: resourceName,
+        localWorkloadEnvVars: localEnvVars
+      });
     }
   });
 };

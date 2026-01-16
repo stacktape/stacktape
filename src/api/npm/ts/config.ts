@@ -597,8 +597,8 @@ export const transformValue = (value: any): any => {
   if (typeof value === 'object') {
     const result: any = {};
     for (const key in value) {
-      // Special handling for environment property
-      if (key === 'environment') {
+      // Special handling for environment and injectEnvironment properties
+      if (key === 'environment' || key === 'injectEnvironment') {
         result[key] = transformEnvironment(value[key]);
       } else {
         result[key] = transformValue(value[key]);

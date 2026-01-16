@@ -251,13 +251,38 @@ export type BatchJobContainerWithObjectEnv = Omit<import('./sdk').BatchJobContai
 }
 
 /**
+ * Default JSDoc for injectEnvironment property
+ */
+const DEFAULT_INJECT_ENVIRONMENT_JSDOC = {
+  description: `Injects referenced parameters into all HTML files in the uploadDirectoryPath.
+These parameters can be accessed by any JavaScript script using window.STP_INJECTED_ENV.VARIABLE_NAME.
+This is useful for automatically referencing parameters that are only known after deployment, such as the URL of an API Gateway.`,
+  tags: []
+};
+
+/**
  * Generates a WithOverrides type for resources without augmented props
  * Also includes transforms
+ * Special handling for HostingBucket to support object-style injectEnvironment
  */
 function generateWithOverridesAndTransformsType(propsType: string, className: string): string {
   const lines: string[] = [];
 
-  lines.push(`export type ${propsType}WithOverrides = ${propsType} & {`);
+  // Special handling for HostingBucket - omit injectEnvironment to replace with object-style
+  if (className === 'HostingBucket') {
+    lines.push(`export type ${propsType}WithOverrides = Omit<${propsType}, 'injectEnvironment'> & {`);
+
+    // Add object-style injectEnvironment
+    const injectEnvProperty: PropertyInfo = {
+      name: 'injectEnvironment',
+      type: '{ [envVarName: string]: string | number | boolean }',
+      optional: true,
+      jsdoc: DEFAULT_INJECT_ENVIRONMENT_JSDOC
+    };
+    lines.push(generatePropertyWithJSDoc(injectEnvProperty));
+  } else {
+    lines.push(`export type ${propsType}WithOverrides = ${propsType} & {`);
+  }
 
   const overridesProperty = getOverridesPropertyInfo(`${className}Overrides`);
   lines.push(generatePropertyWithJSDoc(overridesProperty));

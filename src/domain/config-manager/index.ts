@@ -341,6 +341,8 @@ export class ConfigManager {
           nameChain,
           routeRewrites,
           excludeFilesPatterns,
+          build: _build,
+          dev: _dev,
           ..._restProps
         } = hostingBucket;
         // props check constant ensures full destructuring of web service props
@@ -582,6 +584,7 @@ export class ConfigManager {
         iamRoleStatements,
         appDirectory: _a,
         buildCommand: _b,
+        dev: _dev,
         serverLambda,
         useEdgeLambda,
         useFirewall,

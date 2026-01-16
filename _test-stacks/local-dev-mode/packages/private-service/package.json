@@ -1,0 +1,17 @@
+{
+  "name": "@local-dev/private-service",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "bun run --watch src/index.ts"
+  },
+  "dependencies": {
+    "@prisma/adapter-pg": "^7.2.0",
+    "fastify": "^5.7.1",
+    "ioredis": "^5.9.2"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.9",
+    "typescript": "^5.9.3"
+  }
+}

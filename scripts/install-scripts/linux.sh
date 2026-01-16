@@ -1,114 +1,231 @@
-
 #!/bin/sh
-# Based on Deno installer: Copyright 2019 the Deno authors. All rights reserved. MIT license.
-if [ -t 0 ] ; then
-  Format_Off="$(tput sgr0)"
-  Green="$(tput setaf 2)"
-  White="$(tput setaf 7)"
-  Dim="$(tput dim)"
-  Bold="$(tput bold)"
-else
-  Format_Off=""
-  Green=""
-  White=""
-  Dim=""
-  Bold=""
+set -eu
+
+APP=stacktape
+
+# Colors (ANSI escape codes)
+MUTED='\033[0;2m'
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+CYAN='\033[0;36m'
+NC='\033[0m' # No Color
+BOLD='\033[1m'
+
+print_message() {
+    level=$1
+    message=$2
+    case $level in
+        info) printf "${NC}${message}${NC}\n" ;;
+        muted) printf "${MUTED}${message}${NC}\n" ;;
+        success) printf "${GREEN}${message}${NC}\n" ;;
+        error) printf "${RED}${message}${NC}\n" ;;
+    esac
+}
+
+# Check required commands
+if ! command -v curl >/dev/null 2>&1; then
+    print_message error "Error: 'curl' is required but not installed."
+    exit 1
 fi
 
-info() {
-    echo "${Dim}$@${Format_Off}"
-}
-info_bold() {
-    echo "${Bold}${Dim}$@${Format_Off}"
-}
-success() {
-    echo "${Bold}${Green}$@${Format_Off}"
-}
-bold() {
-    echo "${Bold}$@${Format_Off}"
-}
-set -e
-
-os=$(uname -s)
-arch=$(uname -m)
-version=${STACKTAPE_VERSION:="<<DEFAULT_VERSION>>"}
-
-archive_source_url=https://github.com/stacktape/stacktape/releases/download/$version/linux.tar.gz
-
-bin_dir_path="$HOME/.stacktape/bin"
-executable_file_path="$bin_dir_path/stacktape"
-alt_executable_file_path="$bin_dir_path/stp"
-session_manager_plugin_executable_file_path="$bin_dir_path/session-manager-plugin/smp"
-pack_executable_file_path="$bin_dir_path/pack/pack"
-nixpacks_executable_file_path="$bin_dir_path/nixpacks/nixpacks"
-
-
-if [ ! -d "$bin_dir_path" ]; then
- 	mkdir -p "$bin_dir_path"
+if ! command -v tar >/dev/null 2>&1; then
+    print_message error "Error: 'tar' is required but not installed."
+    exit 1
 fi
 
-echo "${Bold}${Green}Installing ${White}version ${Green}$version ${Format_Off}${Dim}from $archive_source_url${Format_Off}"
+version=${STACKTAPE_VERSION:-"<<DEFAULT_VERSION>>"}
+archive_source_url="https://github.com/stacktape/stacktape/releases/download/$version/linux.tar.gz"
 
-curl -q --fail --location --progress-bar --output "$executable_file_path.tar.gz" "$archive_source_url"
-cd $bin_dir_path
-tar xzf "$executable_file_path.tar.gz"
+INSTALL_DIR="$HOME/.stacktape/bin"
+mkdir -p "$INSTALL_DIR"
 
-chmod +x "$executable_file_path"
-chmod +x "$session_manager_plugin_executable_file_path"
-chmod +x "$pack_executable_file_path"
-chmod +x "$nixpacks_executable_file_path"
+# Progress bar helper
+print_progress() {
+    bytes="$1"
+    length="$2"
+    [ "$length" -gt 0 ] || return 0
 
-rm "$executable_file_path.tar.gz"
+    width=50
+    percent=$(( bytes * 100 / length ))
+    [ "$percent" -gt 100 ] && percent=100
+    on=$(( percent * width / 100 ))
+    off=$(( width - on ))
 
-ln -sf $executable_file_path $alt_executable_file_path
+    filled=""
+    i=0
+    while [ $i -lt $on ]; do
+        filled="${filled}#"
+        i=$((i + 1))
+    done
 
-case $(basename "$SHELL") in
-  bash)
-    user_profile_file_path="$HOME/.bashrc"
-    completions_file_path="$bin_dir_path/completions/bash.sh"
-    ;;
-  zsh)
-    user_profile_file_path="$HOME/.zshrc"
-    completions_file_path="$bin_dir_path/completions/zsh.sh"
-    ;;
-  *)
-    user_profile_file_path="$HOME/.profile"
-    ;;
+    empty=""
+    i=0
+    while [ $i -lt $off ]; do
+        empty="${empty}-"
+        i=$((i + 1))
+    done
+
+    printf "\r${CYAN}%s%s %3d%%${NC}" "$filled" "$empty" "$percent" >&2
+}
+
+download_with_progress() {
+    url="$1"
+    output="$2"
+
+    # Get content length first
+    length=$(curl -sI -L "$url" 2>/dev/null | tr -d '\r' | grep -i '^content-length:' | tail -1 | awk '{print $2}')
+    length=${length:-0}
+
+    if [ "$length" -gt 0 ] && [ -t 2 ]; then
+        # Download with progress tracking
+        curl -sL "$url" 2>/dev/null | {
+            bytes=0
+            while IFS= read -r chunk || [ -n "$chunk" ]; do
+                printf '%s' "$chunk"
+                chunk_len=${#chunk}
+                bytes=$((bytes + chunk_len + 1))
+                print_progress "$bytes" "$length"
+            done
+        } > "$output"
+        printf "\n" >&2
+    else
+        # Fallback: simple download with curl progress
+        curl -# -L -o "$output" "$url"
+    fi
+}
+
+download_and_install() {
+    print_message info "\n${MUTED}Installing ${NC}stacktape ${MUTED}version: ${NC}$version"
+    
+    tmp_dir="${TMPDIR:-/tmp}/stacktape_install_$$"
+    mkdir -p "$tmp_dir"
+    archive_path="$tmp_dir/stacktape.tar.gz"
+
+    # Use curl's built-in progress bar (works well on Linux)
+    curl -# -fL -o "$archive_path" "$archive_source_url"
+
+    tar -xzf "$archive_path" -C "$INSTALL_DIR"
+
+    # Set executable permissions
+    chmod +x "$INSTALL_DIR/stacktape"
+    [ -f "$INSTALL_DIR/session-manager-plugin/smp" ] && chmod +x "$INSTALL_DIR/session-manager-plugin/smp"
+    [ -f "$INSTALL_DIR/pack/pack" ] && chmod +x "$INSTALL_DIR/pack/pack"
+    [ -f "$INSTALL_DIR/nixpacks/nixpacks" ] && chmod +x "$INSTALL_DIR/nixpacks/nixpacks"
+    [ -f "$INSTALL_DIR/esbuild/exec" ] && chmod +x "$INSTALL_DIR/esbuild/exec"
+
+    # Create stp symlink
+    ln -sf "$INSTALL_DIR/stacktape" "$INSTALL_DIR/stp"
+
+    rm -rf "$tmp_dir"
+}
+
+download_and_install
+
+# Determine shell config file
+XDG_CONFIG_HOME=${XDG_CONFIG_HOME:-$HOME/.config}
+current_shell=$(basename "$SHELL")
+
+case $current_shell in
+    fish)
+        config_files="$HOME/.config/fish/config.fish"
+        ;;
+    zsh)
+        config_files="${ZDOTDIR:-$HOME}/.zshrc ${ZDOTDIR:-$HOME}/.zshenv $XDG_CONFIG_HOME/zsh/.zshrc"
+        ;;
+    bash)
+        config_files="$HOME/.bashrc $HOME/.bash_profile $HOME/.profile"
+        ;;
+    *)
+        config_files="$HOME/.bashrc $HOME/.profile"
+        ;;
 esac
 
-touch "$user_profile_file_path"
-set_path_line="export PATH=\$PATH:$bin_dir_path"
-if ! grep -q "$bin_dir_path" "$user_profile_file_path"; then
-  echo "# Added by Stacktape installer" >> "$user_profile_file_path"
-  echo "$set_path_line" >> "$user_profile_file_path"
+# Find existing config file
+config_file=""
+for file in $config_files; do
+    if [ -f "$file" ]; then
+        config_file=$file
+        break
+    fi
+done
+
+# Add to PATH if not already there
+add_to_path() {
+    cfg_file=$1
+    command=$2
+
+    if grep -Fq "$INSTALL_DIR" "$cfg_file" 2>/dev/null; then
+        print_message muted "PATH already configured in $cfg_file"
+    elif [ -w "$cfg_file" ]; then
+        printf "\n# stacktape\n%s\n" "$command" >> "$cfg_file"
+        print_message muted "Added stacktape to \$PATH in $cfg_file"
+    else
+        print_message muted "Manually add to $cfg_file: $command"
+    fi
+}
+
+# Setup completions if available
+setup_completions() {
+    cfg_file=$1
+    completions_path="$INSTALL_DIR/completions"
+    
+    case $current_shell in
+        bash)
+            completions_file="$completions_path/bash.sh"
+            ;;
+        zsh)
+            completions_file="$completions_path/zsh.sh"
+            ;;
+        *)
+            return
+            ;;
+    esac
+    
+    if [ -f "$completions_file" ] && [ -f "$cfg_file" ]; then
+        completion_line="[ -s \"$completions_file\" ] && . \"$completions_file\""
+        if ! grep -Fq "$completions_file" "$cfg_file" 2>/dev/null; then
+            printf "%s\n" "$completion_line" >> "$cfg_file"
+        fi
+    fi
+}
+
+if [ -z "$config_file" ]; then
+    print_message muted "No config file found for $current_shell. Manually add to PATH:"
+    print_message info "  export PATH=\"$INSTALL_DIR:\$PATH\""
+elif ! echo ":$PATH:" | grep -q ":$INSTALL_DIR:"; then
+    case $current_shell in
+        fish)
+            add_to_path "$config_file" "fish_add_path $INSTALL_DIR"
+            ;;
+        *)
+            add_to_path "$config_file" "export PATH=\"$INSTALL_DIR:\$PATH\""
+            setup_completions "$config_file"
+            ;;
+    esac
 fi
 
-# Install command-line completions installation if supported
-if [ -n "$completions_file_path" ]; then
-  echo "Installing completions..."
-  set_completion_line="[ -s \"$completions_file_path\" ] && \. $completions_file_path"
-  if ! grep -q "$completions_file_path" "$user_profile_file_path"; then
-    echo "$set_completion_line" >> "$user_profile_file_path"
-  fi
+# GitHub Actions support
+if [ -n "${GITHUB_ACTIONS-}" ] && [ "${GITHUB_ACTIONS}" = "true" ]; then
+    echo "$INSTALL_DIR" >> "$GITHUB_PATH"
+    print_message muted "Added $INSTALL_DIR to \$GITHUB_PATH"
 fi
 
-if [ "$GITHUB_ACTIONS" = true ]; then
-  echo "$bin_dir_path" >> "$GITHUB_PATH"
-fi
-
-if command -v stacktape >/dev/null; then
-  echo "$(success "Stacktape was successfully installed") to $bin_dir_path"
-	info "Run 'stacktape help' to get started."
-elif [ "$user_profile_file_path" != "$HOME/.profile" ]; then
-  echo "$(success "Stacktape was successfully installed") to $bin_dir_path"
-  info_bold "To use 'stacktape' and 'stp' aliases, you need to reload your terminal."
-	info "After reload, run 'stacktape help' to get started."
-else
-  echo "$(success "Stacktape was successfully installed") to $bin_dir_path"
-  info "Run '$executable_file_path help' to get started."
-  info_bold "You might need to restart the terminal session or re-log to your account before the aliases will be available to use."
-  info "To manually setup 'stacktape' and 'stp' aliases, you need to add Stacktape bin folder to \$PATH."
-  info "To add it only for the current profile, add 'export PATH=\$PATH:$bin_dir_path' to '$user_profile_file_path'."
-  info "To add it for every profile on the system, add 'PATH=\$PATH:$bin_dir_path' to '/etc/profile'."
-fi
-
+# Print success message with ASCII logo
+printf "\n"
+printf "${MUTED}     _____ _             _    _                    ${NC}\n"
+printf "${MUTED}    / ____| |           | |  | |                   ${NC}\n"
+printf "${GREEN}   | (___ | |_ __ _  ___| | _| |_ __ _ _ __   ___  ${NC}\n"
+printf "${GREEN}    \\___ \\| __/ _\` |/ __| |/ / __/ _\` | '_ \\ / _ \\ ${NC}\n"
+printf "${GREEN}    ____) | || (_| | (__|   <| || (_| | |_) |  __/ ${NC}\n"
+printf "${GREEN}   |_____/ \\__\\__,_|\\___|_|\\_\\\\__\\__,_| .__/ \\___| ${NC}\n"
+printf "${GREEN}                                      | |          ${NC}\n"
+printf "${GREEN}                                      |_|          ${NC}\n"
+printf "\n"
+printf "${BOLD}${GREEN}Stacktape was installed successfully!${NC}\n"
+printf "\n"
+printf "${MUTED}To get started, run:${NC}\n"
+printf "\n"
+printf "  stacktape init\n"
+printf "\n"
+printf "${MUTED}For more information visit ${NC}https://docs.stacktape.com\n"
+printf "\n"

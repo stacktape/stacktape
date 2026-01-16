@@ -17,6 +17,20 @@ import { getLocalInvokeAwsCredentials, SESSION_DURATION_SECONDS } from '../_util
 
 type OnChangeFn = (props: { stats: Stats; changedFile: string }) => any;
 
+// Track credential expiry timers so they can be cleared on cleanup
+const credentialExpiryTimers: NodeJS.Timeout[] = [];
+
+const registerCredentialExpiryTimer = (timer: NodeJS.Timeout) => {
+  credentialExpiryTimers.push(timer);
+};
+
+export const clearCredentialExpiryTimers = () => {
+  for (const timer of credentialExpiryTimers) {
+    clearTimeout(timer);
+  }
+  credentialExpiryTimers.length = 0;
+};
+
 export class SourceCodeWatcher {
   watcher: FSWatcher;
   currentlyWatchedFiles: string[];
@@ -182,12 +196,13 @@ export const getWorkloadEnvironmentVars = async (jobDetails: {
   let awsCredentialsEnvVars: Record<string, string> = {};
   if (!jobDetails.skipAwsCredentials) {
     awsCredentialsEnvVars = await getLocalInvokeAwsCredentials({ assumeRoleOfWorkload: jobDetails.workloadName });
-    setTimeout(
+    const expiryTimer = setTimeout(
       () => {
         tuiManager.warn('Temporary AWS credentials expired. Restart dev to refresh permissions.');
       },
       (SESSION_DURATION_SECONDS - 120) * 1000
     );
+    registerCredentialExpiryTimer(expiryTimer);
   }
 
   // Resolve env vars from deployed connectTo resources
@@ -281,3 +296,8 @@ export const gracefullyStopContainer = async (containerName: string) => {
     spinner.success();
   }
 };
+
+// Register cleanup hook for credential timers
+applicationManager.registerCleanUpHook(async () => {
+  clearCredentialExpiryTimers();
+});

@@ -218,6 +218,9 @@ export const initializeStackServicesForHotSwapDeploy = async () => {
   await eventManager.processHooks({ captureType: 'START' });
 };
 
+const DEFAULT_LOCAL_STAGE = 'dev';
+const DEFAULT_LOCAL_REGION = 'us-east-1';
+
 /**
  * Phase 1: Initialize credentials, config, and packagingManager.
  * This is enough to start building. Call phase 2 after (or in parallel) to fetch AWS stack data.
@@ -225,6 +228,18 @@ export const initializeStackServicesForHotSwapDeploy = async () => {
 export const initializeStackServicesForDevPhase1 = async () => {
   // Suppress eventManager logs - dev mode uses spinners instead
   eventManager.setSilentMode(true);
+
+  const isLocalOnlyMode = globalStateManager.args.disableEmulation;
+
+  if (isLocalOnlyMode) {
+    // Local-only mode: set defaults for stage/region to avoid prompts and API calls
+    if (!globalStateManager.args.stage) {
+      globalStateManager.args.stage = DEFAULT_LOCAL_STAGE;
+    }
+    if (!globalStateManager.args.region && !process.env.AWS_DEFAULT_REGION) {
+      globalStateManager.args.region = DEFAULT_LOCAL_REGION;
+    }
+  }
 
   await globalStateManager.loadUserCredentials();
   awsSdkManager.init({

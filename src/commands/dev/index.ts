@@ -6,14 +6,16 @@ import { stpErrors } from '@errors';
 import { getError } from '@shared/utils/misc';
 import { initializeStackServicesForDevPhase1, initializeStackServicesForDevPhase2 } from '../_utils/initialization';
 import { runDevContainer } from './container';
+import { runDevHostingBucket } from './hosting-bucket';
 import { runDevLambdaFunction } from './lambda-function';
 import { getLocalEmulateableResources } from './local-resources';
+import { runDevNextjsWeb } from './nextjs-web';
 import { runParallelWorkloads } from './parallel-runner';
 
 type DevCompatibleResource = {
   name: string;
   type: string;
-  category: 'container' | 'function';
+  category: 'container' | 'function' | 'hosting-bucket' | 'nextjs-web';
 };
 
 const getDevCompatibleResources = (): DevCompatibleResource[] => {
@@ -27,7 +29,19 @@ const getDevCompatibleResources = (): DevCompatibleResource[] => {
     type: 'function' as const,
     category: 'function' as const
   }));
-  return [...containerWorkloads, ...functions];
+  const hostingBuckets = configManager.hostingBuckets
+    .filter((b) => b.dev) // Only include hosting buckets with dev config
+    .map((b) => ({
+      name: b.name,
+      type: 'hosting-bucket' as const,
+      category: 'hosting-bucket' as const
+    }));
+  const nextjsWebs = configManager.nextjsWebs.map((n) => ({
+    name: n.name,
+    type: 'nextjs-web' as const,
+    category: 'nextjs-web' as const
+  }));
+  return [...containerWorkloads, ...functions, ...hostingBuckets, ...nextjsWebs];
 };
 
 const isContainerType = (type: string) => {
@@ -58,6 +72,10 @@ const runSingleResource = async (resourceName: string): Promise<void> => {
     await runDevLambdaFunction();
   } else if (isContainerType(inConfigStpResource.type)) {
     await runDevContainer();
+  } else if (inConfigStpResource.type === 'hosting-bucket') {
+    await runDevHostingBucket();
+  } else if (inConfigStpResource.type === 'nextjs-web') {
+    await runDevNextjsWeb();
   } else {
     throw stpErrors.e52({ resourceName, resourceType: inConfigStpResource.type });
   }
