@@ -247,7 +247,7 @@ const validateStage = (stage: string) => {
 };
 
 export const validateRegion = (region: string) => {
-  const hint = `To set region, use --region option, AWS_DEFAULT_REGION env variable or configure it globally for your system using ${tuiManager.prettyCommand(
+  const hint = `To set region, use --region option, AWS_DEFAULT_REGION env variable, "region" property in config file, or configure it globally for your system using ${tuiManager.prettyCommand(
     'defaults:configure'
   )}.`;
   if (region === null || region === undefined) {

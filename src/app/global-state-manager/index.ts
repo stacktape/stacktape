@@ -208,6 +208,7 @@ export class GlobalStateManager {
     const region =
       this.args.region ||
       process.env.AWS_DEFAULT_REGION ||
+      configManager.configResolver.rawConfig?.region ||
       this.persistedState?.cliArgsDefaults.region ||
       this.awsConfigFileContent?.[this.awsProfileName]?.region;
     return region as AWSRegion;
