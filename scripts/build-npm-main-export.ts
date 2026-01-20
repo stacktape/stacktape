@@ -543,9 +543,13 @@ export type StacktapeStackConfig = import('./sdk').StackConfig;
 
 /**
  * Cloudformation resources section type.
- * Use import from 'stacktape/cloudformation' for CloudFormationResource type.
  */
-export type StacktapeCloudformationResources = { [resourceName: string]: import('./cloudformation').CloudFormationResource };
+export type StacktapeCloudformationResources = { [resourceName: string]: StacktapeCloudformationResource };
+
+/**
+ * Single cloudformation resource type.
+ */
+export type StacktapeCloudformationResource = import('./cloudformation').CloudFormationResource;
 
 /**
  * Stack outputs type (stackConfig.outputs).
