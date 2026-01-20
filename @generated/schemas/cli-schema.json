@@ -378,20 +378,48 @@
         "alias": "da",
         "required": false
       },
-      "local": {
-        "description": "#### Local\n\n---\n\nRun specified resources locally using Docker instead of connecting to deployed AWS resources.\nCan be a resource name or 'all' to run all supported resources locally.\nSpecify multiple times for multiple resources (e.g., --local myDb --local myRedis).\nSupported resource types: relational-database (postgres, mysql, mariadb), redis-cluster.",
-        "allowedTypes": [
-          "array"
-        ],
-        "alias": "loc",
-        "required": false
-      },
       "noTunnel": {
         "description": "#### No Tunnel\n\n---\n\nDisables automatic tunneling for Lambda functions to connect to local resources.\nBy default, when Lambda functions reference local resources (via connectTo or $ResourceParam),\nStacktape creates tunnels so that AWS Lambda can reach your local databases.",
         "allowedTypes": [
           "boolean"
         ],
         "alias": "nt",
+        "required": false
+      },
+      "remoteResources": {
+        "description": "#### Remote Resources\n\n---\n\nComma-separated list of resource names that should connect to deployed AWS resources\ninstead of running locally during dev mode. By default, databases (RDS, Aurora),\nRedis, and DynamoDB run locally. Use this flag to connect to the deployed version instead.\n\nExample: --remoteResources myDatabase,myRedis",
+        "allowedTypes": [
+          "array"
+        ],
+        "alias": "rr",
+        "required": false
+      },
+      "resources": {
+        "description": "#### Resources\n\n---\n\nSpecify which resources to run in dev mode. If not provided, an interactive picker is shown.\nUse 'all' to run all resources without prompting.\nSpecify resource names as a comma-separated list or use the flag multiple times.",
+        "allowedTypes": [
+          "array"
+        ],
+        "alias": "res",
+        "required": false
+      },
+      "skipResources": {
+        "description": "#### Skip Resources\n\n---\n\nSkip the specified resources in dev mode. All other resources will run.\nSpecify resource names as a comma-separated list or use the flag multiple times.",
+        "allowedTypes": [
+          "array"
+        ],
+        "alias": "sr",
+        "required": false
+      },
+      "devMode": {
+        "description": "#### Dev Mode\n\n---\n\nSpecifies which dev mode to use:\n- `normal` (default): Deploys a stripped-down \"dev stack\" to AWS and runs workloads locally.\n  Databases and Redis are emulated locally using Docker.\n- `legacy`: Requires an already deployed stack. Runs selected workloads locally while\n  connecting to all resources in the deployed stack. No local database emulation.",
+        "allowedTypes": [
+          "string"
+        ],
+        "allowedValues": [
+          "legacy",
+          "normal"
+        ],
+        "alias": "dm",
         "required": false
       }
     }

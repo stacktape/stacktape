@@ -367,17 +367,6 @@ interface StacktapeCliArgs {
    */
   watch?: boolean;
   /**
-   * #### Local
-   *
-   * ---
-   *
-   * Run specified resources locally using Docker instead of connecting to deployed AWS resources.
-   * Can be a resource name or 'all' to run all supported resources locally.
-   * Specify multiple times for multiple resources (e.g., --local myDb --local myRedis).
-   * Supported resource types: relational-database (postgres, mysql, mariadb), redis-cluster.
-   */
-  local?: string[];
-  /**
    * #### No Tunnel
    *
    * ---
@@ -389,6 +378,18 @@ interface StacktapeCliArgs {
    * @default false
    */
   noTunnel?: boolean;
+  /**
+   * #### Remote Resources
+   *
+   * ---
+   *
+   * Comma-separated list of resource names that should connect to deployed AWS resources
+   * instead of running locally during dev mode. By default, databases (RDS, Aurora),
+   * Redis, and DynamoDB run locally. Use this flag to connect to the deployed version instead.
+   *
+   * Example: --remoteResources myDatabase,myRedis
+   */
+  remoteResources?: string[];
   /**
    * #### Command
    *
@@ -770,6 +771,47 @@ interface StacktapeCliArgs {
    * @example ["LambdaMcpServerStpAlias", "MyOtherResource"]
    */
   resourcesToSkip?: string[];
+  /**
+   * #### Resources
+   *
+   * ---
+   *
+   * Specify which resources to run in dev mode. If not provided, an interactive picker is shown.
+   * Use 'all' to run all resources without prompting.
+   * Specify resource names as a comma-separated list or use the flag multiple times.
+   *
+   * @example --resources all
+   * @example --resources webService,apiLambda,postgresDb
+   * @example --resources webService --resources apiLambda
+   */
+  resources?: string[];
+  /**
+   * #### Skip Resources
+   *
+   * ---
+   *
+   * Skip the specified resources in dev mode. All other resources will run.
+   * Specify resource names as a comma-separated list or use the flag multiple times.
+   *
+   * @example --skipResources spaFrontend,nextjsFrontend
+   * @example --skipResources spaFrontend --skipResources nextjsFrontend
+   */
+  skipResources?: string[];
+  /**
+   * #### Dev Mode
+   *
+   * ---
+   *
+   * Specifies which dev mode to use:
+   * - `normal` (default): Deploys a stripped-down "dev stack" to AWS and runs workloads locally.
+   *   Databases and Redis are emulated locally using Docker.
+   * - `legacy`: Requires an already deployed stack. Runs selected workloads locally while
+   *   connecting to all resources in the deployed stack. No local database emulation.
+   *
+   * @default "normal"
+   * @example --devMode legacy
+   */
+  devMode?: 'normal' | 'legacy';
 }
 
 interface StacktapeSdkArgs

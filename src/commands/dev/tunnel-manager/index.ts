@@ -199,7 +199,10 @@ export const isTunnelAlive = (tunnel: TunnelInfo): boolean => {
   return tunnel.process.exitCode === null && !tunnel.process.killed;
 };
 
-// Register cleanup hook (only once)
+/**
+ * Register cleanup hook for tunnels.
+ * Must be called explicitly when dev command starts.
+ */
 export const registerTunnelCleanupHook = (): void => {
   if (cleanupHookRegistered) return;
   cleanupHookRegistered = true;
@@ -212,6 +215,3 @@ export const registerTunnelCleanupHook = (): void => {
     }
   });
 };
-
-// Auto-register cleanup hook when module is loaded
-registerTunnelCleanupHook();

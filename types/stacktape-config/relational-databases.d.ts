@@ -104,6 +104,15 @@ interface RelationalDatabaseProps {
    * The available log types depend on the database engine. You can log connections, queries, errors, and more.
    */
   logging?: RelationalDatabaseLogging;
+  /**
+   * #### Dev Mode Configuration
+   *
+   * ---
+   *
+   * Configures how this database behaves during `stacktape dev` mode.
+   * By default, databases run locally using Docker. Set `dev.remote: true` to connect to the deployed AWS database instead.
+   */
+  dev?: DevModeConfig;
 }
 
 type StpRelationalDatabase = RelationalDatabase['properties'] & {

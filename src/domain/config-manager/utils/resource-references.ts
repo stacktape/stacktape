@@ -2,6 +2,11 @@ import { tuiManager } from '@application-services/tui-manager';
 import { stpErrors } from '@errors';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import { ExpectedError } from '@utils/errors';
+import {
+  isDevCommand,
+  isResourceTypeExcludedInDevMode,
+  isResourceTypeLocallyEmulatable
+} from '../../../commands/dev/dev-mode-utils';
 import { configManager } from '../index';
 
 export const getReferencableParamsError = ({
@@ -152,15 +157,21 @@ export const resolveConnectToList = ({
       referencedFrom: stpResourceNameOfReferencer,
       stpResourceReference: referencedName
     });
-    // this will never happen because we check for existence of resource in getPropsOfResourceReferencedInConfig
-    // if (!resource) {
-    //   throw new ExpectedError(
-    //     'CONFIG_VALIDATION',
-    //     `Error in ${checkingDefaults ? '' : 'resource '}${tuiManager.makeBold(
-    //       stpResourceNameOfReferencer
-    //     )}. Property connectTo references non-existent resource ${referencedName}`
-    //   );
-    // }
+
+    // In dev mode, skip resources that are excluded from the CloudFormation template
+    // (locally emulated or locally run resources don't have CF resources created)
+    if (isDevCommand()) {
+      if (isResourceTypeExcludedInDevMode(resource.type)) {
+        // Locally run resources (containers, frontends) - skip entirely
+        return;
+      }
+      if (isResourceTypeLocallyEmulatable(resource.type)) {
+        // Locally emulated resources (databases, redis, dynamodb) - skip unless marked as remote
+        // Note: remote check is done by the caller, we just skip creating CF references here
+        return;
+      }
+    }
+
     if (
       resource.type === 'function' ||
       resource.type === 'multi-container-workload' ||

@@ -1,5 +1,5 @@
-import { DescribeEngineDefaultParametersCommand, RDSClient } from '@aws-sdk/client-rds';
 import { globalStateManager } from '@application-services/global-state-manager';
+import { DescribeEngineDefaultParametersCommand, RDSClient } from '@aws-sdk/client-rds';
 import { configManager } from '@domain-services/config-manager';
 
 type DbEngine = 'postgres' | 'mysql' | 'mariadb';
@@ -218,24 +218,35 @@ export const fetchAwsDefaultParameters = async (parameterGroupFamily: string): P
   return params;
 };
 
+// Cache for AWS default parameters to avoid repeated API calls
+const awsDefaultParamsCache = new Map<string, DbParameterSet>();
+
 export const getLocalDbParameters = async ({
   resourceName,
   engine,
-  version
+  version,
+  skipAwsDefaults = false
 }: {
   resourceName: string;
   engine: DbEngine;
   version: string;
+  skipAwsDefaults?: boolean;
 }): Promise<DbParameterSet> => {
   const db = configManager.databases?.find((r) => r.name === resourceName);
   if (!db) return {};
 
   const paramGroupFamily = getParameterGroupFamily(db.engine.type, version);
 
-  // 1. Start with AWS defaults (if we can fetch them)
+  // 1. Start with AWS defaults (if we can fetch them and not skipped)
   let mergedParams: DbParameterSet = {};
-  if (paramGroupFamily) {
-    mergedParams = await fetchAwsDefaultParameters(paramGroupFamily);
+  if (paramGroupFamily && !skipAwsDefaults) {
+    // Check cache first
+    if (awsDefaultParamsCache.has(paramGroupFamily)) {
+      mergedParams = { ...awsDefaultParamsCache.get(paramGroupFamily)! };
+    } else {
+      mergedParams = await fetchAwsDefaultParameters(paramGroupFamily);
+      awsDefaultParamsCache.set(paramGroupFamily, mergedParams);
+    }
   }
 
   // 2. Apply Stacktape logging parameters

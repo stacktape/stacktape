@@ -99,6 +99,63 @@ export class DeployedStackOverviewManager {
     return this.getStpResource({ nameChain })?.referencableParams[referencableParamName]?.value;
   };
 
+  /** Track locally-injected resource names (not actually deployed to AWS) */
+  #locallyInjectedResources = new Set<string>();
+
+  /**
+   * Inject local workload info into stackInfoMap for dev mode.
+   * This allows $ResourceParam directives to resolve URLs for locally-running workloads.
+   */
+  injectLocalWorkloadInfo = (
+    localWorkloads: { name: string; resourceType: string; url?: string; address?: string }[]
+  ) => {
+    if (!this.stackInfoMap) {
+      this.stackInfoMap = { resources: {}, metadata: {} } as StackInfoMap;
+    }
+    for (const workload of localWorkloads) {
+      const referencableParams: Record<string, { value: string }> = {};
+      if (workload.url) {
+        referencableParams.url = { value: workload.url };
+      }
+      if (workload.address) {
+        referencableParams.address = { value: workload.address };
+      }
+      this.stackInfoMap.resources[workload.name] = {
+        resourceType: workload.resourceType,
+        referencableParams
+      } as StackInfoMapResource;
+      this.#locallyInjectedResources.add(workload.name);
+    }
+  };
+
+  /** Check if a resource was locally injected (not deployed to AWS) */
+  isLocallyInjectedResource = (name: string): boolean => {
+    return this.#locallyInjectedResources.has(name);
+  };
+
+  /**
+   * Inject local resource (database) info into stackInfoMap for dev mode.
+   * This allows hooks with connectTo to resolve local database connection strings.
+   */
+  injectLocalResourceInfo = (
+    localResources: { name: string; resourceType: string; referencableParams: Record<string, string> }[]
+  ) => {
+    if (!this.stackInfoMap) {
+      this.stackInfoMap = { resources: {}, metadata: {} } as StackInfoMap;
+    }
+    for (const resource of localResources) {
+      const referencableParams: Record<string, { value: string }> = {};
+      for (const [key, value] of Object.entries(resource.referencableParams)) {
+        referencableParams[key] = { value };
+      }
+      this.stackInfoMap.resources[resource.name] = {
+        resourceType: resource.resourceType,
+        referencableParams
+      } as StackInfoMapResource;
+      this.#locallyInjectedResources.add(resource.name);
+    }
+  };
+
   #getStackInfoMapOfDeployedStack = async ({
     stackDetails,
     budgetInfo

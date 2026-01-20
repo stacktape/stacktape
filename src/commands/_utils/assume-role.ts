@@ -6,6 +6,7 @@ import { getRoleArnFromSessionArn } from '@shared/naming/utils';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 
 export const SESSION_DURATION_SECONDS = 3600;
+export const DEV_SESSION_DURATION_SECONDS = 43200; // 12 hours for dev stacks
 
 export const addCallerToAssumeRolePolicy = async ({ roleName }: { roleName: string }) => {
   const callerIdentityArn = globalStateManager.credentials.identity.arn.includes(':assumed-role')
@@ -18,7 +19,13 @@ export const addCallerToAssumeRolePolicy = async ({ roleName }: { roleName: stri
   });
 };
 
-export const getLocalInvokeAwsCredentials = async ({ assumeRoleOfWorkload }: { assumeRoleOfWorkload: string }) => {
+export const getLocalInvokeAwsCredentials = async ({
+  assumeRoleOfWorkload,
+  isDevStack = false
+}: {
+  assumeRoleOfWorkload: string;
+  isDevStack?: boolean;
+}) => {
   await eventManager.startEvent({
     eventType: 'ASSUME_ROLE',
     description: `Assuming role of ${assumeRoleOfWorkload}`
@@ -27,8 +34,9 @@ export const getLocalInvokeAwsCredentials = async ({ assumeRoleOfWorkload }: { a
 
   await addCallerToAssumeRolePolicy({ roleName: workloadRoleName });
 
+  const durationSeconds = isDevStack ? DEV_SESSION_DURATION_SECONDS : SESSION_DURATION_SECONDS;
   const credentials = await awsSdkManager.getAssumedRoleCredentials({
-    durationSeconds: SESSION_DURATION_SECONDS,
+    durationSeconds,
     roleArn: arns.iamRole({
       accountId: globalStateManager.targetAwsAccount.awsAccountId,
       roleAwsName: workloadRoleName

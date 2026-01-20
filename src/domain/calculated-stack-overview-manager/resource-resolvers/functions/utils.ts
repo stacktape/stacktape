@@ -66,6 +66,7 @@ export const getLambdaFunctionRole = ({
   configParentResourceType: StpLambdaFunction['configParentResourceType'];
   mountedEfsFilesystems?: StpEfsFilesystem[];
 }) => {
+  const isDevStack = globalStateManager.command === 'dev';
   const role = new Role({
     RoleName: awsResourceNames.lambdaRole(
       globalStateManager.targetStack.stackName,
@@ -74,6 +75,8 @@ export const getLambdaFunctionRole = ({
       configParentResourceType
     ),
     AssumeRolePolicyDocument: getAssumeRolePolicyDocumentForFunctionRole(),
+    // 12 hours for dev stacks, 1 hour for regular stacks (default)
+    ...(isDevStack && { MaxSessionDuration: 43200 }),
     Policies: [
       {
         PolicyName: 'allow-cloudwatch-logging-policy',

@@ -9,8 +9,8 @@ import { tuiManager } from '@application-services/tui-manager';
 import { configManager } from '@domain-services/config-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { inspectDockerContainer, listDockerContainers, stopDockerContainer } from '@shared/utils/docker';
-import { getAugmentedEnvironment } from '@utils/environment';
 import { getDirectiveParams, getIsDirective, startsLikeGetParamDirective } from '@utils/directives';
+import { getAugmentedEnvironment } from '@utils/environment';
 import { startPortForwardingSessions, substituteTunneledEndpointsInEnvironmentVars } from '@utils/ssm-session';
 import chokidar from 'chokidar';
 import { getLocalInvokeAwsCredentials, SESSION_DURATION_SECONDS } from '../_utils/assume-role';
@@ -251,10 +251,13 @@ export const getContainerStopWaitTime = () => 2;
 
 export const resolveRunningContainersWithSamePort = async ({
   ports,
-  onContainerStopped
+  onContainerStopped,
+  autoStopConflicting
 }: {
   ports: number[];
   onContainerStopped?: AnyFunction;
+  /** When true, auto-stop conflicting containers without prompting (used when DevTUI is active) */
+  autoStopConflicting?: boolean;
 }) => {
   if (!ports) {
     return;
@@ -267,11 +270,14 @@ export const resolveRunningContainersWithSamePort = async ({
   );
 
   if (containersWithConflictingPorts.length) {
-    const shouldStopConflictingContainers = await tuiManager.promptConfirm({
-      message: `The following containers have conflicting ports open. Would you like to remove them?:\n${containersWithConflictingPorts.map(
-        (c) => `${c.Names.join(', ')} (${c.Id}).`
-      )}`
-    });
+    // When autoStopConflicting is set (e.g., DevTUI mode), skip the prompt and auto-stop
+    const shouldStopConflictingContainers = autoStopConflicting
+      ? true
+      : await tuiManager.promptConfirm({
+          message: `The following containers have conflicting ports open. Would you like to remove them?:\n${containersWithConflictingPorts.map(
+            (c) => `${c.Names.join(', ')} (${c.Id}).`
+          )}`
+        });
     if (shouldStopConflictingContainers) {
       await eventManager.startEvent({
         eventType: 'STOP_CONTAINER',
@@ -297,7 +303,18 @@ export const gracefullyStopContainer = async (containerName: string) => {
   }
 };
 
-// Register cleanup hook for credential timers
-applicationManager.registerCleanUpHook(async () => {
-  clearCredentialExpiryTimers();
-});
+// Track if cleanup hook has been registered (to avoid duplicate registrations)
+let credentialCleanupHookRegistered = false;
+
+/**
+ * Register cleanup hook for credential timers.
+ * Must be called explicitly when dev command starts, not at module import time,
+ * to avoid side effects when this module is bundled into user code.
+ */
+export const registerCredentialCleanupHook = () => {
+  if (credentialCleanupHookRegistered) return;
+  credentialCleanupHookRegistered = true;
+  applicationManager.registerCleanUpHook(async () => {
+    clearCredentialExpiryTimers();
+  });
+};

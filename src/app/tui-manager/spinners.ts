@@ -11,9 +11,19 @@ export type Spinner = {
   error: (text?: string) => void;
 };
 
+// Flag to suppress spinner output when DevTui is active
+let _devTuiActive = false;
+
+export const setSpinnerDevTuiActive = (active: boolean) => {
+  _devTuiActive = active;
+};
+
+export const isSpinnerDevTuiActive = () => _devTuiActive;
+
 /**
  * Creates a single spinner for standalone operations.
  * Use this when you have ONE async operation to track.
+ * When DevTui is active, spinners are suppressed (no-op).
  *
  * @example
  * const spinner = createSpinner('Loading data', colorize);
@@ -21,27 +31,51 @@ export type Spinner = {
  * spinner.success({ details: 'Loaded 100 items' });
  */
 export const createSpinner = (text: string, colorize: (color: string, text: string) => string): Spinner => {
+  // When DevTui is active, return a no-op spinner
+  if (_devTuiActive) {
+    return {
+      update: () => {},
+      success: () => {},
+      error: () => {}
+    };
+  }
+
   const startTime = Date.now();
   const baseText = text;
   const spinner = yoctoSpinner({ text }).start();
 
   return {
     update: (newText: string) => {
+      // Check again at runtime in case DevTui was activated after spinner creation
+      if (_devTuiActive) {
+        spinner.stop();
+        return;
+      }
       spinner.text = `${baseText} ${colorize('gray', newText)}`;
     },
     success: (options?: { text?: string; details?: string }) => {
+      // Check again at runtime in case DevTui was activated after spinner creation
+      if (_devTuiActive) {
+        spinner.stop();
+        return;
+      }
+      spinner.stop();
       const duration = Date.now() - startTime;
       const durationStr = colorize('yellow', formatDuration(duration));
       const finalText = options?.text || baseText;
       const details = options?.details ? ` ${colorize('gray', options.details)}` : '';
-      // Use ✓ (U+2713) for consistency with multi-spinner (yocto-spinner uses ✔ U+2714)
-      spinner.stop();
       console.info(`${colorize('green', '✓')} ${finalText}${details} ${durationStr}`);
     },
     error: (errorText?: string) => {
+      // Check again at runtime in case DevTui was activated after spinner creation
+      if (_devTuiActive) {
+        spinner.stop();
+        return;
+      }
+      spinner.stop();
       const duration = Date.now() - startTime;
       const durationStr = colorize('yellow', formatDuration(duration));
-      spinner.error(`${errorText || `${baseText} failed`} ${durationStr}`);
+      console.info(`${colorize('red', '✗')} ${errorText || `${baseText} failed`} ${durationStr}`);
     }
   };
 };
@@ -57,6 +91,7 @@ type SpinnerState = {
 /**
  * Manages multiple spinners running simultaneously.
  * Use this when you have MULTIPLE async operations running in parallel.
+ * When DevTui is active, spinners are suppressed (no-op).
  *
  * @example
  * const multi = new MultiSpinner(colorize);
@@ -72,13 +107,24 @@ export class MultiSpinner {
   private frameIndex = 0;
   private frames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
   private colorize: (color: string, text: string) => string;
+  private suppressed: boolean;
 
   constructor(colorize: (color: string, text: string) => string) {
     this.colorize = colorize;
+    this.suppressed = _devTuiActive;
   }
 
   /** Add a new spinner and start tracking it */
   add(id: string, text: string): Spinner {
+    // When DevTui is active, return a no-op spinner
+    if (this.suppressed) {
+      return {
+        update: () => {},
+        success: () => {},
+        error: () => {}
+      };
+    }
+
     const startTime = Date.now();
     this.spinners.set(id, {
       baseText: text,

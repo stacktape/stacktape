@@ -1,12 +1,17 @@
 import {
   defineConfig,
+  DynamoDbTable,
   HostingBucket,
+  HttpApiGateway,
+  HttpApiIntegration,
+  LambdaFunction,
   LocalScript,
   NextjsWeb,
   PrivateService,
   RedisCluster,
   RelationalDatabase,
   StacktapeImageBuildpackPackaging,
+  StacktapeLambdaBuildpackPackaging,
   WebService
 } from '../../__release-npm';
 
@@ -18,7 +23,7 @@ export default defineConfig(() => {
     engine: {
       type: 'postgres',
       properties: {
-        version: '16',
+        version: '16.9',
         primaryInstance: {
           instanceSize: 'db.t3.micro'
         }
@@ -31,6 +36,13 @@ export default defineConfig(() => {
     defaultUserPassword: 'redisTestPassword1234'
   });
 
+  const dynamoDb = new DynamoDbTable({
+    primaryKey: {
+      partitionKey: { name: 'pk', type: 'string' },
+      sortKey: { name: 'sk', type: 'string' }
+    }
+  });
+
   const privateService = new PrivateService({
     packaging: new StacktapeImageBuildpackPackaging({
       entryfilePath: './packages/private-service/src/index.ts'
@@ -40,7 +52,7 @@ export default defineConfig(() => {
       memory: 512
     },
     port: 8080,
-    connectTo: [postgresDb, redis]
+    connectTo: [postgresDb, redis, dynamoDb]
   });
 
   const webService = new WebService({
@@ -57,6 +69,24 @@ export default defineConfig(() => {
     }
   });
 
+  const apiGateway = new HttpApiGateway({
+    cors: { enabled: true }
+  });
+
+  const apiLambda = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({
+      entryfilePath: './packages/api-lambda/api-lambda.ts'
+    }),
+    connectTo: [postgresDb, dynamoDb],
+    events: [
+      new HttpApiIntegration({
+        httpApiGatewayName: 'apiGateway',
+        method: '*',
+        path: '/{proxy+}'
+      })
+    ]
+  });
+
   const spaFrontend = new HostingBucket({
     uploadDirectoryPath: './packages/spa-frontend/dist',
     hostingContentType: 'single-page-app',
@@ -69,7 +99,8 @@ export default defineConfig(() => {
       workingDirectory: './packages/spa-frontend'
     },
     injectEnvironment: {
-      API_URL: webService.url
+      API_URL: webService.url,
+      LAMBDA_API_URL: apiGateway.url
     }
   });
 
@@ -80,8 +111,8 @@ export default defineConfig(() => {
       command: 'bun run dev'
     },
     environment: {
-      API_URL: webService.url,
-      NEXT_PUBLIC_API_URL: webService.url
+      NEXT_PUBLIC_API_URL: webService.url,
+      NEXT_PUBLIC_LAMBDA_API_URL: apiGateway.url
     }
   });
 
@@ -96,7 +127,6 @@ export default defineConfig(() => {
   });
 
   return {
-    serviceName: 'local-dev-mode-test',
     scripts: {
       migrate: scriptMigrate,
       seed: scriptSeed
@@ -107,10 +137,13 @@ export default defineConfig(() => {
     resources: {
       postgresDb,
       redis,
+      dynamoDb,
       privateService,
       webService,
       spaFrontend,
-      nextjsFrontend
+      nextjsFrontend,
+      apiGateway,
+      apiLambda
     }
   };
 });

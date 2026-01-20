@@ -5,11 +5,13 @@ import {
   buildLocalResourceInstance,
   DEFAULT_LOCAL_HOST,
   DEFAULT_PORTS,
+  doesContainerExist,
   findAvailablePort,
   getContainerPort,
   getDbCredentials,
   getImageTag,
   isContainerRunning,
+  removeContainerIfExists,
   waitForReady
 } from './container-helpers';
 import { getLocalDbParameters, postgresParamsToDockerArgs } from './db-parameters';
@@ -53,11 +55,21 @@ export const startLocalPostgres = async (
     });
   }
 
+  // Remove stopped container with same name if it exists
+  if (await doesContainerExist(containerName)) {
+    await removeContainerIfExists(containerName);
+  }
+
   const actualPort = await findAvailablePort(port);
   const imageTag = getImageTag(version, 'postgres');
 
-  // Fetch and merge database parameters (AWS defaults + Stacktape config + user overrides)
-  const dbParams = await getLocalDbParameters({ resourceName: name, engine: 'postgres', version });
+  // Fetch and merge database parameters (skip AWS defaults for faster dev startup)
+  const dbParams = await getLocalDbParameters({
+    resourceName: name,
+    engine: 'postgres',
+    version,
+    skipAwsDefaults: true
+  });
   const postgresConfigArgs = postgresParamsToDockerArgs(dbParams);
 
   const dockerArgs = buildDockerRunArgs({

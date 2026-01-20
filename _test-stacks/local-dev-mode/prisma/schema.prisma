@@ -1,11 +1,15 @@
 generator client {
-  provider = "prisma-client"
-  output   = "./generated/prisma"
+  provider     = "prisma-client" // or `prisma-client-js`
+  output       = "./generated/prisma"
+  engineType   = "client" // enable Prisma ORM without Rust
+  runtime      = "nodejs"
+  moduleFormat = "esm"
 }
 
 datasource db {
   provider = "postgresql"
 }
+
 
 model User {
   id        String   @id @default(uuid())

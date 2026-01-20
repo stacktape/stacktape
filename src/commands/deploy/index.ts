@@ -12,6 +12,8 @@ import { cloudfrontManager } from '@domain-services/cloudfront-manager';
 import { configManager } from '@domain-services/config-manager';
 import { validateGuardrails } from '@domain-services/config-manager/utils/validation';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
+import { stpErrors } from '@errors';
+import { stackMetadataNames } from '@shared/naming/metadata-names';
 import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
 import { notificationManager } from '@domain-services/notification-manager';
 import { packagingManager } from '@domain-services/packaging-manager';
@@ -36,6 +38,14 @@ export const commandDeploy = async (): Promise<DeployReturnValue> => {
     loadGlobalConfig: true,
     requiresSubscription: true
   });
+
+  // Check if trying to deploy to an existing dev stack
+  if (deployedStackOverviewManager.getStackMetadata(stackMetadataNames.isDevStack())) {
+    throw stpErrors.e141({
+      stackName: globalStateManager.targetStack.stackName,
+      stage: globalStateManager.targetStack.stage
+    });
+  }
 
   validateGuardrails(configManager.guardrails);
 

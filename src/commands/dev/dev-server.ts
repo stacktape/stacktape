@@ -1,12 +1,28 @@
-import { spawn, type ChildProcess } from 'node:child_process';
-import { join, isAbsolute } from 'node:path';
+import type { ChildProcess } from 'node:child_process';
+import { spawn } from 'node:child_process';
+import { isAbsolute, join } from 'node:path';
 import { applicationManager } from '@application-services/application-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { serialize } from '@shared/utils/misc';
+import { createFrameworkParser, detectFramework, type FrameworkType, stripAnsi } from './framework-parsers';
+import {
+  ensurePortAvailable,
+  extractPortFromCommand,
+  getDefaultPort,
+  killProcessOnPort,
+  parsePortFromError
+} from './port-utils';
+
+// Re-export for convenience
+export { detectFramework, type FrameworkType };
 
 type DevServerConfig = {
   command: string;
   workingDirectory?: string;
+  /** Override auto-detected framework for parsing output */
+  framework?: FrameworkType;
+  /** Port to use (will be passed via PORT env var) */
+  port?: number;
 };
 
 export type DevServerState = {
@@ -22,77 +38,7 @@ type DevServerCallbacks = {
 };
 
 const runningDevServers: Map<string, ChildProcess> = new Map();
-
-/**
- * Strips ANSI escape codes from a string.
- */
-const stripAnsi = (str: string): string => {
-  // eslint-disable-next-line no-control-regex
-  return str.replace(/\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g, '');
-};
-
-/**
- * Parses dev server output to extract state information.
- * Supports Vite, Next.js, Webpack, and other common dev servers.
- */
-const parseDevServerOutput = (line: string, currentState: DevServerState): DevServerState => {
-  const cleanLine = stripAnsi(line).toLowerCase();
-
-  // Ready/started patterns
-  if (
-    cleanLine.includes('ready in') ||
-    cleanLine.includes('compiled successfully') ||
-    cleanLine.includes('compiled client and server') ||
-    cleanLine.includes('server started') ||
-    cleanLine.includes('listening on') ||
-    cleanLine.includes('local:') ||
-    cleanLine.includes('started server on')
-  ) {
-    const state: DevServerState = { ...currentState, status: 'ready' };
-
-    // Extract compile time
-    const timeMatch =
-      line.match(/ready in\s*([\d.]+)\s*(ms|s)/i) ||
-      line.match(/compiled.*in\s*([\d.]+)\s*(ms|s)/i) ||
-      line.match(/in\s*([\d.]+)\s*(ms|s)/i);
-    if (timeMatch) {
-      const time = parseFloat(timeMatch[1]);
-      const unit = timeMatch[2].toLowerCase();
-      state.lastCompileTime = unit === 's' ? `${time}s` : `${time}ms`;
-    }
-
-    // Extract URL
-    const urlMatch =
-      line.match(/https?:\/\/[^\s]+/i) || line.match(/localhost:\d+/i) || line.match(/127\.0\.0\.1:\d+/i);
-    if (urlMatch) {
-      let url = urlMatch[0];
-      if (!url.startsWith('http')) {
-        url = `http://${url}`;
-      }
-      state.url = url;
-    }
-
-    return state;
-  }
-
-  // Compiling patterns
-  if (
-    cleanLine.includes('compiling') ||
-    cleanLine.includes('building') ||
-    cleanLine.includes('bundling') ||
-    cleanLine.includes('rebuilding') ||
-    cleanLine.includes('hmr update')
-  ) {
-    return { ...currentState, status: 'compiling' };
-  }
-
-  // Error patterns
-  if (cleanLine.includes('error') || cleanLine.includes('failed to compile') || cleanLine.includes('build failed')) {
-    return { ...currentState, status: 'error', error: stripAnsi(line) };
-  }
-
-  return currentState;
-};
+const runningDevServerFrameworks: Map<string, FrameworkType> = new Map();
 
 /**
  * Formats the dev server state into a status message for display.
@@ -120,11 +66,67 @@ export const formatDevServerStatus = (state: DevServerState): string => {
   }
 };
 
-export const stopDevServer = (name: string): void => {
+/**
+ * Stop a dev server by name.
+ * Kills the process and its children, with fallback to force kill.
+ */
+export const stopDevServer = async (name: string): Promise<void> => {
   const proc = runningDevServers.get(name);
   if (proc && !proc.killed) {
+    const pid = proc.pid;
+
+    // Try graceful shutdown first
     proc.kill('SIGTERM');
+
+    // Wait a bit for graceful shutdown
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    // If still running, force kill the process tree
+    if (pid && !proc.killed) {
+      try {
+        if (process.platform === 'win32') {
+          // Windows: kill process tree
+          const { execSync } = await import('node:child_process');
+          execSync(`taskkill /PID ${pid} /T /F`, { stdio: 'ignore' });
+        } else {
+          // Unix: kill process group
+          process.kill(-pid, 'SIGKILL');
+        }
+      } catch {
+        // Process might already be dead
+      }
+    }
+
     runningDevServers.delete(name);
+    runningDevServerFrameworks.delete(name);
+  }
+};
+
+/**
+ * Synchronous version for cleanup hooks where async isn't ideal.
+ */
+export const stopDevServerSync = (name: string): void => {
+  const proc = runningDevServers.get(name);
+  if (proc && !proc.killed) {
+    const pid = proc.pid;
+    proc.kill('SIGTERM');
+
+    // Force kill if needed
+    if (pid) {
+      try {
+        if (process.platform === 'win32') {
+          const { execSync } = require('node:child_process');
+          execSync(`taskkill /PID ${pid} /T /F`, { stdio: 'ignore' });
+        } else {
+          process.kill(-pid, 'SIGKILL');
+        }
+      } catch {
+        // Process might already be dead
+      }
+    }
+
+    runningDevServers.delete(name);
+    runningDevServerFrameworks.delete(name);
   }
 };
 
@@ -140,7 +142,7 @@ export const startDevServer = async ({
   callbacks?: DevServerCallbacks;
 }): Promise<DevServerState> => {
   // Stop existing if running
-  stopDevServer(name);
+  await stopDevServer(name);
 
   const workingDir = config.workingDirectory
     ? isAbsolute(config.workingDirectory)
@@ -152,84 +154,186 @@ export const startDevServer = async ({
         : join(globalStateManager.workingDir, defaultWorkingDirectory)
       : globalStateManager.workingDir;
 
+  // Detect framework for parsing output
+  const framework = config.framework || detectFramework(workingDir);
+  runningDevServerFrameworks.set(name, framework);
+
+  // Create stateful parser for this framework
+  const parseOutput = createFrameworkParser(framework);
+
   // Parse command
   const commandParts = config.command.match(/(?:[^\s"]+|"[^"]*")+/g) || [config.command];
   const [command, ...args] = commandParts.map((part) => part.replace(/^"|"$/g, ''));
 
+  // Determine port - from config, command, or framework default
+  const commandPort = extractPortFromCommand(config.command);
+  const targetPort = config.port || commandPort || getDefaultPort(framework);
+
+  // Build environment with PORT for frameworks that support it
+  const env: Record<string, string> = {
+    ...serialize(process.env),
+    FORCE_COLOR: '1'
+  };
+
+  // Set PORT env var (most frameworks respect this)
+  // Only set if not already specified in command to avoid conflicts
+  if (!commandPort) {
+    env.PORT = String(targetPort);
+  }
+
   let currentState: DevServerState = { status: 'starting' };
   callbacks?.onStateChange?.(currentState);
 
-  return new Promise((resolve) => {
-    const proc = spawn(command, args, {
-      cwd: workingDir,
-      env: { ...serialize(process.env), FORCE_COLOR: '1' },
-      stdio: ['ignore', 'pipe', 'pipe'],
-      shell: true
-    });
+  // Track if we've already retried after port conflict
+  let portConflictRetried = false;
+  // Buffer to collect error output for EADDRINUSE detection
+  let errorBuffer = '';
 
-    runningDevServers.set(name, proc);
+  const spawnDevServer = (): Promise<DevServerState> => {
+    return new Promise((resolve) => {
+      const proc = spawn(command, args, {
+        cwd: workingDir,
+        env,
+        stdio: ['ignore', 'pipe', 'pipe'],
+        shell: true
+      });
 
-    let resolved = false;
-    const resolveOnce = (state: DevServerState) => {
-      if (!resolved) {
-        resolved = true;
-        resolve(state);
-      }
-    };
+      runningDevServers.set(name, proc);
 
-    const processLine = (line: string) => {
-      callbacks?.onOutput?.(line);
-
-      const newState = parseDevServerOutput(line, currentState);
-      if (newState.status !== currentState.status || newState.url !== currentState.url) {
-        currentState = newState;
-        callbacks?.onStateChange?.(currentState);
-
-        // Resolve when ready
-        if (currentState.status === 'ready') {
-          resolveOnce(currentState);
+      let resolved = false;
+      const resolveOnce = (state: DevServerState) => {
+        if (!resolved) {
+          resolved = true;
+          resolve(state);
         }
-      }
-    };
+      };
 
-    proc.stdout?.on('data', (data) => {
-      const lines = data.toString().split('\n').filter(Boolean);
-      lines.forEach(processLine);
-    });
+      let readyTimeout: ReturnType<typeof setTimeout> | null = null;
 
-    proc.stderr?.on('data', (data) => {
-      const lines = data.toString().split('\n').filter(Boolean);
-      lines.forEach(processLine);
-    });
+      const processLine = (line: string) => {
+        callbacks?.onOutput?.(line);
 
-    proc.on('error', (err) => {
-      currentState = { status: 'error', error: err.message };
-      callbacks?.onStateChange?.(currentState);
-      runningDevServers.delete(name);
-      resolveOnce(currentState);
-    });
+        // Collect error output for EADDRINUSE detection
+        errorBuffer += line + '\n';
 
-    proc.on('exit', (code) => {
-      if (code !== 0 && code !== null && currentState.status !== 'ready') {
-        currentState = { status: 'error', error: `Process exited with code ${code}` };
+        // Use framework-aware parser
+        const parsed = parseOutput(line);
+
+        // Build new state from parsed output
+        const newState = { ...currentState };
+        if (parsed.status) {
+          newState.status = parsed.status;
+        }
+        if (parsed.url) {
+          newState.url = parsed.url;
+        }
+        if (parsed.compileTime) {
+          newState.lastCompileTime = parsed.compileTime;
+        }
+        if (parsed.error) {
+          newState.error = parsed.error;
+        }
+
+        const stateChanged =
+          newState.status !== currentState.status ||
+          newState.url !== currentState.url ||
+          newState.lastCompileTime !== currentState.lastCompileTime;
+
+        if (stateChanged) {
+          currentState = newState;
+          callbacks?.onStateChange?.(currentState);
+
+          // When ready, start a timer to allow additional info (URL, compile time) to arrive
+          if (currentState.status === 'ready' && !readyTimeout) {
+            readyTimeout = setTimeout(() => {
+              resolveOnce(currentState);
+            }, 300); // Delay to capture URL and compile time from subsequent output
+          }
+
+          // If we have ready + URL + compile time, resolve immediately
+          if (currentState.status === 'ready' && currentState.url && currentState.lastCompileTime) {
+            if (readyTimeout) {
+              clearTimeout(readyTimeout);
+              readyTimeout = null;
+            }
+            resolveOnce(currentState);
+          }
+        }
+      };
+
+      proc.stdout?.on('data', (data) => {
+        const lines = data.toString().split('\n').filter(Boolean);
+        lines.forEach(processLine);
+      });
+
+      proc.stderr?.on('data', (data) => {
+        const lines = data.toString().split('\n').filter(Boolean);
+        lines.forEach(processLine);
+      });
+
+      proc.on('error', (err) => {
+        currentState = { status: 'error', error: err.message };
         callbacks?.onStateChange?.(currentState);
-      }
-      runningDevServers.delete(name);
-      resolveOnce(currentState);
-    });
+        runningDevServers.delete(name);
+        runningDevServerFrameworks.delete(name);
+        resolveOnce(currentState);
+      });
 
-    // Resolve after timeout if no ready signal detected (server might be silent)
-    setTimeout(() => {
-      if (!resolved) {
-        // If we got a URL but no ready signal, consider it ready
-        if (currentState.url) {
-          currentState = { ...currentState, status: 'ready' };
+      proc.on('exit', (code) => {
+        if (code !== 0 && code !== null && currentState.status !== 'ready') {
+          currentState = { status: 'error', error: `Process exited with code ${code}` };
           callbacks?.onStateChange?.(currentState);
         }
+        runningDevServers.delete(name);
+        runningDevServerFrameworks.delete(name);
         resolveOnce(currentState);
+      });
+
+      // Resolve after timeout if no ready signal detected (server might be silent)
+      setTimeout(() => {
+        if (!resolved) {
+          // If we got a URL but no ready signal, consider it ready
+          if (currentState.url) {
+            currentState = { ...currentState, status: 'ready' };
+            callbacks?.onStateChange?.(currentState);
+          }
+          resolveOnce(currentState);
+        }
+      }, 10000);
+    });
+  };
+
+  // First attempt
+  let result = await spawnDevServer();
+
+  // Check for EADDRINUSE error and retry after killing the port holder
+  if (result.status === 'error' && !portConflictRetried) {
+    const conflictPort = parsePortFromError(errorBuffer);
+    if (conflictPort) {
+      portConflictRetried = true;
+
+      // Try to kill the process using the port
+      const killed = await killProcessOnPort(conflictPort);
+      if (killed) {
+        // Wait for port to be released
+        await new Promise((r) => setTimeout(r, 500));
+
+        // Reset state and retry
+        currentState = { status: 'starting' };
+        callbacks?.onStateChange?.(currentState);
+        errorBuffer = '';
+
+        result = await spawnDevServer();
       }
-    }, 10000);
-  });
+    }
+  }
+
+  return result;
+};
+
+/** Get the detected framework for a running dev server */
+export const getDevServerFramework = (name: string): FrameworkType | undefined => {
+  return runningDevServerFrameworks.get(name);
 };
 
 export const isDevServerRunning = (name: string): boolean => {
@@ -237,9 +341,19 @@ export const isDevServerRunning = (name: string): boolean => {
   return proc !== undefined && !proc.killed;
 };
 
-// Cleanup on exit
-applicationManager.registerCleanUpHook(async () => {
-  for (const [name] of runningDevServers) {
-    stopDevServer(name);
-  }
-});
+// Track if cleanup hook has been registered
+let devServerCleanupHookRegistered = false;
+
+/**
+ * Register cleanup hook for dev servers.
+ * Must be called explicitly when dev command starts.
+ */
+export const registerDevServerCleanupHook = () => {
+  if (devServerCleanupHookRegistered) return;
+  devServerCleanupHookRegistered = true;
+  applicationManager.registerCleanUpHook(async () => {
+    for (const [name] of runningDevServers) {
+      stopDevServerSync(name);
+    }
+  });
+};

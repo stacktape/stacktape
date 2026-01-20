@@ -205,6 +205,15 @@ interface RedisClusterProps {
    * @default 6.2
    */
   engineVersion?: '7.1' | '7.0' | '6.2' | '6.0';
+  /**
+   * #### Dev Mode Configuration
+   *
+   * ---
+   *
+   * Configures how this Redis cluster behaves during `stacktape dev` mode.
+   * By default, Redis runs locally using Docker. Set `dev.remote: true` to connect to the deployed AWS Redis cluster instead.
+   */
+  dev?: DevModeConfig;
 }
 
 interface RedisLogging extends LogForwardingBase {

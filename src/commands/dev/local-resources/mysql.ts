@@ -4,11 +4,13 @@ import {
   buildLocalResourceInstance,
   DEFAULT_LOCAL_HOST,
   DEFAULT_PORTS,
+  doesContainerExist,
   findAvailablePort,
   getContainerPort,
   getDbCredentials,
   getImageTag,
   isContainerRunning,
+  removeContainerIfExists,
   waitForReady
 } from './container-helpers';
 import { getLocalDbParameters, mysqlParamsToDockerArgs } from './db-parameters';
@@ -54,12 +56,17 @@ export const startLocalMysql = async (
     });
   }
 
+  // Remove stopped container with same name if it exists
+  if (await doesContainerExist(containerName)) {
+    await removeContainerIfExists(containerName);
+  }
+
   const actualPort = await findAvailablePort(port);
   const imageTag = getImageTag(version, isMaria ? 'mariadb' : 'mysql');
 
-  // Fetch and merge database parameters (AWS defaults + Stacktape config + user overrides)
+  // Fetch and merge database parameters (skip AWS defaults for faster dev startup)
   const engine = isMaria ? 'mariadb' : 'mysql';
-  const dbParams = await getLocalDbParameters({ resourceName: name, engine, version });
+  const dbParams = await getLocalDbParameters({ resourceName: name, engine, version, skipAwsDefaults: true });
   const mysqlConfigArgs = mysqlParamsToDockerArgs(dbParams);
 
   const envVars: Record<string, string> = {

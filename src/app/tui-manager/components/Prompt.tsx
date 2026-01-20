@@ -1,7 +1,15 @@
-import type { TuiPrompt, TuiPromptConfirm, TuiPromptSelect, TuiPromptText, TuiSelectOption } from '../types';
+import type {
+  TuiPrompt,
+  TuiPromptConfirm,
+  TuiPromptMultiSelect,
+  TuiPromptSelect,
+  TuiPromptText,
+  TuiSelectOption
+} from '../types';
 import { ConfirmInput } from '@inkjs/ui';
 import { Box, Text } from 'ink';
 import React, { useMemo } from 'react';
+import { MultiSelectInput } from './MultiSelectInput';
 import { SelectInput } from './SelectInput';
 import { TextInputCustom } from './TextInputCustom';
 
@@ -50,6 +58,37 @@ const SelectPrompt: React.FC<{ prompt: TuiPromptSelect }> = ({ prompt }) => {
   );
 };
 
+const MultiSelectPrompt: React.FC<{ prompt: TuiPromptMultiSelect }> = ({ prompt }) => {
+  const { uniqueOptions, valueMap } = useMemo(() => ensureUniqueOptions(prompt.options), [prompt.options]);
+
+  // Map default values to unique values
+  const uniqueDefaultValues = useMemo(() => {
+    if (!prompt.defaultValues) return undefined;
+    return prompt.defaultValues
+      .map((v) => {
+        for (const [uniqueVal, origVal] of valueMap.entries()) {
+          if (origVal === v) return uniqueVal;
+        }
+        return v;
+      })
+      .filter(Boolean);
+  }, [prompt.defaultValues, valueMap]);
+
+  const handleChange = (uniqueValues: string[]) => {
+    const originalValues = uniqueValues.map((v) => valueMap.get(v) || v);
+    prompt.resolve(originalValues);
+  };
+
+  return (
+    <Box flexDirection="column" marginY={1}>
+      <Text bold>{prompt.message}</Text>
+      <Box marginTop={1}>
+        <MultiSelectInput options={uniqueOptions} onChange={handleChange} defaultValues={uniqueDefaultValues} />
+      </Box>
+    </Box>
+  );
+};
+
 const ConfirmPrompt: React.FC<{ prompt: TuiPromptConfirm }> = ({ prompt }) => {
   return (
     <Box>
@@ -87,6 +126,8 @@ export const Prompt: React.FC<PromptProps> = ({ prompt }) => {
   switch (prompt.type) {
     case 'select':
       return <SelectPrompt prompt={prompt} />;
+    case 'multiSelect':
+      return <MultiSelectPrompt prompt={prompt} />;
     case 'confirm':
       return <ConfirmPrompt prompt={prompt} />;
     case 'text':

@@ -1,3 +1,8 @@
+import type { LocalResourceInstance } from '../local-resources';
+import type { TunnelInfo } from '../tunnel-manager';
+import { applicationManager } from '@application-services/application-manager';
+import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import {
   GetFunctionConfigurationCommand,
   LambdaClient,
@@ -5,13 +10,9 @@ import {
   ResourceNotFoundException,
   UpdateFunctionConfigurationCommand
 } from '@aws-sdk/client-lambda';
-import { applicationManager } from '@application-services/application-manager';
-import { globalStateManager } from '@application-services/global-state-manager';
-import { tuiManager } from '@application-services/tui-manager';
 import { configManager } from '@domain-services/config-manager';
+import { injectedParameterEnvVarName } from '@shared/naming/utils';
 import { DEV_CONFIG } from '../dev-config';
-import type { LocalResourceInstance } from '../local-resources';
-import type { TunnelInfo } from '../tunnel-manager';
 
 type LambdaEnvBackup = {
   functionName: string;
@@ -83,6 +84,7 @@ const getLambdaReferencedResources = (lambdaConfig: {
     const envString = JSON.stringify(lambdaConfig.environment);
     const resourceParamRegex = /\$ResourceParam\s*\(\s*['"]([^'"]+)['"]/g;
     let match;
+    // eslint-disable-next-line no-cond-assign
     while ((match = resourceParamRegex.exec(envString)) !== null) {
       referenced.add(match[1]);
     }
@@ -322,6 +324,25 @@ export const updateLambdaEnvVarsWithTunnels = async ({
         if (localResource.type === 'dynamodb') {
           newEnvVars['AWS_ENDPOINT_URL_DYNAMODB'] = `http://${tunnel.publicHost}:${tunnel.publicPort}`;
           hasChanges = true;
+        }
+
+        // Inject all referencable params from the local resource
+        // This ensures env vars like STP_DYNAMO_DB_NAME are set even if they don't exist yet
+        for (const [paramName, paramValue] of Object.entries(localResource.referencableParams)) {
+          const envVarName = injectedParameterEnvVarName(resourceName, paramName);
+          // Only set if not already set, or if it contains localhost references that need updating
+          if (!currentEnvVars[envVarName]) {
+            newEnvVars[envVarName] = paramValue;
+            hasChanges = true;
+          } else if (
+            currentEnvVars[envVarName].includes('localhost') ||
+            currentEnvVars[envVarName].includes('127.0.0.1') ||
+            currentEnvVars[envVarName].includes('host.docker.internal')
+          ) {
+            // Update localhost references with tunnel URL
+            newEnvVars[envVarName] = buildTunnelConnectionString(currentEnvVars[envVarName], tunnel);
+            hasChanges = true;
+          }
         }
 
         // Explicitly update standard Stacktape env vars if they exist

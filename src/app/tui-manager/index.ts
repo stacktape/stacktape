@@ -8,6 +8,7 @@ import type {
   TuiLink,
   TuiMessageType,
   TuiPromptConfirm,
+  TuiPromptMultiSelect,
   TuiPromptSelect,
   TuiPromptText,
   TuiSelectOption
@@ -234,11 +235,25 @@ class TuiManager {
 
   private log(type: TuiMessageType, message: string) {
     if (this._isPaused || !this.isTTY || !this._isEnabled) {
-      this.printToConsole(type, message);
+      // Skip console output if DevTui is running (it has its own rendering)
+      if (!this._devTuiActive) {
+        this.printToConsole(type, message);
+      }
       logCollectorStream.write(message);
       return;
     }
     tuiState.addMessage(type, type, message);
+  }
+
+  // Track if DevTui is active to suppress console output
+  private _devTuiActive = false;
+
+  setDevTuiActive(active: boolean) {
+    this._devTuiActive = active;
+  }
+
+  get devTuiActive(): boolean {
+    return this._devTuiActive;
   }
 
   private printToConsole(type: TuiMessageType, message: string) {
@@ -390,6 +405,45 @@ class TuiManager {
 
     const selectedOption = config.options.find((o) => o.value === result);
     this.info(`${config.message} ${this.colorize('cyan', selectedOption?.label || result)}`);
+
+    return result;
+  }
+
+  async promptMultiSelect(config: {
+    message: string;
+    options: TuiSelectOption[];
+    defaultValues?: string[];
+  }): Promise<string[]> {
+    if (!this.isTTY || this.logFormat !== 'fancy' || !this._isEnabled) {
+      if (config.defaultValues !== undefined) {
+        const selectedLabels = config.defaultValues
+          .map((v) => config.options.find((o) => o.value === v)?.label || v)
+          .join(', ');
+        this.info(`${config.message} ${this.colorize('cyan', selectedLabels)} (default)`);
+        return config.defaultValues;
+      }
+      throw new Error(
+        `Interactive prompt "${config.message}" is not supported in non-interactive mode. Please provide the value via command-line arguments.`
+      );
+    }
+
+    const result = await new Promise<string[]>((resolve) => {
+      const resolveAndClear = (values: string[]) => {
+        tuiState.clearActivePrompt();
+        setTimeout(() => resolve(values), 0);
+      };
+      const prompt: TuiPromptMultiSelect = {
+        type: 'multiSelect',
+        message: config.message,
+        options: config.options,
+        defaultValues: config.defaultValues,
+        resolve: resolveAndClear
+      };
+      tuiState.setActivePrompt(prompt);
+    });
+
+    const selectedLabels = result.map((v) => config.options.find((o) => o.value === v)?.label || v).join(', ');
+    this.info(`${config.message} ${this.colorize('cyan', selectedLabels || '(none)')}`);
 
     return result;
   }

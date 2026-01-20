@@ -13,6 +13,27 @@ export const isContainerRunning = async (containerName: string): Promise<boolean
   return info?.State?.Running === true;
 };
 
+/** Check if a container exists (running or stopped) */
+export const doesContainerExist = async (containerName: string): Promise<boolean> => {
+  const info = await inspectDockerContainer(containerName);
+  // inspectDockerContainer returns {} when container doesn't exist, so check for Id
+  return Boolean(info?.Id);
+};
+
+/** Remove container if it exists (running or stopped) */
+export const removeContainerIfExists = async (containerName: string): Promise<void> => {
+  const info = await inspectDockerContainer(containerName);
+  // inspectDockerContainer returns {} when container doesn't exist, so check for Id
+  if (info?.Id) {
+    const { stopDockerContainer, execDocker } = await import('@shared/utils/docker');
+    if (info.State?.Running) {
+      await stopDockerContainer(containerName, 5);
+    }
+    // Remove the container
+    await execDocker(['rm', containerName], { skipHandleError: true });
+  }
+};
+
 export const getContainerPort = async (
   containerName: string,
   internalPort: number,
@@ -20,7 +41,7 @@ export const getContainerPort = async (
 ): Promise<number> => {
   const info = await inspectDockerContainer(containerName);
   const portBindings = info?.NetworkSettings?.Ports?.[`${internalPort}/tcp`] || [];
-  return portBindings[0]?.HostPort ? parseInt(portBindings[0].HostPort, 10) : fallbackPort;
+  return portBindings[0]?.HostPort ? Number.parseInt(portBindings[0].HostPort, 10) : fallbackPort;
 };
 
 export const findAvailablePort = async (preferredPort: number): Promise<number> => {

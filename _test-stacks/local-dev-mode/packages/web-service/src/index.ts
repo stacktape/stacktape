@@ -109,6 +109,56 @@ fastify.get('/redis/cache', async () => {
   return response.json();
 });
 
+// ============ PROXY TO PRIVATE SERVICE - DYNAMODB ENDPOINTS ============
+
+// List all items
+fastify.get('/dynamo/items', async () => {
+  const addr = getPrivateServiceAddr();
+  const response = await fetch(`http://${addr}/dynamo/items`);
+  return response.json();
+});
+
+// Get single item
+fastify.get('/dynamo/items/:pk/:sk', async (request) => {
+  const { pk, sk } = request.params as { pk: string; sk: string };
+  const addr = getPrivateServiceAddr();
+  const response = await fetch(`http://${addr}/dynamo/items/${pk}/${sk}`);
+  return response.json();
+});
+
+// Create item
+fastify.post('/dynamo/items', async (request) => {
+  const addr = getPrivateServiceAddr();
+  const response = await fetch(`http://${addr}/dynamo/items`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request.body)
+  });
+  return response.json();
+});
+
+// Update item
+fastify.put('/dynamo/items/:pk/:sk', async (request) => {
+  const { pk, sk } = request.params as { pk: string; sk: string };
+  const addr = getPrivateServiceAddr();
+  const response = await fetch(`http://${addr}/dynamo/items/${pk}/${sk}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request.body)
+  });
+  return response.json();
+});
+
+// Delete item
+fastify.delete('/dynamo/items/:pk/:sk', async (request) => {
+  const { pk, sk } = request.params as { pk: string; sk: string };
+  const addr = getPrivateServiceAddr();
+  const response = await fetch(`http://${addr}/dynamo/items/${pk}/${sk}`, {
+    method: 'DELETE'
+  });
+  return response.json();
+});
+
 const start = async () => {
   try {
     const port = Number.parseInt(process.env.PORT || '3000', 10);

@@ -14,6 +14,7 @@ import { configManager } from '@domain-services/config-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
 import { ec2Manager } from '@domain-services/ec2-manager';
+import { isDevCommand } from '../../commands/dev/dev-resource-filter';
 import { fsPaths } from '@shared/naming/fs-paths';
 import { buildLayerS3Key, getJobName } from '@shared/naming/utils';
 import { DEPENDENCIES_WITH_BINARIES } from '@shared/packaging/bundlers/es/config';
@@ -810,20 +811,50 @@ export class PackagingManager {
       return !['js', 'ts', 'jsx', 'mjs', 'tsx'].includes(ext);
     });
 
-    // Hosting bucket builds
-    const hostingBucketBuildJobs = configManager.hostingBuckets
-      .filter(({ build }) => build)
-      .map(({ name, build }) => {
-        return () =>
-          buildHostingBucket({
-            name,
-            build: build!,
-            progressLogger: eventManager.createChildLogger({
-              instanceId: name,
-              parentEventType: 'PACKAGE_ARTIFACTS'
-            })
+    // In dev mode, skip container and hosting bucket builds (they run locally)
+    const skipContainersAndHosting = isDevCommand();
+
+    // Hosting bucket builds (skip in dev mode)
+    const hostingBucketBuildJobs = skipContainersAndHosting
+      ? []
+      : configManager.hostingBuckets
+          .filter(({ build }) => build)
+          .map(({ name, build }) => {
+            return () =>
+              buildHostingBucket({
+                name,
+                build: build!,
+                progressLogger: eventManager.createChildLogger({
+                  instanceId: name,
+                  parentEventType: 'PACKAGE_ARTIFACTS'
+                })
+              });
           });
-      });
+
+    // Container packaging jobs (skip in dev mode)
+    const containerPackagingJobs = skipContainersAndHosting
+      ? []
+      : configManager.allContainersRequiringPackaging.map(({ jobName, packaging, workloadName, resources }) => {
+          return () =>
+            this.packageWorkload({
+              commandCanUseCache,
+              jobName,
+              packaging,
+              workloadName,
+              dockerBuildOutputArchitecture: this.getTargetCpuArchitectureForContainer(resources)
+            });
+        });
+
+    // NextJS packaging jobs (skip in dev mode)
+    const nextjsPackagingJobs = skipContainersAndHosting
+      ? []
+      : configManager.nextjsWebs.map((resource) => {
+          return () =>
+            this.packageNextjsWeb({
+              nextjsWebResource: resource,
+              commandCanUseCache
+            });
+        });
 
     // Prepare other packaging jobs (containers, non-Node lambdas, nextjs)
     const otherPackagingJobs = [
@@ -838,23 +869,8 @@ export class PackagingManager {
             dockerBuildOutputArchitecture: architecture === 'arm64' ? 'linux/arm64' : 'linux/amd64'
           });
       }),
-      ...configManager.allContainersRequiringPackaging.map(({ jobName, packaging, workloadName, resources }) => {
-        return () =>
-          this.packageWorkload({
-            commandCanUseCache,
-            jobName,
-            packaging,
-            workloadName,
-            dockerBuildOutputArchitecture: this.getTargetCpuArchitectureForContainer(resources)
-          });
-      }),
-      ...configManager.nextjsWebs.map((resource) => {
-        return () =>
-          this.packageNextjsWeb({
-            nextjsWebResource: resource,
-            commandCanUseCache
-          });
-      }),
+      ...containerPackagingJobs,
+      ...nextjsPackagingJobs,
       ...hostingBucketBuildJobs
     ];
 

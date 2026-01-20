@@ -90,6 +90,14 @@ export type TuiPromptSelect = {
   resolve: (value: string) => void;
 };
 
+export type TuiPromptMultiSelect = {
+  type: 'multiSelect';
+  message: string;
+  options: TuiSelectOption[];
+  defaultValues?: string[];
+  resolve: (values: string[]) => void;
+};
+
 export type TuiPromptConfirm = {
   type: 'confirm';
   message: string;
@@ -108,7 +116,7 @@ export type TuiPromptText = {
   resolve: (value: string) => void;
 };
 
-export type TuiPrompt = TuiPromptSelect | TuiPromptConfirm | TuiPromptText;
+export type TuiPrompt = TuiPromptSelect | TuiPromptMultiSelect | TuiPromptConfirm | TuiPromptText;
 
 export type TuiCancelDeployment = {
   /** Message to display in the banner */

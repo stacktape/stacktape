@@ -64,6 +64,29 @@ type StpResourceType = StpResource['type'];
 
 type Tracing = 'Active' | 'PassThrough';
 
+/**
+ * #### Dev Mode Configuration
+ *
+ * ---
+ *
+ * Configures how this resource behaves during `stacktape dev` mode.
+ */
+interface DevModeConfig {
+  /**
+   * #### Use Remote Resource
+   *
+   * ---
+   *
+   * If `true`, connects to the deployed AWS resource instead of running a local emulation during dev mode.
+   *
+   * By default, databases (RDS, Aurora), Redis clusters, and DynamoDB tables run locally during dev mode.
+   * Set this to `true` to use the deployed AWS resource instead.
+   *
+   * @default false
+   */
+  remote?: boolean;
+}
+
 type EcsServiceScheduledMaintenanceRuleInput = {
   ecsServiceArn: string | IntrinsicFunction;
   asgName: string | IntrinsicFunction;

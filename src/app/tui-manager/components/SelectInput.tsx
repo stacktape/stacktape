@@ -20,11 +20,11 @@ type OptionItemProps = {
 const OptionItem = memo<OptionItemProps>(({ option, isSelected }) => (
   <Box flexDirection="column">
     <Box>
-      <Text color={isSelected ? 'cyan' : undefined}>{isSelected ? '> ' : '  '}</Text>
+      <Text color={isSelected ? 'cyan' : undefined}>{isSelected ? '› ' : '  '}</Text>
       <Text color={isSelected ? 'cyan' : undefined} bold={isSelected}>
         {option.label}
       </Text>
-      {isSelected && option.description && <Text color="gray"> - {option.description}</Text>}
+      {option.description && <Text color="gray"> {option.description}</Text>}
     </Box>
   </Box>
 ));

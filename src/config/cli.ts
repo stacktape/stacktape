@@ -127,8 +127,11 @@ export const allowedCliArgs: { [_command in StacktapeCliCommand]: StacktapeCliAr
     'resourceName',
     'preserveTempFiles',
     'dockerArgs',
-    'local',
-    'noTunnel'
+    'noTunnel',
+    'remoteResources',
+    'resources',
+    'skipResources',
+    'devMode'
   ],
   'deployment-script:run': [
     ...universalCliArgs,
@@ -320,7 +323,11 @@ export const allowedSdkArgs: { [_command in StacktapeSdkCommand]: StacktapeSdkAr
     'disableEmulation',
     'resourceName',
     'preserveTempFiles',
-    'dockerArgs'
+    'dockerArgs',
+    'remoteResources',
+    'resources',
+    'skipResources',
+    'devMode'
   ],
   'deployment-script:run': [
     ...universalSdkArgs,
@@ -472,6 +479,9 @@ export const cliArgsAliases: { [_cliArg in StacktapeCliArg | StacktapeSdkArg]: s
   disableDockerRemoteCache: 'drc',
   resourcesToSkip: 'rts',
   disableLayerOptimization: 'dlo',
-  local: 'loc',
-  noTunnel: 'nt'
+  noTunnel: 'nt',
+  remoteResources: 'rr',
+  resources: 'res',
+  skipResources: 'sr',
+  devMode: 'dm'
 };

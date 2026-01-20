@@ -64,24 +64,21 @@ export const runDevContainer = async (): Promise<DevReturnValue> => {
   packagingSpinner.success({ details: imageResult.details });
   const { imageName, sourceFiles, distFolderPath } = imageResult;
 
-  // Categorize connectTo resources into local vs deployed
-  const forceLocal = globalStateManager.args.local;
-  const forceLocalAll = forceLocal?.includes('all');
   const { local: localResourceNames, deployed: deployedResourceNames } = categorizeConnectToResources({
-    connectTo: resource.connectTo || [],
-    forceLocal: forceLocalAll ? true : forceLocal
+    connectTo: resource.connectTo || []
   });
 
   // Start local resources (databases, redis)
   const localResourceInstances = await startLocalResources(localResourceNames);
   const localResourceEnvVars = getLocalResourceEnvVars(localResourceInstances);
 
-  // Run beforeDev hooks with local resource env vars available
+  // Inject local resource env vars into process.env for hooks
   if (localResourceInstances.length > 0) {
-    // Inject local resource env vars into process.env for hooks
     Object.assign(process.env, localResourceEnvVars);
-    await eventManager.processHooks({ captureType: 'START' });
   }
+
+  // Run beforeDev hooks
+  await eventManager.processHooks({ captureType: 'START' });
 
   // Check if we need deployed stack (for deployed resources or IAM role)
   const needsDeployedStack = deployedResourceNames.length > 0 || !disableEmulation;
@@ -121,8 +118,8 @@ export const runDevContainer = async (): Promise<DevReturnValue> => {
     applicationManager.registerCleanUpHook(async () => Promise.all(tunnels.map((tunnel) => tunnel.kill())));
   }
 
-  // Assume IAM role if stack exists
-  if (stackManager.existingStackDetails) {
+  // Assume IAM role if resource is actually deployed (not locally injected)
+  if (stackManager.existingStackDetails && !deployedStackOverviewManager.isLocallyInjectedResource(resourceName)) {
     await addCallerToAssumeRolePolicy({
       roleName: deployedStackOverviewManager.getIamRoleNameOfDeployedResource(containerDefinition.workloadName)
     });

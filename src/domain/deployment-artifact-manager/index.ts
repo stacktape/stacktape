@@ -63,6 +63,10 @@ export class DeploymentArtifactManager {
           packaging: lambda.packaging,
           hotSwapDeploy
         });
+        // Skip if no artifact path (lambda wasn't packaged, e.g., in dev mode for some resources)
+        if (!s3UploadInfo.artifactPath) {
+          return null;
+        }
         if (s3UploadInfo.alreadyUploaded) {
           this.previouslyUploadedLambdaS3KeysUsedInDeployment.push(s3UploadInfo.s3Key);
           return null;
@@ -76,6 +80,10 @@ export class DeploymentArtifactManager {
     return configManager.allContainersRequiringPackaging
       .map((container) => {
         const imageUploadInfo = this.getImageUploadInfoForJob({ jobName: container.jobName, hotSwapDeploy });
+        // In dev mode, containers are not packaged so imageUploadInfo will be null
+        if (!imageUploadInfo) {
+          return null;
+        }
         if (imageUploadInfo.alreadyDeployed) {
           this.previouslyUploadedImageTagsUsedInDeployment.push(imageUploadInfo.tag);
           return null;
@@ -454,7 +462,8 @@ export class DeploymentArtifactManager {
       await Promise.all([
         // on some occasions i started getting "NoSuchBucket: The specified bucket does not exist" when creating fresh stacks
         // this waiting should prevent it (and lose no time otherwise)
-        awsSdkManager.waitForBucketExists({ bucketName: this.deploymentBucketName, maxTime: 10 })
+        // Note: S3 bucket creation can take up to 30-60 seconds due to eventual consistency
+        awsSdkManager.waitForBucketExists({ bucketName: this.deploymentBucketName, maxTime: 60 })
       ]);
 
       await processConcurrently(jobs, DEFAULT_MAXIMUM_PARALLEL_ARTIFACT_UPLOADS);

@@ -1,16 +1,36 @@
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import { DeleteCommand, DynamoDBDocumentClient, GetCommand, PutCommand, ScanCommand } from '@aws-sdk/lib-dynamodb';
 import { PrismaPg } from '@prisma/adapter-pg';
 import Fastify from 'fastify';
 import Redis from 'ioredis';
-import { PrismaClient } from '../../../prisma/generated/prisma';
+import { PrismaClient } from '../../../prisma/generated/prisma/client';
 
 const adapter = new PrismaPg({ connectionString: process.env.STP_POSTGRES_DB_CONNECTION_STRING });
 const prisma = new PrismaClient({ adapter });
 
+let redisClient: Redis | null = null;
 const getRedis = () => {
+  if (redisClient) return redisClient;
   const connectionString = process.env.STP_REDIS_CONNECTION_STRING;
   if (!connectionString) return null;
-  return new Redis(connectionString);
+  redisClient = new Redis(connectionString);
+  return redisClient;
 };
+
+// Configure DynamoDB client - use endpoint for local development
+const dynamoConfig: {
+  endpoint?: string;
+  region?: string;
+  credentials?: { accessKeyId: string; secretAccessKey: string };
+} = {};
+if (process.env.STP_DYNAMO_DB_ENDPOINT) {
+  dynamoConfig.endpoint = process.env.STP_DYNAMO_DB_ENDPOINT;
+  dynamoConfig.region = 'local';
+  dynamoConfig.credentials = { accessKeyId: 'local', secretAccessKey: 'local' };
+}
+const dynamoClient = new DynamoDBClient(dynamoConfig);
+const docClient = DynamoDBDocumentClient.from(dynamoClient as any);
+const dynamoTableName = process.env.STP_DYNAMO_DB_NAME || '';
 
 const fastify = Fastify({ logger: true });
 
@@ -93,15 +113,8 @@ fastify.get('/redis/cache/:key', async (request) => {
   const { key } = request.params as { key: string };
   const redis = getRedis();
   if (!redis) return { error: 'Redis not configured' };
-
-  try {
-    const value = await redis.get(key);
-    redis.disconnect();
-    return { key, value };
-  } catch (err) {
-    redis.disconnect();
-    return { error: (err as Error).message };
-  }
+  const value = await redis.get(key);
+  return { key, value };
 });
 
 // Set cache value
@@ -109,19 +122,12 @@ fastify.post('/redis/cache', async (request) => {
   const { key, value, ttl } = request.body as { key: string; value: string; ttl?: number };
   const redis = getRedis();
   if (!redis) return { error: 'Redis not configured' };
-
-  try {
-    if (ttl) {
-      await redis.set(key, value, 'EX', ttl);
-    } else {
-      await redis.set(key, value);
-    }
-    redis.disconnect();
-    return { success: true, key, value };
-  } catch (err) {
-    redis.disconnect();
-    return { error: (err as Error).message };
+  if (ttl) {
+    await redis.set(key, value, 'EX', ttl);
+  } else {
+    await redis.set(key, value);
   }
+  return { success: true, key, value };
 });
 
 // Delete cache value
@@ -129,35 +135,65 @@ fastify.delete('/redis/cache/:key', async (request) => {
   const { key } = request.params as { key: string };
   const redis = getRedis();
   if (!redis) return { error: 'Redis not configured' };
-
-  try {
-    await redis.del(key);
-    redis.disconnect();
-    return { success: true, key };
-  } catch (err) {
-    redis.disconnect();
-    return { error: (err as Error).message };
-  }
+  await redis.del(key);
+  return { success: true, key };
 });
 
 // List all cache keys
 fastify.get('/redis/cache', async () => {
   const redis = getRedis();
   if (!redis) return { error: 'Redis not configured' };
-
-  try {
-    const keys = await redis.keys('*');
-    const entries: { key: string; value: string | null }[] = [];
-    for (const key of keys) {
-      const value = await redis.get(key);
-      entries.push({ key, value });
-    }
-    redis.disconnect();
-    return entries;
-  } catch (err) {
-    redis.disconnect();
-    return { error: (err as Error).message };
+  const keys = await redis.keys('*');
+  const entries: { key: string; value: string | null }[] = [];
+  for (const key of keys) {
+    const value = await redis.get(key);
+    entries.push({ key, value });
   }
+  return entries;
+});
+
+// ============ DYNAMODB ENDPOINTS (/dynamo/*) ============
+
+// List all items
+fastify.get('/dynamo/items', async () => {
+  if (!dynamoTableName) return { error: 'DynamoDB not configured' };
+  const result = await docClient.send(new ScanCommand({ TableName: dynamoTableName }));
+  return result.Items || [];
+});
+
+// Get single item
+fastify.get('/dynamo/items/:pk/:sk', async (request) => {
+  const { pk, sk } = request.params as { pk: string; sk: string };
+  if (!dynamoTableName) return { error: 'DynamoDB not configured' };
+  const result = await docClient.send(new GetCommand({ TableName: dynamoTableName, Key: { pk, sk } }));
+  if (!result.Item) return { error: 'Item not found' };
+  return result.Item;
+});
+
+// Create item
+fastify.post('/dynamo/items', async (request) => {
+  if (!dynamoTableName) return { error: 'DynamoDB not configured' };
+  const item = request.body as Record<string, unknown>;
+  await docClient.send(new PutCommand({ TableName: dynamoTableName, Item: item }));
+  return item;
+});
+
+// Update item
+fastify.put('/dynamo/items/:pk/:sk', async (request) => {
+  const { pk, sk } = request.params as { pk: string; sk: string };
+  if (!dynamoTableName) return { error: 'DynamoDB not configured' };
+  const updates = request.body as Record<string, unknown>;
+  const item = { pk, sk, ...updates };
+  await docClient.send(new PutCommand({ TableName: dynamoTableName, Item: item }));
+  return item;
+});
+
+// Delete item
+fastify.delete('/dynamo/items/:pk/:sk', async (request) => {
+  const { pk, sk } = request.params as { pk: string; sk: string };
+  if (!dynamoTableName) return { error: 'DynamoDB not configured' };
+  await docClient.send(new DeleteCommand({ TableName: dynamoTableName, Key: { pk, sk } }));
+  return { success: true };
 });
 
 const start = async () => {

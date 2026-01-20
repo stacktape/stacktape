@@ -5,6 +5,9 @@ export const stackMetadataNames = {
   functionCount() {
     return 'functionCount';
   },
+  isDevStack() {
+    return 'isDevStack';
+  },
   deploymentBucket() {
     return 'deploymentBucket';
   },

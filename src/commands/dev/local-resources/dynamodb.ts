@@ -6,9 +6,11 @@ import {
   buildLocalResourceInstance,
   DEFAULT_LOCAL_HOST,
   DEFAULT_PORTS,
+  doesContainerExist,
   findAvailablePort,
   getContainerPort,
   isContainerRunning,
+  removeContainerIfExists,
   waitForReady
 } from './container-helpers';
 
@@ -174,6 +176,11 @@ export const startLocalDynamoDb = async (
       actualPort,
       ...connInfo
     });
+  }
+
+  // Remove stopped container with same name if it exists
+  if (await doesContainerExist(containerName)) {
+    await removeContainerIfExists(containerName);
   }
 
   const actualPort = await findAvailablePort(port);

@@ -144,6 +144,7 @@ export const getEcsTaskRole = ({
   mountedEfsFilesystems: StpEfsFilesystem[];
   enableRemoteSessions: boolean;
 }) => {
+  const isDevStack = globalStateManager.command === 'dev';
   return new Role({
     RoleName: awsResourceNames.containerWorkloadRole(
       globalStateManager.targetStack.stackName,
@@ -162,6 +163,8 @@ export const getEcsTaskRole = ({
       ],
       Version: '2012-10-17'
     },
+    // 12 hours for dev stacks, 1 hour for regular stacks (default)
+    ...(isDevStack && { MaxSessionDuration: 43200 }),
     Policies: [
       ...getPoliciesForRoles({
         accessToResourcesRequiringRoleChanges,

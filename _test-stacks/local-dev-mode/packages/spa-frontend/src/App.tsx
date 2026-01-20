@@ -9,20 +9,45 @@ type Post = {
   author: User;
 };
 type CacheEntry = { key: string; value: string | null };
+type DynamoItem = { pk: string; sk: string; [key: string]: unknown };
 
-const getApiUrl = () => {
-  const injectedEnv = (window as unknown as { STP_INJECTED_ENV?: { API_URL?: string } }).STP_INJECTED_ENV;
-  return injectedEnv?.API_URL || import.meta.env.VITE_API_URL || 'http://localhost:3000';
+type ApiType = 'server' | 'lambda';
+
+const getApiUrls = () => {
+  const injectedEnv = (window as unknown as { STP_INJECTED_ENV?: { API_URL?: string; LAMBDA_API_URL?: string } })
+    .STP_INJECTED_ENV;
+  return {
+    server: injectedEnv?.API_URL || import.meta.env.VITE_API_URL || 'http://localhost:3000',
+    lambda: injectedEnv?.LAMBDA_API_URL || import.meta.env.VITE_LAMBDA_API_URL || 'http://localhost:3001'
+  };
 };
 
 const App = () => {
-  const [activeTab, setActiveTab] = useState<'posts' | 'cache'>('posts');
-  const apiUrl = getApiUrl();
+  const [activeTab, setActiveTab] = useState<'posts' | 'cache' | 'dynamo'>('posts');
+  const [apiType, setApiType] = useState<ApiType>('server');
+  const apiUrls = getApiUrls();
+  const apiUrl = apiUrls[apiType];
 
   return (
     <div style={{ maxWidth: 900, margin: '0 auto', padding: 20 }}>
       <h1 style={{ marginBottom: 8 }}>SPA Frontend - Local Dev Mode</h1>
-      <p style={{ color: '#666', marginBottom: 20 }}>API: {apiUrl}</p>
+
+      <div style={{ marginBottom: 20, padding: 12, background: '#f5f5f5', borderRadius: 8 }}>
+        <div style={{ marginBottom: 8 }}>
+          <strong>API Backend:</strong>
+          <select
+            value={apiType}
+            onChange={(e) => setApiType(e.target.value as ApiType)}
+            style={{ marginLeft: 8, padding: '4px 8px' }}
+          >
+            <option value="server">Server (Web Service)</option>
+            <option value="lambda">Lambda (API Gateway)</option>
+          </select>
+        </div>
+        <p style={{ color: '#666', margin: 0, fontSize: 14 }}>
+          {apiType === 'server' ? 'Server' : 'Lambda'} API: {apiUrl}
+        </p>
+      </div>
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
         <button
@@ -45,9 +70,21 @@ const App = () => {
         >
           Cache (Redis)
         </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('dynamo')}
+          style={{
+            background: activeTab === 'dynamo' ? '#0070f3' : '#e0e0e0',
+            color: activeTab === 'dynamo' ? '#fff' : '#333'
+          }}
+        >
+          Items (DynamoDB)
+        </button>
       </div>
 
-      {activeTab === 'posts' ? <PostsSection apiUrl={apiUrl} /> : <CacheSection apiUrl={apiUrl} />}
+      {activeTab === 'posts' && <PostsSection apiUrl={apiUrl} />}
+      {activeTab === 'cache' && <CacheSection apiUrl={apiUrl} />}
+      {activeTab === 'dynamo' && <DynamoSection apiUrl={apiUrl} />}
     </div>
   );
 };
@@ -314,6 +351,154 @@ const CacheSection = ({ apiUrl }: { apiUrl: string }) => {
                 type="button"
                 onClick={() => deleteEntry(entry.key)}
                 style={{ background: '#ef4444', color: '#fff', fontSize: 12 }}
+              >
+                Delete
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const DynamoSection = ({ apiUrl }: { apiUrl: string }) => {
+  const [items, setItems] = useState<DynamoItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [newItem, setNewItem] = useState({ pk: '', sk: '', data: '' });
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch(`${apiUrl}/dynamo/items`);
+      const data = await res.json();
+      setItems(Array.isArray(data) ? data : []);
+      setError(null);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, [apiUrl]);
+
+  const createItem = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newItem.pk || !newItem.sk) return;
+    try {
+      const item: Record<string, unknown> = { pk: newItem.pk, sk: newItem.sk };
+      if (newItem.data) {
+        try {
+          const parsed = JSON.parse(newItem.data);
+          Object.assign(item, parsed);
+        } catch {
+          item.data = newItem.data;
+        }
+      }
+      await fetch(`${apiUrl}/dynamo/items`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(item)
+      });
+      setNewItem({ pk: '', sk: '', data: '' });
+      fetchData();
+    } catch (err) {
+      console.error(`Failed: ${(err as Error).message}`);
+    }
+  };
+
+  const deleteItem = async (pk: string, sk: string) => {
+    try {
+      await fetch(`${apiUrl}/dynamo/items/${encodeURIComponent(pk)}/${encodeURIComponent(sk)}`, { method: 'DELETE' });
+      fetchData();
+    } catch (err) {
+      console.error(`Failed: ${(err as Error).message}`);
+    }
+  };
+
+  if (loading) return <p>Loading DynamoDB items...</p>;
+  if (error) return <p style={{ color: 'red' }}>Error: {error}</p>;
+
+  return (
+    <div>
+      <form onSubmit={createItem} style={{ background: '#fff', padding: 16, borderRadius: 8, marginBottom: 20 }}>
+        <h3 style={{ marginBottom: 12 }}>Add DynamoDB Item</h3>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <input
+            placeholder="Partition Key (pk)"
+            value={newItem.pk}
+            onChange={(e) => setNewItem((p) => ({ ...p, pk: e.target.value }))}
+            style={{ flex: 1, minWidth: 120 }}
+          />
+          <input
+            placeholder="Sort Key (sk)"
+            value={newItem.sk}
+            onChange={(e) => setNewItem((p) => ({ ...p, sk: e.target.value }))}
+            style={{ flex: 1, minWidth: 120 }}
+          />
+          <input
+            placeholder="Data (JSON or string)"
+            value={newItem.data}
+            onChange={(e) => setNewItem((p) => ({ ...p, data: e.target.value }))}
+            style={{ flex: 2, minWidth: 150 }}
+          />
+          <button type="submit" style={{ background: '#0070f3', color: '#fff' }}>
+            Add
+          </button>
+        </div>
+      </form>
+
+      <h3>DynamoDB Items ({items.length})</h3>
+      {items.length === 0 ? (
+        <p style={{ color: '#666' }}>No items yet</p>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {items.map((item) => (
+            <div
+              key={`${item.pk}-${item.sk}`}
+              style={{
+                background: '#fff',
+                padding: 12,
+                borderRadius: 8,
+                border: '1px solid #e0e0e0',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'flex-start'
+              }}
+            >
+              <div style={{ flex: 1 }}>
+                <div>
+                  <strong style={{ color: '#0070f3' }}>pk:</strong> {item.pk}
+                  <span style={{ margin: '0 12px', color: '#999' }}>|</span>
+                  <strong style={{ color: '#0070f3' }}>sk:</strong> {item.sk}
+                </div>
+                {Object.keys(item).filter((k) => k !== 'pk' && k !== 'sk').length > 0 && (
+                  <pre
+                    style={{
+                      margin: '8px 0 0',
+                      padding: 8,
+                      background: '#f5f5f5',
+                      borderRadius: 4,
+                      fontSize: 12,
+                      overflow: 'auto'
+                    }}
+                  >
+                    {JSON.stringify(
+                      Object.fromEntries(Object.entries(item).filter(([k]) => k !== 'pk' && k !== 'sk')),
+                      null,
+                      2
+                    )}
+                  </pre>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => deleteItem(item.pk, item.sk)}
+                style={{ background: '#ef4444', color: '#fff', fontSize: 12, marginLeft: 12 }}
               >
                 Delete
               </button>

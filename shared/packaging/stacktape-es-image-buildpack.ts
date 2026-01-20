@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import { DEFAULT_CONTAINER_NODE_VERSION } from '@config';
-import { buildDockerImage, checkDockerImageExists } from '@shared/utils/docker';
+import { buildDockerImage, checkDockerImageExists, getDockerImageDetails } from '@shared/utils/docker';
 import { buildEsDevDockerfile, buildEsDockerfile } from '@shared/utils/dockerfiles';
 import { getFolder } from '@shared/utils/fs-utils';
 import { outputFile } from 'fs-extra';
@@ -64,10 +64,18 @@ export const buildUsingStacktapeEsImageBuildpack = async ({
       progressLogger
     });
 
-    // Set final message for dev mode
-    const devFinalMessage = devBaseImageBuilt
-      ? 'Using newly built base dev image with code mounted as volume'
-      : 'Using cached base dev image with code mounted as volume';
+    // Get image size for display
+    let imageSize: string | null = null;
+    try {
+      const imageDetails = await getDockerImageDetails(imageName);
+      imageSize = `${imageDetails.size} MB`;
+    } catch {
+      // Ignore errors getting image size
+    }
+
+    // Set final message for dev mode (include image size if available)
+    const baseMessage = devBaseImageBuilt ? 'Built new base dev image' : 'Using cached base dev image';
+    const devFinalMessage = imageSize ? `${baseMessage} (${imageSize})` : baseMessage;
     await progressLogger.finishEvent({ eventType: 'BUILD_IMAGE', finalMessage: devFinalMessage });
 
     return {
@@ -77,7 +85,7 @@ export const buildUsingStacktapeEsImageBuildpack = async ({
       digest: 'dev-mode',
       sourceFiles,
       distFolderPath,
-      details: { devBaseImageBuilt },
+      details: { devBaseImageBuilt, imageSize },
       jobName: name
     };
   }

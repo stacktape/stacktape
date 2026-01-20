@@ -71,12 +71,9 @@ export class LambdaProvisionedConcurrencyPoller {
         // Wait for logs to be delivered before fetching them
         await wait(20000);
 
-        // Try to fetch recent logs that might explain the failure
         await this.#fetchLogs();
       }
-    } catch {
-      // Ignore polling errors - config might not exist yet
-    }
+    } catch {}
 
     this.#pollInProgress = false;
   };
@@ -87,7 +84,6 @@ export class LambdaProvisionedConcurrencyPoller {
     }
 
     try {
-      // Get the most recent log streams created after we started monitoring
       const logStreams = await this.#awsSdkManager.getLogStreams({
         logGroupName: this.#logGroupName,
         limit: 10,
@@ -120,16 +116,8 @@ export class LambdaProvisionedConcurrencyPoller {
     }
   };
 
-  /**
-   * Filters out noisy log messages that aren't useful for debugging.
-   * Keeps error messages, stack traces, and startup failures.
-   */
   #filterRelevantLogs(logs: FilteredLogEvent[]): FilteredLogEvent[] {
-    const noisePatterns = [
-      /DeprecationWarning/i,
-      /ExperimentalWarning/i,
-      /\(Use `node --trace/i
-    ];
+    const noisePatterns = [/DeprecationWarning/i, /ExperimentalWarning/i, /\(Use `node --trace/i];
 
     return logs.filter(({ message }) => {
       if (!message) return false;
@@ -141,10 +129,6 @@ export class LambdaProvisionedConcurrencyPoller {
     });
   }
 
-  /**
-   * Formats the failure message for display.
-   * Returns a clean, readable error message focused on actionable information.
-   */
   getFailureMessage() {
     if (!this.#printer || !this.#failureReason) {
       return undefined;
@@ -191,18 +175,12 @@ export class LambdaProvisionedConcurrencyPoller {
       const failureMessage = this.getFailureMessage();
       if (failureMessage) {
         this.#printer.warn(`[${this.#pollerPrintName}] Provisioned concurrency failed\n${failureMessage}`);
-        this.#printer.hint(
-          'The function may have an initialization error. Check logs for errors during cold start.'
-        );
+        this.#printer.hint('The function may have an initialization error. Check logs for errors during cold start.');
       }
       this.#warnMessagePrinted = true;
     }
   };
 
-  /**
-   * Called when CloudFormation reports a failure.
-   * Fetches logs and prepares the failure message.
-   */
   async handleFailure(statusReason: string) {
     this.stopPolling();
 
@@ -217,7 +195,6 @@ export class LambdaProvisionedConcurrencyPoller {
     // Wait for logs to be delivered before fetching them
     await wait(20000);
 
-    // Fetch logs
     await this.#fetchLogs();
   }
 

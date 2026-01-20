@@ -1,11 +1,7 @@
 [
   {
     "name": "Astro.js SSR",
-    "tags": [
-      "Typescript",
-      "Website",
-      "SSR"
-    ],
+    "tags": ["Typescript", "Website", "SSR"],
     "icon": "astro.svg",
     "priority": 0,
     "starterProjectId": "astro-ssr",
@@ -17,9 +13,7 @@
         "containerNames": []
       }
     ],
-    "usedResourceTypes": [
-      "web-service"
-    ],
+    "usedResourceTypes": ["web-service"],
     "isServerSideRenderedWebsite": false,
     "githubLink": "https://github.com/stacktape/starter-astro-ssr",
     "isWebsite": false,
@@ -36,12 +30,7 @@
   },
   {
     "name": "Astro.js static",
-    "tags": [
-      "website",
-      "static website",
-      "Typescript",
-      "React"
-    ],
+    "tags": ["website", "static website", "Typescript", "React"],
     "icon": "astro.svg",
     "priority": 0,
     "starterProjectId": "astro-static",
@@ -53,9 +42,7 @@
         "containerNames": []
       }
     ],
-    "usedResourceTypes": [
-      "hosting-bucket"
-    ],
+    "usedResourceTypes": ["hosting-bucket"],
     "isServerSideRenderedWebsite": false,
     "githubLink": "https://github.com/stacktape/starter-astro-static",
     "isWebsite": true,
@@ -72,13 +59,7 @@
   },
   {
     "name": "Express.js API with Postgres",
-    "tags": [
-      "REST API",
-      "Typescript",
-      "Express.js",
-      "Prisma",
-      "Postgres"
-    ],
+    "tags": ["REST API", "Typescript", "Express.js", "Prisma", "Postgres"],
     "icon": "typescript.svg",
     "priority": 0,
     "starterProjectId": "expressjs-api-postgres",
@@ -95,10 +76,7 @@
         "containerNames": []
       }
     ],
-    "usedResourceTypes": [
-      "relational-database",
-      "web-service"
-    ],
+    "usedResourceTypes": ["relational-database", "web-service"],
     "isServerSideRenderedWebsite": false,
     "githubLink": "https://github.com/stacktape/starter-expressjs-api-postgres",
     "isWebsite": false,
@@ -115,13 +93,7 @@
   },
   {
     "name": "Next.js app using container",
-    "tags": [
-      "website",
-      "Server side rendered website",
-      "Typescript",
-      "Next.js",
-      "React"
-    ],
+    "tags": ["website", "Server side rendered website", "Typescript", "Next.js", "React"],
     "icon": "nextjs-circle.svg",
     "priority": 0,
     "starterProjectId": "nextjs-container",
@@ -133,9 +105,7 @@
         "containerNames": []
       }
     ],
-    "usedResourceTypes": [
-      "web-service"
-    ],
+    "usedResourceTypes": ["web-service"],
     "isServerSideRenderedWebsite": true,
     "githubLink": "https://github.com/stacktape/starter-nextjs-container",
     "isWebsite": true,
@@ -152,14 +122,7 @@
   },
   {
     "name": "Next.js Serverless (OpenNext)",
-    "tags": [
-      "website",
-      "Server side rendered website",
-      "Typescript",
-      "Next.js",
-      "React",
-      "Lambda"
-    ],
+    "tags": ["website", "Server side rendered website", "Typescript", "Next.js", "React", "Lambda"],
     "icon": "nextjs-circle.svg",
     "priority": 0,
     "starterProjectId": "nextjs-serverless",
@@ -171,9 +134,7 @@
         "containerNames": []
       }
     ],
-    "usedResourceTypes": [
-      "nextjs-web"
-    ],
+    "usedResourceTypes": ["nextjs-web"],
     "isServerSideRenderedWebsite": true,
     "githubLink": "https://github.com/stacktape/starter-nextjs-serverless",
     "isWebsite": true,
@@ -190,12 +151,7 @@
   },
   {
     "name": "Django API with Postgres",
-    "tags": [
-      "Python",
-      "Postgres",
-      "Django",
-      "REST API"
-    ],
+    "tags": ["Python", "Postgres", "Django", "REST API"],
     "icon": "python.svg",
     "priority": 1,
     "starterProjectId": "django-api-postgres",
@@ -212,10 +168,7 @@
         "containerNames": []
       }
     ],
-    "usedResourceTypes": [
-      "relational-database",
-      "web-service"
-    ],
+    "usedResourceTypes": ["relational-database", "web-service"],
     "isServerSideRenderedWebsite": false,
     "githubLink": "https://github.com/stacktape/starter-django-api-postgres",
     "isWebsite": false,
@@ -232,12 +185,7 @@
   },
   {
     "name": "Express.js API with MongoDb",
-    "tags": [
-      "Typescript",
-      "MongoDb",
-      "REST API",
-      "Lambda"
-    ],
+    "tags": ["Typescript", "MongoDb", "REST API", "Lambda"],
     "icon": "typescript.svg",
     "priority": 1,
     "starterProjectId": "expressjs-api-mongo-db",
@@ -254,10 +202,7 @@
         "containerNames": []
       }
     ],
-    "usedResourceTypes": [
-      "mongo-db-atlas-cluster",
-      "web-service"
-    ],
+    "usedResourceTypes": ["mongo-db-atlas-cluster", "web-service"],
     "isServerSideRenderedWebsite": false,
     "githubLink": "https://github.com/stacktape/starter-expressjs-api-mongo-db",
     "isWebsite": false,
@@ -274,13 +219,7 @@
   },
   {
     "name": "Flask API with Postgres",
-    "tags": [
-      "Python",
-      "Flask",
-      "Postgres",
-      "SqlAlchemy",
-      "REST API"
-    ],
+    "tags": ["Python", "Flask", "Postgres", "SqlAlchemy", "REST API"],
     "icon": "python.svg",
     "priority": 1,
     "starterProjectId": "flask-api-postgres",
@@ -297,10 +236,7 @@
         "containerNames": []
       }
     ],
-    "usedResourceTypes": [
-      "relational-database",
-      "web-service"
-    ],
+    "usedResourceTypes": ["relational-database", "web-service"],
     "isServerSideRenderedWebsite": false,
     "githubLink": "https://github.com/stacktape/starter-flask-api-postgres",
     "isWebsite": false,
@@ -317,13 +253,7 @@
   },
   {
     "name": "Gin API with Postgres",
-    "tags": [
-      "Go",
-      "Gin",
-      "Postgres",
-      "go-pg",
-      "REST API"
-    ],
+    "tags": ["Go", "Gin", "Postgres", "go-pg", "REST API"],
     "icon": "go.svg",
     "priority": 1,
     "starterProjectId": "gin-api-postgres",
@@ -339,10 +269,7 @@
         "containerNames": []
       }
     ],
-    "usedResourceTypes": [
-      "relational-database",
-      "web-service"
-    ],
+    "usedResourceTypes": ["relational-database", "web-service"],
     "isServerSideRenderedWebsite": false,
     "githubLink": "https://github.com/stacktape/starter-gin-api-postgres",
     "isWebsite": false,
@@ -359,12 +286,7 @@
   },
   {
     "name": "Lambda API with DynamoDb",
-    "tags": [
-      "Typescript",
-      "DynamoDb",
-      "REST API",
-      "Lambda"
-    ],
+    "tags": ["Typescript", "DynamoDb", "REST API", "Lambda"],
     "icon": "typescript.svg",
     "priority": 1,
     "starterProjectId": "lambda-api-dynamo-db",
@@ -391,11 +313,7 @@
         "containerNames": []
       }
     ],
-    "usedResourceTypes": [
-      "dynamo-db-table",
-      "function",
-      "http-api-gateway"
-    ],
+    "usedResourceTypes": ["dynamo-db-table", "function", "http-api-gateway"],
     "isServerSideRenderedWebsite": false,
     "githubLink": "https://github.com/stacktape/starter-lambda-api-dynamo-db",
     "isWebsite": false,
@@ -412,12 +330,7 @@
   },
   {
     "name": "Lambda API with MongoDb",
-    "tags": [
-      "Typescript",
-      "MongoDb",
-      "REST API",
-      "Lambda"
-    ],
+    "tags": ["Typescript", "MongoDb", "REST API", "Lambda"],
     "icon": "typescript.svg",
     "priority": 1,
     "starterProjectId": "lambda-api-mongo-db",
@@ -444,11 +357,7 @@
         "containerNames": []
       }
     ],
-    "usedResourceTypes": [
-      "function",
-      "http-api-gateway",
-      "mongo-db-atlas-cluster"
-    ],
+    "usedResourceTypes": ["function", "http-api-gateway", "mongo-db-atlas-cluster"],
     "isServerSideRenderedWebsite": false,
     "githubLink": "https://github.com/stacktape/starter-lambda-api-mongo-db",
     "isWebsite": false,
@@ -465,13 +374,7 @@
   },
   {
     "name": "Laravel SSR website",
-    "tags": [
-      "website",
-      "Server side rendered website",
-      "PHP",
-      "Laravel",
-      "Blade"
-    ],
+    "tags": ["website", "Server side rendered website", "PHP", "Laravel", "Blade"],
     "icon": "laravel.svg",
     "priority": 1,
     "starterProjectId": "laravel-ssr-website",
@@ -482,9 +385,7 @@
         "containerNames": []
       }
     ],
-    "usedResourceTypes": [
-      "web-service"
-    ],
+    "usedResourceTypes": ["web-service"],
     "isServerSideRenderedWebsite": true,
     "githubLink": "https://github.com/stacktape/starter-laravel-ssr-website",
     "isWebsite": true,
@@ -501,11 +402,7 @@
   },
   {
     "name": "Typescript monorepo with pnpm",
-    "tags": [
-      "Typescript",
-      "REST API",
-      "Lambda"
-    ],
+    "tags": ["Typescript", "REST API", "Lambda"],
     "icon": "typescript.svg",
     "priority": 1,
     "starterProjectId": "monorepo-typescript",
@@ -527,11 +424,7 @@
         "containerNames": []
       }
     ],
-    "usedResourceTypes": [
-      "function",
-      "http-api-gateway",
-      "web-service"
-    ],
+    "usedResourceTypes": ["function", "http-api-gateway", "web-service"],
     "isServerSideRenderedWebsite": false,
     "githubLink": "https://github.com/stacktape/starter-monorepo-typescript",
     "isWebsite": false,
@@ -548,11 +441,7 @@
   },
   {
     "name": "Typescript monorepo with pnpm",
-    "tags": [
-      "Typescript",
-      "REST API",
-      "Lambda"
-    ],
+    "tags": ["Typescript", "REST API", "Lambda"],
     "icon": "typescript.svg",
     "priority": 1,
     "starterProjectId": "monorepo-typescript-pnpm",
@@ -574,11 +463,7 @@
         "containerNames": []
       }
     ],
-    "usedResourceTypes": [
-      "function",
-      "http-api-gateway",
-      "web-service"
-    ],
+    "usedResourceTypes": ["function", "http-api-gateway", "web-service"],
     "isServerSideRenderedWebsite": false,
     "githubLink": "https://github.com/stacktape/starter-monorepo-typescript-pnpm",
     "isWebsite": false,
@@ -595,12 +480,7 @@
   },
   {
     "name": "Nest.js API with Postgres",
-    "tags": [
-      "Typescript",
-      "Nest.js",
-      "REST API",
-      "Prisma"
-    ],
+    "tags": ["Typescript", "Nest.js", "REST API", "Prisma"],
     "icon": "typescript.svg",
     "priority": 1,
     "starterProjectId": "nestjs-api-postgres",
@@ -617,10 +497,7 @@
         "containerNames": []
       }
     ],
-    "usedResourceTypes": [
-      "relational-database",
-      "web-service"
-    ],
+    "usedResourceTypes": ["relational-database", "web-service"],
     "isServerSideRenderedWebsite": false,
     "githubLink": "https://github.com/stacktape/starter-nestjs-api-postgres",
     "isWebsite": false,
@@ -637,13 +514,7 @@
   },
   {
     "name": "Remix website container",
-    "tags": [
-      "website",
-      "Server side rendered website",
-      "Typescript",
-      "Remix",
-      "React"
-    ],
+    "tags": ["website", "Server side rendered website", "Typescript", "Remix", "React"],
     "icon": "remix.svg",
     "priority": 1,
     "hasOwnTsConfig": true,
@@ -656,9 +527,7 @@
         "containerNames": []
       }
     ],
-    "usedResourceTypes": [
-      "web-service"
-    ],
+    "usedResourceTypes": ["web-service"],
     "isServerSideRenderedWebsite": true,
     "githubLink": "https://github.com/stacktape/starter-remix-website-container",
     "isWebsite": true,
@@ -675,12 +544,7 @@
   },
   {
     "name": "Ruby on Rails API with Postgres",
-    "tags": [
-      "Ruby",
-      "Ruby on Rails",
-      "REST API",
-      "Postgres"
-    ],
+    "tags": ["Ruby", "Ruby on Rails", "REST API", "Postgres"],
     "icon": "ruby.svg",
     "priority": 1,
     "starterProjectId": "ruby-on-rails-api-postgres",
@@ -697,10 +561,7 @@
         "containerNames": []
       }
     ],
-    "usedResourceTypes": [
-      "relational-database",
-      "web-service"
-    ],
+    "usedResourceTypes": ["relational-database", "web-service"],
     "isServerSideRenderedWebsite": false,
     "githubLink": "https://github.com/stacktape/starter-ruby-on-rails-api-postgres",
     "isWebsite": false,
@@ -717,13 +578,7 @@
   },
   {
     "name": "Spring Boot API with Postgres",
-    "tags": [
-      "REST API",
-      "Hibernate ORM",
-      "Spring Boot",
-      "Postgres",
-      "Java"
-    ],
+    "tags": ["REST API", "Hibernate ORM", "Spring Boot", "Postgres", "Java"],
     "icon": "java.svg",
     "priority": 1,
     "starterProjectId": "spring-boot-api-postgres",
@@ -740,10 +595,7 @@
         "containerNames": []
       }
     ],
-    "usedResourceTypes": [
-      "relational-database",
-      "web-service"
-    ],
+    "usedResourceTypes": ["relational-database", "web-service"],
     "isServerSideRenderedWebsite": false,
     "githubLink": "https://github.com/stacktape/starter-spring-boot-api-postgres",
     "isWebsite": false,
@@ -760,12 +612,7 @@
   },
   {
     "name": "Angular SPA",
-    "tags": [
-      "website",
-      "SPA website",
-      "Typescript",
-      "Angular"
-    ],
+    "tags": ["website", "SPA website", "Typescript", "Angular"],
     "disableLintingOption": true,
     "hasOwnTsConfig": true,
     "icon": "angular.svg",
@@ -778,9 +625,7 @@
         "containerNames": []
       }
     ],
-    "usedResourceTypes": [
-      "hosting-bucket"
-    ],
+    "usedResourceTypes": ["hosting-bucket"],
     "isServerSideRenderedWebsite": false,
     "githubLink": "https://github.com/stacktape/starter-angular-spa",
     "isWebsite": true,
@@ -808,9 +653,7 @@
         "containerNames": []
       }
     ],
-    "usedResourceTypes": [
-      "web-service"
-    ],
+    "usedResourceTypes": ["web-service"],
     "isServerSideRenderedWebsite": false,
     "githubLink": "https://github.com/stacktape/starter-docker",
     "isWebsite": false,
@@ -828,13 +671,7 @@
   },
   {
     "name": "Gatsby.js website",
-    "tags": [
-      "website",
-      "static website",
-      "Typescript",
-      "Gatsby.js",
-      "React"
-    ],
+    "tags": ["website", "static website", "Typescript", "Gatsby.js", "React"],
     "icon": "gatsby.svg",
     "starterProjectId": "gatsbyjs-website",
     "projectType": "es",
@@ -845,9 +682,7 @@
         "containerNames": []
       }
     ],
-    "usedResourceTypes": [
-      "hosting-bucket"
-    ],
+    "usedResourceTypes": ["hosting-bucket"],
     "isServerSideRenderedWebsite": false,
     "githubLink": "https://github.com/stacktape/starter-gatsbyjs-website",
     "isWebsite": true,
@@ -865,12 +700,7 @@
   },
   {
     "name": "Go lambda with DynamoDB",
-    "tags": [
-      "Go",
-      "DynamoDB",
-      "REST API",
-      "Lambda"
-    ],
+    "tags": ["Go", "DynamoDB", "REST API", "Lambda"],
     "icon": "go.svg",
     "starterProjectId": "go-lambda-api",
     "usedResources": [
@@ -895,11 +725,7 @@
         "containerNames": []
       }
     ],
-    "usedResourceTypes": [
-      "dynamo-db-table",
-      "function",
-      "http-api-gateway"
-    ],
+    "usedResourceTypes": ["dynamo-db-table", "function", "http-api-gateway"],
     "isServerSideRenderedWebsite": false,
     "githubLink": "https://github.com/stacktape/starter-go-lambda-api",
     "isWebsite": false,
@@ -917,12 +743,7 @@
   },
   {
     "name": "Java lambda with DynamoDB",
-    "tags": [
-      "Java",
-      "DynamoDB",
-      "REST API",
-      "Lambda"
-    ],
+    "tags": ["Java", "DynamoDB", "REST API", "Lambda"],
     "icon": "java.svg",
     "starterProjectId": "java-lambda-api",
     "projectType": "java",
@@ -948,11 +769,7 @@
         "containerNames": []
       }
     ],
-    "usedResourceTypes": [
-      "dynamo-db-table",
-      "function",
-      "http-api-gateway"
-    ],
+    "usedResourceTypes": ["dynamo-db-table", "function", "http-api-gateway"],
     "isServerSideRenderedWebsite": false,
     "githubLink": "https://github.com/stacktape/starter-java-lambda-api",
     "isWebsite": false,
@@ -970,13 +787,7 @@
   },
   {
     "name": "Lambda API with MySQL",
-    "tags": [
-      "Typescript",
-      "MySQL",
-      "REST API",
-      "Prisma",
-      "Lambda"
-    ],
+    "tags": ["Typescript", "MySQL", "REST API", "Prisma", "Lambda"],
     "icon": "typescript.svg",
     "starterProjectId": "lambda-api-mysql",
     "projectType": "es",
@@ -1002,11 +813,7 @@
         "containerNames": []
       }
     ],
-    "usedResourceTypes": [
-      "function",
-      "http-api-gateway",
-      "relational-database"
-    ],
+    "usedResourceTypes": ["function", "http-api-gateway", "relational-database"],
     "isServerSideRenderedWebsite": false,
     "githubLink": "https://github.com/stacktape/starter-lambda-api-mysql",
     "isWebsite": false,
@@ -1024,11 +831,7 @@
   },
   {
     "name": "Lambda app with Redis",
-    "tags": [
-      "Typescript",
-      "Redis",
-      "Lambda"
-    ],
+    "tags": ["Typescript", "Redis", "Lambda"],
     "icon": "typescript.svg",
     "starterProjectId": "lambda-app-redis",
     "projectType": "es",
@@ -1049,11 +852,7 @@
         "containerNames": []
       }
     ],
-    "usedResourceTypes": [
-      "function",
-      "http-api-gateway",
-      "upstash-redis"
-    ],
+    "usedResourceTypes": ["function", "http-api-gateway", "upstash-redis"],
     "isServerSideRenderedWebsite": false,
     "githubLink": "https://github.com/stacktape/starter-lambda-app-redis",
     "isWebsite": false,
@@ -1071,11 +870,7 @@
   },
   {
     "name": "Web scraper with Puppeteer",
-    "tags": [
-      "Typescript",
-      "Puppeteer",
-      "Lambda"
-    ],
+    "tags": ["Typescript", "Puppeteer", "Lambda"],
     "icon": "puppeteer.svg",
     "starterProjectId": "lambda-web-scraper-puppeteer",
     "projectType": "es",
@@ -1091,10 +886,7 @@
         "containerNames": []
       }
     ],
-    "usedResourceTypes": [
-      "function",
-      "http-api-gateway"
-    ],
+    "usedResourceTypes": ["function", "http-api-gateway"],
     "isServerSideRenderedWebsite": false,
     "githubLink": "https://github.com/stacktape/starter-lambda-web-scraper-puppeteer",
     "isWebsite": false,
@@ -1112,13 +904,7 @@
   },
   {
     "name": "NuxtJs SSR website container",
-    "tags": [
-      "website",
-      "Server side rendered website",
-      "Typescript",
-      "NuxtJs",
-      "Vue"
-    ],
+    "tags": ["website", "Server side rendered website", "Typescript", "NuxtJs", "Vue"],
     "hasOwnTsConfig": true,
     "disableLintingOption": true,
     "icon": "nuxt.svg",
@@ -1136,10 +922,7 @@
         "containerNames": []
       }
     ],
-    "usedResourceTypes": [
-      "bucket",
-      "web-service"
-    ],
+    "usedResourceTypes": ["bucket", "web-service"],
     "isServerSideRenderedWebsite": true,
     "githubLink": "https://github.com/stacktape/starter-nuxtjs-ssr-website-container",
     "isWebsite": true,
@@ -1157,14 +940,7 @@
   },
   {
     "name": "NuxtJs SSR website lambda",
-    "tags": [
-      "website",
-      "Server side rendered website",
-      "Typescript",
-      "NuxtJs",
-      "Vue",
-      "Lambda"
-    ],
+    "tags": ["website", "Server side rendered website", "Typescript", "NuxtJs", "Vue", "Lambda"],
     "hasOwnTsConfig": true,
     "disableLintingOption": true,
     "icon": "nuxt.svg",
@@ -1187,11 +963,7 @@
         "containerNames": []
       }
     ],
-    "usedResourceTypes": [
-      "bucket",
-      "function",
-      "http-api-gateway"
-    ],
+    "usedResourceTypes": ["bucket", "function", "http-api-gateway"],
     "isServerSideRenderedWebsite": true,
     "githubLink": "https://github.com/stacktape/starter-nuxtjs-ssr-website-lambda",
     "isWebsite": true,
@@ -1209,12 +981,7 @@
   },
   {
     "name": "Python Lambda with MongoDb",
-    "tags": [
-      "Python",
-      "MongoDb",
-      "REST API",
-      "Lambda"
-    ],
+    "tags": ["Python", "MongoDb", "REST API", "Lambda"],
     "icon": "python.svg",
     "starterProjectId": "python-lambda-api",
     "projectType": "python",
@@ -1240,11 +1007,7 @@
         "containerNames": []
       }
     ],
-    "usedResourceTypes": [
-      "function",
-      "http-api-gateway",
-      "mongo-db-atlas-cluster"
-    ],
+    "usedResourceTypes": ["function", "http-api-gateway", "mongo-db-atlas-cluster"],
     "isServerSideRenderedWebsite": false,
     "githubLink": "https://github.com/stacktape/starter-python-lambda-api",
     "isWebsite": false,
@@ -1262,13 +1025,7 @@
   },
   {
     "name": "React SPA with Vite.js",
-    "tags": [
-      "website",
-      "SPA website",
-      "Typescript",
-      "Vite.js",
-      "React"
-    ],
+    "tags": ["website", "SPA website", "Typescript", "Vite.js", "React"],
     "hasOwnTsConfig": true,
     "icon": "react.svg",
     "starterProjectId": "react-spa-vitejs",
@@ -1280,9 +1037,7 @@
         "containerNames": []
       }
     ],
-    "usedResourceTypes": [
-      "hosting-bucket"
-    ],
+    "usedResourceTypes": ["hosting-bucket"],
     "isServerSideRenderedWebsite": false,
     "githubLink": "https://github.com/stacktape/starter-react-spa-vitejs",
     "isWebsite": true,
@@ -1300,12 +1055,7 @@
   },
   {
     "name": "Websocket API with Socket.io",
-    "tags": [
-      "Typescript",
-      "Redis",
-      "Websocket API",
-      "Socket.io"
-    ],
+    "tags": ["Typescript", "Redis", "Websocket API", "Socket.io"],
     "icon": "socket-light.svg",
     "starterProjectId": "socketio-websocket-api-redis",
     "projectType": "es",
@@ -1318,9 +1068,7 @@
       {
         "name": "websocketServer",
         "type": "multi-container-workload",
-        "containerNames": [
-          "socketio-server"
-        ]
+        "containerNames": ["socketio-server"]
       },
       {
         "name": "redis",
@@ -1328,11 +1076,7 @@
         "containerNames": []
       }
     ],
-    "usedResourceTypes": [
-      "application-load-balancer",
-      "multi-container-workload",
-      "upstash-redis"
-    ],
+    "usedResourceTypes": ["application-load-balancer", "multi-container-workload", "upstash-redis"],
     "isServerSideRenderedWebsite": false,
     "githubLink": "https://github.com/stacktape/starter-socketio-websocket-api-redis",
     "isWebsite": false,
@@ -1350,13 +1094,7 @@
   },
   {
     "name": "Svelte SPA with Vite.js",
-    "tags": [
-      "website",
-      "SPA website",
-      "Typescript",
-      "Vite.js",
-      "Svelte"
-    ],
+    "tags": ["website", "SPA website", "Typescript", "Vite.js", "Svelte"],
     "disableLintingOption": true,
     "hasOwnTsConfig": true,
     "icon": "svelte.svg",
@@ -1369,9 +1107,7 @@
         "containerNames": []
       }
     ],
-    "usedResourceTypes": [
-      "hosting-bucket"
-    ],
+    "usedResourceTypes": ["hosting-bucket"],
     "isServerSideRenderedWebsite": false,
     "githubLink": "https://github.com/stacktape/starter-svelte-spa-vitejs",
     "isWebsite": true,
@@ -1389,13 +1125,7 @@
   },
   {
     "name": "React SPA with Vite.js",
-    "tags": [
-      "website",
-      "SPA website",
-      "Typescript",
-      "Vite.js",
-      "React"
-    ],
+    "tags": ["website", "SPA website", "Typescript", "Vite.js", "React"],
     "hasOwnTsConfig": true,
     "icon": "react.svg",
     "starterProjectId": "tanstack-start",
@@ -1407,9 +1137,7 @@
         "containerNames": []
       }
     ],
-    "usedResourceTypes": [
-      "hosting-bucket"
-    ],
+    "usedResourceTypes": ["hosting-bucket"],
     "isServerSideRenderedWebsite": false,
     "githubLink": "https://github.com/stacktape/starter-tanstack-start",
     "isWebsite": true,
@@ -1427,11 +1155,7 @@
   },
   {
     "name": "Tensorflow image classification",
-    "tags": [
-      "Machine learning",
-      "Tensorflow",
-      "Python"
-    ],
+    "tags": ["Machine learning", "Tensorflow", "Python"],
     "icon": "tensorflow.svg",
     "starterProjectId": "tensorflow-image-classification",
     "projectType": "python",
@@ -1452,10 +1176,7 @@
         "containerNames": []
       }
     ],
-    "usedResourceTypes": [
-      "batch-job",
-      "bucket"
-    ],
+    "usedResourceTypes": ["batch-job", "bucket"],
     "isServerSideRenderedWebsite": false,
     "githubLink": "https://github.com/stacktape/starter-tensorflow-image-classification",
     "isWebsite": false,
@@ -1473,13 +1194,7 @@
   },
   {
     "name": "Vue SPA with Vite.js",
-    "tags": [
-      "website",
-      "SPA website",
-      "Typescript",
-      "Vite.js",
-      "Vue"
-    ],
+    "tags": ["website", "SPA website", "Typescript", "Vite.js", "Vue"],
     "disableLintingOption": true,
     "hasOwnTsConfig": true,
     "icon": "vue.svg",
@@ -1492,9 +1207,7 @@
         "containerNames": []
       }
     ],
-    "usedResourceTypes": [
-      "hosting-bucket"
-    ],
+    "usedResourceTypes": ["hosting-bucket"],
     "isServerSideRenderedWebsite": false,
     "githubLink": "https://github.com/stacktape/starter-vue-spa-vitejs",
     "isWebsite": true,

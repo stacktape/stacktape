@@ -1,9 +1,10 @@
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
+import { filterResourcesForDevMode } from '../../../../commands/dev/dev-resource-filter';
 import { resolveContainerWorkload } from '../multi-container-workloads';
 
 export const resolveWorkerServices = async () => {
-  const { workerServices } = configManager;
+  const workerServices = filterResourcesForDevMode(configManager.workerServices);
   if (workerServices.length) {
     // resolve web service container workloads
     workerServices.forEach(({ nameChain, _nestedResources: { containerWorkload } }) => {

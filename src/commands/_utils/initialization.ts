@@ -274,6 +274,11 @@ export const initializeStackServicesForDevPhase2 = async () => {
     vpcManager.init({
       reuseVpc: configManager.reuseVpcConfig,
       resourcesRequiringPrivateSubnet: configManager.allResourcesRequiringPrivateSubnets
+    }),
+    domainManager.init({
+      stackName: globalStateManager.targetStack.stackName,
+      domains: configManager.allUsedDomainsInConfig,
+      fromParameterStore: true
     })
   ]);
 

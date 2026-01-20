@@ -1,16 +1,39 @@
 import { join } from 'node:path';
-import { ensureDir } from 'fs-extra';
 import { applicationManager } from '@application-services/application-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { configManager } from '@domain-services/config-manager';
-import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { injectedParameterEnvVarName } from '@shared/naming/utils';
 import { stopDockerContainer } from '@shared/utils/docker';
+import { ensureDir } from 'fs-extra';
+import { devTuiManager } from 'src/app/tui-manager/dev-tui';
 import { startLocalDynamoDb } from './dynamodb';
 import { startLocalMysql } from './mysql';
 import { startLocalPostgres } from './postgres';
 import { startLocalRedis } from './redis';
+
+/**
+ * Parse Docker errors and return user-friendly message
+ */
+const parseDockerError = (err: Error): string => {
+  const msg = err.message || '';
+  // Docker daemon not running
+  if (msg.includes('failed to connect to the docker API') || msg.includes('Cannot connect to the Docker daemon')) {
+    return 'Docker is not running. Please start Docker Desktop and try again.';
+  }
+  // Docker not installed
+  if (
+    msg.includes('docker: command not found') ||
+    msg.includes('is not recognized as an internal or external command')
+  ) {
+    return 'Docker is not installed. Please install Docker Desktop to use dev mode.';
+  }
+  // Permission denied
+  if (msg.includes('permission denied') && msg.includes('docker.sock')) {
+    return 'Docker permission denied. Try running with sudo or add your user to the docker group.';
+  }
+  return msg;
+};
 
 export type LocalResourceType = 'postgres' | 'mysql' | 'mariadb' | 'redis' | 'dynamodb';
 
@@ -100,29 +123,71 @@ export const getLocalEmulateableResources = (): {
   return resources;
 };
 
+/**
+ * Get resource names that should use remote (deployed) AWS resources instead of local emulation.
+ * This is determined by:
+ * 1. The --remoteResources CLI flag
+ * 2. The dev.remote: true config property on the resource
+ */
+export const getRemoteResourceNames = (): Set<string> => {
+  const remoteNames = new Set<string>();
+
+  // From CLI flag --remoteResources
+  const cliRemoteResources = globalStateManager.args.remoteResources || [];
+  cliRemoteResources.forEach((name) => remoteNames.add(name));
+
+  // From config dev.remote: true
+  for (const db of configManager.databases || []) {
+    if ((db as any).dev?.remote) {
+      remoteNames.add(db.name);
+    }
+  }
+  for (const redis of configManager.redisClusters || []) {
+    if ((redis as any).dev?.remote) {
+      remoteNames.add(redis.name);
+    }
+  }
+  for (const dynamoTable of configManager.dynamoDbTables || []) {
+    if ((dynamoTable as any).dev?.remote) {
+      remoteNames.add(dynamoTable.name);
+    }
+  }
+
+  return remoteNames;
+};
+
+/**
+ * Categorize connectTo resources into local (emulated) and deployed (remote).
+ *
+ * In the new dev mode:
+ * - By default, emulatable resources run locally
+ * - Resources marked as remote (via --remoteResources or dev.remote: true) connect to deployed AWS
+ * - If selectedLocalResources is provided, only those databases run locally
+ */
 export const categorizeConnectToResources = ({
   connectTo,
-  forceLocal
+  selectedLocalResources
 }: {
   connectTo: string[];
-  forceLocal?: string[] | boolean;
+  selectedLocalResources?: Set<string>;
 }): { local: string[]; deployed: string[] } => {
   const local: string[] = [];
   const deployed: string[] = [];
   const emulateableResources = getLocalEmulateableResources();
   const emulateableNames = new Set(emulateableResources.map((r) => r.name));
-
-  const forceLocalAll = forceLocal === true;
-  const forceLocalSet = new Set(Array.isArray(forceLocal) ? forceLocal : []);
+  const remoteResourceNames = getRemoteResourceNames();
 
   for (const resourceName of connectTo || []) {
     const isEmulatable = emulateableNames.has(resourceName);
-    const isForced = forceLocalAll || forceLocalSet.has(resourceName);
-    const isDeployed = !!deployedStackOverviewManager.getStpResource({ nameChain: resourceName });
+    const isRemote = remoteResourceNames.has(resourceName);
+    // If user explicitly selected which resources to run locally, respect that
+    const isUserSelected = selectedLocalResources ? selectedLocalResources.has(resourceName) : true;
 
-    if (isEmulatable && (isForced || !isDeployed)) {
+    if (isEmulatable && !isRemote && isUserSelected) {
+      // Run locally (default for emulatable resources)
       local.push(resourceName);
     } else {
+      // Use deployed AWS resource
       deployed.push(resourceName);
     }
   }
@@ -211,11 +276,17 @@ export const startLocalResources = async (resourceNames: string[]): Promise<Loca
     configs.push({ resourceName, config, containerName: getLocalContainerName(resourceName) });
   }
 
-  const multiSpinner = tuiManager.createMultiSpinner();
+  const useDevTui = devTuiManager.running;
+
+  const errors: Array<{ resourceName: string; error: Error }> = [];
 
   const startPromises = configs.map(async ({ resourceName, config, containerName }) => {
     await ensureDir(config.dataDir);
-    const spinner = multiSpinner.add(resourceName, `Starting local ${config.type}: ${resourceName}`);
+
+    // Update DevTui status
+    if (useDevTui) {
+      devTuiManager.setLocalResourceStatus(resourceName, 'starting');
+    }
 
     let instance: LocalResourceInstance;
     try {
@@ -232,15 +303,36 @@ export const startLocalResources = async (resourceNames: string[]): Promise<Loca
       }
 
       localResourceInstances.push(instance);
-      spinner.success({ details: `port ${instance.actualPort}` });
+
+      // Update DevTui with success
+      if (useDevTui) {
+        devTuiManager.setLocalResourceStatus(resourceName, 'running', {
+          port: instance.actualPort,
+          host: instance.host,
+          connectionString: instance.connectionString
+        });
+      }
+
       return instance;
     } catch (err) {
-      spinner.error(err.message);
-      throw err;
+      const friendlyError = parseDockerError(err);
+      if (useDevTui) {
+        devTuiManager.setLocalResourceStatus(resourceName, 'error', { error: friendlyError });
+        // Collect error but don't throw - let DevTui show the error state
+        errors.push({ resourceName, error: new Error(friendlyError) });
+        return null;
+      }
+      throw new Error(friendlyError);
     }
   });
 
   const results = await Promise.all(startPromises);
+
+  // If DevTui is not running and there were errors, throw the first one
+  if (!useDevTui && errors.length > 0) {
+    throw errors[0].error;
+  }
+
   return results.filter((r): r is LocalResourceInstance => r !== null);
 };
 
@@ -276,6 +368,17 @@ export const getRunningLocalInstances = (): LocalResourceInstance[] => {
   return [...localResourceInstances];
 };
 
-applicationManager.registerCleanUpHook(async () => {
-  await stopLocalResources();
-});
+// Track if cleanup hook has been registered
+let localResourceCleanupHookRegistered = false;
+
+/**
+ * Register cleanup hook for local resources.
+ * Must be called explicitly when dev command starts.
+ */
+export const registerLocalResourceCleanupHook = () => {
+  if (localResourceCleanupHookRegistered) return;
+  localResourceCleanupHookRegistered = true;
+  applicationManager.registerCleanUpHook(async () => {
+    await stopLocalResources();
+  });
+};

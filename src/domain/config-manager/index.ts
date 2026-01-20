@@ -43,6 +43,7 @@ import {
 } from './utils/lambdas';
 import { cleanConfigForMinimalTemplateCompilerMode, mergeStacktapeDefaults } from './utils/misc';
 import { runInitialValidations, validateConfigStructure } from './utils/validation';
+import { isDevCommand, isResourceTypeExcludedInDevMode } from '../../commands/dev/dev-mode-utils';
 
 export class ConfigManager {
   config: StacktapeConfig;
@@ -1628,10 +1629,17 @@ export class ConfigManager {
   }
 
   get allBuckets() {
+    // In dev mode, filter out buckets from hosting-bucket and nextjs-web since they are excluded
+    const filteredHostingBuckets = isDevCommand()
+      ? this.hostingBuckets.filter((hb) => !isResourceTypeExcludedInDevMode(hb.type))
+      : this.hostingBuckets;
+    const filteredNextjsWebs = isDevCommand()
+      ? this.nextjsWebs.filter((nw) => !isResourceTypeExcludedInDevMode(nw.type))
+      : this.nextjsWebs;
     return [
       ...this.buckets,
-      ...this.hostingBuckets.map(({ _nestedResources: { bucket } }) => bucket),
-      ...this.nextjsWebs.map(({ _nestedResources: { bucket } }) => bucket)
+      ...filteredHostingBuckets.map(({ _nestedResources: { bucket } }) => bucket),
+      ...filteredNextjsWebs.map(({ _nestedResources: { bucket } }) => bucket)
     ];
   }
 

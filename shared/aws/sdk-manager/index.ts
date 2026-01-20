@@ -28,6 +28,7 @@ import type {
   UpdateServiceCommandInput
 } from '@aws-sdk/client-ecs';
 import type { GetRoleCommandOutput } from '@aws-sdk/client-iam';
+import type { Runtime } from '@aws-sdk/client-lambda';
 import type { OpenSearchPartitionInstanceType } from '@aws-sdk/client-opensearch';
 import type { HostedZone, ResourceRecordSet } from '@aws-sdk/client-route-53';
 import type { DomainPrice } from '@aws-sdk/client-route-53-domains';
@@ -160,7 +161,6 @@ import {
 import {
   DeleteLayerVersionCommand,
   GetFunctionConfigurationCommand,
-  GetLayerVersionCommand,
   GetProvisionedConcurrencyConfigCommand,
   InvokeCommand,
   LambdaClient,
@@ -168,7 +168,6 @@ import {
   ListTagsCommand,
   PublishLayerVersionCommand,
   PublishVersionCommand,
-  Runtime,
   TagResourceCommand as TagLambdaResource,
   UpdateAliasCommand,
   UpdateFunctionCodeCommand,

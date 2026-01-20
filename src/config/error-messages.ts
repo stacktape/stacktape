@@ -1986,6 +1986,14 @@ Property ${tuiManager.prettyConfigProperty('runAppAs')} can be specified only fo
       message: `Config function in ${tuiManager.prettyFilePath(configPath)} must return an object, but returned ${tuiManager.makeBold(exportValue)}.`,
       hint: `Make sure your config function returns a valid Stacktape configuration object with at least a ${tuiManager.makeBold('resources')} property.`
     };
+  },
+  e141({ stackName, stage }: { stackName: string; stage: string }): ReturnedError {
+    return {
+      type: 'CLI',
+      message: `Stack ${tuiManager.colorize('cyan', stackName)} is a dev stack and cannot be deployed using ${tuiManager.prettyCommand('deploy')}.`,
+      hint: `Dev stacks are created and managed by ${tuiManager.prettyCommand('stacktape dev')}. To deploy a production stack, use a different stage name (e.g., --stage production).
+If you want to delete the dev stack, run: ${tuiManager.prettyCommand(`stacktape delete --stage ${stage}`)}`
+    };
   }
 } as const;
 

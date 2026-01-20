@@ -1,9 +1,11 @@
-import { join, isAbsolute } from 'node:path';
-import { writeFile } from 'fs-extra';
+import type { DevServerState } from '../dev-server';
+import { isAbsolute, join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { configManager } from '@domain-services/config-manager';
-import { startDevServer, stopDevServer, formatDevServerStatus, type DevServerState } from '../dev-server';
+import { writeFile } from 'fs-extra';
+import { devTuiManager } from 'src/app/tui-manager/dev-tui';
+import { formatDevServerStatus, startDevServer, stopDevServer } from '../dev-server';
 
 const DEFAULT_NEXTJS_DEV_COMMAND = 'next dev';
 
@@ -132,18 +134,52 @@ export const startNextjsWebDevServer = async ({
     workingDirectory: nextjsWeb.appDirectory
   };
 
+  const useDevTui = devTuiManager.running;
+
   return startDevServer({
     name,
     config: devConfig,
     callbacks: {
       onStateChange: (newState) => {
         const status = formatDevServerStatus(newState);
-        if (newState.status === 'ready' || newState.status === 'error') {
-          tuiManager.info(`[${name}] ${status}`);
+        const inRebuildPhase = devTuiManager.inRebuildPhase;
+
+        if (newState.status === 'ready') {
+          const sizeInfo = newState.lastCompileTime ? `ready in ${newState.lastCompileTime}` : undefined;
+
+          if (inRebuildPhase) {
+            // During rebuild, update the rebuild UI with size info
+            if (sizeInfo) {
+              devTuiManager.setRebuildSize(name, sizeInfo);
+            }
+          } else if (useDevTui) {
+            // Normal operation - update workload status
+            devTuiManager.setWorkloadStatus(name, 'running', { url: newState.url, size: sizeInfo });
+            devTuiManager.log(name, status);
+          } else {
+            tuiManager.info(`[${name}] ${status}`);
+          }
+        } else if (newState.status === 'error') {
+          if (inRebuildPhase) {
+            devTuiManager.setRebuildError(name, newState.error || 'Build failed');
+          } else if (useDevTui) {
+            devTuiManager.setWorkloadStatus(name, 'error', { error: newState.error });
+            devTuiManager.log(name, status);
+          } else {
+            tuiManager.info(`[${name}] ${status}`);
+          }
         }
       },
       onOutput: (line) => {
-        tuiManager.info(`[${name}] ${line}`);
+        const inRebuildPhase = devTuiManager.inRebuildPhase;
+        if (inRebuildPhase) {
+          // Buffer logs during rebuild
+          devTuiManager.bufferRebuildLog(name, line);
+        } else if (useDevTui) {
+          devTuiManager.log(name, line);
+        } else {
+          tuiManager.info(`[${name}] ${line}`);
+        }
       }
     }
   });

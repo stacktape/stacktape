@@ -1,4 +1,6 @@
 import type { SsmPortForwardingTunnel } from '@utils/ssm-session';
+import type { LocalResourceInstance } from '../local-resources';
+import type { TunnelInfo } from '../tunnel-manager';
 import { applicationManager } from '@application-services/application-manager';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
@@ -10,26 +12,21 @@ import { deployedStackOverviewManager } from '@domain-services/deployed-stack-ov
 import { packagingManager } from '@domain-services/packaging-manager';
 import { stpErrors } from '@errors';
 import { getJobName, getLocalInvokeContainerName, injectedParameterEnvVarName } from '@shared/naming/utils';
-import { getError } from '@shared/utils/misc';
 import { dockerRun } from '@shared/utils/docker';
-import { getDirectiveParams, getIsDirective, startsLikeGetParamDirective } from '@utils/directives';
 import { LambdaCloudwatchLogPrinter } from '@utils/cloudwatch-logs';
+import { getDirectiveParams, getIsDirective, startsLikeGetParamDirective } from '@utils/directives';
 import { getAwsSynchronizedTime } from '@utils/time';
-import { addCallerToAssumeRolePolicy } from 'src/commands/_utils/assume-role';
+import { devTuiManager } from 'src/app/tui-manager/dev-tui';
+
 import { buildAndUpdateFunctionCode } from 'src/commands/_utils/fn-deployment';
-import { initializeStackServicesForDevPhase2 } from 'src/commands/_utils/initialization';
 import { getLogGroupInfoForStacktapeResource } from 'src/commands/_utils/logs';
+import { getExecutableScriptFunction } from 'src/commands/script-run/utils';
 import { prepareImage } from '../container';
 import { startHostingBucketDevServer } from '../hosting-bucket';
-import { startNextjsWebDevServer } from '../nextjs-web';
 import { detectLambdasNeedingTunnels, updateLambdaEnvVarsWithTunnels } from '../lambda-env-manager';
-import {
-  categorizeConnectToResources,
-  getLocalResourceEnvVars,
-  startLocalResources,
-  type LocalResourceInstance
-} from '../local-resources';
-import { startTunnel, type TunnelInfo } from '../tunnel-manager';
+import { categorizeConnectToResources, getLocalResourceEnvVars, startLocalResources } from '../local-resources';
+import { startNextjsWebDevServer } from '../nextjs-web';
+import { startTunnel } from '../tunnel-manager';
 import {
   getBastionTunnelsForResource,
   getDeployedBastionStpName,
@@ -67,34 +64,23 @@ const state: ParallelRunnerState = {
   logIntervals: []
 };
 
+/** Format bytes to human-readable string */
+const formatPackageSize = (bytes: number): string => {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
+};
+
 export const runParallelWorkloads = async (
-  resources: { name: string; type: string; category: WorkloadType }[]
+  resources: { name: string; type: string; category: WorkloadType }[],
+  selectedLocalResources?: Set<string>
 ): Promise<void> => {
-  const { watch, disableEmulation } = globalStateManager.args;
+  const { watch } = globalStateManager.args;
 
-  // Filter out functions when disableEmulation is true (functions always need AWS)
-  let filteredResources = resources;
-  if (disableEmulation) {
-    const functions = resources.filter((r) => r.category === 'function');
-    if (functions.length > 0) {
-      tuiManager.warn(
-        `Skipping Lambda functions in local mode (${functions.map((f) => f.name).join(', ')}) - functions require deployed AWS resources`
-      );
-      filteredResources = resources.filter((r) => r.category !== 'function');
-    }
-    if (filteredResources.length === 0) {
-      throw getError({
-        type: 'CLI',
-        message: 'No container workloads to run in local mode.',
-        hint: 'Lambda functions cannot run locally without a deployed stack. Use containers or deploy your stack first.'
-      });
-    }
-  }
-
-  // Phase 2: Load AWS metadata
-  const spinner = tuiManager.createSpinner({ text: 'Loading metadata from AWS' });
-  await initializeStackServicesForDevPhase2();
-  spinner.success();
+  // All resources run - no filtering needed in new dev mode
+  const filteredResources = resources;
 
   // Collect all referenced resources from all workloads (via connectTo and $ResourceParam directives)
   const allReferencedResources = new Set<string>();
@@ -110,22 +96,24 @@ export const runParallelWorkloads = async (
   }
 
   // Categorize and start local resources
-  const forceLocal = globalStateManager.args.local;
-  const forceLocalAll = forceLocal?.includes('all');
+  // If selectedLocalResources provided, only run those locally (others use deployed AWS)
   const { local: localResourceNames, deployed: deployedResourceNames } = categorizeConnectToResources({
     connectTo: Array.from(allReferencedResources),
-    forceLocal: forceLocalAll ? true : forceLocal
+    selectedLocalResources
   });
 
   state.localResources = await startLocalResources(localResourceNames);
   const localResourceEnvVars = getLocalResourceEnvVars(state.localResources);
 
+  const useDevTui = devTuiManager.running;
+
   // Setup bore tunnels for Lambda functions that need to connect to local resources
-  // Skip when: --no-tunnel is set, --disableEmulation is set (local-only mode), or no local resources
-  const shouldSetupLambdaTunnels =
-    state.localResources.length > 0 && !globalStateManager.args.noTunnel && !disableEmulation;
+  // Skip when: --no-tunnel is set or no local resources
+  const shouldSetupLambdaTunnels = state.localResources.length > 0 && !globalStateManager.args.noTunnel;
 
   if (shouldSetupLambdaTunnels) {
+    if (useDevTui) devTuiManager.setSetupStepStatus('tunnels', 'running');
+
     const { lambdasNeedingTunnels, skippedLambdas } = await detectLambdasNeedingTunnels(localResourceNames);
 
     // Warn about skipped lambdas
@@ -142,19 +130,15 @@ export const runParallelWorkloads = async (
         }
       }
 
-      const multiSpinner = tuiManager.createMultiSpinner();
       const tunnelPromises = Array.from(resourcesNeedingTunnels).map(async (resourceName) => {
         const localResource = state.localResources.find((r) => r.name === resourceName);
         if (!localResource) return null;
 
-        const spinnerItem = multiSpinner.add(resourceName, `Starting tunnel: ${resourceName}`);
         try {
           const tunnel = await startTunnel(resourceName, localResource.actualPort);
           state.boreTunnels.push(tunnel);
-          spinnerItem.success({ details: `→ ${tunnel.publicHost}:${tunnel.publicPort}` });
           return tunnel;
-        } catch (err) {
-          spinnerItem.error(err.message);
+        } catch {
           return null;
         }
       });
@@ -169,20 +153,58 @@ export const runParallelWorkloads = async (
           localResources: state.localResources
         });
       }
+
+      if (useDevTui) {
+        const tunnelCount = state.boreTunnels.length;
+        devTuiManager.setSetupStepStatus('tunnels', 'done', tunnelCount > 0 ? `${tunnelCount} tunnel(s)` : undefined);
+      }
+    } else {
+      if (useDevTui) devTuiManager.setSetupStepStatus('tunnels', 'skipped');
     }
   }
 
+  // Mark env injection as running
+  if (useDevTui && state.localResources.length > 0) {
+    devTuiManager.setSetupStepStatus('env-inject', 'running');
+  }
+
   // Compute env vars and addresses for local container workloads (only for workloads explicitly referenced)
-  const { envVars: localWorkloadEnvVars, addresses: localWorkloadAddresses } = getLocalWorkloadInfo(
+  const {
+    envVars: localWorkloadEnvVars,
+    addresses: localWorkloadAddresses,
+    stackInfoWorkloads
+  } = getLocalWorkloadInfo(
     filteredResources.filter((r) => r.category === 'container'),
     allReferencedResources
   );
 
-  // Run beforeDev hooks with local resource env vars available
-  if (state.localResources.length > 0) {
-    Object.assign(process.env, localResourceEnvVars, localWorkloadEnvVars);
-    await eventManager.processHooks({ captureType: 'START' });
+  // Inject local workload info into deployedStackOverviewManager so $ResourceParam directives can resolve them
+  if (stackInfoWorkloads.length > 0) {
+    deployedStackOverviewManager.injectLocalWorkloadInfo(stackInfoWorkloads);
   }
+
+  // Inject local resource (database) info into deployedStackOverviewManager so hooks can resolve connectTo
+  if (state.localResources.length > 0) {
+    const localResourceInfo = state.localResources.map((r) => ({
+      name: r.name,
+      resourceType: r.type,
+      referencableParams: r.referencableParams
+    }));
+    deployedStackOverviewManager.injectLocalResourceInfo(localResourceInfo);
+  }
+
+  // Set local resource env vars if we have any
+  if (state.localResources.length > 0 || Object.keys(localWorkloadEnvVars).length > 0) {
+    Object.assign(process.env, localResourceEnvVars, localWorkloadEnvVars);
+  }
+
+  // Mark env injection as done
+  if (useDevTui && state.localResources.length > 0) {
+    devTuiManager.setSetupStepStatus('env-inject', 'done');
+  }
+
+  // Run beforeDev hooks
+  await runBeforeDevHooks();
 
   // Setup bastion tunnels for deployed resources
   const bastionStpName = getDeployedBastionStpName();
@@ -227,21 +249,36 @@ export const runParallelWorkloads = async (
 
   await Promise.all(startPromises);
 
-  // Setup file watching or stdin restart
-  if (watch) {
-    setupFileWatching();
-  } else {
-    setupStdinRestart();
+  // Transition to running phase in DevTui
+  if (useDevTui) {
+    // Small delay to ensure final state updates are rendered
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    devTuiManager.transitionToRunning();
   }
 
-  tuiManager.success(
-    `All ${filteredResources.length} workloads running. ${watch ? '(watching for changes)' : "(type 'rs' + enter to rebuild all)"}`
-  );
+  // Setup file watching or stdin restart (only when not using DevTui)
+  if (!useDevTui) {
+    if (watch) {
+      setupFileWatching();
+    } else {
+      setupStdinRestart();
+    }
+
+    tuiManager.success(
+      `All ${filteredResources.length} workloads running. ${watch ? '(watching for changes)' : "(type 'rs' + enter to rebuild all)"}`
+    );
+  }
 };
 
 const getConfigResource = (name: string, type: string): any => {
   if (type === 'function') {
     return configManager.functions.find((f) => f.name === name);
+  }
+  if (type === 'hosting-bucket') {
+    return configManager.hostingBuckets.find((b) => b.name === name);
+  }
+  if (type === 'nextjs-web') {
+    return configManager.nextjsWebs.find((n) => n.name === name);
   }
   return configManager.allContainerWorkloads.find((r) => r.nameChain[0] === name);
 };
@@ -290,25 +327,33 @@ const getResourceParamReferences = (configResource: any): string[] => {
     }
   }
 
+  // Scan injectEnvironment (for hosting-bucket and nextjs-web)
+  scanEnvVars(configResource.injectEnvironment);
+
   return references;
 };
 
+type LocalWorkloadInfoResult = {
+  envVars: Record<string, string>;
+  addresses: Record<string, string>;
+  stackInfoWorkloads: { name: string; resourceType: string; url?: string; address?: string }[];
+};
+
 /**
- * Get env vars and addresses for local container workloads that are referenced.
- * Only includes workloads explicitly referenced via connectTo or $ResourceParam directives.
+ * Get env vars, addresses, and stack info for local container workloads.
+ * - envVars/addresses: Only includes workloads explicitly referenced via connectTo or $ResourceParam
+ * - stackInfoWorkloads: Includes ALL container workloads so $ResourceParam directives can resolve
  */
 const getLocalWorkloadInfo = (
   containerResources: { name: string; type: string }[],
   allReferencedResources: Set<string>
-): { envVars: Record<string, string>; addresses: Record<string, string> } => {
+): LocalWorkloadInfoResult => {
   const envVars: Record<string, string> = {};
   const addresses: Record<string, string> = {};
+  const stackInfoWorkloads: { name: string; resourceType: string; url?: string; address?: string }[] = [];
   const tunnelHost = process.platform === 'linux' ? '127.0.0.1' : 'host.docker.internal';
 
   for (const resource of containerResources) {
-    // Only expose this workload if another workload references it
-    if (!allReferencedResources.has(resource.name)) continue;
-
     const workload = configManager.allContainerWorkloads.find(
       (r) => r.nameChain[0] === resource.name
     ) as StpContainerWorkload;
@@ -329,17 +374,27 @@ const getLocalWorkloadInfo = (
       // For web-service/worker-service, set URL (format: http://host:port)
       if (workload.configParentResourceType === 'private-service') {
         const address = `${tunnelHost}:${port}`;
-        envVars[injectedParameterEnvVarName(resource.name, 'address')] = address;
-        addresses[resource.name] = address;
+        // Only set env vars for referenced workloads
+        if (allReferencedResources.has(resource.name)) {
+          envVars[injectedParameterEnvVarName(resource.name, 'address')] = address;
+          addresses[resource.name] = address;
+        }
+        // Always add to stackInfoWorkloads for $ResourceParam resolution
+        stackInfoWorkloads.push({ name: resource.name, resourceType: 'private-service', address });
       } else {
         const url = `http://${tunnelHost}:${port}`;
-        envVars[injectedParameterEnvVarName(resource.name, 'url')] = url;
-        addresses[resource.name] = url;
+        // Only set env vars for referenced workloads
+        if (allReferencedResources.has(resource.name)) {
+          envVars[injectedParameterEnvVarName(resource.name, 'url')] = url;
+          addresses[resource.name] = url;
+        }
+        // Always add to stackInfoWorkloads for $ResourceParam resolution
+        stackInfoWorkloads.push({ name: resource.name, resourceType: workload.configParentResourceType, url });
       }
     }
   }
 
-  return { envVars, addresses };
+  return { envVars, addresses, stackInfoWorkloads };
 };
 
 const startContainerWorkload = async (
@@ -349,6 +404,12 @@ const startContainerWorkload = async (
   deployedConnectTo: string[],
   localWorkloadAddresses: Record<string, string>
 ): Promise<void> => {
+  const useDevTui = devTuiManager.running;
+
+  if (useDevTui) {
+    devTuiManager.setWorkloadStatus(resourceName, 'starting', { statusMessage: 'Packaging...' });
+  }
+
   const resource = configManager.allContainerWorkloads.find(
     (r) => r.nameChain[0] === resourceName
   ) as StpContainerWorkload;
@@ -366,15 +427,8 @@ const startContainerWorkload = async (
   // Prepare image
   const imageResult = await prepareImage(containerDefinition);
 
-  // Validate deployed resource if stack exists
-  if (stackManager.existingStackDetails) {
-    const deployedStpResource = deployedStackOverviewManager.getStpResource({ nameChain: resourceName });
-    if (deployedStpResource) {
-      await addCallerToAssumeRolePolicy({
-        roleName: deployedStackOverviewManager.getIamRoleNameOfDeployedResource(containerDefinition.workloadName)
-      });
-    }
-  }
+  // Check if resource is locally injected (not deployed to AWS)
+  const isInjected = deployedStackOverviewManager.isLocallyInjectedResource(resourceName);
 
   // Run container
   const localContainerName = getLocalInvokeContainerName(jobName);
@@ -385,6 +439,8 @@ const startContainerWorkload = async (
 
   // Get environment
   const resourceDeployedConnectTo = (resource.connectTo || []).filter((c) => deployedConnectTo.includes(c));
+  // Skip AWS credentials for locally-injected resources (not deployed to AWS)
+  const skipAwsCredentials = !stackManager.existingStackDetails || isInjected;
   const environment = await getWorkloadEnvironmentVars({
     jobEnvironment: containerDefinition.environment,
     jobName,
@@ -393,11 +449,12 @@ const startContainerWorkload = async (
     workloadType: 'multi-container-workload',
     tunnels: state.tunnels.filter((t) => resourceDeployedConnectTo.includes(t.targetInfo.targetStpName)),
     localResourceEnvVars,
-    skipAwsCredentials: !stackManager.existingStackDetails,
+    skipAwsCredentials,
     port: primaryPort,
     localWorkloadAddresses
   });
-  await resolveRunningContainersWithSamePort({ ports });
+  // Auto-stop conflicting containers when DevTUI is active (can't prompt user)
+  await resolveRunningContainersWithSamePort({ ports, autoStopConflicting: useDevTui });
 
   const command = (containerDefinition.packaging as any)?.properties?.command;
 
@@ -410,8 +467,31 @@ const startContainerWorkload = async (
     portMappings: ports.map((port: number) => ({ containerPort: port, hostPort: port })),
     volumeMounts: imageResult.distFolderPath ? [{ hostPath: imageResult.distFolderPath, containerPath: '/app' }] : [],
     onStart: () => {
-      tuiManager.info(`[${resourceName}] Container started on port${ports.length > 1 ? 's' : ''} ${ports.join(', ')}`);
+      if (useDevTui) {
+        devTuiManager.setWorkloadStatus(resourceName, 'running', {
+          port: primaryPort,
+          url: `http://localhost:${primaryPort}`,
+          size: imageResult.details // Image size info
+        });
+        devTuiManager.log(resourceName, `Container started on port ${primaryPort}`);
+      } else {
+        tuiManager.info(
+          `[${resourceName}] Container started on port${ports.length > 1 ? 's' : ''} ${ports.join(', ')}`
+        );
+      }
     },
+    transformStdoutLine: useDevTui
+      ? (line: string) => {
+          devTuiManager.log(resourceName, line);
+          return null; // Suppress console output when DevTui is active
+        }
+      : undefined,
+    transformStderrLine: useDevTui
+      ? (line: string) => {
+          devTuiManager.log(resourceName, line, 'warn');
+          return null; // Suppress console output when DevTui is active
+        }
+      : undefined,
     args: globalStateManager.args
   }).catch(() => {
     // Container exited - this is normal when restarting
@@ -419,22 +499,76 @@ const startContainerWorkload = async (
 
   // Register workload for file watching
   const rebuild = async () => {
-    tuiManager.info(`[${resourceName}] Rebuilding...`);
+    const inRebuildPhase = devTuiManager.inRebuildPhase;
+
+    if (inRebuildPhase) {
+      // Step 1: Stop container
+      devTuiManager.setRebuildStep(resourceName, 'stopping');
+    } else if (useDevTui) {
+      devTuiManager.setWorkloadStatus(resourceName, 'starting', { statusMessage: 'Rebuilding...' });
+    } else {
+      tuiManager.info(`[${resourceName}] Rebuilding...`);
+    }
+
     await gracefullyStopContainer(localContainerName);
+
+    // Step 2: Package
+    if (inRebuildPhase) {
+      devTuiManager.setRebuildStep(resourceName, 'packaging');
+    }
     const newImage = await prepareImage(containerDefinition);
-    dockerRun({
-      name: localContainerName,
-      image: newImage.imageName,
-      command,
-      environment,
-      portMappings: ports.map((port: number) => ({ containerPort: port, hostPort: port })),
-      volumeMounts: newImage.distFolderPath ? [{ hostPath: newImage.distFolderPath, containerPath: '/app' }] : [],
-      onStart: () => {
-        tuiManager.info(`[${resourceName}] Container restarted`);
-      },
-      args: globalStateManager.args
-    }).catch(() => {});
-    return newImage.sourceFiles;
+
+    // Update size info
+    if (inRebuildPhase && newImage.details) {
+      devTuiManager.setRebuildSize(resourceName, newImage.details);
+    }
+
+    // Step 3: Start container
+    if (inRebuildPhase) {
+      devTuiManager.setRebuildStep(resourceName, 'starting');
+    }
+
+    await new Promise<void>((resolve) => {
+      dockerRun({
+        name: localContainerName,
+        image: newImage.imageName,
+        command,
+        environment,
+        portMappings: ports.map((port: number) => ({ containerPort: port, hostPort: port })),
+        volumeMounts: newImage.distFolderPath ? [{ hostPath: newImage.distFolderPath, containerPath: '/app' }] : [],
+        onStart: () => {
+          if (!inRebuildPhase) {
+            if (useDevTui) {
+              devTuiManager.setWorkloadStatus(resourceName, 'running', {
+                port: primaryPort,
+                url: `http://localhost:${primaryPort}`
+              });
+              devTuiManager.log(resourceName, 'Container restarted');
+            } else {
+              tuiManager.info(`[${resourceName}] Container restarted`);
+            }
+          }
+          resolve();
+        },
+        transformStdoutLine: useDevTui
+          ? (line: string) => {
+              devTuiManager.log(resourceName, line);
+              return null;
+            }
+          : undefined,
+        transformStderrLine: useDevTui
+          ? (line: string) => {
+              devTuiManager.log(resourceName, line, 'warn');
+              return null;
+            }
+          : undefined,
+        args: globalStateManager.args
+      }).catch(() => {
+        resolve();
+      });
+    });
+
+    return { sourceFiles: newImage.sourceFiles, size: newImage.details };
   };
 
   state.workloads.set(resourceName, {
@@ -443,10 +577,10 @@ const startContainerWorkload = async (
     resourceType,
     sourceFiles: imageResult.sourceFiles,
     rebuild: async () => {
-      const newSourceFiles = await rebuild();
+      const result = await rebuild();
       const workload = state.workloads.get(resourceName);
       if (workload) {
-        workload.sourceFiles = newSourceFiles;
+        workload.sourceFiles = result.sourceFiles;
       }
     }
   });
@@ -456,6 +590,14 @@ const startHostingBucketWorkload = async (
   resourceName: string,
   localEnvVars: Record<string, string>
 ): Promise<void> => {
+  const useDevTui = devTuiManager.running;
+
+  if (useDevTui) {
+    devTuiManager.setWorkloadStatus(resourceName, 'starting', { statusMessage: 'Starting dev server...' });
+  }
+
+  // startHostingBucketDevServer handles its own onStateChange callback
+  // which updates the workload status with URL and compile time
   await startHostingBucketDevServer({
     name: resourceName,
     localWorkloadEnvVars: localEnvVars
@@ -468,16 +610,41 @@ const startHostingBucketWorkload = async (
     resourceType: 'hosting-bucket',
     sourceFiles: [],
     rebuild: async () => {
-      tuiManager.info(`[${resourceName}] Restarting dev server...`);
-      await startHostingBucketDevServer({
+      const inRebuildPhase = devTuiManager.inRebuildPhase;
+
+      if (inRebuildPhase) {
+        devTuiManager.setRebuildStep(resourceName, 'stopping');
+      } else if (useDevTui) {
+        devTuiManager.setWorkloadStatus(resourceName, 'starting', { statusMessage: 'Restarting...' });
+      } else {
+        tuiManager.info(`[${resourceName}] Restarting dev server...`);
+      }
+
+      if (inRebuildPhase) {
+        devTuiManager.setRebuildStep(resourceName, 'starting');
+      }
+
+      const restartResult = await startHostingBucketDevServer({
         name: resourceName,
         localWorkloadEnvVars: localEnvVars
       });
+
+      if (!inRebuildPhase && useDevTui && restartResult.status === 'ready') {
+        devTuiManager.setWorkloadStatus(resourceName, 'running', { url: restartResult.url });
+      }
     }
   });
 };
 
 const startNextjsWebWorkload = async (resourceName: string, localEnvVars: Record<string, string>): Promise<void> => {
+  const useDevTui = devTuiManager.running;
+
+  if (useDevTui) {
+    devTuiManager.setWorkloadStatus(resourceName, 'starting', { statusMessage: 'Starting dev server...' });
+  }
+
+  // startNextjsWebDevServer handles its own onStateChange callback
+  // which updates the workload status with URL and compile time
   await startNextjsWebDevServer({
     name: resourceName,
     localWorkloadEnvVars: localEnvVars
@@ -490,16 +657,87 @@ const startNextjsWebWorkload = async (resourceName: string, localEnvVars: Record
     resourceType: 'nextjs-web',
     sourceFiles: [],
     rebuild: async () => {
-      tuiManager.info(`[${resourceName}] Restarting dev server...`);
-      await startNextjsWebDevServer({
+      const inRebuildPhase = devTuiManager.inRebuildPhase;
+
+      if (inRebuildPhase) {
+        devTuiManager.setRebuildStep(resourceName, 'stopping');
+      } else if (useDevTui) {
+        devTuiManager.setWorkloadStatus(resourceName, 'starting', { statusMessage: 'Restarting...' });
+      } else {
+        tuiManager.info(`[${resourceName}] Restarting dev server...`);
+      }
+
+      if (inRebuildPhase) {
+        devTuiManager.setRebuildStep(resourceName, 'starting');
+      }
+
+      const restartResult = await startNextjsWebDevServer({
         name: resourceName,
         localWorkloadEnvVars: localEnvVars
       });
+
+      if (!inRebuildPhase && useDevTui && restartResult.status === 'ready') {
+        devTuiManager.setWorkloadStatus(resourceName, 'running', { url: restartResult.url });
+      }
     }
   });
 };
 
+/**
+ * Get the primary integration info for a Lambda function.
+ * Returns URL for HTTP API Gateway integrations, or a description for other event types.
+ */
+const getFunctionIntegrationInfo = (resourceName: string): { url?: string; statusMessage?: string } => {
+  const functionConfig = configManager.functions.find((f) => f.name === resourceName);
+  if (!functionConfig?.events?.length) {
+    return { statusMessage: 'No triggers' };
+  }
+
+  // Find HTTP API Gateway integration first (most common, has URL)
+  const httpApiEvent = functionConfig.events.find((e: any) => e.type === 'http-api-gateway') as
+    | HttpApiIntegration
+    | undefined;
+  if (httpApiEvent) {
+    const gatewayName = httpApiEvent.properties?.httpApiGatewayName;
+    if (gatewayName) {
+      // Get the gateway URL from deployed stack
+      const gatewayResource = deployedStackOverviewManager.getStpResource({ nameChain: gatewayName });
+      const gatewayUrl = gatewayResource?.referencableParams?.url?.value;
+      if (gatewayUrl) {
+        // Append the path if specified
+        const path = httpApiEvent.properties?.path || '';
+        const displayPath = path === '/{proxy+}' ? '/*' : path;
+        return { url: `${gatewayUrl}${displayPath !== '/*' ? displayPath : ''}` };
+      }
+    }
+    return { statusMessage: 'HTTP API' };
+  }
+
+  // Check other integration types and return descriptive status
+  const eventType = functionConfig.events[0]?.type;
+  const eventTypeLabels: Record<string, string> = {
+    sqs: 'SQS trigger',
+    sns: 'SNS trigger',
+    schedule: 'Scheduled',
+    kinesis: 'Kinesis trigger',
+    'kafka-topic': 'Kafka trigger',
+    'event-bus': 'EventBridge trigger',
+    dynamodb: 'DynamoDB trigger',
+    'cloudwatch-log': 'CloudWatch Logs',
+    'cloudwatch-alarm': 'Alarm trigger',
+    'application-load-balancer': 'ALB trigger'
+  };
+
+  return { statusMessage: eventTypeLabels[eventType] || `${eventType} trigger` };
+};
+
 const startFunctionWorkload = async (resourceName: string): Promise<void> => {
+  const useDevTui = devTuiManager.running;
+
+  if (useDevTui) {
+    devTuiManager.setWorkloadStatus(resourceName, 'starting', { statusMessage: 'Deploying...' });
+  }
+
   const deployedStpResource = deployedStackOverviewManager.getStpResource({ nameChain: resourceName });
   if (!deployedStpResource) {
     throw stpErrors.e6({
@@ -514,12 +752,28 @@ const startFunctionWorkload = async (resourceName: string): Promise<void> => {
   const { packagingOutput } = await buildAndUpdateFunctionCode(resourceName, { devMode: true });
   packagingManager.clearPackagedJobs();
 
-  tuiManager.info(`[${resourceName}] Function deployed`);
+  // Get integration info (URL or status message)
+  const integrationInfo = getFunctionIntegrationInfo(resourceName);
+
+  // Get package size (use zipped size for Lambda - already in MB)
+  const packageSize = packagingOutput?.zippedSize ? `${packagingOutput.zippedSize} MB zipped` : undefined;
+
+  if (useDevTui) {
+    devTuiManager.setWorkloadStatus(resourceName, 'running', { ...integrationInfo, size: packageSize });
+    devTuiManager.log(resourceName, 'Function deployed');
+  } else {
+    tuiManager.info(`[${resourceName}] Function deployed`);
+  }
 
   // Setup log streaming
   const cloudwatchLogPrinter = new LambdaCloudwatchLogPrinter({
     fetchSince: (await getAwsSynchronizedTime()).getTime(),
-    logGroupAwsResourceName: getLogGroupInfoForStacktapeResource({ resourceName }).PhysicalResourceId
+    logGroupAwsResourceName: getLogGroupInfoForStacktapeResource({ resourceName }).PhysicalResourceId,
+    onLog: useDevTui
+      ? (message, level) => {
+          devTuiManager.log(resourceName, message, level === 'error' ? 'error' : level === 'warn' ? 'warn' : 'info');
+        }
+      : undefined
   });
 
   const logInterval = setInterval(async () => {
@@ -539,11 +793,43 @@ const startFunctionWorkload = async (resourceName: string): Promise<void> => {
     resourceType: 'function',
     sourceFiles: packagingOutput.sourceFiles.map((f: any) => f.path),
     rebuild: async () => {
-      tuiManager.info(`[${resourceName}] Redeploying...`);
+      const inRebuildPhase = devTuiManager.inRebuildPhase;
+
+      if (inRebuildPhase) {
+        devTuiManager.setRebuildStep(resourceName, 'packaging');
+      } else if (useDevTui) {
+        devTuiManager.setWorkloadStatus(resourceName, 'starting', { statusMessage: 'Redeploying...' });
+      } else {
+        tuiManager.info(`[${resourceName}] Redeploying...`);
+      }
+
       globalStateManager.args.resourceName = resourceName;
+
+      if (inRebuildPhase) {
+        devTuiManager.setRebuildStep(resourceName, 'updating-code');
+      }
+
       const result = await buildAndUpdateFunctionCode(resourceName, { devMode: true });
       packagingManager.clearPackagedJobs();
-      tuiManager.info(`[${resourceName}] Function redeployed`);
+
+      // Extract package size from result (use zipped size for Lambda - already in MB)
+      const packageSize = result.packagingOutput?.zippedSize
+        ? `${result.packagingOutput.zippedSize} MB zipped`
+        : undefined;
+
+      if (inRebuildPhase && packageSize) {
+        devTuiManager.setRebuildSize(resourceName, packageSize);
+      }
+
+      if (!inRebuildPhase) {
+        if (useDevTui) {
+          devTuiManager.setWorkloadStatus(resourceName, 'running', { ...integrationInfo, size: packageSize });
+          devTuiManager.log(resourceName, 'Function redeployed');
+        } else {
+          tuiManager.info(`[${resourceName}] Function redeployed`);
+        }
+      }
+
       await cloudwatchLogPrinter.startUsingNewLogStream();
       const workload = state.workloads.get(resourceName);
       if (workload) {
@@ -632,6 +918,59 @@ const setupStdinRestart = () => {
   tuiManager.info("Type 'rs' to rebuild all, or 'rs <workload-name>' to rebuild specific workload");
 };
 
+/**
+ * Run beforeDev hooks with DevTui status updates and individual timing
+ */
+const runBeforeDevHooks = async () => {
+  const useDevTui = devTuiManager.running;
+  const hooks = configManager.hooks?.beforeDev || [];
+
+  if (hooks.length === 0) {
+    return;
+  }
+
+  // Get hooks with scriptName (references to scripts in the scripts section)
+  const scriptHookRefs = hooks.filter((h): h is { scriptName: string } => 'scriptName' in h);
+
+  if (!useDevTui) {
+    // Without DevTui, just use eventManager
+    await eventManager.processHooks({ captureType: 'START' });
+    return;
+  }
+
+  // With DevTui, run hooks individually to track timing
+  for (const hookRef of scriptHookRefs) {
+    const hookName = hookRef.scriptName;
+    devTuiManager.setHookStatus(hookName, 'running');
+
+    // Get the actual script definition from configManager.scripts
+    const scriptDefinition = configManager.scripts?.[hookName];
+    if (!scriptDefinition) {
+      devTuiManager.setHookStatus(hookName, 'error', { error: `Script "${hookName}" not found` });
+      continue;
+    }
+
+    const startTime = Date.now();
+    try {
+      const executableFn = getExecutableScriptFunction({
+        scriptDefinition: { ...scriptDefinition, scriptName: hookName } as any,
+        hookTrigger: 'beforeDev'
+      });
+      await executableFn({ hookType: 'before' });
+
+      const duration = Date.now() - startTime;
+      devTuiManager.setHookStatus(hookName, 'success', { duration });
+    } catch (err) {
+      const duration = Date.now() - startTime;
+      devTuiManager.setHookStatus(hookName, 'error', {
+        error: err.message,
+        duration
+      });
+      throw err;
+    }
+  }
+};
+
 // Cleanup on exit
 applicationManager.registerCleanUpHook(async () => {
   for (const interval of state.logIntervals) {
@@ -640,3 +979,57 @@ applicationManager.registerCleanUpHook(async () => {
   state.logIntervals = [];
   state.workloads.clear();
 });
+
+/**
+ * Rebuild a specific workload by name (with new UI)
+ */
+export const rebuildWorkload = async (name: string): Promise<boolean> => {
+  const workload = state.workloads.get(name);
+  if (!workload) {
+    return false;
+  }
+
+  // Start rebuild UI for single workload
+  devTuiManager.startRebuild([name]);
+
+  try {
+    await workload.rebuild();
+    devTuiManager.setRebuildDone(name);
+  } catch (err) {
+    devTuiManager.setRebuildError(name, err instanceof Error ? err.message : String(err));
+  }
+
+  await devTuiManager.finishRebuild();
+  return true;
+};
+
+/**
+ * Rebuild all workloads (with new UI, parallel execution)
+ */
+export const rebuildAllWorkloads = async (): Promise<void> => {
+  const workloadNames = Array.from(state.workloads.keys());
+  if (workloadNames.length === 0) return;
+
+  // Start rebuild UI for all workloads
+  devTuiManager.startRebuild(workloadNames);
+
+  // Run all rebuilds in parallel
+  const rebuildPromises = Array.from(state.workloads.values()).map(async (workload) => {
+    try {
+      await workload.rebuild();
+      devTuiManager.setRebuildDone(workload.name);
+    } catch (err) {
+      devTuiManager.setRebuildError(workload.name, err instanceof Error ? err.message : String(err));
+    }
+  });
+
+  await Promise.all(rebuildPromises);
+  await devTuiManager.finishRebuild();
+};
+
+/**
+ * Get list of registered workload names
+ */
+export const getWorkloadNames = (): string[] => {
+  return Array.from(state.workloads.keys());
+};

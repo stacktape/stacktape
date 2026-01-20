@@ -322,7 +322,7 @@ type EventResolverProps = {
   policyStatementsFromEvents: { [workloadName: string]: StpIamRoleStatement[] };
 };
 
-type StdTransformer = (line: string) => string;
+type StdTransformer = (line: string) => string | null;
 
 type SchemaUnionMember = {
   schemaDefinitionName: string;
@@ -548,4 +548,4 @@ type ResourcePropsFromConfig<T extends StpResourceType> = T extends 'application
 type StarterProjectDeploymentType = 'local-machine' | 'github' | 'gitlab';
 type StarterProjectInstallDepsType = SupportedEsPackageManager | 'bundler' | 'poetry' | 'none';
 
-type Printer = import('@utils/tui').TuiManager;
+type Printer = import('@application-services/tui-manager').TuiManager;

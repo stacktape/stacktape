@@ -1,19 +1,5 @@
 interface StacktapeConfig {
   /**
-   * #### AWS region where the stack will be deployed.
-   *
-   * ---
-   *
-   * If not specified, the region is resolved from (in order of precedence):
-   * 1. `--region` CLI option
-   * 2. `AWS_DEFAULT_REGION` environment variable
-   * 3. Global defaults (configured via `defaults:configure` command)
-   * 4. AWS config file for the current profile
-   *
-   * The `--region` CLI option always takes precedence over this config value.
-   */
-  region?: AWSRegion;
-  /**
    * #### The name of this service.
    *
    * ---
