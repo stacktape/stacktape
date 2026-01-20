@@ -1,3 +1,4 @@
+import type { BunPlugin } from 'bun';
 import { basename, extname, join, resolve } from 'node:path';
 import {
   dirExists,
@@ -11,7 +12,6 @@ import {
 import { builtinModules, getError } from '@shared/utils/misc';
 import { findProjectRoot } from '@shared/utils/monorepo';
 import { generateUuid } from '@utils/uuid';
-import esbuild from 'esbuild';
 import { access, chmod, copy, readFile, readJSON, readJson, remove, stat } from 'fs-extra';
 import kleur from 'kleur';
 import { DEPENDENCIES_WITH_BINARIES, IGNORED_EXTENSIONS, IGNORED_FILES, IGNORED_FOLDERS } from './config';
@@ -389,8 +389,8 @@ export const resolvePrisma = async ({
   );
 };
 
-export const getModuleNameFromArgs = (args: esbuild.OnResolveArgs) => {
-  const moduleName = args.path.endsWith('/') ? args.path.slice(0, args.path.length - 1) : args.path;
+export const getModuleNameFromPath = (importPath: string): string => {
+  const moduleName = importPath.endsWith('/') ? importPath.slice(0, importPath.length - 1) : importPath;
   const [firstPart, secondPart] = moduleName.split('/');
   return firstPart.startsWith('@') ? [firstPart, secondPart].join('/') : firstPart;
 };
@@ -409,51 +409,55 @@ export const getAllJsDependenciesFromMultipleFiles = async ({
     return [];
   }
   const rootPackageJson = await readJson(join(workingDir, 'package.json'));
-  const allInstalledDeps = Object.keys(rootPackageJson.dependencies);
+  const allInstalledDeps = Object.keys(rootPackageJson.dependencies || {});
   const deps: ModuleInfo[] = [];
+
   await Promise.all(
     allJsFiles.map(async (filePath) => {
-      const distFilePath = join(distFolderPath, '_temp-chunks', generateUuid(), '.js');
-      await esbuild.build({
-        bundle: true,
-        metafile: true,
-        platform: 'node',
-        target: 'es6',
-        entryPoints: [filePath],
-        outfile: distFilePath,
-        plugins: [
-          {
-            name: 'analyze-folder-deps',
-            setup(build) {
-              build.onResolve({ filter: /^[^.].*[^-_.]$/ }, async (args) => {
-                const moduleName = getModuleNameFromArgs(args);
-                if (builtinModules.includes(moduleName) || args.path === filePath) {
-                  return;
-                }
-                const modulePath = join(workingDir, 'node_modules', moduleName);
-                if (
-                  !deps.find((d) => d.name === moduleName) &&
-                  isFileAccessible(join(modulePath, 'package.json')) &&
-                  allInstalledDeps.includes(moduleName)
-                ) {
-                  deps.push(
-                    await getInfoFromPackageJson({
-                      directoryPath: modulePath,
-                      parentModule: null,
-                      dependencyType: 'root',
-                      checkDeps: false
-                    })
-                  );
-                }
-                return undefined;
-              });
+      const analyzeFolderDepsPlugin: BunPlugin = {
+        name: 'analyze-folder-deps',
+        setup(build) {
+          build.onResolve({ filter: /^[^.]/ }, async (args): Promise<{ path: string } | undefined> => {
+            // Skip relative imports
+            if (args.path.startsWith('.') || args.path.startsWith('/')) {
+              return undefined;
             }
-          }
-        ]
+
+            const moduleName = getModuleNameFromPath(args.path);
+            if (builtinModules.includes(moduleName) || args.path === filePath) {
+              return undefined;
+            }
+            const modulePath = join(workingDir, 'node_modules', moduleName);
+            if (
+              !deps.find((d) => d.name === moduleName) &&
+              isFileAccessible(join(modulePath, 'package.json')) &&
+              allInstalledDeps.includes(moduleName)
+            ) {
+              deps.push(
+                await getInfoFromPackageJson({
+                  directoryPath: modulePath,
+                  parentModule: null,
+                  dependencyType: 'root',
+                  checkDeps: false
+                })
+              );
+            }
+            return undefined;
+          });
+        }
+      };
+
+      await Bun.build({
+        entrypoints: [filePath],
+        outdir: join(distFolderPath, '_temp-chunks', generateUuid()),
+        target: 'node',
+        plugins: [analyzeFolderDepsPlugin]
       });
+
       return Array.from(deps);
     })
   );
+
   await remove(join(distFolderPath, '_temp-chunks'));
   return deps;
 };
@@ -527,7 +531,7 @@ export const getExternalDeps = (depsInfo: PackageJsonDepsInfo, depsList: Set<str
   return depsList;
 };
 
-export const getFailedImportsFromEsbuildError = ({
+export const getFailedImportsFromBundlerError = ({
   errType,
   error
 }: {

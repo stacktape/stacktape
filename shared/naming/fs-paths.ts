@@ -2,6 +2,7 @@ import { dirname, join } from 'node:path';
 import { CF_TEMPLATE_FILE_NAME, INITIAL_CF_TEMPLATE_FILE_NAME, IS_DEV, STP_TEMPLATE_FILE_NAME } from '@config';
 import { getPlatform } from '@shared/utils/bin-executable';
 import {
+  BORE_BINARY_FILE_NAMES,
   NIXPACKS_BINARY_FILE_NAMES,
   PACK_BINARY_FILE_NAMES,
   SESSION_MANAGER_PLUGIN_BINARY_FILE_NAMES
@@ -35,6 +36,15 @@ export const fsPaths = {
   },
   absoluteLambdaArtifactFolderPath({ invocationId, jobName }: { jobName: string; invocationId: string }) {
     return `${fsPaths.absoluteBuildFolderPath({ invocationId })}/lambdas/${jobName}`;
+  },
+  absoluteSharedLayerFolderPath({ invocationId }: { invocationId: string }) {
+    return `${fsPaths.absoluteBuildFolderPath({ invocationId })}/shared-layer`;
+  },
+  absoluteSharedLayerNumberedPath({ invocationId, layerNumber }: { invocationId: string; layerNumber: number }) {
+    return `${fsPaths.absoluteBuildFolderPath({ invocationId })}/shared-layers/layer-${layerNumber}`;
+  },
+  absoluteSplitBundleOutdir({ invocationId }: { invocationId: string }) {
+    return `${fsPaths.absoluteBuildFolderPath({ invocationId })}/split-bundle`;
   },
   absoluteAwsCdkConstructArtifactFolderPath({
     invocationId,
@@ -112,19 +122,16 @@ export const fsPaths = {
       ? join(SCRIPTS_ASSETS_PATH, 'pack', PACK_BINARY_FILE_NAMES[getPlatform()])
       : join(fsPaths.absoluteExecutableDirname(), 'pack', getPlatform() === 'win' ? 'pack.exe' : 'pack');
   },
-  esbuildRegisterPath() {
-    return IS_DEV
-      ? join(process.cwd(), 'node_modules', 'esbuild-register', 'register')
-      : join(fsPaths.absoluteExecutableDirname(), 'esbuild', 'esbuild-register.js');
-  },
-  esbuildBinaryPath() {
-    return IS_DEV
-      ? null // development mode uses node_modules esbuild
-      : join(fsPaths.absoluteExecutableDirname(), 'esbuild', getPlatform() === 'win' ? 'exec.exe' : 'exec');
-  },
+
   nixpacksPath() {
     return IS_DEV
       ? join(SCRIPTS_ASSETS_PATH, 'nixpacks', NIXPACKS_BINARY_FILE_NAMES[getPlatform()])
       : join(fsPaths.absoluteExecutableDirname(), 'nixpacks', getPlatform() === 'win' ? 'nixpacks.exe' : 'nixpacks');
+  },
+
+  borePath() {
+    return IS_DEV
+      ? join(SCRIPTS_ASSETS_PATH, 'bore', BORE_BINARY_FILE_NAMES[getPlatform()])
+      : join(fsPaths.absoluteExecutableDirname(), 'bore', getPlatform() === 'win' ? 'bore.exe' : 'bore');
   }
 };

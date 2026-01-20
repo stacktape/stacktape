@@ -1,7 +1,7 @@
 import { getFileSize, getFolderSize } from '@shared/utils/fs-utils';
 import { getError } from '@shared/utils/misc';
 import { archiveItem } from '@shared/utils/zip';
-import { rename } from 'fs-extra';
+import { emptyDir, rename } from 'fs-extra';
 import { createEsBundle } from './bundlers/es';
 
 const FILE_SIZE_UNIT = 'MB';
@@ -13,27 +13,64 @@ export const buildUsingStacktapeEsLambdaBuildpack = async ({
   zippedSizeLimit,
   languageSpecificConfig,
   dockerBuildOutputArchitecture,
+  sharedLayerExternals = [],
+  usesSharedLayer = false,
+  dependencyDiscoveryOnly = false,
+  distFolderPath,
   ...otherProps
-}: StpBuildpackInput & { zippedSizeLimit: number; nodeTarget: string; minify: boolean }): Promise<PackagingOutput> => {
+}: StpBuildpackInput & {
+  zippedSizeLimit: number;
+  nodeTarget: string;
+  minify: boolean;
+  sharedLayerExternals?: string[];
+  usesSharedLayer?: boolean;
+  /** When true, only run bundler to discover dependencies - skip zipping and size checks */
+  dependencyDiscoveryOnly?: boolean;
+}): Promise<PackagingOutput> => {
+  await emptyDir(distFolderPath);
+
   const bundlingOutput = await createEsBundle({
     ...otherProps,
+    distFolderPath,
     ...languageSpecificConfig,
     installNonStaticallyBuiltDepsInDocker: true,
     ...((languageSpecificConfig as EsLanguageSpecificConfig)?.disableSourceMaps && { sourceMaps: 'disabled' }),
     name,
     progressLogger,
     dockerBuildOutputArchitecture,
-    isLambda: true
+    isLambda: true,
+    externals: sharedLayerExternals,
+    ...(sharedLayerExternals?.length && { dependenciesToExcludeFromDeploymentPackage: sharedLayerExternals }),
+    dependencyDiscoveryOnly
   });
 
-  const { digest, outcome, distFolderPath, sourceFiles, ...otherOutputProps } = bundlingOutput;
+  const {
+    digest,
+    outcome,
+    distFolderPath: bundledDistFolderPath,
+    sourceFiles,
+    resolvedModules,
+    ...otherOutputProps
+  } = bundlingOutput;
 
   if (outcome === 'skipped') {
     // await remove(distFolderPath);
-    return { ...bundlingOutput, size: null, jobName: name };
+    return { ...bundlingOutput, size: null, jobName: name, resolvedModules };
   }
 
-  const unzippedSize = await getFolderSize(distFolderPath, FILE_SIZE_UNIT, 2);
+  // For dependency discovery (first-pass), return early with just the resolved modules
+  if (dependencyDiscoveryOnly) {
+    return {
+      digest,
+      outcome,
+      sourceFiles,
+      size: null,
+      jobName: name,
+      resolvedModules
+    };
+  }
+
+  const unzippedSize = await getFolderSize(bundledDistFolderPath, FILE_SIZE_UNIT, 2);
 
   if (sizeLimit && unzippedSize > sizeLimit) {
     throw getError({
@@ -49,10 +86,11 @@ export const buildUsingStacktapeEsLambdaBuildpack = async ({
   });
 
   await archiveItem({
-    absoluteSourcePath: distFolderPath,
-    format: 'zip'
+    absoluteSourcePath: bundledDistFolderPath,
+    format: 'zip',
+    useNativeZip: true
   });
-  const originalZipPath = `${distFolderPath}.zip`;
+  const originalZipPath = `${bundledDistFolderPath}.zip`;
 
   zippedSize = await getFileSize(originalZipPath, FILE_SIZE_UNIT, 2);
   if (zippedSizeLimit && zippedSize > zippedSizeLimit) {
@@ -62,12 +100,13 @@ export const buildUsingStacktapeEsLambdaBuildpack = async ({
     });
   }
 
-  const adjustedZipPath = `${distFolderPath}-${digest}.zip`;
+  const adjustedZipPath = `${bundledDistFolderPath}-${digest}.zip`;
   await rename(originalZipPath, adjustedZipPath);
 
+  const layerInfo = usesSharedLayer ? ' Uses shared layer.' : '';
   await progressLogger.finishEvent({
     eventType: 'ZIP_PACKAGE',
-    finalMessage: `Artifact size: ${unzippedSize} MB. Zipped artifact size: ${zippedSize} MB.`
+    finalMessage: `Artifact size: ${unzippedSize} MB. Zipped artifact size: ${zippedSize} MB.${layerInfo}`
   });
 
   return {
@@ -78,6 +117,7 @@ export const buildUsingStacktapeEsLambdaBuildpack = async ({
     size: unzippedSize,
     artifactPath: adjustedZipPath,
     details: { ...otherOutputProps },
-    jobName: name
+    jobName: name,
+    resolvedModules
   };
 };

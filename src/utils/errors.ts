@@ -195,6 +195,37 @@ export const getErrorFromString = (errorString: string) => {
   return `\n${tuiManager.makeBold(message)}${prettyStacktrace}`;
 };
 
+export const parseContainerError = (errorString: string): { message: string; stackTrace?: string } => {
+  let [message, ...stackArray] = errorString.split('    at');
+
+  // Stacktape-built image
+  if (message.includes('/app/index.js:')) {
+    message = message.split('\n\n')[1] || message;
+  }
+
+  // Clean up the message
+  message = message.trim();
+
+  if (stackArray.length === 0) {
+    return { message };
+  }
+
+  const stack = stackArray.filter(Boolean).join('    at');
+  const error = new Error(message);
+  error.stack = `${message}\n    at${stack}`;
+
+  const prettyStacktrace = getPrettyStacktrace(
+    error as any,
+    (msg) => msg,
+    (msg) => msg
+  );
+
+  return {
+    message,
+    stackTrace: prettyStacktrace || undefined
+  };
+};
+
 // export const handleStderrData = (data, killProcessFn) => {
 //   const parsedData: string = data.toString();
 //   if (parsedData !== '\n') {

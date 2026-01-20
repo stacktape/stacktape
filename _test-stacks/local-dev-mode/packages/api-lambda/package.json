@@ -1,0 +1,15 @@
+{
+  "name": "@local-dev/api-lambda",
+  "type": "module",
+  "private": true,
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.750.0",
+    "@aws-sdk/lib-dynamodb": "^3.750.0",
+    "@prisma/adapter-pg": "^7.2.0",
+    "ioredis": "^5.9.2"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.9",
+    "typescript": "^5.9.3"
+  }
+}

@@ -52,9 +52,7 @@ interface EventBusArchivation {
    *
    * ---
    *
-   * The number of days to retain archived events.
-   *
-   * @default "indefinitely"
+   * The number of days to retain archived events. Default is indefinitely.
    */
   retentionDays?: number;
 }

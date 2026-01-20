@@ -25,6 +25,7 @@ export class EventManager implements ProgressLogger {
   progressPrintingInterval: any;
   finalActions: AnyFunction[];
   currentPhase: DeploymentPhase | null = null;
+  private _silentMode = false;
 
   /**
    * Context for this logger instance. Used by child loggers to inherit context.
@@ -47,6 +48,10 @@ export class EventManager implements ProgressLogger {
     this._eventContext = eventContext;
     this.finalActions = [];
   }
+
+  setSilentMode = (silent: boolean) => {
+    this._silentMode = silent;
+  };
 
   get eventContext(): EventContext {
     return this._eventContext;
@@ -224,6 +229,11 @@ export class EventManager implements ProgressLogger {
     description?: string;
     finalMessage?: string;
   }) => {
+    // Skip event handling in silent mode
+    if (this._silentMode) {
+      return;
+    }
+
     // Merge context: explicit params override inherited context
     const resolvedInstanceId = instanceId ?? this._eventContext.instanceId;
     const resolvedParentEventType = parentEventType ?? this._eventContext.parentEventType;
@@ -256,6 +266,7 @@ export class EventManager implements ProgressLogger {
         tuiManager.updateEvent({
           eventType,
           additionalMessage,
+          description,
           parentEventType: resolvedParentEventType,
           instanceId: resolvedInstanceId
         });
@@ -268,7 +279,9 @@ export class EventManager implements ProgressLogger {
           instanceId: resolvedInstanceId
         });
       }
-    } else {
+    } else if (!tuiManager.wasEverStarted) {
+      // Only use printProgress() fallback if TUI was never started.
+      // If TUI was started and then stopped (e.g., after error), events were already displayed.
       this.printProgress();
     }
   };
@@ -280,21 +293,27 @@ export class EventManager implements ProgressLogger {
       const identifier = event.eventType;
       const isEventFinished = event.duration !== null;
 
+      // Skip events with no printable text or null message
+      if (!event.printableText || event.printableText === 'null') {
+        continue;
+      }
+
       // Skip if already printed as finished
       if (this.printedEvents.has(`${identifier}-finished`)) {
         continue;
       }
 
-      // Print start
-      if (!this.printedEvents.has(`${identifier}-started`)) {
-        tuiManager.info(event.printableText);
-        this.printedEvents.add(`${identifier}-started`);
-      }
-
-      // Print finish
+      // If event is already finished when we first see it, only print the success message
       if (isEventFinished) {
         tuiManager.success(event.printableText);
         this.printedEvents.add(`${identifier}-finished`);
+        continue;
+      }
+
+      // Print start (only for events that are still running)
+      if (!this.printedEvents.has(`${identifier}-started`)) {
+        tuiManager.info(event.printableText);
+        this.printedEvents.add(`${identifier}-started`);
       }
     }
   };

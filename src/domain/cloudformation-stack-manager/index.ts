@@ -21,6 +21,10 @@ import {
   EcsServiceDeploymentStatusPoller,
   isEcsServiceCreateOrUpdateCloudformationEvent
 } from '@shared/aws/ecs-deployment-monitoring';
+import {
+  isLambdaAliasProvisionedConcurrencyEvent,
+  LambdaProvisionedConcurrencyPoller
+} from '@shared/aws/lambda-provisioned-concurrency-monitoring';
 import { arns } from '@shared/naming/arns';
 import { awsResourceNames } from '@shared/naming/aws-resource-names';
 import { consoleLinks } from '@shared/naming/console-links';
@@ -38,6 +42,24 @@ import { getNextVersionString } from '@utils/versioning';
 import uniqBy from 'lodash/uniqBy';
 import { getEstimatedRemainingPercent, getStackDeploymentEstimate } from './duration-estimation';
 import { cfFailedEventHandlers, getHintsAfterStackFailureOperation } from './utils';
+
+/** Convert CloudFormation stack status to human-readable form */
+const getHumanReadableStackStatus = (status?: string): string => {
+  if (!status) return 'unknown';
+  const statusMap: Record<string, string> = {
+    CREATE_IN_PROGRESS: 'creating',
+    DELETE_IN_PROGRESS: 'deleting',
+    UPDATE_IN_PROGRESS: 'updating',
+    ROLLBACK_IN_PROGRESS: 'rolling back',
+    UPDATE_ROLLBACK_IN_PROGRESS: 'rolling back',
+    UPDATE_ROLLBACK_COMPLETE_CLEANUP_IN_PROGRESS: 'rollback cleanup',
+    UPDATE_COMPLETE_CLEANUP_IN_PROGRESS: 'cleanup',
+    REVIEW_IN_PROGRESS: 'review',
+    IMPORT_IN_PROGRESS: 'importing',
+    IMPORT_ROLLBACK_IN_PROGRESS: 'import rollback'
+  };
+  return statusMap[status] || status.toLowerCase().replace(/_/g, ' ');
+};
 
 const formatChangeSummary = ({
   cfStackAction,
@@ -105,6 +127,9 @@ export class StackManager {
   // for polling ECS Service statuses during deploy
   #ecsDeploymentStatusPoller: { [serviceCfLogicalName: string]: EcsServiceDeploymentStatusPoller } = {};
 
+  // for polling Lambda provisioned concurrency statuses during deploy
+  #lambdaProvisionedConcurrencyPoller: { [aliasCfLogicalName: string]: LambdaProvisionedConcurrencyPoller } = {};
+
   init = async ({
     stackName,
     commandModifiesStack,
@@ -121,16 +146,18 @@ export class StackManager {
       eventType: 'FETCH_STACK_DATA',
       description: 'Fetching stack data',
       parentEventType,
-      instanceId: parentEventType ? 'stack-data' : undefined
+      instanceId: parentEventType ? 'Stack data' : undefined
     });
     this.#stackName = stackName;
 
     let stackDetails = await awsSdkManager.getStackDetails(stackName);
+    const instanceId = parentEventType ? 'Stack data' : undefined;
     ({ stackDetails } = await this.waitForStackToBeReadyForOperation({
       stackDetails,
       commandModifiesStack,
       commandRequiresDeployedStack,
-      progressLogger: eventManager
+      progressLogger: eventManager,
+      eventContext: { parentEventType, instanceId }
     }));
 
     // globalStateManager.args.disableDriftDetection ? [] : awsSdkManager.getStackDriftInformation(stackName),
@@ -148,7 +175,7 @@ export class StackManager {
       eventType: 'FETCH_STACK_DATA',
       data: { stackDetails, stackResources },
       parentEventType,
-      instanceId: parentEventType ? 'stack-data' : undefined
+      instanceId: parentEventType ? 'Stack data' : undefined
     });
   };
 
@@ -331,12 +358,14 @@ export class StackManager {
     progressLogger,
     commandModifiesStack,
     commandRequiresDeployedStack,
-    stackDetails: currentStackDetails
+    stackDetails: currentStackDetails,
+    eventContext
   }: {
     progressLogger: ProgressLogger;
     commandModifiesStack: boolean;
     commandRequiresDeployedStack: boolean;
     stackDetails: StackDetails;
+    eventContext?: { parentEventType?: LoggableEventType; instanceId?: string };
   }) => {
     const stackName = this.#stackName;
     const { command } = globalStateManager;
@@ -356,11 +385,12 @@ export class StackManager {
     if (commandModifiesStack) {
       // wait for stack to be stable
       while (STACK_OPERATION_IN_PROGRESS_STATUS.includes(stackDetails?.StackStatus as any)) {
+        const humanStatus = getHumanReadableStackStatus(stackDetails?.StackStatus);
         progressLogger.updateEvent({
           eventType: 'FETCH_STACK_DATA',
-          additionalMessage: `Waiting for stack to reach stable state before proceeding. Current stack state: ${tuiManager.makeBold(
-            stackDetails?.StackStatus
-          )}`
+          description: `Waiting for stack to be ready for deploy (current state: ${humanStatus})`,
+          parentEventType: eventContext?.parentEventType,
+          instanceId: eventContext?.instanceId
         });
         await wait(4000);
         stackDetails = await awsSdkManager.getStackDetails(stackName);
@@ -538,10 +568,13 @@ export class StackManager {
   };
 
   rollbackStack = async () => {
-    await eventManager.startEvent({ eventType: 'ROLLBACK_STACK', description: 'Rollback stack resources' });
+    await eventManager.startEvent({ eventType: 'ROLLBACK_STACK', description: 'Rolling back stack resources' });
     const roleArn =
       configManager.deploymentConfig?.cloudformationRoleArn ||
       (deployedStackOverviewManager.getStackMetadata(stackMetadataNames.cloudformationRoleArn()) as string);
+    const resourcesToSkip = globalStateManager.args.resourcesToSkip
+      ? [...new Set(globalStateManager.args.resourcesToSkip)]
+      : undefined;
     if (
       this.existingStackDetails.StackStatus === StackStatus.UPDATE_FAILED ||
       this.existingStackDetails.StackStatus === StackStatus.CREATE_FAILED
@@ -551,11 +584,12 @@ export class StackManager {
       });
     } else if (this.existingStackDetails.StackStatus === StackStatus.UPDATE_ROLLBACK_FAILED) {
       await awsSdkManager.continueUpdateRollback(this.#stackName, {
-        roleArn
+        roleArn,
+        resourcesToSkip
       });
     }
-    const result = await this.monitorStack('rollback', this.existingStackDetails.StackId, (message) =>
-      eventManager.updateEvent({ eventType: 'ROLLBACK_STACK', additionalMessage: message })
+    const result = await this.monitorStack('rollback', this.existingStackDetails.StackId, () =>
+      eventManager.updateEvent({ eventType: 'ROLLBACK_STACK' })
     );
     await eventManager.finishEvent({ eventType: 'ROLLBACK_STACK', data: {} });
     return result;
@@ -602,22 +636,89 @@ export class StackManager {
     let cleanupAfterSuccessfulUpdateInProgress = false;
 
     let fetchNumber = 0;
+    let cancelRequested = false;
+    let cancelBannerShown = false;
 
     const cleanupMonitoring = () => {
       clearInterval(this.stackMonitoringInterval);
       Object.values(this.#ecsDeploymentStatusPoller).forEach((statusPoller) => statusPoller.stopPolling());
+      Object.values(this.#lambdaProvisionedConcurrencyPoller).forEach((poller) => poller.stopPolling());
+      tuiManager.clearCancelDeployment();
+    };
+
+    // Function to show cancel banner when ECS task failure is detected
+    const showCancelBannerIfNeeded = (resolveFn: (result: { warningMessages?: string[] }) => void) => {
+      if (cancelBannerShown || cancelRequested) return;
+      if (cfStackAction !== 'create' && cfStackAction !== 'update') return;
+
+      // Check if any ECS poller has a failed task or Lambda poller has a failure
+      const hasFailedEcsTask = Object.values(this.#ecsDeploymentStatusPoller).some((poller) => poller.hasFailedTask);
+      const hasFailedLambdaProvisionedConcurrency = Object.values(this.#lambdaProvisionedConcurrencyPoller).some(
+        (poller) => poller.hasFailure
+      );
+      if (hasFailedEcsTask || hasFailedLambdaProvisionedConcurrency) {
+        cancelBannerShown = true;
+        const message = hasFailedEcsTask
+          ? 'Container startup failed. CloudFormation will eventually time out and rollback.'
+          : 'Lambda provisioned concurrency failed. CloudFormation will eventually time out and rollback.';
+        tuiManager.setCancelDeployment({
+          message,
+          onCancel: async () => {
+            if (cancelRequested) return;
+            cancelRequested = true;
+            tuiManager.updateCancelDeployment({ isCancelling: true });
+            try {
+              await awsSdkManager.cancelUpdateStack(this.#stackName);
+              // Don't continue monitoring - just resolve and let the user know rollback is happening
+              // The rollback will continue in AWS even after we exit
+              cleanupMonitoring();
+              resolveFn({
+                warningMessages: [
+                  'Deployment was cancelled. The stack is being rolled back in AWS. You can monitor the rollback progress in the AWS CloudFormation console.'
+                ]
+              });
+            } catch (err) {
+              tuiManager.warn(`Failed to cancel deployment: ${err.message}`);
+              cancelRequested = false;
+              tuiManager.updateCancelDeployment({ isCancelling: false });
+            }
+          }
+        });
+      }
     };
 
     const handleProgress = () => {
       // printing updating progress
       const inProgressAmount = inProgressResources.size;
       const completedAmount = completeResources.size;
+
+      // Get change summary (needed for both normal and cleanup progress)
+      const changeSummary = formatChangeSummary({
+        cfStackAction,
+        templateDiff,
+        createResourcesCount: resourcesToHandleCount,
+        deleteResourcesCount: resourcesToHandleCount
+      });
+
+      // During cleanup phase, show a different message indicating main deployment is done
+      if (cleanupAfterSuccessfulUpdateInProgress) {
+        const cleanupInProgress =
+          inProgressAmount > 0
+            ? `Removing ${inProgressAmount} old resource${inProgressAmount === 1 ? '' : 's'}`
+            : 'Finishing cleanup';
+        const cleanupFinished = completedAmount > 0 ? `Removed: ${completedAmount}` : '';
+        const progressMessage = `Deployment complete. Cleaning up. ${cleanupInProgress}.${cleanupFinished ? ` ${cleanupFinished}.` : ''} Estimate: ~100%`;
+        // Include summary/details even during cleanup so TUI can show accurate counts
+        const summaryPart = `Summary: created=${changeSummary.counts.created} updated=${changeSummary.counts.updated} deleted=${changeSummary.counts.deleted}`;
+        const detailsPart = `Details: created=${changeSummary.lists.created.join(', ') || 'none'}; updated=${changeSummary.lists.updated.join(', ') || 'none'}; deleted=${changeSummary.lists.deleted.join(', ') || 'none'}.`;
+        onProgress(`${progressMessage} ${summaryPart} ${detailsPart}`);
+        return;
+      }
+
       const inProgressPart =
         inProgressAmount === 0 && completedAmount === 0
           ? `Performing ${cfStackAction}`
-          : `${
-              cleanupAfterSuccessfulUpdateInProgress ? 'Cleaning up old resources in progress' : 'In progress'
-            }: ${inProgressAmount}`;
+          : `In progress: ${inProgressAmount}`;
       const finishedPart =
         cfStackAction === 'create'
           ? `Finished: ${completedAmount}/${isResourceToHandleCountPossiblyInaccurate ? '~' : ''}${resourcesToHandleCount}`
@@ -628,15 +729,7 @@ export class StackManager {
         now: new Date()
       });
       const estimatePart =
-        cleanupAfterSuccessfulUpdateInProgress || remainingPercent === null
-          ? ''
-          : ` Estimate: ~${remainingPercent === 100 ? '<1' : 100 - remainingPercent}%`;
-      const changeSummary = formatChangeSummary({
-        cfStackAction,
-        templateDiff,
-        createResourcesCount: resourcesToHandleCount,
-        deleteResourcesCount: resourcesToHandleCount
-      });
+        remainingPercent === null ? '' : ` Estimate: ~${remainingPercent === 100 ? '<1' : 100 - remainingPercent}%`;
       const plannedResources =
         updatedResourceLogicalNames && updatedResourceLogicalNames.length > 0
           ? new Set(updatedResourceLogicalNames)
@@ -682,10 +775,13 @@ export class StackManager {
           changeSummary.lists.deleted.length > 0 ? ` (${formatResourceList(changeSummary.lists.deleted, 3)})` : '';
         changesParts.push(`Deleting: ${changeSummary.counts.deleted}${resources}`);
       }
-      const changesPart = changesParts.length > 0 ? changesParts.join('. ') + '.' : '';
+      const changesPart = changesParts.length > 0 ? `${changesParts.join('. ')}.` : '';
+      // Add machine-readable summary and details for TUI parsing
+      const summaryPart = `Summary: created=${changeSummary.counts.created} updated=${changeSummary.counts.updated} deleted=${changeSummary.counts.deleted}`;
+      const detailsPart = `Details: created=${changeSummary.lists.created.join(', ') || 'none'}; updated=${changeSummary.lists.updated.join(', ') || 'none'}; deleted=${changeSummary.lists.deleted.join(', ') || 'none'}.`;
       const progressMessage = `${inProgressPart}. ${finishedPart}.${estimatePart}`.trim();
       onProgress(
-        `${progressMessage} Progress: ${completedPlanned}/${totalPlanned}. Currently updating: ${activeList}. Waiting: ${waitingList}.${changesPart ? ` ${changesPart}` : ''}`
+        `${progressMessage} Progress: ${completedPlanned}/${totalPlanned}. Currently updating: ${activeList}. Waiting: ${waitingList}.${changesPart ? ` ${changesPart}` : ''} ${summaryPart} ${detailsPart}`
       );
     };
 
@@ -712,18 +808,22 @@ export class StackManager {
         cleanupMonitoring();
 
         const handledFailedEvents = await this.#handleFailedEvents({ potentialErrorCausingEvents });
-        tuiManager.writeInfo('handledFailedEvents', JSON.stringify(handledFailedEvents, null, 2));
+        tuiManager.debug(`Processed ${handledFailedEvents.length} failed stack event(s)`);
         const formattedStackErrorText = tuiManager.formatComplexStackErrors(handledFailedEvents, 2);
-        const hints = getHintsAfterStackFailureOperation({
+        // Collect hints from individual error handlers
+        const errorSpecificHints = handledFailedEvents.flatMap((event) => event.hints || []);
+        const generalHints = getHintsAfterStackFailureOperation({
           cfStackAction,
           stackId,
           isAutoRollbackEnabled: this.isAutoRollbackEnabled
         });
+        // Merge all hints - error-specific hints first, then general hints
+        const allHints = [...errorSpecificHints, ...generalHints];
         return reject(
           new ExpectedError(
             'STACK',
             `Stack action ${this.stackActionType} failed.\n\n${formattedStackErrorText}\n`,
-            hints
+            allHints
           )
         );
       };
@@ -887,6 +987,8 @@ export class StackManager {
             return afterStackOperationFailure();
           }
           handleProgress();
+          // Check if we should show the cancel banner (ECS task failed)
+          showCancelBannerIfNeeded(resolve);
         } catch (err) {
           cleanupMonitoring();
           reject(
@@ -918,6 +1020,29 @@ export class StackManager {
         inspectDeploymentsCreatedAfterDate: new Date(new Date(stackEvent.Timestamp).getTime() - 10000),
         awsSdkManager
       });
+    }
+    // Monitor Lambda alias provisioned concurrency configuration
+    if (isLambdaAliasProvisionedConcurrencyEvent(stackEvent) && stackEvent.PhysicalResourceId) {
+      // Physical resource ID is the alias ARN: arn:aws:lambda:region:account:function:function-name:alias-name
+      const arnParts = stackEvent.PhysicalResourceId.split(':');
+      if (arnParts.length >= 8) {
+        const functionName = arnParts[6];
+        const aliasName = arnParts[7];
+        const stpParentResourceName = calculatedStackOverviewManager.findStpParentNameOfCfResource({
+          cfLogicalName: stackEvent.LogicalResourceId
+        });
+        // Derive log group name from function name
+        const logGroupName = `/aws/lambda/${functionName}`;
+        this.#lambdaProvisionedConcurrencyPoller[stackEvent.LogicalResourceId] = new LambdaProvisionedConcurrencyPoller(
+          {
+            functionName,
+            aliasName,
+            pollerPrintName: stpParentResourceName,
+            awsSdkManager,
+            logGroupName
+          }
+        );
+      }
     }
   };
 
@@ -1006,7 +1131,10 @@ export class StackManager {
     return Promise.all(
       relevantErrorEvents.map(async (event) => {
         const { handlerFunction } = cfFailedEventHandlers.find(({ eventMatchFunction }) => eventMatchFunction(event));
-        return handlerFunction(event, { ecsDeploymentStatusPollers: this.#ecsDeploymentStatusPoller });
+        return handlerFunction(event, {
+          ecsDeploymentStatusPollers: this.#ecsDeploymentStatusPoller,
+          lambdaProvisionedConcurrencyPollers: this.#lambdaProvisionedConcurrencyPoller
+        });
       })
     );
   };

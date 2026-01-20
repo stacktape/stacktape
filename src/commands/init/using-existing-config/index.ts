@@ -4,8 +4,8 @@ import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-ap
 import { tuiManager } from '@application-services/tui-manager';
 import { IS_DEV } from '@config';
 import { stpErrors } from '@errors';
-import { getTypescriptConfig } from '@shared/utils/stacktape-config';
 import { outputFile } from 'fs-extra';
+import { getTypescriptConfig } from './utils';
 
 export const initUsingExistingConfig = async () => {
   await stacktapeTrpcApiManager.init({ apiKey: globalStateManager.apiKey });

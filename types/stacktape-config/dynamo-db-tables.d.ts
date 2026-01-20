@@ -82,6 +82,15 @@ interface DynamoDbTableProps {
    * For more details, see the [AWS documentation on secondary indexes](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/GSI.html).
    */
   secondaryIndexes?: DynamoDbTableGlobalSecondaryIndex[];
+  /**
+   * #### Dev Mode Configuration
+   *
+   * ---
+   *
+   * Configures how this DynamoDB table behaves during `stacktape dev` mode.
+   * By default, DynamoDB runs locally using Docker. Set `dev.remote: true` to connect to the deployed AWS DynamoDB table instead.
+   */
+  dev?: DevModeConfig;
 }
 
 interface DynamoDbTablePrimaryKey {

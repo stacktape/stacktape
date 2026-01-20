@@ -1,5 +1,6 @@
 import type { StackEvent } from '@aws-sdk/client-cloudformation';
 import type { EcsServiceDeploymentStatusPoller } from '@shared/aws/ecs-deployment-monitoring';
+import type { LambdaProvisionedConcurrencyPoller } from '@shared/aws/lambda-provisioned-concurrency-monitoring';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
@@ -14,6 +15,7 @@ export const cfFailedEventHandlers: {
     event: StackEvent,
     additionalProps?: {
       ecsDeploymentStatusPollers?: { [serviceCfLogicalName: string]: EcsServiceDeploymentStatusPoller };
+      lambdaProvisionedConcurrencyPollers?: { [aliasCfLogicalName: string]: LambdaProvisionedConcurrencyPoller };
     }
   ) => Promise<{ errorMessage: string; hints?: string[] }>;
 }[] = [
@@ -79,6 +81,33 @@ export const cfFailedEventHandlers: {
       };
     }
   },
+  // VPC has dependencies and cannot be deleted
+  {
+    eventMatchFunction: (event) => {
+      return event.ResourceStatusReason.includes('has dependencies and cannot be deleted');
+    },
+    handlerFunction: async (event) => {
+      // Extract VPC ID from error message if present
+      const vpcIdMatch = event.ResourceStatusReason.match(/vpc-[a-z0-9]+/i);
+      const vpcId = vpcIdMatch ? vpcIdMatch[0] : null;
+      const vpcConsoleUrl = vpcId
+        ? `https://${globalStateManager.region}.console.aws.amazon.com/vpcconsole/home?region=${globalStateManager.region}#VpcDetails:VpcId=${vpcId}`
+        : null;
+      return {
+        errorMessage: `Deletion of VPC resource ${tuiManager.colorize(
+          'red',
+          event.LogicalResourceId
+        )} failed. There are still resources attached to this VPC. This can happen when another stack uses this VPC (e.g., via connectTo or vpc.useExisting), or when AWS is still cleaning up resources like ENIs.`,
+        hints: [
+          'Check if another stack is using this VPC. If so, delete or update that stack first.',
+          `Wait a few minutes and re-run ${tuiManager.prettyCommand(globalStateManager.command)} command.`,
+          vpcConsoleUrl
+            ? `Check attached resources in AWS console: ${vpcConsoleUrl}`
+            : 'Check the AWS VPC console for remaining attached resources.'
+        ]
+      };
+    }
+  },
   // update of stack cancelled by user
   {
     eventMatchFunction: (event) => {
@@ -136,10 +165,46 @@ export const cfFailedEventHandlers: {
         cfLogicalName: event.LogicalResourceId
       });
       const poller = additionalProps?.ecsDeploymentStatusPollers?.[event.LogicalResourceId];
+      const failureDetails = poller?.getFailureMessage();
+
+      // Build a clean error message
+      const resourceLabel = parentResourceName || event.LogicalResourceId;
+      const baseMessage = `Service ${tuiManager.colorize('red', resourceLabel)} failed to start`;
+
       return {
-        errorMessage: `Deployment of ${tuiManager.colorize('red', event.LogicalResourceId)}${
-          parentResourceName ? ` (part of ${tuiManager.colorize('red', parentResourceName)})` : ''
-        } failed after multiple attempts:\n${poller.getFailureMessage() || event.ResourceStatusReason}`
+        errorMessage: failureDetails
+          ? `${baseMessage}\n\n${failureDetails}`
+          : `${baseMessage}: ${event.ResourceStatusReason}`
+      };
+    }
+  },
+  // Lambda provisioned concurrency failure
+  {
+    eventMatchFunction: (event) => {
+      return (
+        event.ResourceType === 'AWS::Lambda::Alias' && event.ResourceStatusReason?.includes('Provisioned Concurrency')
+      );
+    },
+    handlerFunction: async (event, additionalProps) => {
+      const parentResourceName = calculatedStackOverviewManager.findStpParentNameOfCfResource({
+        cfLogicalName: event.LogicalResourceId
+      });
+      const poller = additionalProps?.lambdaProvisionedConcurrencyPollers?.[event.LogicalResourceId];
+
+      // Wait for logs to be fetched before getting the failure message
+      if (poller) {
+        await poller.handleFailure(event.ResourceStatusReason);
+      }
+
+      const failureDetails = poller?.getFailureMessage();
+
+      const resourceLabel = parentResourceName || event.LogicalResourceId;
+      const baseMessage = `Function ${tuiManager.colorize('red', resourceLabel)} provisioned concurrency failed`;
+
+      return {
+        errorMessage: failureDetails
+          ? `${baseMessage}\n\n${failureDetails}`
+          : `${baseMessage}: ${event.ResourceStatusReason}`
       };
     }
   },
@@ -177,10 +242,36 @@ export const cfFailedEventHandlers: {
       const parentResourceName = calculatedStackOverviewManager.findStpParentNameOfCfResource({
         cfLogicalName: event.LogicalResourceId
       });
+
+      // Clean up AWS error messages by removing internal metadata
+      let cleanedReason = event.ResourceStatusReason;
+      // Remove (RequestToken: ..., HandlerErrorCode: ...) pattern first
+      cleanedReason = cleanedReason.replace(/\s*\(RequestToken:[^,]+,\s*HandlerErrorCode:[^)]+\)/gi, '');
+      // Remove standalone (RequestToken: ...) pattern
+      cleanedReason = cleanedReason.replace(/\s*\(RequestToken:[^)]+\)/gi, '');
+      // Remove standalone (HandlerErrorCode: ...) pattern
+      cleanedReason = cleanedReason.replace(/\s*\(HandlerErrorCode:[^)]+\)/gi, '');
+      // Remove "Resource handler returned message: " prefix and extract the quoted message
+      const handlerMatch = cleanedReason.match(/^Resource handler returned message:\s*"([\s\S]+)"\.?\s*$/);
+      if (handlerMatch) {
+        cleanedReason = handlerMatch[1];
+      }
+      // Remove AWS SDK details like (Service: Lambda, Status Code: 404, Request ID: ..., SDK Attempt Count: 1)
+      cleanedReason = cleanedReason.replace(
+        /\s*\(Service:[^,]+,\s*Status Code:\s*\d+,\s*Request ID:[^,]+,\s*SDK Attempt Count:\s*\d+\)/gi,
+        ''
+      );
+      // Remove separate (Service: ...) pattern
+      cleanedReason = cleanedReason.replace(/\s*\(Service:[^)]+\)/gi, '');
+      // Remove separate (SDK Attempt Count: ...) pattern
+      cleanedReason = cleanedReason.replace(/\s*\(SDK Attempt Count:\s*\d+\)/gi, '');
+      // Clean up any double spaces that might result
+      cleanedReason = cleanedReason.replace(/\s{2,}/g, ' ').trim();
+
       return {
         errorMessage: `Resource ${tuiManager.colorize('red', event.LogicalResourceId)}${
           parentResourceName ? ` (part of ${tuiManager.colorize('red', parentResourceName)})` : ''
-        }: ${event.ResourceStatusReason}`
+        }: ${cleanedReason}`
       };
     }
   }

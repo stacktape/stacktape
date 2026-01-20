@@ -26,6 +26,8 @@ type DeployPhaseProps = {
   phaseNumber: number;
   warnings: TuiWarning[];
   messages: TuiMessage[];
+  /** When true, pause the progress bar animation (e.g., when ECS task failure is detected) */
+  isProgressPaused?: boolean;
 };
 
 const DEPLOY_EVENT_TYPES: LoggableEventType[] = ['UPDATE_STACK', 'DELETE_STACK', 'ROLLBACK_STACK', 'HOTSWAP_UPDATE'];
@@ -133,12 +135,21 @@ const renderResourceList = (label: string, items: string) => {
   );
 };
 
-export const DeployPhase: React.FC<DeployPhaseProps> = ({ phase, phaseNumber, warnings, messages }) => {
+export const DeployPhase: React.FC<DeployPhaseProps> = ({
+  phase,
+  phaseNumber,
+  warnings,
+  messages,
+  isProgressPaused
+}) => {
   const phaseWarnings = warnings.filter((w) => w.phase === phase.id);
   const phaseMessages = messages.filter((m) => m.phase === phase.id);
   const deployEvent = getActiveDeployEvent(phase.events);
   const estimatePercent = parseEstimatePercent(deployEvent?.additionalMessage);
-  const progressPercentFromTime = getProgressPercent(estimatePercent, deployEvent?.status || 'running');
+  // When progress is paused (e.g., ECS failure detected), don't advance the time-based progress
+  const progressPercentFromTime = isProgressPaused
+    ? estimatePercent
+    : getProgressPercent(estimatePercent, deployEvent?.status || 'running');
   const resourceState = parseResourceState(deployEvent?.additionalMessage);
   const progressCounts = parseProgressCounts(deployEvent?.additionalMessage);
 

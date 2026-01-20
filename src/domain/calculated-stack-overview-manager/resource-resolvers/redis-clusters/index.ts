@@ -5,6 +5,7 @@ import { calculatedStackOverviewManager } from '@domain-services/calculated-stac
 import { configManager } from '@domain-services/config-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { templateManager } from '@domain-services/template-manager';
+import { filterResourcesForDevMode } from '../../../../commands/dev/dev-resource-filter';
 import { cfEvaluatedLinks } from '@shared/naming/cf-evaluated-links';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import { resourceReferencableParams } from '@shared/naming/resource-referencable-params';
@@ -19,7 +20,8 @@ import {
 } from './utils';
 
 export const resolveRedisClusters = async () => {
-  configManager.redisClusters.forEach((resource) => {
+  const redisClusters = filterResourcesForDevMode(configManager.redisClusters);
+  redisClusters.forEach((resource) => {
     const isSharded = resource.enableSharding;
 
     // if cluster has sharding enabled/disabled, then changing the sharding will result in nothing

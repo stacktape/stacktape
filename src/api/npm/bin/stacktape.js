@@ -33,6 +33,52 @@ const PLATFORM_MAP = {
   'linux-x64-musl': { fileName: 'alpine.tar.gz', extract: extractTarGz }
 };
 
+// ANSI color codes
+const colors = {
+  reset: '\x1B[0m',
+  dim: '\x1B[2m',
+  green: '\x1B[32m',
+  cyan: '\x1B[36m',
+  red: '\x1B[31m',
+  bold: '\x1B[1m'
+};
+
+const isTTY = process.stdout.isTTY;
+
+const printLogo = () => {
+  const { dim, green, reset, bold } = colors;
+  console.info(`
+${dim}     _____ _             _    _                    ${reset}
+${dim}    / ____| |           | |  | |                   ${reset}
+${green}   | (___ | |_ __ _  ___| | _| |_ __ _ _ __   ___  ${reset}
+${green}    \\___ \\| __/ _\` |/ __| |/ / __/ _\` | '_ \\ / _ \\ ${reset}
+${green}    ____) | || (_| | (__|   <| || (_| | |_) |  __/ ${reset}
+${green}   |_____/ \\__\\__,_|\\___|_|\\_\\\\__\\__,_| .__/ \\___| ${reset}
+${green}                                      | |          ${reset}
+${green}                                      |_|          ${reset}
+
+${bold}${green}Stacktape ${PACKAGE_VERSION} installed successfully!${reset}
+
+${dim}To get started, run:${reset}
+
+  stacktape init
+
+${dim}For more information visit ${reset}https://docs.stacktape.com
+`);
+};
+
+const printProgress = (downloaded, total) => {
+  if (!isTTY) return;
+
+  const width = 40;
+  const percent = total > 0 ? Math.min(100, Math.round((downloaded / total) * 100)) : 0;
+  const filled = Math.round((percent / 100) * width);
+  const empty = width - filled;
+
+  const bar = `${'#'.repeat(filled)}${'-'.repeat(empty)}`;
+  process.stdout.write(`\r${colors.cyan}${bar} ${percent}%${colors.reset}`);
+};
+
 function detectPlatform() {
   const currentPlatform = platform();
   const currentArch = arch();
@@ -52,7 +98,7 @@ function detectPlatform() {
   const platformKey = `${currentPlatform}-${currentArch}`;
 
   if (!PLATFORM_MAP[platformKey]) {
-    console.error(`Error: Unsupported platform ${currentPlatform}-${currentArch}`);
+    console.error(`${colors.red}Error: Unsupported platform ${currentPlatform}-${currentArch}${colors.reset}`);
     console.error('Stacktape binaries are available for:');
     Object.keys(PLATFORM_MAP).forEach((key) => {
       console.error(`  - ${key}`);
@@ -69,31 +115,9 @@ async function downloadFile(url, destPath, retries = 3) {
       await new Promise((resolve, reject) => {
         const fileStream = createWriteStream(destPath);
 
-        httpsGet(url, (response) => {
-          // Follow redirects
+        const handleResponse = (response) => {
           if (response.statusCode === 301 || response.statusCode === 302) {
-            httpsGet(response.headers.location, (redirectResponse) => {
-              if (redirectResponse.statusCode !== 200) {
-                reject(new Error(`Failed to download: ${redirectResponse.statusCode}`));
-                return;
-              }
-
-              const totalBytes = Number.parseInt(redirectResponse.headers['content-length'], 10);
-              let downloadedBytes = 0;
-
-              redirectResponse.on('data', (chunk) => {
-                downloadedBytes += chunk.length;
-                const percent = totalBytes ? ((downloadedBytes / totalBytes) * 100).toFixed(1) : '?';
-                process.stdout.write(`\rDownloading... ${percent}%`);
-              });
-
-              redirectResponse.pipe(fileStream);
-              fileStream.on('finish', () => {
-                fileStream.close();
-                process.stdout.write('\n');
-                resolve();
-              });
-            }).on('error', reject);
+            httpsGet(response.headers.location, handleResponse).on('error', reject);
             return;
           }
 
@@ -102,22 +126,23 @@ async function downloadFile(url, destPath, retries = 3) {
             return;
           }
 
-          const totalBytes = Number.parseInt(response.headers['content-length'], 10);
+          const totalBytes = Number.parseInt(response.headers['content-length'], 10) || 0;
           let downloadedBytes = 0;
 
           response.on('data', (chunk) => {
             downloadedBytes += chunk.length;
-            const percent = totalBytes ? ((downloadedBytes / totalBytes) * 100).toFixed(1) : '?';
-            process.stdout.write(`\rDownloading... ${percent}%`);
+            printProgress(downloadedBytes, totalBytes);
           });
 
           response.pipe(fileStream);
           fileStream.on('finish', () => {
             fileStream.close();
-            process.stdout.write('\n');
+            if (isTTY) process.stdout.write('\n');
             resolve();
           });
-        }).on('error', reject);
+        };
+
+        httpsGet(url, handleResponse).on('error', reject);
       });
 
       return; // Success
@@ -125,7 +150,7 @@ async function downloadFile(url, destPath, retries = 3) {
       if (i === retries - 1) {
         throw error;
       }
-      console.info(`\nRetrying download (${i + 1}/${retries})...`);
+      console.info(`\n${colors.dim}Retrying download (${i + 1}/${retries})...${colors.reset}`);
     }
   }
 }
@@ -191,7 +216,7 @@ async function ensureBinary() {
     return binaryPath;
   }
 
-  console.info(`Stacktape binary not found. Installing version ${version} for ${platformKey}...`);
+  console.info(`${colors.dim}Installing Stacktape ${version} for ${platformKey}...${colors.reset}`);
 
   mkdirSync(cacheDir, { recursive: true });
 
@@ -199,10 +224,10 @@ async function ensureBinary() {
   const archivePath = join(cacheDir, platformInfo.fileName);
 
   try {
-    console.info(`Downloading from ${downloadUrl}...`);
+    console.info(`${colors.dim}Downloading from GitHub releases...${colors.reset}`);
     await downloadFile(downloadUrl, archivePath);
 
-    console.info('Extracting...');
+    console.info(`${colors.dim}Extracting...${colors.reset}`);
     await platformInfo.extract(archivePath, cacheDir);
 
     setExecutablePermissions(cacheDir);
@@ -213,12 +238,12 @@ async function ensureBinary() {
       throw new Error(`Binary not found after extraction: ${binaryPath}`);
     }
 
-    console.info(`✓ Stacktape ${version} installed successfully`);
+    printLogo();
 
     return binaryPath;
   } catch (error) {
     console.error(`
-Error installing Stacktape:
+${colors.red}Error installing Stacktape:${colors.reset}
 ${error.message}
 
 You can also install Stacktape directly using:
@@ -287,13 +312,13 @@ async function main() {
     });
 
     if (result.error) {
-      console.error(`Error executing Stacktape binary: ${result.error.message}`);
+      console.error(`${colors.red}Error executing Stacktape binary: ${result.error.message}${colors.reset}`);
       process.exit(1);
     }
 
     process.exit(result.status || 0);
   } catch (error) {
-    console.error('Unexpected error:', error.message);
+    console.error(`${colors.red}Unexpected error: ${error.message}${colors.reset}`);
     process.exit(1);
   }
 }

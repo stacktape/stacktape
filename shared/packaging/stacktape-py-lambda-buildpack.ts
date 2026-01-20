@@ -53,7 +53,8 @@ export const buildUsingStacktapePyLambdaBuildpack = async ({
 
   await archiveItem({
     absoluteSourcePath: distFolderPath,
-    format: 'zip'
+    format: 'zip',
+    useNativeZip: true
   });
 
   const originalZipPath = `${distFolderPath}.zip`;

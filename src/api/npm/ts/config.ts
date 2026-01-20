@@ -10,6 +10,7 @@ const getTransformsSymbol = Symbol.for('stacktape:getTransforms');
 const setResourceNameSymbol = Symbol.for('stacktape:setResourceName');
 const resourceParamRefSymbol = Symbol.for('stacktape:isResourceParamRef');
 const baseTypePropertiesSymbol = Symbol.for('stacktape:isBaseTypeProperties');
+const alarmSymbol = Symbol.for('stacktape:isAlarm');
 
 // Duck-type checkers - use symbols instead of instanceof for cross-module compatibility
 const isBaseResource = (value: unknown): value is BaseResource =>
@@ -17,6 +18,8 @@ const isBaseResource = (value: unknown): value is BaseResource =>
 
 const isBaseTypeProperties = (value: unknown): value is BaseTypeProperties =>
   value !== null && typeof value === 'object' && baseTypePropertiesSymbol in value;
+
+const isAlarm = (value: unknown): value is Alarm => value !== null && typeof value === 'object' && alarmSymbol in value;
 
 const isResourceParamReference = (value: unknown): value is ResourceParamReference =>
   value !== null && typeof value === 'object' && resourceParamRefSymbol in value;
@@ -103,6 +106,49 @@ export class BaseTypeProperties {
   constructor(type: string, properties: any) {
     this.type = type;
     this.properties = properties;
+  }
+}
+
+/**
+ * Base class for type-only structures (no properties field, just type discriminator)
+ */
+export class BaseTypeOnly {
+  public readonly type: string;
+  readonly [baseTypePropertiesSymbol] = true;
+
+  constructor(type: string) {
+    this.type = type;
+  }
+}
+
+/**
+ * Defines a CloudWatch alarm that monitors a metric and triggers notifications when thresholds are breached.
+ *
+ * Alarms can be attached to resources like Lambda functions, databases, load balancers, SQS queues, and HTTP API Gateways.
+ * When the alarm condition is met (e.g., error rate exceeds 5%), notifications are sent to configured targets (Slack, email, MS Teams).
+ *
+ * @example
+ * ```ts
+ * new Alarm({
+ *   trigger: new LambdaErrorRateTrigger({ thresholdPercent: 5 }),
+ *   evaluation: { period: 60, evaluationPeriods: 3, breachedPeriods: 2 },
+ *   notificationTargets: [{ slack: { url: $Secret('slack-webhook-url') } }],
+ *   description: 'Lambda error rate exceeded 5%'
+ * })
+ * ```
+ */
+export class Alarm {
+  readonly [alarmSymbol] = true;
+  public readonly trigger: any;
+  public readonly evaluation?: any;
+  public readonly notificationTargets?: any[];
+  public readonly description?: string;
+
+  constructor(props: { trigger: any; evaluation?: any; notificationTargets?: any[]; description?: string }) {
+    this.trigger = props.trigger;
+    this.evaluation = props.evaluation;
+    this.notificationTargets = props.notificationTargets;
+    this.description = props.description;
   }
 }
 
@@ -509,10 +555,31 @@ export const transformValue = (value: any): any => {
 
   // Transform BaseTypeProperties (engines, packaging, events) to plain object
   if (isBaseTypeProperties(value)) {
+    // Handle type-only classes (no properties)
+    if (!('properties' in value) || value.properties === undefined) {
+      return { type: value.type };
+    }
     return {
       type: value.type,
       properties: transformValue(value.properties)
     };
+  }
+
+  // Transform Alarm class to plain object
+  if (isAlarm(value)) {
+    const result: any = {
+      trigger: transformValue(value.trigger)
+    };
+    if (value.evaluation !== undefined) {
+      result.evaluation = transformValue(value.evaluation);
+    }
+    if (value.notificationTargets !== undefined) {
+      result.notificationTargets = transformValue(value.notificationTargets);
+    }
+    if (value.description !== undefined) {
+      result.description = value.description;
+    }
+    return result;
   }
 
   // Transform arrays
@@ -530,8 +597,8 @@ export const transformValue = (value: any): any => {
   if (typeof value === 'object') {
     const result: any = {};
     for (const key in value) {
-      // Special handling for environment property
-      if (key === 'environment') {
+      // Special handling for environment and injectEnvironment properties
+      if (key === 'environment' || key === 'injectEnvironment') {
         result[key] = transformEnvironment(value[key]);
       } else {
         result[key] = transformValue(value[key]);

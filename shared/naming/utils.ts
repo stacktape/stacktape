@@ -119,6 +119,10 @@ export const buildLambdaS3Key = (functionName: string, version: string, digest: 
   return `${functionName}/${version}${digest ? `-${digest}` : ''}.zip`;
 };
 
+export const buildLayerS3Key = (layerNumber: number, version: string, digest: string) => {
+  return `shared-layer-${layerNumber}/${version}${digest ? `-${digest}` : ''}.zip`;
+};
+
 export const getStpNameForResource = ({
   nameChain,
   // nestedResourceIdentifier,

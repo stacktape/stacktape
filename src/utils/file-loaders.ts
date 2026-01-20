@@ -15,17 +15,12 @@ import { parseYaml } from '@shared/utils/yaml';
 import { parseDotenv } from '@utils/dotenv';
 import { ExpectedError } from '@utils/errors';
 import { pythonBridge } from '@utils/python-bridge';
-import { register } from 'esbuild-register/dist/node';
 import fsExtra, { lstatSync, readdirSync, readFileSync } from 'fs-extra';
 import { parseUserCodeFilepath } from './user-code-processing';
 
-let isTypescriptResolvingActive = false;
-
+// Bun has native TypeScript support - no registration needed
 export const activateTypescriptResolving = () => {
-  if (!isTypescriptResolvingActive) {
-    isTypescriptResolvingActive = true;
-    register();
-  }
+  // No-op: Bun's require() handles TypeScript natively
 };
 
 export const getTypescriptExport = ({
@@ -37,7 +32,7 @@ export const getTypescriptExport = ({
   cache: boolean;
   exportName: string | 'default';
 }) => {
-  activateTypescriptResolving();
+  // Bun's require() handles TypeScript natively
   const importedValue = dynamicRequire({ filePath, cache });
   return importedValue[exportName || 'default'];
 };

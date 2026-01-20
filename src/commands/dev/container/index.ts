@@ -1,9 +1,11 @@
+import type { Spinner } from '@application-services/tui-manager';
 import type { SsmPortForwardingTunnel } from '@utils/ssm-session';
 import type { ExecaReturnBase } from 'execa';
 import { applicationManager } from '@application-services/application-manager';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
+import { renderErrorToString } from '@application-services/tui-manager/non-tty-renderer';
 import { DEFAULT_CONTAINER_NODE_VERSION } from '@config';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
@@ -13,8 +15,10 @@ import { stpErrors } from '@errors';
 import { getJobName, getLocalInvokeContainerName } from '@shared/naming/utils';
 import { dockerRun } from '@shared/utils/docker';
 import { isJson } from '@shared/utils/misc';
-import { getErrorFromString } from '@utils/errors';
+import { parseContainerError } from '@utils/errors';
 import { addCallerToAssumeRolePolicy } from 'src/commands/_utils/assume-role';
+import { initializeStackServicesForDevPhase2 } from 'src/commands/_utils/initialization';
+import { categorizeConnectToResources, getLocalResourceEnvVars, startLocalResources } from '../local-resources';
 import {
   getBastionTunnelsForResource,
   getDeployedBastionStpName,
@@ -39,9 +43,6 @@ export const runDevContainer = async (): Promise<DevReturnValue> => {
   if (!containerDef) {
     throw stpErrors.e2({ container, resourceName });
   }
-  if (!stackManager.existingStackDetails && !disableEmulation) {
-    throw stpErrors.e3({ region, stage });
-  }
 
   const jobName = getJobName({
     workloadName: resourceName,
@@ -49,25 +50,81 @@ export const runDevContainer = async (): Promise<DevReturnValue> => {
     containerName
   });
 
+  const containerDefinition = configManager.allContainerWorkloadContainers.find((job) => job.jobName === jobName);
+
+  // Run packaging and AWS metadata loading in parallel with multi-spinner
+  const multiSpinner = tuiManager.createMultiSpinner();
+  const awsSpinner = multiSpinner.add('aws', 'Loading metadata from AWS');
+  const packagingSpinner = multiSpinner.add('packaging', 'Packaging container');
+
+  const [imageResult] = await Promise.all([
+    prepareImage(containerDefinition, { spinner: packagingSpinner }),
+    initializeStackServicesForDevPhase2().then(() => awsSpinner.success())
+  ]);
+  packagingSpinner.success({ details: imageResult.details });
+  const { imageName, sourceFiles, distFolderPath } = imageResult;
+
+  const { local: localResourceNames, deployed: deployedResourceNames } = categorizeConnectToResources({
+    connectTo: resource.connectTo || []
+  });
+
+  // Start local resources (databases, redis)
+  const localResourceInstances = await startLocalResources(localResourceNames);
+  const localResourceEnvVars = getLocalResourceEnvVars(localResourceInstances);
+
+  // Inject local resource env vars into process.env for hooks
+  if (localResourceInstances.length > 0) {
+    Object.assign(process.env, localResourceEnvVars);
+  }
+
+  // Run beforeDev hooks
+  await eventManager.processHooks({ captureType: 'START' });
+
+  // Check if we need deployed stack (for deployed resources or IAM role)
+  const needsDeployedStack = deployedResourceNames.length > 0 || !disableEmulation;
+
+  if (needsDeployedStack) {
+    // Validate stack exists
+    if (!stackManager.existingStackDetails) {
+      if (localResourceNames.length > 0 && deployedResourceNames.length === 0) {
+        tuiManager.info('Running with local resources only (no deployed stack required)');
+      } else {
+        throw stpErrors.e3({ region, stage });
+      }
+    }
+
+    // Validate deployed resource matches config (only if stack exists)
+    if (stackManager.existingStackDetails) {
+      const deployedStpResource = deployedStackOverviewManager.getStpResource({ nameChain: resourceName });
+      if (!deployedStpResource || deployedStpResource.resourceType !== resource.type) {
+        throw stpErrors.e6({
+          resourceName,
+          resourceType: resource.type,
+          stackName: globalStateManager.targetStack.stackName
+        });
+      }
+    }
+  }
+
   const bastionStpName = getDeployedBastionStpName();
   let tunnels: SsmPortForwardingTunnel[] = [];
 
-  // if we have a bastion, we will attempt to create tunnels to the resource which are part of the connectTo
-  if (bastionStpName) {
+  // Create tunnels only for deployed resources (not local ones)
+  if (bastionStpName && deployedResourceNames.length > 0) {
     tunnels = await getBastionTunnelsForResource({
-      resource,
+      resource: { ...resource, connectTo: deployedResourceNames },
       bastionStpName
     });
     applicationManager.registerCleanUpHook(async () => Promise.all(tunnels.map((tunnel) => tunnel.kill())));
   }
 
-  const containerDefinition = configManager.allContainerWorkloadContainers.find((job) => job.jobName === jobName);
-  const [{ imageName, sourceFiles }] = await Promise.all([
-    prepareImage(containerDefinition),
-    addCallerToAssumeRolePolicy({
+  // Assume IAM role if resource is actually deployed (not locally injected)
+  if (stackManager.existingStackDetails && !deployedStackOverviewManager.isLocallyInjectedResource(resourceName)) {
+    await addCallerToAssumeRolePolicy({
       roleName: deployedStackOverviewManager.getIamRoleNameOfDeployedResource(containerDefinition.workloadName)
-    })
-  ]);
+    });
+  }
+
   const packagingType = containerDefinition.packaging?.type;
   const entryfilePath = (containerDefinition.packaging?.properties as { entryfilePath?: string })?.entryfilePath;
   const languageSpecificConfig = (
@@ -75,24 +132,38 @@ export const runDevContainer = async (): Promise<DevReturnValue> => {
   )?.languageSpecificConfig;
   const nodeVersion = languageSpecificConfig?.nodeVersion || DEFAULT_CONTAINER_NODE_VERSION;
 
+  // Skip AWS credentials when running fully local (no deployed stack and disableEmulation)
+  const skipAwsCredentials = disableEmulation && !stackManager.existingStackDetails;
+
+  // Get primary port from container events
+  const primaryPort = containerDefinition.events?.[0]?.properties?.containerPort;
+
   const environment = await getWorkloadEnvironmentVars({
     jobEnvironment: containerDefinition.environment,
     jobName,
     workloadName: containerDefinition.workloadName,
-    connectTo: resource.connectTo,
+    connectTo: deployedResourceNames,
     workloadType: 'multi-container-workload',
     tunnels,
     packagingType,
     entryfilePath,
-    nodeVersion
+    nodeVersion,
+    localResourceEnvVars,
+    skipAwsCredentials,
+    port: primaryPort
   });
+
+  // Store distFolderPath for volume mounting - will be updated on rebuilds
+  let currentDistFolderPath = distFolderPath;
+
   const run = async () => {
     await runDockerContainer(
       {
         ...containerDefinition,
         imageName,
         environment,
-        userDefinedContainerName: containerName
+        userDefinedContainerName: containerName,
+        distFolderPath: currentDistFolderPath
       },
       run
     );
@@ -107,47 +178,54 @@ export const runDevContainer = async (): Promise<DevReturnValue> => {
         tuiManager.info(
           `File changed: ${tuiManager.prettyFilePath(changedFile)}. Rebuilding and restarting container...`
         );
-        // @todo we need to remove more, because timings are inaccurate
         const newImage = await prepareImage(containerDefinition);
+        currentDistFolderPath = newImage.distFolderPath;
         sourceCodeWatcher.addFilesToWatch(newImage.sourceFiles);
         await run();
       }
     });
     await run();
   } else {
-    hookToRestartContainer(containerDefinition, run);
+    hookToRestartContainer(containerDefinition, run, (newDistFolderPath) => {
+      currentDistFolderPath = newDistFolderPath;
+    });
     await run();
   }
 };
 
 const hookToRestartContainer = (
   containerDefinition: Omit<EnrichedCwContainerProps, 'environment'>,
-  run: AnyFunction
+  run: AnyFunction,
+  onDistFolderPathUpdated?: (distFolderPath: string) => void
 ) => {
   hookToRestartStdinInput(async () => {
-    await eventManager.startEvent({
-      eventType: 'REBUILD_AND_RESTART',
-      description: 'Rebuilding and restarting container'
-    });
-    await prepareImage(containerDefinition);
+    const { distFolderPath } = await prepareImage(containerDefinition, { isRepackage: true });
+    if (onDistFolderPathUpdated && distFolderPath) {
+      onDistFolderPathUpdated(distFolderPath);
+    }
     await run();
-    await eventManager.finishEvent({ eventType: 'REBUILD_AND_RESTART' });
   });
 };
 
-let isNewContainerRunStarted = false;
+// Track which containers are being restarted (by container name) to suppress SIGTERM exit messages
+const containersBeingRestarted = new Set<string>();
+
 const runDockerContainer = async (
   containerDefinition: Omit<EnrichedCwContainerProps, 'environment'> & {
     imageName: string;
     environment: Record<string, any>;
     userDefinedContainerName: string;
+    distFolderPath?: string;
   },
   run: AnyFunction
 ) => {
-  const { jobName, environment, imageName, events, packaging, userDefinedContainerName } = containerDefinition;
+  const { jobName, environment, imageName, events, packaging, userDefinedContainerName, distFolderPath } =
+    containerDefinition;
   const containerName = getLocalInvokeContainerName(jobName);
   const ports = (events || []).map((event) => event.properties.containerPort);
-  isNewContainerRunStarted = true;
+
+  // Mark this container as being restarted before stopping it
+  containersBeingRestarted.add(containerName);
   await gracefullyStopContainer(containerName);
   await resolveRunningContainersWithSamePort({
     ports,
@@ -157,10 +235,6 @@ const runDockerContainer = async (
   });
 
   const { watch } = globalStateManager.args;
-  const restartMessage = tuiManager.colorize(
-    'gray',
-    watch ? '(watching for files changes)' : "(type 'rs' + enter to rebuild and restart)"
-  );
   const command = (packaging as PrebuiltCwImagePackaging | ExternalBuildpackCwImagePackaging).properties.command;
   const { exitCode } = await dockerRun({
     name: containerName,
@@ -168,54 +242,82 @@ const runDockerContainer = async (
     command,
     environment,
     portMappings: ports.map((port) => ({ containerPort: port, hostPort: port })),
+    volumeMounts: distFolderPath ? [{ hostPath: distFolderPath, containerPath: '/app' }] : [],
     transformStderrPut: transformContainerWorkloadStdout,
     transformStdoutPut: transformContainerWorkloadStdout,
     onStart: () => {
-      tuiManager.success(`Container started. ${restartMessage}.`);
-      tuiManager.info(`Ports: ${ports.map((port) => `http://localhost:${port}`)}`);
+      // Clear the restart flag once container has started
+      containersBeingRestarted.delete(containerName);
+      tuiManager.printDevContainerReady({ ports, isWatchMode: !!watch });
     },
     args: globalStateManager.args
   }).catch((res) => {
     return res as ExecaReturnBase<string>;
   });
-  if (exitCode !== 0 && !(isNewContainerRunStarted && exitCode === 143)) {
-    console.error(
-      `\n[${tuiManager.colorize('red', 'CONTAINER_ERROR')}] Container ${tuiManager.makeBold(
-        userDefinedContainerName
-      )} has exited with error. Exit code: ${exitCode}.` //  Error:\n${err}
+
+  // Exit code 143 = SIGTERM (sent during restart), don't show error if we're restarting this container
+  const wasIntentionalShutdown = containersBeingRestarted.has(containerName) && exitCode === 143;
+  if (exitCode !== 0 && !wasIntentionalShutdown) {
+    const errorOutput = renderErrorToString(
+      {
+        errorType: 'CONTAINER',
+        message: `Container "${userDefinedContainerName}" exited with code ${exitCode}.`,
+        hints: ['Check container logs above for error details', "Type 'rs' + enter to rebuild and restart"]
+      },
+      tuiManager.colorize.bind(tuiManager),
+      tuiManager.makeBold.bind(tuiManager)
     );
+    console.error(errorOutput);
   }
 };
 
-const prepareImage = async ({
-  jobName,
-  workloadName,
-  packaging,
-  resources
-}: EnrichedCwContainerProps): Promise<{ imageName: string; sourceFiles: string[] }> => {
-  eventManager.reset();
+type PrepareImageOptions = {
+  isRepackage?: boolean;
+  /** External spinner to use (for parallel operations). If not provided, creates its own spinner. */
+  spinner?: Spinner;
+};
 
+type PrepareImageResult = {
+  imageName: string;
+  sourceFiles: string[];
+  distFolderPath?: string;
+  /** Final message from packaging (e.g., "Image size: 343 MB") */
+  details?: string;
+};
+
+export const prepareImage = async (
+  { jobName, workloadName, packaging, resources }: EnrichedCwContainerProps,
+  options: PrepareImageOptions = {}
+): Promise<PrepareImageResult> => {
   if (packaging.type === 'prebuilt-image') {
     return { imageName: packaging.properties.image, sourceFiles: [] };
   }
 
-  await eventManager.startEvent({
-    eventType: 'PACKAGE_ARTIFACTS',
-    description: 'Packaging container'
-  });
-  const { imageName, sourceFiles } = (await packagingManager.packageWorkload({
+  const { isRepackage, spinner: externalSpinner } = options;
+
+  // Use external spinner if provided (for parallel operations), otherwise create our own
+  const spinnerText = isRepackage ? 'Re-packaging container' : 'Packaging container';
+  const spinner = externalSpinner || tuiManager.createSpinner({ text: spinnerText });
+  const progressLogger = tuiManager.createSpinnerProgressLogger(spinner, jobName);
+
+  const { imageName, sourceFiles, distFolderPath } = (await packagingManager.packageWorkload({
     packaging,
     jobName,
     workloadName,
     commandCanUseCache: false,
-    dockerBuildOutputArchitecture: packagingManager.getTargetCpuArchitectureForContainer(resources)
+    dockerBuildOutputArchitecture: packagingManager.getTargetCpuArchitectureForContainer(resources),
+    customProgressLogger: progressLogger,
+    devMode: true
   })) as PackagingOutput;
 
-  await eventManager.finishEvent({
-    eventType: 'PACKAGE_ARTIFACTS'
-  });
+  const details = progressLogger.getLastFinalMessage();
 
-  return { imageName, sourceFiles: sourceFiles.map(({ path }) => path) };
+  // Only complete the spinner if we created it ourselves
+  if (!externalSpinner) {
+    spinner.success({ details });
+  }
+
+  return { imageName, sourceFiles: sourceFiles.map(({ path }) => path), distFolderPath, details };
 };
 
 const transformContainerWorkloadStdout = (stdput: string) => {
@@ -224,7 +326,19 @@ const transformContainerWorkloadStdout = (stdput: string) => {
   const isJsonError = isJson(stdput);
   const shouldTransform = !isJsonError && colonOccurrences >= 2 && hasErrorLine;
   if (shouldTransform) {
-    return getErrorFromString(stdput);
+    const { message, stackTrace } = parseContainerError(stdput);
+    // Format error message and stack trace without a box (box is shown on container exit)
+    const lines: string[] = ['', tuiManager.makeBold(tuiManager.colorize('red', message))];
+    if (stackTrace) {
+      lines.push('', tuiManager.colorize('gray', 'Stack trace:'));
+      for (const line of stackTrace.split('\n')) {
+        if (line.trim()) {
+          lines.push(`  ${tuiManager.colorize('gray', line)}`);
+        }
+      }
+    }
+    lines.push(''); // Add trailing newline
+    return lines.join('\n');
   }
   return stdput;
 };

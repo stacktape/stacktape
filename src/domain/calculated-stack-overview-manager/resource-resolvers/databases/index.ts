@@ -3,12 +3,12 @@ import { GetAtt, Join, Ref } from '@cloudform/functions';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
 import { templateManager } from '@domain-services/template-manager';
+import { filterResourcesForDevMode } from '../../../../commands/dev/dev-resource-filter';
 import { awsResourceNames } from '@shared/naming/aws-resource-names';
 import { cfEvaluatedLinks } from '@shared/naming/cf-evaluated-links';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import { ExpectedError } from '@utils/errors';
 import { resolveAlarmsForResource } from '../_utils/alarms';
-import { getResourcesNeededForLogForwarding } from '../_utils/log-forwarding';
 import {
   ENGINE_TYPES_REQUIRING_OPTION_GROUP,
   getAuroraDbCluster,
@@ -32,7 +32,7 @@ import {
 } from './utils';
 
 export const resolveDatabases = async () => {
-  const { databases } = configManager;
+  const databases = filterResourcesForDevMode(configManager.databases);
   databases.forEach((definition) => {
     validateEngineVersion({ resource: definition });
     resolveAlarmsForResource({ resource: definition });

@@ -1412,7 +1412,7 @@ You have specified ${tuiManager.makeBold('app_variable')} "${appVariable}" in yo
             : []
         )
         .concat(
-          STACK_IS_READY_FOR_ROLLBACK_OPERATION_STATUS.includes(stackStatus)
+          STACK_IS_READY_FOR_ROLLBACK_OPERATION_STATUS.includes(stackStatus as any)
             ? [
                 `To rollback your stack to previously working state, try using ${tuiManager.prettyCommand(
                   'rollback'
@@ -1522,7 +1522,7 @@ You have specified ${tuiManager.makeBold('app_variable')} "${appVariable}" in yo
       type: 'CONFIG_VALIDATION',
       message: `Error in ${tuiManager.prettyResourceType('relational-database')} ${tuiManager.prettyResourceName(
         databaseStpResourceName
-      )}. You must specify engine ${tuiManager.prettyConfigProperty('version')} in engine properties.${currentDatabaseVersion ? `Currently, your database uses version ${tuiManager.colorize('gray', currentDatabaseVersion, true)}.\nOther available versions are:` : '\nAvailable versions are:'} ${availableVersions
+      )}. You must specify engine ${tuiManager.prettyConfigProperty('version')} in engine properties.${currentDatabaseVersion ? `Currently, your database uses version ${tuiManager.colorize('gray', currentDatabaseVersion)}.\nOther available versions are:` : '\nAvailable versions are:'} ${availableVersions
         .sort((v1, v2) => v2.localeCompare(v1))
         .map((version) => tuiManager.colorize('gray', version))
         .join(', ')}`
@@ -1985,6 +1985,14 @@ Property ${tuiManager.prettyConfigProperty('runAppAs')} can be specified only fo
       type: 'CONFIG_VALIDATION',
       message: `Config function in ${tuiManager.prettyFilePath(configPath)} must return an object, but returned ${tuiManager.makeBold(exportValue)}.`,
       hint: `Make sure your config function returns a valid Stacktape configuration object with at least a ${tuiManager.makeBold('resources')} property.`
+    };
+  },
+  e141({ stackName, stage }: { stackName: string; stage: string }): ReturnedError {
+    return {
+      type: 'CLI',
+      message: `Stack ${tuiManager.colorize('cyan', stackName)} is a dev stack and cannot be deployed using ${tuiManager.prettyCommand('deploy')}.`,
+      hint: `Dev stacks are created and managed by ${tuiManager.prettyCommand('stacktape dev')}. To deploy a production stack, use a different stage name (e.g., --stage production).
+If you want to delete the dev stack, run: ${tuiManager.prettyCommand(`stacktape delete --stage ${stage}`)}`
     };
   }
 } as const;

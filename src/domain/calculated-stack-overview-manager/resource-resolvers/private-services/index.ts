@@ -1,13 +1,14 @@
 import { GetAtt, Join } from '@cloudform/functions';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
+import { filterResourcesForDevMode } from '../../../../commands/dev/dev-resource-filter';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import { getSimpleServiceDefaultContainerName } from '@shared/naming/utils';
 import { resolveApplicationLoadBalancer } from '../application-load-balancers';
 import { resolveContainerWorkload } from '../multi-container-workloads';
 
 export const resolvePrivateServices = async () => {
-  const { privateServices } = configManager;
+  const privateServices = filterResourcesForDevMode(configManager.privateServices);
   if (privateServices.length) {
     // resolve web service container workloads
     privateServices.forEach(({ nameChain, _nestedResources: { containerWorkload, loadBalancer } }) => {

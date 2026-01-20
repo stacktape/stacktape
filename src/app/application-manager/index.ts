@@ -134,7 +134,8 @@ export class ApplicationManager {
     err?: Error;
   }) => {
     const { command, args } = globalStateManager;
-    const shouldCleanTemp = !args.preserveTempFiles && command !== 'package-workloads';
+    const shouldCleanTemp =
+      !args.preserveTempFiles && command !== 'package-workloads' && !(this.usesStdinWatch && success);
     const promiseResults = await Promise.allSettled([
       ...this.cleanUpHooks.map((hook) => hook({ success, interrupted, err })),
       shouldCleanTemp && deleteTempFolder()

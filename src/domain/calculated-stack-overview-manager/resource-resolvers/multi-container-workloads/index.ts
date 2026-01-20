@@ -9,6 +9,7 @@ import { resolveReferencesToMountedEfsFilesystems } from '@domain-services/confi
 import { resolveConnectToList } from '@domain-services/config-manager/utils/resource-references';
 import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
 import { templateManager } from '@domain-services/template-manager';
+import { filterResourcesForDevMode } from '../../../../commands/dev/dev-resource-filter';
 import { awsResourceNames } from '@shared/naming/aws-resource-names';
 import { cfEvaluatedLinks } from '@shared/naming/cf-evaluated-links';
 import { cfLogicalNames } from '@shared/naming/logical-names';
@@ -48,7 +49,7 @@ import {
 } from './utils';
 
 export const resolveContainerWorkloads = () => {
-  const { containerWorkloads } = configManager;
+  const containerWorkloads = filterResourcesForDevMode(configManager.containerWorkloads);
   if (containerWorkloads.length) {
     containerWorkloads.forEach((definition) => resolveContainerWorkload({ definition }));
   }

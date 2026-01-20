@@ -40,8 +40,6 @@ export const CLOUDFORM_FOLDER_PATH = join(process.cwd(), '@generated', 'cloudfor
 export const CLOUDFORM_ROOT_HELPER_FOLDER_PATH = join(process.cwd(), 'scripts', 'cloudform-root-helpers');
 
 export const CONFIG_SCHEMA_PATH = join(JSON_SCHEMAS_FOLDER_PATH, 'config-schema.json');
-export const CLI_SCHEMA_PATH = join(JSON_SCHEMAS_FOLDER_PATH, 'cli-schema.json');
-export const SDK_SCHEMA_PATH = join(JSON_SCHEMAS_FOLDER_PATH, 'sdk-schema.json');
 export const AJV_VALIDATION_CODE_PATH = join(JSON_SCHEMAS_FOLDER_PATH, 'validate-config-schema.js');
 
 export const INSTALL_SCRIPTS_PATH = join(process.cwd(), 'scripts', 'install-scripts');
@@ -50,4 +48,3 @@ export const COMPLETIONS_SCRIPTS_PATH = join(process.cwd(), 'scripts', 'completi
 export const SCRIPTS_ASSETS_PATH = join(process.cwd(), 'scripts', 'assets');
 
 export const CLI_SOURCE_PATH = join(SOURCE_FOLDER_PATH, 'api', 'cli', 'index.ts');
-export const SDK_SOURCE_PATH = join(SOURCE_FOLDER_PATH, 'api', 'npm', 'sdk', 'index.ts');

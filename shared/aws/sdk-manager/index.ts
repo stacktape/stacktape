@@ -28,6 +28,7 @@ import type {
   UpdateServiceCommandInput
 } from '@aws-sdk/client-ecs';
 import type { GetRoleCommandOutput } from '@aws-sdk/client-iam';
+import type { Runtime } from '@aws-sdk/client-lambda';
 import type { OpenSearchPartitionInstanceType } from '@aws-sdk/client-opensearch';
 import type { HostedZone, ResourceRecordSet } from '@aws-sdk/client-route-53';
 import type { DomainPrice } from '@aws-sdk/client-route-53-domains';
@@ -158,10 +159,14 @@ import {
   waitUntilRoleExists
 } from '@aws-sdk/client-iam';
 import {
+  DeleteLayerVersionCommand,
   GetFunctionConfigurationCommand,
+  GetProvisionedConcurrencyConfigCommand,
   InvokeCommand,
   LambdaClient,
+  ListLayerVersionsCommand,
   ListTagsCommand,
+  PublishLayerVersionCommand,
   PublishVersionCommand,
   TagResourceCommand as TagLambdaResource,
   UpdateAliasCommand,
@@ -297,16 +302,9 @@ export class AwsSdkManager {
   }
 
   #getClientArgs() {
-    // default keep-alive off (safe)
-    const httpsAgent = new HttpsAgent({ keepAlive: false });
     return {
       region: this.region,
-      credentials: this.credentials,
-      requestHandler: new NodeHttpHandler({
-        connectionTimeout: 10000,
-        socketTimeout: 20000,
-        httpsAgent
-      })
+      credentials: this.credentials
     };
   }
 
@@ -579,10 +577,19 @@ export class AwsSdkManager {
       .catch(errHandler);
   };
 
-  continueUpdateRollback = (stackName: string, { roleArn }: { roleArn: string }) => {
+  continueUpdateRollback = (
+    stackName: string,
+    { roleArn, resourcesToSkip }: { roleArn: string; resourcesToSkip?: string[] }
+  ) => {
     const errHandler = this.#getErrorHandler('Failed to initiate stack rollback continuation.');
     return this.#cloudformation()
-      .send(new ContinueUpdateRollbackCommand({ StackName: stackName, RoleARN: roleArn }))
+      .send(
+        new ContinueUpdateRollbackCommand({
+          StackName: stackName,
+          RoleARN: roleArn,
+          ResourcesToSkip: resourcesToSkip
+        })
+      )
       .catch(errHandler);
   };
 
@@ -1191,7 +1198,12 @@ export class AwsSdkManager {
 
   batchDeleteObjects = async (bucketName: string, objectKeys: ObjectIdentifier[]) => {
     const errHandler = this.#getErrorHandler(`Failed to batch delete objects from bucket ${bucketName}.`);
-    const validObjectKeys = objectKeys.filter((obj) => obj?.Key);
+    // Explicitly extract only Key and VersionId to ensure clean ObjectIdentifier objects.
+    // This prevents issues when ObjectVersion/DeleteMarkerEntry objects are passed directly,
+    // which can contain extra properties that may cause serialization issues.
+    const validObjectKeys: ObjectIdentifier[] = objectKeys
+      .filter((obj) => obj?.Key)
+      .map(({ Key, VersionId }) => (VersionId ? { Key, VersionId } : { Key }));
     if (validObjectKeys.length) {
       return Promise.all(
         chunkArray(validObjectKeys, 1000).map((chunk) =>
@@ -1216,14 +1228,14 @@ export class AwsSdkManager {
       .send(new ListObjectsV2Command({ Bucket: bucketName }))
       .catch(errHandler);
 
-    result = result.concat(Contents);
+    if (Contents) result = result.concat(Contents);
     while (NextContinuationToken) {
       ({ Contents, NextContinuationToken } = await (injectedS3Client || this.#s3())
         .send(new ListObjectsV2Command({ Bucket: bucketName, ContinuationToken: NextContinuationToken }))
         .catch(errHandler));
-      result = result.concat(Contents);
+      if (Contents) result = result.concat(Contents);
     }
-    return result.filter((obj) => obj !== null && obj !== undefined);
+    return result;
   };
 
   listAllVersionedObjectsInBucket = async (bucketName: string, injectedS3Client?: S3Client) => {
@@ -1233,7 +1245,8 @@ export class AwsSdkManager {
       .send(new ListObjectVersionsCommand({ Bucket: bucketName }))
       .catch(errHandler);
 
-    result = result.concat(Versions, DeleteMarkers);
+    if (Versions) result = result.concat(Versions);
+    if (DeleteMarkers) result = result.concat(DeleteMarkers);
     while (NextKeyMarker || NextVersionIdMarker) {
       ({ Versions, DeleteMarkers, NextKeyMarker, NextVersionIdMarker } = await (injectedS3Client || this.#s3())
         .send(
@@ -1244,9 +1257,10 @@ export class AwsSdkManager {
           })
         )
         .catch(errHandler));
-      result = result.concat(Versions, DeleteMarkers);
+      if (Versions) result = result.concat(Versions);
+      if (DeleteMarkers) result = result.concat(DeleteMarkers);
     }
-    return result.filter((obj) => obj !== null && obj !== undefined);
+    return result;
   };
 
   emptyBucket = async (bucketName: string) => {
@@ -2187,6 +2201,19 @@ export class AwsSdkManager {
           .catch(errHandler)
       ).Tags || {}
     );
+  };
+
+  getProvisionedConcurrencyConfig = async ({
+    functionName,
+    qualifier
+  }: {
+    functionName: string;
+    qualifier: string;
+  }) => {
+    const errHandler = this.#getErrorHandler('Failed to get provisioned concurrency config.');
+    return this.#lambda()
+      .send(new GetProvisionedConcurrencyConfigCommand({ FunctionName: functionName, Qualifier: qualifier }))
+      .catch(errHandler);
   };
 
   tagLambdaFunction = async ({ lambdaArn, tags }: { lambdaArn: string; tags: { key: string; value: string }[] }) => {
@@ -3135,5 +3162,115 @@ export class AwsSdkManager {
       .send(new DescribeDBClustersCommand({ DBClusterIdentifier: rdsClusterIdentifier }))
       .catch(errHandler);
     return response.DBClusters?.[0];
+  };
+
+  /**
+   * Publish a Lambda layer version.
+   */
+  publishLambdaLayer = async ({
+    layerName,
+    zipFilePath,
+    compatibleRuntimes,
+    description
+  }: {
+    layerName: string;
+    zipFilePath: string;
+    compatibleRuntimes: string[];
+    description?: string;
+  }): Promise<{ layerArn: string; layerVersionArn: string; version: number }> => {
+    const errHandler = this.#getErrorHandler(`Failed to publish Lambda layer ${layerName}.`);
+    const { readFile } = await import('fs-extra');
+    const zipContent = await readFile(zipFilePath);
+
+    const response = await this.#lambda()
+      .send(
+        new PublishLayerVersionCommand({
+          LayerName: layerName,
+          Content: { ZipFile: zipContent },
+          CompatibleRuntimes: compatibleRuntimes as Runtime[],
+          Description: description
+        })
+      )
+      .catch(errHandler);
+
+    return {
+      layerArn: response.LayerArn,
+      layerVersionArn: response.LayerVersionArn,
+      version: response.Version
+    };
+  };
+
+  /**
+   * Delete a specific Lambda layer version.
+   */
+  deleteLambdaLayerVersion = async ({
+    layerName,
+    versionNumber
+  }: {
+    layerName: string;
+    versionNumber: number;
+  }): Promise<void> => {
+    const errHandler = this.#getErrorHandler(`Failed to delete Lambda layer version ${layerName}:${versionNumber}.`);
+    await this.#lambda()
+      .send(
+        new DeleteLayerVersionCommand({
+          LayerName: layerName,
+          VersionNumber: versionNumber
+        })
+      )
+      .catch(errHandler);
+  };
+
+  /**
+   * List all versions of a Lambda layer.
+   */
+  listLambdaLayerVersions = async ({
+    layerName
+  }: {
+    layerName: string;
+  }): Promise<{ versionNumber: number; createdDate: string; description?: string }[]> => {
+    const errHandler = this.#getErrorHandler(`Failed to list Lambda layer versions for ${layerName}.`);
+    const versions: { versionNumber: number; createdDate: string; description?: string }[] = [];
+
+    let marker: string | undefined;
+    do {
+      const response = await this.#lambda()
+        .send(
+          new ListLayerVersionsCommand({
+            LayerName: layerName,
+            Marker: marker
+          })
+        )
+        .catch(errHandler);
+
+      for (const version of response.LayerVersions || []) {
+        versions.push({
+          versionNumber: version.Version,
+          createdDate: version.CreatedDate,
+          description: version.Description
+        });
+      }
+
+      marker = response.NextMarker;
+    } while (marker);
+
+    return versions;
+  };
+
+  /**
+   * Check if a Lambda layer exists.
+   */
+  checkLambdaLayerExists = async ({ layerName }: { layerName: string }): Promise<boolean> => {
+    try {
+      const response = await this.#lambda().send(
+        new ListLayerVersionsCommand({
+          LayerName: layerName,
+          MaxItems: 1
+        })
+      );
+      return (response.LayerVersions?.length ?? 0) > 0;
+    } catch {
+      return false;
+    }
   };
 }

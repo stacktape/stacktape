@@ -4,11 +4,21 @@ import { getTypePropertiesDescription } from './jsdoc-extractor';
 
 /**
  * Formats a JSDoc comment for a constructor (with indentation)
+ * @param description - JSDoc extracted from interface, or undefined
+ * @param className - Class name for fallback
+ * @param customJsdoc - Custom JSDoc string from class-config (takes priority)
  */
-function formatConstructorJSDoc(description: JSDocComment | undefined, className: string): string {
+function formatConstructorJSDoc(
+  description: JSDocComment | undefined,
+  className: string,
+  customJsdoc?: string
+): string {
   const lines: string[] = ['  /**'];
 
-  if (description?.description) {
+  // Custom JSDoc from class-config takes priority
+  if (customJsdoc) {
+    lines.push(`   * ${customJsdoc}`);
+  } else if (description?.description) {
     // Split description into lines and add proper indentation
     const descriptionLines = description.description.split('\n');
     for (const line of descriptionLines) {
@@ -18,8 +28,8 @@ function formatConstructorJSDoc(description: JSDocComment | undefined, className
     lines.push(`   * Create a ${className}`);
   }
 
-  // Add tags if any
-  if (description?.tags) {
+  // Add tags if any (only if using extracted description)
+  if (!customJsdoc && description?.tags) {
     for (const tag of description.tags) {
       if (tag.value) {
         lines.push(`   * @${tag.tag} ${tag.value}`);
@@ -37,9 +47,19 @@ function formatConstructorJSDoc(description: JSDocComment | undefined, className
  * Generate type/properties class declarations
  */
 export function generateTypePropertiesClassDeclarations(): string {
-  return MISC_TYPES_CONVERTIBLE_TO_CLASSES.map(({ className, typeValue, propsType }) => {
+  return MISC_TYPES_CONVERTIBLE_TO_CLASSES.map(({ className, typeValue, propsType, typeOnly, jsdoc }) => {
     const description = getTypePropertiesDescription(className);
-    const constructorJsDoc = formatConstructorJSDoc(description, className);
+    const constructorJsDoc = formatConstructorJSDoc(description, className, jsdoc);
+
+    // For type-only classes, extend BaseTypeOnly and have no constructor params
+    if (typeOnly) {
+      return `
+export declare class ${className} extends BaseTypeOnly {
+${constructorJsDoc}
+  constructor();
+  readonly type: '${typeValue}';
+}`;
+    }
 
     return `
 export declare class ${className} extends BaseTypeProperties {

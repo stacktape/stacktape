@@ -1,5 +1,6 @@
 import { tuiManager } from '@application-services/tui-manager';
-import commandsInfo from '@schemas/cli-schema.json';
+import { type StacktapeCommand } from '../config/cli/commands';
+import { getCommandDescription } from '../config/cli/utils';
 import { ExpectedError } from './errors';
 
 export const validatePrimitiveFunctionParams = (
@@ -31,5 +32,8 @@ export const validatePrimitiveFunctionParams = (
 export const getPrettyCommand = (command: string) => `'${tuiManager.colorize('yellow', command)}'`;
 
 export const getCommandShortDescription = (command: string) => {
-  return commandsInfo[command].description.split('---')[0].slice(5).trim();
+  const description = getCommandDescription(command as StacktapeCommand);
+  // Get the first line/paragraph as short description
+  const firstParagraph = description.split('\n\n')[0];
+  return firstParagraph.trim();
 };

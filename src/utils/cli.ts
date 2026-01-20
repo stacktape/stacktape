@@ -1,4 +1,4 @@
-import { cliArgsAliases } from '@cli-config';
+import { argAliases as cliArgsAliases } from '../config/cli/options';
 import { camelCase } from 'change-case';
 import yargsParser from 'yargs-parser';
 
@@ -70,7 +70,14 @@ export const getCliInput = (): {
         return '--version';
       }
       return arg;
-    })
+    }),
+    {
+      array: ['dockerArgs', 'portMapping', 'env', 'resourcesToSkip'],
+      configuration: {
+        'camel-case-expansion': true,
+        'strip-dashed': true
+      }
+    }
   );
 
   const commands: string[] = rawCommands as string[];

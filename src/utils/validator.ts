@@ -7,14 +7,13 @@ import { getError, isAlphanumeric, isSmallAlphanumericDashCase } from '@shared/u
 import { ExpectedError } from '@utils/errors';
 import { renderPrettyJson } from '@utils/pretty-json';
 import { camelCase } from 'change-case';
-import cliSchema from '../../@generated/schemas/cli-schema.json' with { type: 'json' };
-import sdkSchema from '../../@generated/schemas/sdk-schema.json' with { type: 'json' };
-import { allowedCliArgs, cliArgsAliases, cliCommands } from '../config/cli';
+import { cliCommands, type StacktapeCommand } from '../config/cli/commands';
+import { argAliases as cliArgsAliases } from '../config/cli/options';
+import { getAllowedArgs, getArgInfo, getRequiredArgs } from '../config/cli/utils';
 import { getAwsCredentialsIdentity } from './aws-sdk-manager/utils';
 import { getCommandShortDescription, getPrettyCommand } from './validation-utils';
 
 export const validateDomain = (domain: string) => {
-  // eslint-disable-next-line regexp/no-super-linear-backtracking
   if (!domain.match(/^((?:(?:\w[.\-+]?)*\w)+)((?:(?:\w[.\-+]?){0,62}\w)+)\.(\w{2,6})$/)?.length) {
     throw new ExpectedError('CONFIG_VALIDATION', `Domain name '${domain}' is not a valid domain name.`);
   }
@@ -129,38 +128,51 @@ export const validateArgs = ({
   defaults: ConfigurableCliArgsDefaults;
   fromEnv: Omit<ConfigurableCliArgsDefaults, 'stage'>;
 }) => {
-  const filteredFromEnv = {};
+  const filteredFromEnv: Record<string, unknown> = {};
   Object.entries(fromEnv)
     .filter(([, propValue]) => propValue !== null && propValue !== undefined)
     .forEach(([propName, propValue]) => {
       filteredFromEnv[propName] = propValue;
     });
   const mergedArgs = { ...defaults, ...filteredFromEnv, ...rawArgs };
-  const argsSchema = globalStateManager.invokedFrom === 'cli' ? cliSchema[command].args : sdkSchema[command].args;
+
+  // Get allowed args using the new Zod-based definition
+  const allowedArgs = getAllowedArgs(command as StacktapeCommand);
+
   const helpHint = `Use ${getPrettyCommand(
     `stacktape ${command} --help`
   )} to show available options and their meaning or visit ${tuiManager.terminalLink(getLink(command), 'docs')}.`;
   const multiCharacterHint =
     'Note that multi-character aliases for options must be supplied with -- (two dashes) instead of one.';
+
+  // Validate each provided arg
   for (const cliArg in rawArgs) {
-    if (!Object.keys(argsSchema).find((allowedArg) => allowedArg === cliArg)) {
-      const alias = cliArgsAliases[cliArg] ? `(--${cliArgsAliases[cliArg]}) ` : '';
+    if (!allowedArgs.includes(cliArg)) {
+      const alias = cliArgsAliases[cliArg as keyof typeof cliArgsAliases]
+        ? `(--${cliArgsAliases[cliArg as keyof typeof cliArgsAliases]}) `
+        : '';
       throw getError({
         type: 'CLI',
         message: `Invalid argument --${cliArg} ${alias}for command ${command}.${
-          allowedCliArgs[command].length ? ` Must be one of ${allowedCliArgs[command].join(', ')}.` : ''
+          allowedArgs.length ? ` Must be one of ${allowedArgs.join(', ')}.` : ''
         }`,
         hint: [multiCharacterHint, helpHint]
       });
     }
+
     const value = mergedArgs[cliArg];
-    const { allowedTypes, allowedValues } = argsSchema[cliArg];
+    const argInfo = getArgInfo(command as StacktapeCommand, cliArg);
+    const { allowedTypes, allowedValues } = argInfo;
+
     const valueType = Array.isArray(value) ? 'array' : typeof value;
+
+    // Allow string for array args (will be wrapped)
     if (allowedTypes.includes('array') && valueType === 'string') {
       continue;
     }
+
     if (!allowedTypes.includes(valueType)) {
-      let type;
+      let type: string;
       if (value === true || value === false) {
         type = 'boolean';
       } else if (!Number.isNaN(Number(value))) {
@@ -178,8 +190,9 @@ export const validateArgs = ({
         hint: [multiCharacterHint, helpHint]
       });
     }
-    if (allowedValues) {
-      if (!allowedValues.includes(value)) {
+
+    if (allowedValues && allowedValues.length > 0) {
+      if (!allowedValues.includes(value as string)) {
         throw getError({
           type: 'CLI',
           message: `Argument --${cliArg} for command ${command} must be one of ${allowedValues.join(
@@ -190,24 +203,24 @@ export const validateArgs = ({
       }
     }
   }
-  const requiredCliArgs = Object.entries(argsSchema)
-    .map(([argName, argDetails]) => (argDetails as any).required && argName)
-    .filter(Boolean);
 
-  if (requiredCliArgs) {
-    for (const requiredCliArg of requiredCliArgs) {
-      if (requiredCliArg === 'stage') {
-        validateStage(mergedArgs[requiredCliArg]);
+  // Get required args for the command
+  const requiredArgs = getRequiredArgs(command as StacktapeCommand);
+
+  if (requiredArgs) {
+    for (const requiredArg of requiredArgs) {
+      if (requiredArg === 'stage') {
+        validateStage(mergedArgs[requiredArg] as string);
       }
-      if (requiredCliArg === 'region') {
-        validateRegion(mergedArgs[requiredCliArg]);
+      if (requiredArg === 'region') {
+        validateRegion(mergedArgs[requiredArg] as string);
       }
-      if (!mergedArgs[requiredCliArg]) {
+      if (!mergedArgs[requiredArg]) {
         throw getError({
           type: 'CLI',
-          message: `Missing required argument --${requiredCliArg} for command ${
+          message: `Missing required argument ${tuiManager.prettyOption(requiredArg)} for command ${
             globalStateManager.command
-          }. Required arguments: ${requiredCliArgs.join(', ')}.`,
+          }. Required arguments: ${(requiredArgs as readonly string[]).map((arg) => tuiManager.prettyOption(arg)).join(', ')}.`,
           hint: [multiCharacterHint, helpHint]
         });
       }

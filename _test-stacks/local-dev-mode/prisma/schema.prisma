@@ -1,0 +1,32 @@
+generator client {
+  provider     = "prisma-client" // or `prisma-client-js`
+  output       = "./generated/prisma"
+  engineType   = "client" // enable Prisma ORM without Rust
+  runtime      = "nodejs"
+  moduleFormat = "esm"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  name      String
+  posts     Post[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Post {
+  id        String   @id @default(uuid())
+  title     String
+  content   String?
+  published Boolean  @default(false)
+  author    User     @relation(fields: [authorId], references: [id])
+  authorId  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

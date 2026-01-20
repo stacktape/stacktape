@@ -1,5 +1,32 @@
-import cliSchema from '@generated/schemas/cli-schema.json';
+import { cliCommands, type StacktapeCommand } from '../src/config/cli/commands';
+import { argAliases } from '../src/config/cli/options';
+import { getCommandInfo } from '../src/config/cli/utils';
 import { writeFile } from 'fs-extra';
+
+// Build a schema-like structure from cli-definition for compatibility
+const buildCliSchema = () => {
+  const schema: Record<string, { description: string; args: Record<string, any> }> = {};
+  for (const cmd of cliCommands) {
+    const info = getCommandInfo(cmd);
+    schema[cmd] = {
+      description: info.description,
+      args: Object.fromEntries(
+        Object.entries(info.args).map(([argName, argInfo]) => [
+          argName,
+          {
+            description: argInfo.description,
+            allowedTypes: argInfo.allowedTypes,
+            allowedValues: argInfo.allowedValues,
+            alias: argInfo.alias
+          }
+        ])
+      )
+    };
+  }
+  return schema;
+};
+
+const cliSchema = buildCliSchema();
 
 export const createZshCompletionScript = ({ scriptTemplate, path }: { scriptTemplate: string; path: string }) => {
   const mainCommands = Object.keys(cliSchema)

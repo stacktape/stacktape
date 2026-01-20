@@ -1,0 +1,16 @@
+{
+  "name": "@local-dev/web-service",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "bun run --watch src/index.ts"
+  },
+  "dependencies": {
+    "@fastify/cors": "^11.2.0",
+    "fastify": "^5.7.1"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.9",
+    "typescript": "^5.9.3"
+  }
+}

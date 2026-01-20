@@ -1,10 +1,22 @@
 import type { ContainerInfo, ContainerInspectInfo, Port } from 'dockerode';
 import { isAbsolute, join } from 'node:path';
 import { exec } from '@shared/utils/exec';
+import { transformToUnixPath } from '@shared/utils/fs-utils';
 import { getByteSize, getError } from '@shared/utils/misc';
 import { validateEnvVariableValue } from '@shared/utils/validation';
 
 const STACKTAPE_BUILDER_NAME = 'stacktape-builder';
+
+/**
+ * Converts a Windows path to Docker-compatible mount path format.
+ * On Windows, Docker Desktop accepts paths in the format:
+ * - C:\Users\foo or C:/Users/foo (native Windows path - Docker translates it)
+ * We just ensure forward slashes for consistency.
+ * Unix paths are returned as-is with backslashes converted to forward slashes.
+ */
+const toDockerMountPath = (hostPath: string): string => {
+  return transformToUnixPath(hostPath);
+};
 
 type ExecDockerOptions = {
   cwd?: string;
@@ -206,6 +218,11 @@ export const getDockerImageDetails = async (tag: string) => {
   };
 };
 
+export const checkDockerImageExists = async (imageTag: string): Promise<boolean> => {
+  const image = await inspectDockerImage(imageTag);
+  return image !== null;
+};
+
 const inspectContainers = async (containerIds: string[]): Promise<ContainerInspectInfo[]> => {
   if (!containerIds.length) {
     return [];
@@ -405,6 +422,7 @@ export const dockerRun = async ({
   image,
   entryPoint,
   volumeMapping,
+  volumeMounts,
   environment,
   portMappings,
   command,
@@ -421,6 +439,7 @@ export const dockerRun = async ({
   entryPoint?: string[];
   command?: string[];
   volumeMapping?: string;
+  volumeMounts?: { hostPath: string; containerPath: string }[];
   portMappings?: PortMapping[];
   environment: Record<string, any>;
   transformStderrLine?: StdTransformer | StdTransformer[];
@@ -439,6 +458,11 @@ export const dockerRun = async ({
   let commandToExecute = command;
   if (volumeMapping) {
     dockerArgs.push('-v', volumeMapping);
+  }
+  if (volumeMounts?.length) {
+    for (const { hostPath, containerPath } of volumeMounts) {
+      dockerArgs.push('-v', `${toDockerMountPath(hostPath)}:${containerPath}`);
+    }
   }
   // we are using host network to allow the container to use bastion tunnels
   // after they implement capability for tunnel to bind to other than 127.0.0.1, we can remove this switch back

@@ -2,11 +2,13 @@ import type { ExpectedError, UnexpectedError } from '@utils/errors';
 import type { Instance } from 'ink';
 import type { ErrorDisplayData, NextStep } from './components';
 import type {
+  TuiCancelDeployment,
   TuiDeploymentHeader,
   TuiEventStatus,
   TuiLink,
   TuiMessageType,
   TuiPromptConfirm,
+  TuiPromptMultiSelect,
   TuiPromptSelect,
   TuiPromptText,
   TuiSelectOption
@@ -22,11 +24,13 @@ import React from 'react';
 import terminalLink from 'terminal-link';
 import { renderErrorToString, renderNextStepsToString, renderStackErrorsToString, Table, TuiApp } from './components';
 import { nonTTYRenderer } from './non-tty-renderer';
+import { createSpinner, createSpinnerProgressLogger, MultiSpinner } from './spinners';
 import { tuiState } from './state';
 import { formatDuration, stripAnsi } from './utils';
 
+export type { Spinner } from './spinners';
+export { MultiSpinner } from './spinners';
 export { tuiState } from './state';
-
 export type {
   TuiDeploymentHeader,
   TuiEvent,
@@ -39,6 +43,16 @@ export type {
   TuiWarning
 } from './types';
 
+/**
+ * TuiManager handles all terminal output for Stacktape CLI.
+ *
+ * It operates in two modes:
+ * 1. **TUI mode** (deploy/delete): Full Ink-based UI with phases, events, and progress
+ * 2. **Standalone mode** (dev): Simple spinners and console output without Ink
+ *
+ * Use `tuiManager.start()` to enable TUI mode (for deploy/delete commands).
+ * For dev mode, use spinners directly without starting the TUI.
+ */
 class TuiManager {
   private inkInstance: Instance | null = null;
   private isTTY: boolean;
@@ -47,6 +61,11 @@ class TuiManager {
   private logFormat: LogFormat = 'fancy';
   private logLevel: LogLevel = 'info';
   private nonTTYUnsubscribe: (() => void) | null = null;
+  /**
+   * Tracks whether TUI was ever started this session.
+   * Used to prevent printProgress() fallback after TUI stops, since events were already displayed.
+   */
+  private _wasEverStarted: boolean = false;
 
   constructor() {
     this.isTTY = process.stdout.isTTY && !ci.isCI;
@@ -56,9 +75,18 @@ class TuiManager {
     return this._isEnabled;
   }
 
+  /** Returns true if TUI was started at some point (even if now stopped). */
+  get wasEverStarted(): boolean {
+    return this._wasEverStarted;
+  }
+
   get isPaused(): boolean {
     return this._isPaused;
   }
+
+  // ============================================================
+  // Lifecycle
+  // ============================================================
 
   init(options: { logFormat?: LogFormat; logLevel?: LogLevel } = {}) {
     this.logFormat = options.logFormat || 'fancy';
@@ -66,18 +94,18 @@ class TuiManager {
     this.isTTY = process.stdout.isTTY && !ci.isCI && this.logFormat === 'fancy';
   }
 
+  /** Start the TUI (Ink-based UI). Call this for deploy/delete commands. */
   start() {
     if (this.logFormat === 'json' || this.logFormat === 'basic') {
       return;
     }
 
     this._isEnabled = true;
+    this._wasEverStarted = true;
     tuiState.reset();
 
     if (this.isTTY) {
-      // Print newlines before starting Ink to preserve any previous console output
-      // Ink will manage everything below this point without clearing what's above
-      console.log('');
+      console.info('');
       this.inkInstance = render(React.createElement(TuiApp, { isTTY: true }), {
         patchConsole: false
       });
@@ -88,10 +116,27 @@ class TuiManager {
     }
   }
 
-  /**
-   * Temporarily pause the TUI to allow external tools (like prompts) to use the terminal.
-   * Call resume() when done with external terminal operations.
-   */
+  /** Stop the TUI and clean up. */
+  async stop() {
+    tuiState.setFinalizing();
+
+    const instance = this.inkInstance;
+    if (instance) {
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      instance.unmount();
+      this.inkInstance = null;
+    }
+    if (this.nonTTYUnsubscribe) {
+      nonTTYRenderer.render(tuiState.getState());
+      this.nonTTYUnsubscribe();
+      this.nonTTYUnsubscribe = null;
+    }
+    this._isEnabled = false;
+    this._isPaused = false;
+    nonTTYRenderer.reset();
+  }
+
+  /** Temporarily pause the TUI (e.g., for external prompts). */
   pause() {
     if (!this._isEnabled || this._isPaused) return;
     this._isPaused = true;
@@ -102,9 +147,7 @@ class TuiManager {
     }
   }
 
-  /**
-   * Resume the TUI after it was paused.
-   */
+  /** Resume the TUI after pausing. */
   resume() {
     if (!this._isEnabled || !this._isPaused) return;
     this._isPaused = false;
@@ -116,184 +159,131 @@ class TuiManager {
     }
   }
 
+  // ============================================================
+  // Spinners (for dev mode / standalone operations)
+  // ============================================================
+
   /**
-   * Show a select prompt using ink-ui Select component.
-   * In non-interactive mode, uses defaultValue if provided, otherwise throws.
+   * Create a single spinner for tracking one async operation.
+   * Use this in dev mode or for standalone progress indication.
+   *
+   * @example
+   * const spinner = tuiManager.spinner('Loading data');
+   * spinner.update('50% complete');
+   * spinner.success({ details: 'Loaded 100 items' });
    */
-  async promptSelect(config: { message: string; options: TuiSelectOption[]; defaultValue?: string }): Promise<string> {
-    // For non-interactive mode, use default value or throw
-    if (!this.isTTY || this.logFormat !== 'fancy' || !this._isEnabled) {
-      if (config.defaultValue !== undefined) {
-        const selectedOption = config.options.find((o) => o.value === config.defaultValue);
-        this.info(`${config.message} ${this.colorize('cyan', selectedOption?.label || config.defaultValue)} (default)`);
-        return config.defaultValue;
+  createSpinner({ text }: { text: string }) {
+    return createSpinner(text, this.colorize.bind(this));
+  }
+
+  /**
+   * Create a multi-spinner for tracking multiple parallel operations.
+   * Each spinner renders on its own line without cursor conflicts.
+   *
+   * @example
+   * const multi = tuiManager.multiSpinner();
+   * const s1 = multi.add('task1', 'Loading config');
+   * const s2 = multi.add('task2', 'Fetching data');
+   * s1.success();
+   * s2.success({ details: 'Done' });
+   */
+  createMultiSpinner() {
+    return new MultiSpinner(this.colorize.bind(this));
+  }
+
+  /**
+   * Create a ProgressLogger that forwards events to a spinner.
+   * Use this to adapt packaging operations to use spinners.
+   */
+  createSpinnerProgressLogger(
+    spinner: ReturnType<typeof createSpinner>,
+    instanceId: string,
+    parentEventType: LoggableEventType = 'PACKAGE_ARTIFACTS'
+  ) {
+    return createSpinnerProgressLogger(spinner, instanceId, parentEventType);
+  }
+
+  // ============================================================
+  // Simple Logging (works in both TUI and standalone mode)
+  // ============================================================
+
+  info(message: string) {
+    this.log('info', message);
+  }
+
+  success(message: string) {
+    this.log('success', message);
+  }
+
+  warn(message: string) {
+    this.log('warn', message);
+  }
+
+  debug(message: string) {
+    if (this.logLevel !== 'debug') return;
+    this.log('debug', message);
+  }
+
+  hint(message: string) {
+    this.log('hint', message);
+  }
+
+  announcement(message: string, highlight?: boolean) {
+    const formattedMessage = highlight ? `★  ${this.makeBold(message)}` : message;
+    this.log('announcement', formattedMessage);
+  }
+
+  private log(type: TuiMessageType, message: string) {
+    if (this._isPaused || !this.isTTY || !this._isEnabled) {
+      // Skip console output if DevTui is running (it has its own rendering)
+      if (!this._devTuiActive) {
+        this.printToConsole(type, message);
       }
-      throw new Error(
-        `Interactive prompt "${config.message}" is not supported in non-interactive mode. Please provide the value via command-line arguments.`
-      );
+      logCollectorStream.write(message);
+      return;
     }
-
-    // Use ink-ui Select component
-    const result = await new Promise<string>((resolve) => {
-      const resolveAndClear = (value: string) => {
-        tuiState.clearActivePrompt();
-        // Defer resolve to next tick to ensure React unmounts the old component first
-        setTimeout(() => resolve(value), 0);
-      };
-      const prompt: TuiPromptSelect = {
-        type: 'select',
-        message: config.message,
-        options: config.options,
-        resolve: resolveAndClear
-      };
-      tuiState.setActivePrompt(prompt);
-    });
-
-    // Show selected value
-    const selectedOption = config.options.find((o) => o.value === result);
-    this.info(`${config.message} ${this.colorize('cyan', selectedOption?.label || result)}`);
-
-    return result;
+    tuiState.addMessage(type, type, message);
   }
 
-  /**
-   * Show a confirm prompt using ink-ui ConfirmInput component.
-   * In non-interactive mode, uses defaultValue if provided, otherwise throws.
-   */
-  async promptConfirm(config: { message: string; defaultValue?: boolean }): Promise<boolean> {
-    // For non-interactive mode, use default value or throw
-    if (!this.isTTY || this.logFormat !== 'fancy' || !this._isEnabled) {
-      if (config.defaultValue !== undefined) {
-        const answer = config.defaultValue ? this.colorize('green', 'Yes') : this.colorize('red', 'No');
-        this.info(`${config.message} ${answer} (default)`);
-        return config.defaultValue;
-      }
-      throw new Error(
-        `Interactive prompt "${config.message}" is not supported in non-interactive mode. Please provide the value via command-line arguments.`
-      );
-    }
+  // Track if DevTui is active to suppress console output
+  private _devTuiActive = false;
 
-    const result = await new Promise<boolean>((resolve) => {
-      let settled = false;
-
-      const resolveOnce = (value: boolean) => {
-        if (settled) return;
-        settled = true;
-        tuiState.clearActivePrompt();
-        // Defer resolve to next tick to ensure React unmounts the old component first
-        setTimeout(() => resolve(value), 0);
-      };
-
-      const prompt: TuiPromptConfirm = {
-        type: 'confirm',
-        message: config.message,
-        defaultValue: config.defaultValue,
-        resolve: resolveOnce
-      };
-      tuiState.setActivePrompt(prompt);
-    });
-
-    // Show confirmation result
-    const answer = result ? this.colorize('green', 'Yes') : this.colorize('red', 'No');
-    this.info(`${config.message} ${answer}`);
-
-    return result;
+  setDevTuiActive(active: boolean) {
+    this._devTuiActive = active;
   }
 
-  /**
-   * Show a text input prompt using ink-ui TextInput component.
-   * In non-interactive mode, uses defaultValue if provided, otherwise throws.
-   */
-  async promptText(config: {
-    message: string;
-    placeholder?: string;
-    isPassword?: boolean;
-    /** Description shown in gray next to the question */
-    description?: string;
-    defaultValue?: string;
-  }): Promise<string> {
-    // For non-interactive mode, use default value or throw
-    if (!this.isTTY || this.logFormat !== 'fancy' || !this._isEnabled) {
-      if (config.defaultValue !== undefined) {
-        const displayValue = config.isPassword ? '*'.repeat(config.defaultValue.length) : config.defaultValue;
-        this.info(`${config.message} ${this.colorize('cyan', displayValue)} (default)`);
-        return config.defaultValue;
-      }
-      throw new Error(
-        `Interactive prompt "${config.message}" is not supported in non-interactive mode. Please provide the value via command-line arguments.`
-      );
-    }
-
-    // Use ink-ui TextInput component
-    const result = await new Promise<string>((resolve) => {
-      const resolveAndClear = (value: string) => {
-        tuiState.clearActivePrompt();
-        // Defer resolve to next tick to ensure React unmounts the old component first
-        setTimeout(() => resolve(value), 0);
-      };
-      const prompt: TuiPromptText = {
-        type: 'text',
-        message: config.message,
-        placeholder: config.placeholder,
-        isPassword: config.isPassword,
-        description: config.description,
-        defaultValue: config.defaultValue,
-        resolve: resolveAndClear
-      };
-      tuiState.setActivePrompt(prompt);
-    });
-
-    // Show entered value (masked for passwords)
-    const displayValue = config.isPassword ? '*'.repeat(result.length) : result;
-    this.info(`${config.message} ${this.colorize('cyan', displayValue)}`);
-
-    return result;
+  get devTuiActive(): boolean {
+    return this._devTuiActive;
   }
 
-  async stop() {
-    // Signal that we're finalizing - this allows the current phase to be committed to Static
-    tuiState.setFinalizing();
-
-    // Capture reference before async operations to avoid race conditions
-    const instance = this.inkInstance;
-    if (instance) {
-      // Wait for React to process the finalizing state and render the final output
-      // This ensures all Static items are flushed to stdout before unmounting
-      await new Promise((resolve) => setTimeout(resolve, 150));
-      instance.unmount();
-      this.inkInstance = null;
-    }
-    if (this.nonTTYUnsubscribe) {
-      // Trigger one final render for non-TTY mode
-      nonTTYRenderer.render(tuiState.getState());
-      this.nonTTYUnsubscribe();
-      this.nonTTYUnsubscribe = null;
-    }
-    this._isEnabled = false;
-    this._isPaused = false;
-    nonTTYRenderer.reset();
+  private printToConsole(type: TuiMessageType, message: string) {
+    const symbols: Record<TuiMessageType, { symbol: string; color: string }> = {
+      info: { symbol: 'i', color: 'cyan' },
+      success: { symbol: '✓', color: 'green' },
+      error: { symbol: '✖', color: 'red' },
+      warn: { symbol: '⚠', color: 'yellow' },
+      debug: { symbol: '⚙', color: 'gray' },
+      hint: { symbol: '💡', color: 'blue' },
+      start: { symbol: '▶', color: 'magenta' },
+      announcement: { symbol: '★', color: 'magenta' }
+    };
+    const { symbol, color } = symbols[type];
+    const coloredSymbol = this.colorize(color, symbol);
+    console.info(`${coloredSymbol} ${message}`);
   }
 
-  /**
-   * Configure TUI for delete command with simplified phases (Initialize, Delete).
-   * Call this before setHeader for delete operations.
-   */
+  // ============================================================
+  // TUI State Management (for deploy/delete commands)
+  // ============================================================
+
   configureForDelete() {
     tuiState.configureForDelete();
   }
 
-  /**
-   * Configure phases for codebuild:deploy command.
-   * Call this before setHeader for codebuild deploy operations.
-   */
   configureForCodebuildDeploy() {
     tuiState.configureForCodebuildDeploy();
   }
 
-  /**
-   * Enable/disable streaming mode. When enabled, hides dynamic TUI rendering
-   * to allow console.log output (e.g., cloudwatch log streaming).
-   */
   setStreamingMode(enabled: boolean) {
     tuiState.setStreamingMode(enabled);
   }
@@ -323,6 +313,7 @@ class TuiManager {
   updateEvent(params: {
     eventType: LoggableEventType;
     additionalMessage?: string;
+    description?: string;
     parentEventType?: LoggableEventType;
     instanceId?: string;
   }) {
@@ -340,46 +331,212 @@ class TuiManager {
     tuiState.finishEvent(params);
   }
 
-  /**
-   * Append output lines to an event (for script output capture).
-   * Use this instead of piping directly to stdout to avoid conflicts with Ink rendering.
-   */
   appendEventOutput(params: { eventType: LoggableEventType; lines: string[]; instanceId?: string }) {
     tuiState.appendEventOutput(params);
-  }
-
-  warn(message: string) {
-    this.writeWarn('warn', message);
   }
 
   setComplete(success: boolean, message: string, links: TuiLink[] = [], consoleUrl?: string) {
     tuiState.setComplete(success, message, links, consoleUrl);
   }
 
-  /**
-   * Store completion info without displaying summary yet.
-   * This allows hooks to run and add events before showing the summary.
-   * Call commitPendingCompletion() to actually display the summary.
-   */
   setPendingCompletion(params: { success: boolean; message: string; links: TuiLink[]; consoleUrl?: string }) {
     tuiState.setPendingCompletion(params);
   }
 
-  /**
-   * Commit the pending completion by calling setComplete with stored info.
-   * This should be called after hooks finish running.
-   */
   commitPendingCompletion() {
     tuiState.commitPendingCompletion();
   }
+
+  // ============================================================
+  // Cancel Deployment Banner
+  // ============================================================
+
+  /**
+   * Show a cancel deployment banner that the user can trigger with 'c' key.
+   * Used when a deployment failure is detected (e.g., ECS task failed to start).
+   */
+  setCancelDeployment(cancelDeployment: TuiCancelDeployment) {
+    tuiState.setCancelDeployment(cancelDeployment);
+  }
+
+  /**
+   * Update the cancel deployment state (e.g., to show cancelling in progress).
+   */
+  updateCancelDeployment(updates: Partial<TuiCancelDeployment>) {
+    tuiState.updateCancelDeployment(updates);
+  }
+
+  /**
+   * Clear the cancel deployment banner.
+   */
+  clearCancelDeployment() {
+    tuiState.clearCancelDeployment();
+  }
+
+  // ============================================================
+  // Prompts (interactive input)
+  // ============================================================
+
+  async promptSelect(config: { message: string; options: TuiSelectOption[]; defaultValue?: string }): Promise<string> {
+    if (!this.isTTY || this.logFormat !== 'fancy' || !this._isEnabled) {
+      if (config.defaultValue !== undefined) {
+        const selectedOption = config.options.find((o) => o.value === config.defaultValue);
+        this.info(`${config.message} ${this.colorize('cyan', selectedOption?.label || config.defaultValue)} (default)`);
+        return config.defaultValue;
+      }
+      throw new Error(
+        `Interactive prompt "${config.message}" is not supported in non-interactive mode. Please provide the value via command-line arguments.`
+      );
+    }
+
+    const result = await new Promise<string>((resolve) => {
+      const resolveAndClear = (value: string) => {
+        tuiState.clearActivePrompt();
+        setTimeout(() => resolve(value), 0);
+      };
+      const prompt: TuiPromptSelect = {
+        type: 'select',
+        message: config.message,
+        options: config.options,
+        resolve: resolveAndClear
+      };
+      tuiState.setActivePrompt(prompt);
+    });
+
+    const selectedOption = config.options.find((o) => o.value === result);
+    this.info(`${config.message} ${this.colorize('cyan', selectedOption?.label || result)}`);
+
+    return result;
+  }
+
+  async promptMultiSelect(config: {
+    message: string;
+    options: TuiSelectOption[];
+    defaultValues?: string[];
+  }): Promise<string[]> {
+    if (!this.isTTY || this.logFormat !== 'fancy' || !this._isEnabled) {
+      if (config.defaultValues !== undefined) {
+        const selectedLabels = config.defaultValues
+          .map((v) => config.options.find((o) => o.value === v)?.label || v)
+          .join(', ');
+        this.info(`${config.message} ${this.colorize('cyan', selectedLabels)} (default)`);
+        return config.defaultValues;
+      }
+      throw new Error(
+        `Interactive prompt "${config.message}" is not supported in non-interactive mode. Please provide the value via command-line arguments.`
+      );
+    }
+
+    const result = await new Promise<string[]>((resolve) => {
+      const resolveAndClear = (values: string[]) => {
+        tuiState.clearActivePrompt();
+        setTimeout(() => resolve(values), 0);
+      };
+      const prompt: TuiPromptMultiSelect = {
+        type: 'multiSelect',
+        message: config.message,
+        options: config.options,
+        defaultValues: config.defaultValues,
+        resolve: resolveAndClear
+      };
+      tuiState.setActivePrompt(prompt);
+    });
+
+    const selectedLabels = result.map((v) => config.options.find((o) => o.value === v)?.label || v).join(', ');
+    this.info(`${config.message} ${this.colorize('cyan', selectedLabels || '(none)')}`);
+
+    return result;
+  }
+
+  async promptConfirm(config: { message: string; defaultValue?: boolean }): Promise<boolean> {
+    if (!this.isTTY || this.logFormat !== 'fancy' || !this._isEnabled) {
+      if (config.defaultValue !== undefined) {
+        const answer = config.defaultValue ? this.colorize('green', 'Yes') : this.colorize('red', 'No');
+        this.info(`${config.message} ${answer} (default)`);
+        return config.defaultValue;
+      }
+      throw new Error(
+        `Interactive prompt "${config.message}" is not supported in non-interactive mode. Please provide the value via command-line arguments.`
+      );
+    }
+
+    const result = await new Promise<boolean>((resolve) => {
+      let settled = false;
+
+      const resolveOnce = (value: boolean) => {
+        if (settled) return;
+        settled = true;
+        tuiState.clearActivePrompt();
+        setTimeout(() => resolve(value), 0);
+      };
+
+      const prompt: TuiPromptConfirm = {
+        type: 'confirm',
+        message: config.message,
+        defaultValue: config.defaultValue,
+        resolve: resolveOnce
+      };
+      tuiState.setActivePrompt(prompt);
+    });
+
+    const answer = result ? this.colorize('green', 'Yes') : this.colorize('red', 'No');
+    this.info(`${config.message} ${answer}`);
+
+    return result;
+  }
+
+  async promptText(config: {
+    message: string;
+    placeholder?: string;
+    isPassword?: boolean;
+    description?: string;
+    defaultValue?: string;
+  }): Promise<string> {
+    if (!this.isTTY || this.logFormat !== 'fancy' || !this._isEnabled) {
+      if (config.defaultValue !== undefined) {
+        const displayValue = config.isPassword ? '*'.repeat(config.defaultValue.length) : config.defaultValue;
+        this.info(`${config.message} ${this.colorize('cyan', displayValue)} (default)`);
+        return config.defaultValue;
+      }
+      throw new Error(
+        `Interactive prompt "${config.message}" is not supported in non-interactive mode. Please provide the value via command-line arguments.`
+      );
+    }
+
+    const result = await new Promise<string>((resolve) => {
+      const resolveAndClear = (value: string) => {
+        tuiState.clearActivePrompt();
+        setTimeout(() => resolve(value), 0);
+      };
+      const prompt: TuiPromptText = {
+        type: 'text',
+        message: config.message,
+        placeholder: config.placeholder,
+        isPassword: config.isPassword,
+        description: config.description,
+        defaultValue: config.defaultValue,
+        resolve: resolveAndClear
+      };
+      tuiState.setActivePrompt(prompt);
+    });
+
+    const displayValue = config.isPassword ? '*'.repeat(result.length) : result;
+    this.info(`${config.message} ${this.colorize('cyan', displayValue)}`);
+
+    return result;
+  }
+
+  // ============================================================
+  // Formatting Helpers
+  // ============================================================
 
   colorize(color: string, text: string): string {
     if (this.logFormat !== 'fancy') return text;
     return (kleur[color as keyof typeof kleur] as (text: string) => string)?.(text) ?? text;
   }
 
-  makeBold(text: string): string {
-    if (this.logFormat !== 'fancy') return text;
+  makeBold(text: string | number): string {
+    if (this.logFormat !== 'fancy') return text.toString();
     return kleur.bold(text);
   }
 
@@ -390,104 +547,6 @@ class TuiManager {
   getTime(durationInMs: number): string {
     return this.colorize('yellow', formatDuration(durationInMs));
   }
-
-  // ============================================================
-  // Named Message Methods
-  // ============================================================
-
-  /**
-   * Write a message with a semantic name identifier.
-   * The name will be used later to create specialized React components.
-   */
-  write(name: string, message: string, data?: Record<string, any>) {
-    this.writeMessage(name, 'info', message, data);
-  }
-
-  writeInfo(name: string, message: string, data?: Record<string, any>) {
-    this.writeMessage(name, 'info', message, data);
-  }
-
-  writeSuccess(name: string, message: string, data?: Record<string, any>) {
-    this.writeMessage(name, 'success', message, data);
-  }
-
-  writeError(name: string, message: string, data?: Record<string, any>) {
-    this.writeMessage(name, 'error', message, data);
-  }
-
-  writeWarn(name: string, message: string, data?: Record<string, any>) {
-    this.writeMessage(name, 'warn', message, data);
-  }
-
-  writeDebug(name: string, message: string, data?: Record<string, any>) {
-    if (this.logLevel !== 'debug') return;
-    this.writeMessage(name, 'debug', message, data);
-  }
-
-  writeHint(name: string, message: string, data?: Record<string, any>) {
-    this.writeMessage(name, 'hint', message, data);
-  }
-
-  writeStart(name: string, message: string, data?: Record<string, any>) {
-    this.writeMessage(name, 'start', message, data);
-  }
-
-  writeAnnouncement(name: string, message: string, data?: Record<string, any>) {
-    this.writeMessage(name, 'announcement', message, data);
-  }
-
-  private writeMessage(name: string, type: TuiMessageType, message: string, data?: Record<string, any>) {
-    // When paused or not using Ink, print directly to console
-    if (this._isPaused || !this.isTTY || !this._isEnabled) {
-      this.printMessageToConsole(type, message);
-      logCollectorStream.write(message);
-      return;
-    }
-    tuiState.addMessage(name, type, message, data);
-  }
-
-  private printMessageToConsole(type: TuiMessageType, message: string) {
-    const symbols: Record<TuiMessageType, { symbol: string; color: string }> = {
-      info: { symbol: 'i', color: 'cyan' },
-      success: { symbol: '✓', color: 'green' },
-      error: { symbol: '✖', color: 'red' },
-      warn: { symbol: '⚠', color: 'yellow' },
-      debug: { symbol: '⚙', color: 'gray' },
-      hint: { symbol: '💡', color: 'blue' },
-      start: { symbol: '▶', color: 'magenta' },
-      announcement: { symbol: '★', color: 'magenta' }
-    };
-    const { symbol, color } = symbols[type];
-    const coloredSymbol = this.colorize(color, symbol);
-    console.info(`${coloredSymbol} ${message}`);
-  }
-
-  // Simple logging methods that delegate to write* methods
-  info(message: string) {
-    this.writeInfo('info', message);
-  }
-
-  debug(message: string) {
-    if (this.logLevel !== 'debug') return;
-    this.writeDebug('debug', message);
-  }
-
-  success(message: string) {
-    this.writeSuccess('success', message);
-  }
-
-  hint(message: string) {
-    this.writeHint('hint', message);
-  }
-
-  announcement(message: string, highlight?: boolean) {
-    const formattedMessage = highlight ? `★  ${this.makeBold(message)}` : message;
-    this.writeAnnouncement('announcement', formattedMessage);
-  }
-
-  // ============================================================
-  // Formatting Helpers
-  // ============================================================
 
   getLink(link: keyof typeof linksMap, placeholder: string): string {
     const url = linksMap[link];
@@ -529,7 +588,6 @@ class TuiManager {
     whitespacePadding = 0
   ): string {
     const rendered = renderStackErrorsToString(processedErrors, this.colorize.bind(this));
-    // Apply whitespace padding to each line if needed
     if (whitespacePadding > 0) {
       const padding = ' '.repeat(whitespacePadding);
       return rendered
@@ -541,14 +599,9 @@ class TuiManager {
   }
 
   // ============================================================
-  // Error Handling
+  // Error Display
   // ============================================================
 
-  /**
-   * Print a structured error with optional hints and stack trace.
-   * Handles both ExpectedError and UnexpectedError types.
-   * Uses the ErrorDisplay React component for TTY mode.
-   */
   error(error: UnexpectedError | ExpectedError) {
     const { hint } = error as ExpectedError;
     const { prettyStackTrace, errorType, sentryEventId } = error.details;
@@ -558,7 +611,6 @@ class TuiManager {
         ? `An unexpected error occurred. Last captured event: ${eventManager.lastEvent?.eventType || '-'}.`
         : error.message;
 
-    // Prepare hints array
     const hints: string[] = [];
     if (hint) {
       hints.push(...(Array.isArray(hint) ? hint : [hint]));
@@ -587,15 +639,9 @@ class TuiManager {
     }
   }
 
-  /**
-   * Display an error. Errors are terminal events, so this stops the TUI
-   * and renders directly to console.
-   */
   displayError(errorData: ErrorDisplayData) {
-    // Mark all running events as errored to show red X in the UI
     tuiState.markAllRunningAsErrored();
 
-    // Stop the TUI if running - errors are terminal events
     if (this.inkInstance) {
       this.inkInstance.unmount();
       this.inkInstance = null;
@@ -603,17 +649,16 @@ class TuiManager {
     this._isEnabled = false;
     this._isPaused = false;
 
-    // Always render to console for errors (not through Ink)
     const errorString = renderErrorToString(errorData, this.colorize.bind(this), this.makeBold.bind(this));
     console.error(errorString);
 
-    // Log to collector
     logCollectorStream.write(`[${errorData.errorType}] ${errorData.message}`);
   }
 
-  /**
-   * Print a structured log message (used for SDK mode and JSON logging).
-   */
+  // ============================================================
+  // Special Output (tables, next steps, etc.)
+  // ============================================================
+
   printStacktapeLog(stacktapeLog: { type: string; data: Record<string, any> }) {
     const message = { ...stacktapeLog, timestamp: Date.now() };
     if (process.env[INVOKED_FROM_ENV_VAR_NAME] === 'sdk') {
@@ -626,15 +671,6 @@ class TuiManager {
     logCollectorStream.write(message);
   }
 
-  // ============================================================
-  // Table Output
-  // ============================================================
-
-  /**
-   * Print a table with headers and rows.
-   * For TTY mode, renders a styled React component.
-   * For non-TTY mode, renders ASCII table.
-   */
   printTable({ header, rows }: { header: string[]; rows: string[][] }) {
     if (this.logFormat === 'json') {
       this.printStacktapeLog({ type: 'TABLE', data: { header, rows } });
@@ -642,20 +678,14 @@ class TuiManager {
     }
 
     if (this.isTTY && this.logFormat === 'fancy') {
-      // Render React Table component using Ink
-      const instance = render(React.createElement(Table, { header, rows }));
+      const instance = render(React.createElement(Table, { header, rows }), { patchConsole: false });
       instance.unmount();
     } else {
-      // Render ASCII table for non-TTY
       this.printAsciiTable(header, rows);
     }
   }
 
-  /**
-   * Render an ASCII table for non-TTY output
-   */
   private printAsciiTable(header: string[], rows: string[][]) {
-    // Calculate column widths
     const widths = header.map((h) => stripAnsi(h).length);
     for (const row of rows) {
       for (let i = 0; i < row.length; i++) {
@@ -666,7 +696,6 @@ class TuiManager {
       }
     }
 
-    // Build table
     const horizontalLine = `+${widths.map((w) => '-'.repeat(w + 2)).join('+')}+`;
     const formatRow = (cells: string[]) => {
       const paddedCells = cells.map((cell, i) => {
@@ -685,7 +714,6 @@ class TuiManager {
     }
     console.info(horizontalLine);
 
-    // Also log to collector
     logCollectorStream.write(horizontalLine);
     logCollectorStream.write(formatRow(header));
     logCollectorStream.write(horizontalLine);
@@ -695,11 +723,7 @@ class TuiManager {
     logCollectorStream.write(horizontalLine);
   }
 
-  /**
-   * Print stack list in a formatted table.
-   * Mirrors the printer.printListStack functionality.
-   */
-  printListStack(listStacksResult: StackListReturnValue) {
+  printListStack(listStacksResult) {
     const header = [
       'Stack name',
       'Stage',
@@ -738,27 +762,54 @@ class TuiManager {
     this.printTable({ header, rows });
   }
 
-  // ============================================================
-  // Next Steps Output
-  // ============================================================
-
-  /**
-   * Print next steps in a formatted list.
-   * Uses console.info to avoid clearing previous terminal output.
-   */
   showNextSteps(steps: NextStep[]) {
     if (this.logFormat === 'json') {
       this.printStacktapeLog({ type: 'NEXT_STEPS', data: { steps } });
       return;
     }
 
-    // Always use console.info to avoid clearing previous output
-    // (creating a new Ink instance would overwrite previous terminal content)
     if (this._isEnabled && this.isTTY) {
       this.pause();
     }
     const output = renderNextStepsToString(steps, this.colorize.bind(this), this.makeBold.bind(this));
     console.info(output);
+  }
+
+  printDevContainerReady({ ports, isWatchMode }: { ports: number[]; isWatchMode: boolean }) {
+    const boxWidth = 50;
+    const horizontalLine = '─'.repeat(boxWidth - 2);
+    const topBorder = `┌${horizontalLine}┐`;
+    const bottomBorder = `└${horizontalLine}┘`;
+
+    const padLine = (content: string, rawContent: string) => {
+      const padding = boxWidth - 4 - rawContent.length;
+      return `│ ${content}${' '.repeat(Math.max(0, padding))} │`;
+    };
+
+    const title = `${this.colorize('green', '✓')} Container ready`;
+    const titleRaw = '✓ Container ready';
+
+    const hint = isWatchMode
+      ? 'Watching for file changes'
+      : `Type '${this.makeBold('rs + enter')}' to rebuild and restart`;
+    const hintRaw = isWatchMode ? 'Watching for file changes' : "Type 'rs + enter' to rebuild and restart";
+
+    const lines = [topBorder, padLine(title, titleRaw)];
+
+    if (ports.length > 0) {
+      const portsLabel = 'Ports:';
+      lines.push(padLine(portsLabel, portsLabel));
+      for (const port of ports) {
+        const url = `http://localhost:${port}`;
+        const urlColored = this.colorize('cyan', url);
+        lines.push(padLine(`  ${urlColored}`, `  ${url}`));
+      }
+    }
+
+    lines.push(padLine(hint, hintRaw));
+    lines.push(bottomBorder);
+
+    console.info(lines.join('\n'));
   }
 }
 

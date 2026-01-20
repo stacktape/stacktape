@@ -7,18 +7,40 @@ import { getAwsSynchronizedTime } from '@utils/time';
 import dayjs from 'dayjs';
 import { logCollectorStream } from './log-collector';
 
+type LogCallback = (message: string, level: 'info' | 'warn' | 'error') => void;
+
 export class LambdaCloudwatchLogPrinter {
   logGroupName: string;
   logStream: LogStream;
   fetchSince: number;
-  handledEvents: string[] = [];
+  #handledEvents = new Set<string>();
   #printedRequestIds: { [requestId: string]: SupportedConsoleColor } = {};
   #colorSequence: SupportedConsoleColor[] = ['blue', 'yellow', 'magenta', 'green', 'gray'];
   #lastColor: SupportedConsoleColor;
+  #onLog: LogCallback | null = null;
 
-  constructor({ fetchSince, logGroupAwsResourceName }: { fetchSince: number; logGroupAwsResourceName: string }) {
+  constructor({
+    fetchSince,
+    logGroupAwsResourceName,
+    onLog
+  }: {
+    fetchSince: number;
+    logGroupAwsResourceName: string;
+    onLog?: LogCallback;
+  }) {
     this.fetchSince = fetchSince;
     this.logGroupName = logGroupAwsResourceName;
+    this.#onLog = onLog || null;
+  }
+
+  #output(message: string, level: 'info' | 'warn' | 'error' = 'info') {
+    if (this.#onLog) {
+      this.#onLog(message, level);
+    } else if (level === 'error') {
+      console.error(message);
+    } else {
+      console.info(message);
+    }
   }
 
   printLogs = async () => {
@@ -34,9 +56,16 @@ export class LambdaCloudwatchLogPrinter {
       });
       if (events.length) {
         this.fetchSince = events[events.length - 1].timestamp;
-        const unhandledEvents = events.filter((e) => !this.handledEvents.includes(e.eventId));
+        const unhandledEvents = events.filter((e) => !this.#handledEvents.has(e.eventId));
         this.#printLambdaLogEvents(unhandledEvents);
-        this.handledEvents.push(...events.map((e) => e.eventId));
+        for (const e of events) {
+          this.#handledEvents.add(e.eventId);
+        }
+        // Prevent unbounded memory growth - keep only recent event IDs
+        if (this.#handledEvents.size > 10000) {
+          const eventsArray = Array.from(this.#handledEvents);
+          this.#handledEvents = new Set(eventsArray.slice(-5000));
+        }
       }
     }
   };
@@ -59,19 +88,21 @@ export class LambdaCloudwatchLogPrinter {
         errorString = logContent;
       }
       const logContentPart = errorType === 'Invoke Error ' ? getErrorFromString(errorString).trim() : logContent;
-      console.error(
+      this.#output(
         `${this.#getPrefix(requestId)} ${this.#getFormattedTimeStamp(
           event
-        )} ${logTypePart} ${this.#getFormattedRequestId(requestId)}\n${logContentPart}\n`
+        )} ${logTypePart} ${this.#getFormattedRequestId(requestId)}\n${logContentPart}`,
+        'error'
       );
     } catch {
       const matchedParts = event.message.trim().match(/([\s\S]*)\t([\s\S]*)\t([\s\S]*)\t([\s\S]*)/);
       const [, , requestId, logType, logContent] = matchedParts;
       const logTypePart = tuiManager.colorize('red', tuiManager.makeBold(logType));
-      console.error(
+      this.#output(
         `${this.#getPrefix(requestId)} ${this.#getFormattedTimeStamp(
           event
-        )} ${logTypePart} ${this.#getFormattedRequestId(requestId)}\n${logContent.trim()}\n`
+        )} ${logTypePart} ${this.#getFormattedRequestId(requestId)}\n${logContent.trim()}`,
+        'error'
       );
     }
   };
@@ -115,23 +146,37 @@ export class LambdaCloudwatchLogPrinter {
     events.forEach((event) => {
       try {
         const message = event.message.trim();
-        if (message.startsWith('INIT_START')) {
+        // Skip internal Lambda runtime messages
+        if (message.startsWith('INIT_START') || message.startsWith('EXTENSION')) {
+          return;
+        }
+        // Handle INIT_REPORT (cold start initialization report)
+        if (message.startsWith('INIT_REPORT')) {
+          const initMatch = message.match(/Init Duration: ([\d.]+ ms)/);
+          if (initMatch) {
+            this.#output(
+              `${this.#getPrefix()} ${this.#getFormattedTimeStamp(event)} ${tuiManager.colorize(
+                'cyan',
+                'INIT'
+              )} cold start: ${tuiManager.colorize('cyan', initMatch[1])}`
+            );
+          }
           return;
         }
         if (message.startsWith('START')) {
           const [, requestId] = message.match(/START RequestId:(.*)Version: \$LATEST/);
-          console.info(
+          this.#output(
             `${this.#getPrefix(requestId)} ${this.#getFormattedTimeStamp(event)} ${tuiManager.makeBold(
               'START'
-            )} ${this.#getFormattedRequestId(requestId)}\n`
+            )} ${this.#getFormattedRequestId(requestId)}`
           );
         } else if (message.startsWith('END')) {
           const [, requestId] = message.match(/END RequestId:(.*)/);
           endLogs[requestId.trim()] = (reportData) =>
-            console.info(
+            this.#output(
               `${this.#getPrefix(requestId)} ${this.#getFormattedTimeStamp(event)} ${tuiManager.makeBold(
                 'END'
-              )} ${this.#getFormattedRequestId(requestId)} ${reportData}\n`
+              )} ${this.#getFormattedRequestId(requestId)} ${reportData}`
             );
         } else if (message.startsWith('REPORT')) {
           const match = message.match(
@@ -157,18 +202,14 @@ export class LambdaCloudwatchLogPrinter {
             if (logType === 'ERROR' || logType === 'Invoke Error ') {
               return this.#printError(event);
             }
-            console.info(
+            this.#output(
               `${this.#getPrefix(requestId)} ${this.#getFormattedTimeStamp(
                 event
-              )} ${logTypePart} ${this.#getFormattedRequestId(requestId)}\n${logContent}\n`
+              )} ${logTypePart} ${this.#getFormattedRequestId(requestId)}\n${logContent}`
             );
           } // sometimes messages are just plain strings without the timestamp + request id + log level info
           else {
-            console.info(
-              `${this.#getPrefix()} ${this.#getFormattedTimeStamp(
-                event
-              )} ${this.#getFormattedRequestId('UNKNOWN')}\n${message}\n`
-            );
+            this.#output(`${this.#getPrefix()} ${this.#getFormattedTimeStamp(event)}\n${message}`);
           }
         } else if (IS_DEV) {
           console.error('Unexpected log event data: ', event);
@@ -177,7 +218,7 @@ export class LambdaCloudwatchLogPrinter {
         if (IS_DEV) {
           console.error('Error pretty-printing lambda log: ', err);
         }
-        console.info(`${event.message.trim()}\n`);
+        this.#output(event.message.trim());
       }
     });
   };

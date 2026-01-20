@@ -1,13 +1,14 @@
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
 import { domainManager } from '@domain-services/domain-manager';
+import { filterResourcesForDevMode } from '../../../../commands/dev/dev-resource-filter';
 import { resolveApplicationLoadBalancer } from '../application-load-balancers';
 import { resolveHttpApiGateway } from '../http-api-gateways';
 import { resolveContainerWorkload } from '../multi-container-workloads';
 import { resolveNetworkLoadBalancer } from '../network-load-balancers';
 
 export const resolveWebServices = async () => {
-  const { webServices } = configManager;
+  const webServices = filterResourcesForDevMode(configManager.webServices);
 
   // resolve web service container workloads
   webServices.forEach(

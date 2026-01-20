@@ -112,7 +112,7 @@ export const adjustPackageJson = async ({
     }),
     devDependencies: sortObjectKeys({
       ...(devDependencies || {}),
-      '@stacktape/sdk': '^2.5.0',
+      stacktape: '^3.2.0',
       '@types/node': '^22.10.1',
       typescript: '^5.9.2',
       ...(hasReact && { '@types/react': '^19.1.0', '@types/react-dom': '^19.1.0' }),

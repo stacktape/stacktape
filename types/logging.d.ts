@@ -66,7 +66,12 @@ type LoggableEventType =
   | 'STOP_CONTAINER'
   | 'RUN_DEPLOYMENT_SCRIPT'
   | 'ASSUME_ROLE'
-  | 'REBUILD_AND_RESTART';
+  | 'REBUILD_AND_RESTART'
+  | 'DEV_SESSION_READY'
+  | 'DEV_SESSION_ERROR'
+  | 'BUILD_SHARED_LAYER'
+  | 'UPLOAD_SHARED_LAYER'
+  | 'BUILD_HOSTING_BUCKET';
 
 type EventLogEntryType = 'START' | 'UPDATE' | 'FINISH';
 
@@ -103,6 +108,7 @@ type EventManagerProgressEvent = {
   data?: Record<string, any>;
   skipPrint?: boolean;
   additionalMessage?: string;
+  description?: string;
   phase?: DeploymentPhase;
 } & EventContext;
 

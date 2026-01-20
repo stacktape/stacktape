@@ -17,7 +17,7 @@ export class BudgetManager {
       eventType: 'FETCH_BUDGET_INFO',
       description: 'Fetching budget info',
       parentEventType,
-      instanceId: parentEventType ? 'budget-info' : undefined
+      instanceId: parentEventType ? 'Cost budgets' : undefined
     });
     const [tagsUsedInRegion, tagsUsableInCostExploring] = await Promise.all([
       awsSdkManager.getAllTagsUsedInRegion(),
@@ -30,7 +30,7 @@ export class BudgetManager {
     await eventManager.finishEvent({
       eventType: 'FETCH_BUDGET_INFO',
       parentEventType,
-      instanceId: parentEventType ? 'budget-info' : undefined
+      instanceId: parentEventType ? 'Cost budgets' : undefined
     });
   };
 

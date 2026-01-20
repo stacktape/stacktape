@@ -43,6 +43,7 @@ import {
 } from './utils/lambdas';
 import { cleanConfigForMinimalTemplateCompilerMode, mergeStacktapeDefaults } from './utils/misc';
 import { runInitialValidations, validateConfigStructure } from './utils/validation';
+import { isDevCommand, isResourceTypeExcludedInDevMode } from '../../commands/dev/dev-mode-utils';
 
 export class ConfigManager {
   config: StacktapeConfig;
@@ -55,6 +56,20 @@ export class ConfigManager {
   globalConfigAlarms: AlarmDefinition[] = [];
   transforms: { [logicalName: string]: CfResourceTransform } = {};
   finalTransform: FinalTransform | null = null;
+
+  /**
+   * Loads only the raw config (without directives resolution or validation).
+   * Used to extract serviceName before full initialization.
+   */
+  loadRawConfigOnly = async () => {
+    const detectedConfigPath = getConfigPath();
+    if (detectedConfigPath) {
+      globalStateManager.setConfigPath(detectedConfigPath);
+    }
+    if (globalStateManager.configPath) {
+      await this.configResolver.loadRawConfig();
+    }
+  };
 
   init = async ({ configRequired = true }: { configRequired: boolean }) => {
     const { templateId } = globalStateManager.args;
@@ -84,7 +99,12 @@ export class ConfigManager {
         this.transforms = transforms;
         this.finalTransform = finalTransform;
       }
-      await this.configResolver.loadConfig();
+      // Skip loadRawConfig if already loaded by loadRawConfigOnly
+      if (!this.configResolver.rawConfig) {
+        await this.configResolver.loadRawConfig();
+      }
+      this.configResolver.registerUserDirectives(this.configResolver.rawConfig?.directives || []);
+      await this.configResolver.loadResolvedConfig();
       if (globalStateManager.invokedFrom !== 'server') {
         this.config = this.configResolver.resolvedConfig;
       } else {
@@ -322,6 +342,8 @@ export class ConfigManager {
           nameChain,
           routeRewrites,
           excludeFilesPatterns,
+          build: _build,
+          dev: _dev,
           ..._restProps
         } = hostingBucket;
         // props check constant ensures full destructuring of web service props
@@ -563,6 +585,7 @@ export class ConfigManager {
         iamRoleStatements,
         appDirectory: _a,
         buildCommand: _b,
+        dev: _dev,
         serverLambda,
         useEdgeLambda,
         useFirewall,
@@ -1606,10 +1629,17 @@ export class ConfigManager {
   }
 
   get allBuckets() {
+    // In dev mode, filter out buckets from hosting-bucket and nextjs-web since they are excluded
+    const filteredHostingBuckets = isDevCommand()
+      ? this.hostingBuckets.filter((hb) => !isResourceTypeExcludedInDevMode(hb.type))
+      : this.hostingBuckets;
+    const filteredNextjsWebs = isDevCommand()
+      ? this.nextjsWebs.filter((nw) => !isResourceTypeExcludedInDevMode(nw.type))
+      : this.nextjsWebs;
     return [
       ...this.buckets,
-      ...this.hostingBuckets.map(({ _nestedResources: { bucket } }) => bucket),
-      ...this.nextjsWebs.map(({ _nestedResources: { bucket } }) => bucket)
+      ...filteredHostingBuckets.map(({ _nestedResources: { bucket } }) => bucket),
+      ...filteredNextjsWebs.map(({ _nestedResources: { bucket } }) => bucket)
     ];
   }
 

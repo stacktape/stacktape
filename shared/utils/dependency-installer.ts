@@ -57,7 +57,7 @@ class DependencyInstaller {
       let result: ExecaReturnValue<string>;
       try {
         result = await exec(installScript[0], installScript.slice(1), {
-          inheritEnvVarsExcept: ['ESBUILD_BINARY_PATH'],
+          inheritEnvVarsExcept: [],
           disableStderr: true,
           disableStdout: true,
           cwd: installDir

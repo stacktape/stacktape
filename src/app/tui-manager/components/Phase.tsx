@@ -1,4 +1,4 @@
-import type { TuiMessage, TuiPhase, TuiWarning } from '../types';
+import type { TuiCancelDeployment, TuiMessage, TuiPhase, TuiWarning } from '../types';
 import { Box, Text } from 'ink';
 import React from 'react';
 import { DeployPhase } from './DeployPhase';
@@ -13,6 +13,7 @@ type PhaseProps = {
   messages: TuiMessage[];
   isTTY: boolean;
   showPhaseHeader?: boolean;
+  cancelDeployment?: TuiCancelDeployment;
 };
 
 // Event types that trigger the fancy CloudFormation progress UI
@@ -24,12 +25,21 @@ export const Phase: React.FC<PhaseProps> = ({
   warnings,
   messages,
   isTTY,
-  showPhaseHeader = true
+  showPhaseHeader = true,
+  cancelDeployment
 }) => {
   // Use DeployPhase when there are CloudFormation-related events (not for codebuild monitoring, etc.)
   const hasCfEvents = phase.events.some((e) => CF_DEPLOY_EVENT_TYPES.includes(e.eventType));
   if (isTTY && hasCfEvents) {
-    return <DeployPhase phase={phase} phaseNumber={phaseNumber} warnings={warnings} messages={messages} />;
+    return (
+      <DeployPhase
+        phase={phase}
+        phaseNumber={phaseNumber}
+        warnings={warnings}
+        messages={messages}
+        isProgressPaused={!!cancelDeployment}
+      />
+    );
   }
   const phaseWarnings = warnings.filter((w) => w.phase === phase.id);
   const phaseMessages = messages.filter((m) => m.phase === phase.id);

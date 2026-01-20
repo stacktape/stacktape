@@ -53,8 +53,11 @@ type PackagingOutput = {
   outcome: 'skipped' | 'bundled';
   sourceFiles?: { path: string }[];
   artifactPath?: string;
+  distFolderPath?: string;
   details?: Record<string, any>;
   jobName: string;
+  /** All npm modules resolved during bundling (for Lambda functions) */
+  resolvedModules?: string[];
 };
 
 type CreateBundleOutput = {
@@ -88,6 +91,8 @@ type PackageWorkloadOutput = {
   skipped: boolean;
   size: number;
   artifactPath?: string;
+  /** All npm modules resolved during bundling (for Lambda functions) */
+  resolvedModules?: string[];
 };
 
 type ModuleInfo = {

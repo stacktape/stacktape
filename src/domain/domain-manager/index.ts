@@ -63,7 +63,7 @@ export class DomainManager {
       eventType: 'FETCH_DOMAIN_STATUSES',
       description: 'Fetching domain statuses',
       parentEventType,
-      instanceId: parentEventType ? 'domain-statuses' : undefined
+      instanceId: parentEventType ? 'Domain statuses' : undefined
     });
     this.#stackName = stackName;
     const [fetchedDefaultDomainsInfo] = await Promise.all([
@@ -82,7 +82,7 @@ export class DomainManager {
     await eventManager.finishEvent({
       eventType: 'FETCH_DOMAIN_STATUSES',
       parentEventType,
-      instanceId: parentEventType ? 'domain-statuses' : undefined
+      instanceId: parentEventType ? 'Domain statuses' : undefined
     });
   };
 

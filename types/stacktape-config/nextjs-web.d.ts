@@ -66,6 +66,29 @@ interface NextjsWebProps extends ResourceAccessProps {
    */
   buildCommand?: string;
   /**
+   * #### Dev server configuration for local development.
+   *
+   * ---
+   *
+   * Configures the dev server process for local development. Used by the `dev` command.
+   *
+   * If not specified, defaults to `next dev` in the app directory.
+   */
+  dev?: {
+    /**
+     * #### The dev server command to execute.
+     *
+     * ---
+     *
+     * Examples:
+     * - `next dev`
+     * - `npm run dev`
+     *
+     * @default "next dev"
+     */
+    command?: string;
+  };
+  /**
    * #### Sets custom headers for static files.
    *
    * ---

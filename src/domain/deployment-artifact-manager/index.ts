@@ -53,6 +53,7 @@ export class DeploymentArtifactManager {
   repositoryUrl: string;
   previouslyUploadedLambdaS3KeysUsedInDeployment: string[] = [];
   previouslyUploadedImageTagsUsedInDeployment: string[] = [];
+  uploadedLayerS3Keys: Map<number, string> = new Map(); // layerNumber -> s3Key
 
   getLambdasToUpload({ hotSwapDeploy }: { hotSwapDeploy: boolean }) {
     return configManager.allLambdasToUpload
@@ -62,6 +63,10 @@ export class DeploymentArtifactManager {
           packaging: lambda.packaging,
           hotSwapDeploy
         });
+        // Skip if no artifact path (lambda wasn't packaged, e.g., in dev mode for some resources)
+        if (!s3UploadInfo.artifactPath) {
+          return null;
+        }
         if (s3UploadInfo.alreadyUploaded) {
           this.previouslyUploadedLambdaS3KeysUsedInDeployment.push(s3UploadInfo.s3Key);
           return null;
@@ -75,6 +80,10 @@ export class DeploymentArtifactManager {
     return configManager.allContainersRequiringPackaging
       .map((container) => {
         const imageUploadInfo = this.getImageUploadInfoForJob({ jobName: container.jobName, hotSwapDeploy });
+        // In dev mode, containers are not packaged so imageUploadInfo will be null
+        if (!imageUploadInfo) {
+          return null;
+        }
         if (imageUploadInfo.alreadyDeployed) {
           this.previouslyUploadedImageTagsUsedInDeployment.push(imageUploadInfo.tag);
           return null;
@@ -100,7 +109,8 @@ export class DeploymentArtifactManager {
     this.repositoryName = awsResourceNames.deploymentEcrRepo(globallyUniqueStackHash);
     this.repositoryUrl = getEcrRepositoryUrl(accountId, globalStateManager.region, this.repositoryName);
     await this.loginToEcr();
-    if (stackActionType && stackActionType !== 'create') {
+    // Skip artifact lookup for create (nothing to look up) and dev (running locally)
+    if (stackActionType && stackActionType !== 'create' && stackActionType !== 'dev') {
       await eventManager.startEvent({
         eventType: 'FETCH_PREVIOUS_ARTIFACTS',
         description: 'Fetching previous deployment artifacts',
@@ -437,6 +447,12 @@ export class DeploymentArtifactManager {
         });
       });
     });
+
+    // Publish shared Lambda layer if one was built
+    if (packagingManager.getPendingSharedLayer()) {
+      jobs.push(() => this.uploadSharedLayer());
+    }
+
     if (jobs.length) {
       await eventManager.startEvent({
         eventType: 'UPLOAD_DEPLOYMENT_ARTIFACTS',
@@ -446,7 +462,8 @@ export class DeploymentArtifactManager {
       await Promise.all([
         // on some occasions i started getting "NoSuchBucket: The specified bucket does not exist" when creating fresh stacks
         // this waiting should prevent it (and lose no time otherwise)
-        awsSdkManager.waitForBucketExists({ bucketName: this.deploymentBucketName, maxTime: 10 })
+        // Note: S3 bucket creation can take up to 30-60 seconds due to eventual consistency
+        awsSdkManager.waitForBucketExists({ bucketName: this.deploymentBucketName, maxTime: 60 })
       ]);
 
       await processConcurrently(jobs, DEFAULT_MAXIMUM_PARALLEL_ARTIFACT_UPLOADS);
@@ -695,6 +712,99 @@ export class DeploymentArtifactManager {
     await uploadLogger.finishEvent({ eventType: 'UPLOAD_IMAGE' });
     return { jobName, imageTagWithUrl };
   };
+
+  uploadSharedLayer = async () => {
+    // Skip if no pending layers
+    const pendingLayer = packagingManager.getPendingSharedLayer();
+    if (!pendingLayer) {
+      return;
+    }
+
+    const layerArtifacts = packagingManager.getLayerArtifacts();
+    if (layerArtifacts.length === 0) {
+      return;
+    }
+
+    // Check which layers already exist in S3 (content-hash based caching)
+    const existingS3Keys = new Set(this.previousObjects.map((obj) => obj.s3Key));
+    const layersToUpload = layerArtifacts.filter((layer) => !existingS3Keys.has(layer.s3Key));
+    const cachedLayers = layerArtifacts.filter((layer) => existingS3Keys.has(layer.s3Key));
+
+    // Mark cached layers as uploaded (they already exist in S3)
+    for (const layer of cachedLayers) {
+      this.uploadedLayerS3Keys.set(layer.layerNumber, layer.s3Key);
+    }
+
+    // If all layers are cached, skip upload entirely
+    if (layersToUpload.length === 0) {
+      return;
+    }
+
+    const uploadLogger = eventManager.createChildLogger({
+      parentEventType: 'UPLOAD_DEPLOYMENT_ARTIFACTS',
+      instanceId: 'shared-lambda-layers'
+    });
+    await uploadLogger.startEvent({
+      eventType: 'UPLOAD_SHARED_LAYER',
+      description: `Uploading ${layersToUpload.length} shared layer(s)${cachedLayers.length > 0 ? ` (${cachedLayers.length} cached)` : ''}`
+    });
+
+    try {
+      // Zip only the layers that need uploading
+      await packagingManager.publishSharedLayer();
+
+      // Upload each layer to S3 using the S3 key computed during packaging
+      for (const layer of layersToUpload) {
+        const zipPath = `${layer.layerPath}.zip`;
+        // Use the S3 key computed during packaging (ensures consistency with CF template)
+        const s3Key = layer.s3Key;
+
+        await awsSdkManager.uploadToBucket({
+          s3Key,
+          filePath: zipPath,
+          bucketName: this.deploymentBucketName
+        });
+
+        this.uploadedLayerS3Keys.set(layer.layerNumber, s3Key);
+        this.successfullyCreatedObjects.push({
+          s3Key,
+          name: `shared-layer-${layer.layerNumber}`
+        });
+      }
+
+      await uploadLogger.finishEvent({
+        eventType: 'UPLOAD_SHARED_LAYER',
+        finalMessage: `${layersToUpload.length} layer(s) uploaded${cachedLayers.length > 0 ? `, ${cachedLayers.length} cached` : ''}`
+      });
+    } catch (error) {
+      await uploadLogger.finishEvent({
+        eventType: 'UPLOAD_SHARED_LAYER',
+        finalMessage: `Layer upload failed: ${(error as Error).message}`
+      });
+      throw error;
+    }
+  };
+
+  /**
+   * Get S3 info for a specific layer.
+   * Used by CloudFormation to reference the layer artifact.
+   */
+  getLayerS3Info(layerNumber: number): { bucket: string; key: string } | null {
+    const s3Key = this.uploadedLayerS3Keys.get(layerNumber);
+    if (!s3Key) return null;
+    return { bucket: this.deploymentBucketName, key: s3Key };
+  }
+
+  /**
+   * Get all uploaded layer S3 info.
+   */
+  getAllLayerS3Info(): Array<{ layerNumber: number; bucket: string; key: string }> {
+    const result: Array<{ layerNumber: number; bucket: string; key: string }> = [];
+    for (const [layerNumber, s3Key] of this.uploadedLayerS3Keys) {
+      result.push({ layerNumber, bucket: this.deploymentBucketName, key: s3Key });
+    }
+    return result;
+  }
 
   getBucketsContent = async () => {
     const objectsToRemove: { [bucketName: string]: _Object[] } = {};

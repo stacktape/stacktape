@@ -1,4 +1,5 @@
 import type {
+  TuiCancelDeployment,
   TuiDeploymentHeader,
   TuiEvent,
   TuiEventStatus,
@@ -264,10 +265,11 @@ class TuiStateManager {
   updateEvent(params: {
     eventType: LoggableEventType;
     additionalMessage?: string;
+    description?: string;
     parentEventType?: LoggableEventType;
     instanceId?: string;
   }) {
-    const { eventType, additionalMessage, parentEventType, instanceId } = params;
+    const { eventType, additionalMessage, description, parentEventType, instanceId } = params;
     const eventId = instanceId ? `${eventType}-${instanceId}` : eventType;
 
     const newPhases = this.state.phases.map((phase) => ({
@@ -280,14 +282,22 @@ class TuiStateManager {
               ...event,
               children: event.children.map((child) => {
                 if (child.id === eventId) {
-                  return { ...child, additionalMessage };
+                  return {
+                    ...child,
+                    ...(additionalMessage !== undefined && { additionalMessage }),
+                    ...(description !== undefined && { description })
+                  };
                 }
                 return child;
               })
             };
           }
         } else if (event.id === eventId) {
-          return { ...event, additionalMessage };
+          return {
+            ...event,
+            ...(additionalMessage !== undefined && { additionalMessage }),
+            ...(description !== undefined && { description })
+          };
         }
         return event;
       })
@@ -466,6 +476,36 @@ class TuiStateManager {
    */
   clearActivePrompt() {
     this.state = { ...this.state, activePrompt: undefined };
+    this.notifyListeners();
+  }
+
+  /**
+   * Show a cancel deployment banner that the user can trigger with 'c' key.
+   * Used when a deployment failure is detected and the user may want to cancel.
+   */
+  setCancelDeployment(cancelDeployment: TuiCancelDeployment) {
+    this.state = { ...this.state, cancelDeployment };
+    this.notifyListeners();
+  }
+
+  /**
+   * Update the cancel deployment state (e.g., to show cancelling in progress).
+   */
+  updateCancelDeployment(updates: Partial<TuiCancelDeployment>) {
+    if (this.state.cancelDeployment) {
+      this.state = {
+        ...this.state,
+        cancelDeployment: { ...this.state.cancelDeployment, ...updates }
+      };
+      this.notifyListeners();
+    }
+  }
+
+  /**
+   * Clear the cancel deployment banner.
+   */
+  clearCancelDeployment() {
+    this.state = { ...this.state, cancelDeployment: undefined };
     this.notifyListeners();
   }
 }

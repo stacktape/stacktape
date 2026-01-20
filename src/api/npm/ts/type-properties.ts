@@ -1,7 +1,17 @@
 import { MISC_TYPES_CONVERTIBLE_TO_CLASSES } from './class-config';
-import { BaseTypeProperties } from './config';
+import { BaseTypeProperties, BaseTypeOnly } from './config';
 
-function createTypePropertiesClass(className: string, typeValue: string): any {
+function createTypePropertiesClass(className: string, typeValue: string, typeOnly?: boolean): any {
+  if (typeOnly) {
+    const TypeOnlyClass = class extends BaseTypeOnly {
+      constructor() {
+        super(typeValue);
+      }
+    };
+    Object.defineProperty(TypeOnlyClass, 'name', { value: className });
+    return TypeOnlyClass;
+  }
+
   const TypePropertiesClass = class extends BaseTypeProperties {
     constructor(properties: any) {
       super(typeValue, properties);
@@ -15,7 +25,7 @@ function createTypePropertiesClass(className: string, typeValue: string): any {
 // Create all type-properties classes from config
 const TYPE_PROPERTIES_CLASSES: Record<string, ReturnType<typeof createTypePropertiesClass>> = {};
 for (const def of MISC_TYPES_CONVERTIBLE_TO_CLASSES) {
-  TYPE_PROPERTIES_CLASSES[def.className] = createTypePropertiesClass(def.className, def.typeValue);
+  TYPE_PROPERTIES_CLASSES[def.className] = createTypePropertiesClass(def.className, def.typeValue, def.typeOnly);
 }
 
 // Export all classes for named imports (TypeScript needs these explicit exports)
@@ -94,6 +104,22 @@ export const {
   // Authorizers
   CognitoAuthorizer,
   LambdaAuthorizer,
+  // Alarm Triggers
+  ApplicationLoadBalancerCustomTrigger,
+  ApplicationLoadBalancerErrorRateTrigger,
+  ApplicationLoadBalancerUnhealthyTargetsTrigger,
+  HttpApiGatewayErrorRateTrigger,
+  HttpApiGatewayLatencyTrigger,
+  RelationalDatabaseReadLatencyTrigger,
+  RelationalDatabaseWriteLatencyTrigger,
+  RelationalDatabaseCPUUtilizationTrigger,
+  RelationalDatabaseFreeStorageTrigger,
+  RelationalDatabaseFreeMemoryTrigger,
+  RelationalDatabaseConnectionCountTrigger,
+  SqsQueueReceivedMessagesCountTrigger,
+  SqsQueueNotEmptyTrigger,
+  LambdaErrorRateTrigger,
+  LambdaDurationTrigger,
   // Custom Resources
   CustomResourceDefinition,
   CustomResourceInstance,

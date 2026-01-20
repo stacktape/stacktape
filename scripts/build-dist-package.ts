@@ -11,9 +11,8 @@ import { packageHelperLambdas } from './package-helper-lambdas';
 import { getCliArgs } from './release/args';
 import {
   buildBinaryFile,
-  buildEsbuildRegister,
+  copyBoreBinary,
   copyConfigSchema,
-  copyEsbuildBinary,
   copyNixpacksBinary,
   copyPackBinary,
   copySessionsManagerPluginBinary,
@@ -67,8 +66,7 @@ const buildEverything = async () => {
     copyPackBinary({ distFolderPath, platform }),
     copyNixpacksBinary({ distFolderPath, platform }),
     copySessionsManagerPluginBinary({ distFolderPath, platform }),
-    copyEsbuildBinary({ distFolderPath, platform }),
-    buildEsbuildRegister({ distFolderPath: platformDistFolderPath }),
+    copyBoreBinary({ distFolderPath, platform }),
     copyConfigSchema({ distFolderPath: platformDistFolderPath }),
     generateStarterProjectsMetadata({ distFolderPath: platformDistFolderPath }),
     packageHelperLambdas({ isDev: false, distFolderPath: platformDistFolderPath }),
@@ -83,7 +81,8 @@ const buildEverything = async () => {
   const archivePath = await archiveItem({
     absoluteSourcePath: platformDistFolderPath,
     format: platform === 'win' ? 'zip' : 'tgz',
-    executablePatterns: EXECUTABLE_FILE_PATTERNS
+    executablePatterns: EXECUTABLE_FILE_PATTERNS,
+    useNativeZip: platform === 'win' // Native zip for Windows archives
   });
 
   if (!keepUnarchived) {

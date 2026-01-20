@@ -23,23 +23,17 @@ const StatusIcon: React.FC<{ status: TuiEvent['status'] }> = ({ status }) => {
     case 'warning':
       return <Text color="yellow">!</Text>;
     default:
-      return <Text color="gray">○</Text>;
+      return <Text color="gray">•</Text>;
   }
 };
 
-/**
- * Format an instanceId or key into a readable description.
- * e.g., "stack-data" -> "Stack data", "previous-artifacts" -> "Previous artifacts"
- */
-const formatDescription = (id: string): string => {
-  return id.replace(/[-_]/g, ' ').replace(/^./, (c) => c.toUpperCase());
-};
+type AggregatedEvent = TuiEvent & { boldPrefix?: string };
 
 /**
  * In TTY mode, aggregate children by instanceId (workload name) to show a cleaner summary.
  * Shows "Workload: current action" while running, "Workload: Done" or "Workload: Skipped" when finished.
  */
-const getAggregatedChildren = (children: TuiEvent[]): TuiEvent[] => {
+const getAggregatedChildren = (children: TuiEvent[]): AggregatedEvent[] => {
   if (children.length === 0) return [];
 
   const byInstanceId = new Map<string, TuiEvent[]>();
@@ -71,33 +65,27 @@ const getAggregatedChildren = (children: TuiEvent[]): TuiEvent[] => {
     const endTimes = events.filter((e) => e.endTime).map((e) => e.endTime!);
     const endTime = allFinished && endTimes.length > 0 ? Math.max(...endTimes) : undefined;
 
-    // Build description: "Workload: current action" while running, "Workload: Done/Skipped" when finished
-    const workloadName = formatDescription(instanceId);
-    let description: string;
-    if (allFinished) {
-      // Check if all events were skipped (finalMessage contains "Skipped" or outcome was skipped)
-      const wasSkipped = events.length === 1 && events[0].finalMessage?.toLowerCase().includes('skipped');
-      description = anyError
-        ? `${workloadName}: Failed`
-        : wasSkipped
-          ? `${workloadName}: Skipped`
-          : `${workloadName}: Done`;
-    } else if (runningEvent) {
-      description = `${workloadName}: ${runningEvent.description}`;
-    } else {
-      description = workloadName;
-    }
+    // Get the last event's finalMessage (most relevant for display)
+    const finishedEvents = events.filter((e) => e.status === 'success' || e.status === 'error');
+    const lastFinishedEvent = finishedEvents[finishedEvents.length - 1];
+    const aggregatedFinalMessage = lastFinishedEvent?.finalMessage;
+
+    // For running events, show the current action as additional message
+    const runningDescription = runningEvent?.description || '';
 
     return {
       ...firstEvent,
       id: `aggregated-${instanceId}`,
-      description,
+      boldPrefix: instanceId,
+      description: '', // Empty - boldPrefix is the main identifier
+      additionalMessage: runningEvent ? runningDescription : undefined,
+      finalMessage: allFinished ? aggregatedFinalMessage : undefined,
       status: runningEvent ? 'running' : allFinished ? (anyError ? 'error' : 'success') : 'running',
       startTime,
       endTime,
       duration: allFinished && endTime ? endTime - startTime : undefined,
-      children: [] // Don't show nested children in aggregated view
-    } as TuiEvent;
+      children: []
+    } as AggregatedEvent;
   });
 };
 
@@ -105,7 +93,7 @@ const getAggregatedChildren = (children: TuiEvent[]): TuiEvent[] => {
  * Aggregate hotswap children by workload, showing current action while running
  * and "Hotswap done" when finished.
  */
-const getAggregatedHotswapChildren = (children: TuiEvent[]): TuiEvent[] => {
+const getAggregatedHotswapChildren = (children: TuiEvent[]): AggregatedEvent[] => {
   if (children.length === 0) return [];
 
   const byInstanceId = new Map<string, TuiEvent[]>();
@@ -136,28 +124,25 @@ const getAggregatedHotswapChildren = (children: TuiEvent[]): TuiEvent[] => {
     const endTimes = events.filter((e) => e.endTime).map((e) => e.endTime!);
     const endTime = allFinished && endTimes.length > 0 ? Math.max(...endTimes) : undefined;
 
-    // Build description: "Workload: current action" while running, "Workload: Hotswap done" when finished
-    const workloadName = formatDescription(instanceId);
-    let description: string;
-    if (allFinished) {
-      description = anyError ? `${workloadName}: Hotswap failed` : `${workloadName}: Hotswap done`;
-    } else if (runningEvent) {
-      description = `${workloadName}: ${runningEvent.description}`;
-    } else {
-      // Pending or unknown state
-      description = `${workloadName}: ${firstEvent.description}`;
-    }
+    // Get the status message for finished hotswap
+    const hotswapStatus = allFinished ? (anyError ? 'Hotswap failed' : 'Hotswap done') : undefined;
+
+    // For running events, show the current action as additional message
+    const runningDescription = runningEvent?.description || firstEvent.description;
 
     return {
       ...firstEvent,
       id: `hotswap-${instanceId}`,
-      description,
+      boldPrefix: instanceId,
+      description: '', // Empty - boldPrefix is the main identifier
+      additionalMessage: runningEvent ? runningDescription : undefined,
+      finalMessage: hotswapStatus,
       status: runningEvent ? 'running' : allFinished ? (anyError ? 'error' : 'success') : 'running',
       startTime,
       endTime,
       duration: allFinished && endTime ? endTime - startTime : undefined,
       children: []
-    } as TuiEvent;
+    } as AggregatedEvent;
   });
 };
 
@@ -175,7 +160,7 @@ export const Event: React.FC<EventProps> = ({ event, isChild = false, isLast = f
   const shouldAggregateHotswap = isTTY && hasChildren && isHotswapParent;
   const shouldAggregateNormal = isTTY && hasChildren && !isHotswapParent;
 
-  let displayChildren: TuiEvent[];
+  let displayChildren: AggregatedEvent[];
   if (shouldAggregateHotswap) {
     displayChildren = getAggregatedHotswapChildren(event.children);
   } else if (shouldAggregateNormal) {
@@ -184,20 +169,42 @@ export const Event: React.FC<EventProps> = ({ event, isChild = false, isLast = f
     displayChildren = event.children;
   }
 
-  const displayDescription = event.description;
+  // Flatten single-child events: show "Parent Child: status" instead of nested display
+  // Don't flatten for certain event types that should always show hierarchy (packaging, uploads)
+  const NEVER_FLATTEN_EVENT_TYPES: LoggableEventType[] = ['PACKAGE_ARTIFACTS', 'UPLOAD_DEPLOYMENT_ARTIFACTS', 'SYNC_BUCKET'];
+  const shouldFlatten = isTTY && displayChildren.length === 1 && !hasOutputLines && !NEVER_FLATTEN_EVENT_TYPES.includes(event.eventType);
+  const flattenedChild = shouldFlatten ? displayChildren[0] : null;
+
+  // Use child's status/duration when flattened
+  const displayStatus = flattenedChild ? flattenedChild.status : event.status;
+  const displayDuration = flattenedChild ? flattenedChild.duration : event.duration;
+  const displayFinalMessage = flattenedChild ? flattenedChild.finalMessage : event.finalMessage;
+  const displayAdditionalMessage = flattenedChild ? flattenedChild.additionalMessage : event.additionalMessage;
+
+  // Get bold prefix (workload name) - from flattened child OR from the event itself if it's an aggregated child
+  const boldPrefix = flattenedChild?.boldPrefix ?? (event as AggregatedEvent).boldPrefix;
+  // Build description parts
+  const descriptionPrefix = event.description;
+  const descriptionSuffix = flattenedChild?.description || '';
 
   return (
     <Box flexDirection="column">
       <Box>
         <Text>{indent}</Text>
         {isChild && <Text color="gray">{prefix} </Text>}
-        <StatusIcon status={event.status} />
-        <Text> {displayDescription}</Text>
-        {event.duration !== undefined && event.status !== 'running' && (
-          <Text color="yellow"> {formatDuration(event.duration)}</Text>
+        <StatusIcon status={displayStatus} />
+        <Text> </Text>
+        {descriptionPrefix && <Text>{descriptionPrefix}</Text>}
+        {descriptionPrefix && boldPrefix && <Text> </Text>}
+        {boldPrefix && <Text bold>{boldPrefix}</Text>}
+        {descriptionSuffix && <Text>: {descriptionSuffix}</Text>}
+        {displayDuration !== undefined && displayStatus !== 'running' && (
+          <Text color="yellow"> {formatDuration(displayDuration)}</Text>
         )}
-        {event.finalMessage && event.status !== 'running' && <Text color="gray"> {event.finalMessage}</Text>}
-        {event.additionalMessage && event.status === 'running' && <Text color="gray"> {event.additionalMessage}</Text>}
+        {displayFinalMessage && displayStatus !== 'running' && <Text color="gray"> {displayFinalMessage}</Text>}
+        {displayAdditionalMessage && displayStatus === 'running' && (
+          <Text color="gray"> {displayAdditionalMessage}</Text>
+        )}
       </Box>
 
       {/* Render captured output lines (e.g., from script execution) */}
@@ -213,7 +220,8 @@ export const Event: React.FC<EventProps> = ({ event, isChild = false, isLast = f
         </Box>
       )}
 
-      {hasChildren && !shouldHideChildren && (
+      {/* Don't show children when flattened */}
+      {hasChildren && !shouldHideChildren && !shouldFlatten && (
         <Box flexDirection="column" marginLeft={2}>
           {displayChildren.map((child, index) => (
             <Event

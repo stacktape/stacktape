@@ -218,6 +218,88 @@ export const initializeStackServicesForHotSwapDeploy = async () => {
   await eventManager.processHooks({ captureType: 'START' });
 };
 
+const DEFAULT_LOCAL_STAGE = 'dev';
+const DEFAULT_LOCAL_REGION = 'us-east-1';
+
+/**
+ * Phase 1: Initialize credentials, config, and packagingManager.
+ * This is enough to start building. Call phase 2 after (or in parallel) to fetch AWS stack data.
+ */
+export const initializeStackServicesForDevPhase1 = async () => {
+  // Suppress eventManager logs - dev mode uses spinners instead
+  eventManager.setSilentMode(true);
+
+  const isLocalOnlyMode = globalStateManager.args.disableEmulation;
+
+  if (isLocalOnlyMode) {
+    // Local-only mode: set defaults for stage/region to avoid prompts and API calls
+    if (!globalStateManager.args.stage) {
+      globalStateManager.args.stage = DEFAULT_LOCAL_STAGE;
+    }
+    if (!globalStateManager.args.region && !process.env.AWS_DEFAULT_REGION) {
+      globalStateManager.args.region = DEFAULT_LOCAL_REGION;
+    }
+  }
+
+  await globalStateManager.loadUserCredentials();
+  awsSdkManager.init({
+    credentials: globalStateManager.credentials,
+    region: globalStateManager.region,
+    getErrorHandlerFn: getErrorHandler,
+    plugins: [loggingPlugin, retryPlugin, redirectPlugin],
+    printer: tuiManager
+  });
+
+  // Load raw config first to get serviceName for project resolution
+  await configManager.loadRawConfigOnly();
+  await globalStateManager.loadTargetStackInfo();
+  await configManager.init({ configRequired: true });
+  await packagingManager.init();
+
+  // Register hooks (but don't process yet - local resources need to start first)
+  await eventManager.registerHooks(configManager.hooks);
+};
+
+/**
+ * Phase 2: Fetch AWS stack data (stackManager, deployedStackOverviewManager, deploymentArtifactManager).
+ * Can run in parallel with build since it only needs credentials from phase 1.
+ */
+export const initializeStackServicesForDevPhase2 = async () => {
+  await settleAllBeforeThrowing([
+    stackManager.init({
+      stackName: globalStateManager.targetStack.stackName,
+      commandModifiesStack: false,
+      commandRequiresDeployedStack: false
+    }),
+    vpcManager.init({
+      reuseVpc: configManager.reuseVpcConfig,
+      resourcesRequiringPrivateSubnet: configManager.allResourcesRequiringPrivateSubnets
+    }),
+    domainManager.init({
+      stackName: globalStateManager.targetStack.stackName,
+      domains: configManager.allUsedDomainsInConfig,
+      fromParameterStore: true
+    })
+  ]);
+
+  await Promise.all([
+    deployedStackOverviewManager.init({
+      stackDetails: stackManager.existingStackDetails,
+      stackResources: stackManager.existingStackResources
+    }),
+    deploymentArtifactManager.init({
+      accountId: globalStateManager.targetAwsAccount.awsAccountId,
+      globallyUniqueStackHash: globalStateManager.targetStack.globallyUniqueStackHash,
+      stackActionType: stackManager.stackActionType
+    })
+  ]);
+};
+
+export const initializeStackServicesForDev = async () => {
+  await initializeStackServicesForDevPhase1();
+  await initializeStackServicesForDevPhase2();
+};
+
 export const initializeStackServicesForWorkingWithDeployedStack = async ({
   commandModifiesStack,
   commandRequiresConfig

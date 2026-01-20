@@ -125,7 +125,8 @@ export const RESOURCES_CONVERTIBLE_TO_CLASSES: ResourceDefinition[] = [
       'SqsQueue',
       'SnsTopic',
       'OpenSearchDomain',
-      'EfsFilesystem'
+      'EfsFilesystem',
+      'LambdaFunction'
     ]
   },
   {
@@ -359,6 +360,10 @@ export type TypePropertiesDefinition = {
   propsType: string;
   interfaceName: string;
   sourceFile: string;
+  /** If true, this type has no properties field - just a type discriminator */
+  typeOnly?: boolean;
+  /** Custom JSDoc description for the class constructor */
+  jsdoc?: string;
 };
 
 export const MISC_TYPES_CONVERTIBLE_TO_CLASSES: TypePropertiesDefinition[] = [
@@ -801,6 +806,135 @@ export const MISC_TYPES_CONVERTIBLE_TO_CLASSES: TypePropertiesDefinition[] = [
     propsType: 'LambdaAuthorizerProperties',
     interfaceName: 'LambdaAuthorizer',
     sourceFile: 'user-pools.d.ts'
+  },
+  // Alarm Triggers
+  {
+    className: 'ApplicationLoadBalancerCustomTrigger',
+    typeValue: 'application-load-balancer-custom',
+    propsType: 'ApplicationLoadBalancerCustomTriggerProps',
+    interfaceName: 'ApplicationLoadBalancerCustomTrigger',
+    sourceFile: 'alarm-metrics.d.ts',
+    jsdoc:
+      'Triggers an alarm based on any Application Load Balancer CloudWatch metric (e.g., connection counts, request counts, target response times).'
+  },
+  {
+    className: 'ApplicationLoadBalancerErrorRateTrigger',
+    typeValue: 'application-load-balancer-error-rate',
+    propsType: 'ApplicationLoadBalancerErrorRateTriggerProps',
+    interfaceName: 'ApplicationLoadBalancerErrorRateTrigger',
+    sourceFile: 'alarms.d.ts',
+    jsdoc:
+      'Triggers an alarm when the Application Load Balancer error rate (percentage of 4xx/5xx responses) exceeds the threshold.'
+  },
+  {
+    className: 'ApplicationLoadBalancerUnhealthyTargetsTrigger',
+    typeValue: 'application-load-balancer-unhealthy-targets',
+    propsType: 'ApplicationLoadBalancerUnhealthyTargetsTriggerProps',
+    interfaceName: 'ApplicationLoadBalancerUnhealthyTargetsTrigger',
+    sourceFile: 'alarms.d.ts',
+    jsdoc:
+      'Triggers an alarm when the percentage of unhealthy targets behind the Application Load Balancer exceeds the threshold.'
+  },
+  {
+    className: 'HttpApiGatewayErrorRateTrigger',
+    typeValue: 'http-api-gateway-error-rate',
+    propsType: 'HttpApiGatewayErrorRateTriggerProps',
+    interfaceName: 'HttpApiGatewayErrorRateTrigger',
+    sourceFile: 'alarms.d.ts',
+    jsdoc:
+      'Triggers an alarm when the HTTP API Gateway error rate (percentage of 4xx/5xx responses) exceeds the threshold.'
+  },
+  {
+    className: 'HttpApiGatewayLatencyTrigger',
+    typeValue: 'http-api-gateway-latency',
+    propsType: 'HttpApiGatewayLatencyTriggerProps',
+    interfaceName: 'HttpApiGatewayLatencyTrigger',
+    sourceFile: 'alarms.d.ts',
+    jsdoc:
+      'Triggers an alarm when HTTP API Gateway latency exceeds the threshold. Latency is measured from request receipt to response sent.'
+  },
+  {
+    className: 'RelationalDatabaseReadLatencyTrigger',
+    typeValue: 'database-read-latency',
+    propsType: 'RelationalDatabaseReadLatencyTriggerProps',
+    interfaceName: 'RelationalDatabaseReadLatencyTrigger',
+    sourceFile: 'alarms.d.ts',
+    jsdoc: 'Triggers an alarm when database read latency (average time for read I/O operations) exceeds the threshold.'
+  },
+  {
+    className: 'RelationalDatabaseWriteLatencyTrigger',
+    typeValue: 'database-write-latency',
+    propsType: 'RelationalDatabaseWriteLatencyTriggerProps',
+    interfaceName: 'RelationalDatabaseWriteLatencyTrigger',
+    sourceFile: 'alarms.d.ts',
+    jsdoc:
+      'Triggers an alarm when database write latency (average time for write I/O operations) exceeds the threshold.'
+  },
+  {
+    className: 'RelationalDatabaseCPUUtilizationTrigger',
+    typeValue: 'database-cpu-utilization',
+    propsType: 'RelationalDatabaseCPUUtilizationTriggerProps',
+    interfaceName: 'RelationalDatabaseCPUUtilizationTrigger',
+    sourceFile: 'alarms.d.ts',
+    jsdoc: 'Triggers an alarm when database CPU utilization exceeds the threshold percentage.'
+  },
+  {
+    className: 'RelationalDatabaseFreeStorageTrigger',
+    typeValue: 'database-free-storage',
+    propsType: 'RelationalDatabaseFreeStorageTriggerProps',
+    interfaceName: 'RelationalDatabaseFreeStorageTrigger',
+    sourceFile: 'alarms.d.ts',
+    jsdoc: 'Triggers an alarm when available database storage falls below the threshold (in MB).'
+  },
+  {
+    className: 'RelationalDatabaseFreeMemoryTrigger',
+    typeValue: 'database-free-memory',
+    propsType: 'RelationalDatabaseFreeMemoryTriggerProps',
+    interfaceName: 'RelationalDatabaseFreeMemoryTrigger',
+    sourceFile: 'alarms.d.ts',
+    jsdoc: 'Triggers an alarm when available database memory falls below the threshold (in MB).'
+  },
+  {
+    className: 'RelationalDatabaseConnectionCountTrigger',
+    typeValue: 'database-connection-count',
+    propsType: 'RelationalDatabaseConnectionCountTriggerProps',
+    interfaceName: 'RelationalDatabaseConnectionCountTrigger',
+    sourceFile: 'alarms.d.ts',
+    jsdoc: 'Triggers an alarm when the number of database connections exceeds the threshold.'
+  },
+  {
+    className: 'SqsQueueReceivedMessagesCountTrigger',
+    typeValue: 'sqs-queue-received-messages-count',
+    propsType: 'SqsQueueReceivedMessagesCountTriggerProps',
+    interfaceName: 'SqsQueueReceivedMessagesCountTrigger',
+    sourceFile: 'alarms.d.ts',
+    jsdoc: 'Triggers an alarm when the number of messages received from an SQS queue crosses the threshold.'
+  },
+  {
+    className: 'SqsQueueNotEmptyTrigger',
+    typeValue: 'sqs-queue-not-empty',
+    propsType: 'SqsQueueNotEmptyTrigger',
+    interfaceName: 'SqsQueueNotEmptyTrigger',
+    sourceFile: 'alarms.d.ts',
+    typeOnly: true,
+    jsdoc: 'Triggers an alarm if the SQS queue is not empty. Useful for monitoring dead-letter queues.'
+  },
+  {
+    className: 'LambdaErrorRateTrigger',
+    typeValue: 'lambda-error-rate',
+    propsType: 'LambdaErrorRateTriggerProps',
+    interfaceName: 'LambdaErrorRateTrigger',
+    sourceFile: 'alarms.d.ts',
+    jsdoc:
+      'Triggers an alarm when the Lambda function error rate (percentage of failed invocations) exceeds the threshold.'
+  },
+  {
+    className: 'LambdaDurationTrigger',
+    typeValue: 'lambda-duration',
+    propsType: 'LambdaDurationTriggerProps',
+    interfaceName: 'LambdaDurationTrigger',
+    sourceFile: 'alarms.d.ts',
+    jsdoc: 'Triggers an alarm when Lambda function execution duration exceeds the threshold (in milliseconds).'
   },
   // Custom Resources
   {

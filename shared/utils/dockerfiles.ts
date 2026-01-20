@@ -32,6 +32,68 @@ const getInstallPackageManagerCommand = (packageManager: SupportedEsPackageManag
   return '';
 };
 
+/**
+ * Generates a simplified Dockerfile for dev mode.
+ * - Single stage (no multi-stage build)
+ * - No code COPY - code is mounted as volume at runtime
+ * - Still installs native deps the same way as production for parity
+ */
+export const buildEsDevDockerfile = ({
+  dependencies,
+  packageManager,
+  requiresGlibcBinaries,
+  nodeVersion
+}: {
+  dependencies: { name: string; version: string }[];
+  requiresGlibcBinaries: boolean;
+  packageManager: SupportedEsPackageManager;
+  nodeVersion: number;
+}) => {
+  const installDepsCommand = getInstallDepsCommand({ dependencies, packageManager });
+  const installPackageManagerCommand = getInstallPackageManagerCommand(packageManager);
+  const baseImage = requiresGlibcBinaries
+    ? `public.ecr.aws/docker/library/node:${nodeVersion}`
+    : `public.ecr.aws/docker/library/node:${nodeVersion}-alpine`;
+
+  if (requiresGlibcBinaries) {
+    return `FROM ${baseImage}
+
+RUN apt-get update && apt-get install -y tini curl
+
+ENTRYPOINT ["tini", "--"]
+
+WORKDIR /app
+${installPackageManagerCommand}${installDepsCommand}
+
+CMD ["node", "--max-old-space-size=16384", "index.js"]`;
+  }
+
+  // Alpine version - no deps
+  if (!dependencies.length) {
+    return `FROM ${baseImage}
+
+RUN apk add --no-cache tini curl openssl
+
+ENTRYPOINT ["/sbin/tini", "--"]
+
+WORKDIR /app
+
+CMD ["node", "--max-old-space-size=16384", "index.js"]`;
+  }
+
+  // Alpine version - with deps (need build tools for native modules)
+  return `FROM ${baseImage}
+
+RUN apk add --no-cache tini curl openssl python3 make g++
+
+ENTRYPOINT ["/sbin/tini", "--"]
+
+WORKDIR /app
+${installPackageManagerCommand}${installDepsCommand}
+
+CMD ["node", "--max-old-space-size=16384", "index.js"]`;
+};
+
 export const buildEsDockerfile = ({
   dependencies,
   packageManager,

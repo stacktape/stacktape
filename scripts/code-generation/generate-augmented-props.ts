@@ -167,7 +167,15 @@ function generateAugmentedPropsType(
 
   // Special handling for ContainerWorkloadProps - also omit 'containers' to replace with augmented container type
   const isContainerWorkload = resourceType === 'MultiContainerWorkload';
-  const omitFields = isContainerWorkload ? "'connectTo' | 'environment' | 'containers'" : "'connectTo' | 'environment'";
+  // Special handling for BatchJobProps - also omit 'container' to replace with augmented container type
+  const isBatchJob = resourceType === 'BatchJob';
+
+  let omitFields = "'connectTo' | 'environment'";
+  if (isContainerWorkload) {
+    omitFields = "'connectTo' | 'environment' | 'containers'";
+  } else if (isBatchJob) {
+    omitFields = "'connectTo' | 'environment' | 'container'";
+  }
 
   // Start the type declaration
   lines.push(`export type ${propsType} = Omit<${originalPropsType}, ${omitFields}> & {`);
@@ -187,6 +195,14 @@ function generateAugmentedPropsType(
    * Containers within the same workload share computing resources and scale together.
    */
   containers: ContainerWithObjectEnv[];`);
+  }
+
+  // Add container with augmented type for BatchJob
+  if (isBatchJob) {
+    lines.push(`  /**
+   * Container configuration for the batch job.
+   */
+  container: BatchJobContainerWithObjectEnv;`);
   }
 
   // Add overrides and transforms if needed
@@ -219,17 +235,54 @@ export type ContainerWithObjectEnv = Omit<import('./sdk').ContainerWorkloadConta
    */
   environment?: { [envVarName: string]: string | number | boolean };
 };
+
+/**
+ * Batch job container configuration with object-style environment variables.
+ * Environment is specified as { KEY: 'value' } for better developer experience.
+ */
+export type BatchJobContainerWithObjectEnv = Omit<import('./sdk').BatchJobContainer, 'environment'> & {
+  /**
+   * Environment variables to inject into the batch job container.
+   * Specified as key-value pairs: { PORT: '3000', NODE_ENV: 'production' }
+   */
+  environment?: { [envVarName: string]: string | number | boolean };
+};
 `;
 }
 
 /**
+ * Default JSDoc for injectEnvironment property
+ */
+const DEFAULT_INJECT_ENVIRONMENT_JSDOC = {
+  description: `Injects referenced parameters into all HTML files in the uploadDirectoryPath.
+These parameters can be accessed by any JavaScript script using window.STP_INJECTED_ENV.VARIABLE_NAME.
+This is useful for automatically referencing parameters that are only known after deployment, such as the URL of an API Gateway.`,
+  tags: []
+};
+
+/**
  * Generates a WithOverrides type for resources without augmented props
  * Also includes transforms
+ * Special handling for HostingBucket to support object-style injectEnvironment
  */
 function generateWithOverridesAndTransformsType(propsType: string, className: string): string {
   const lines: string[] = [];
 
-  lines.push(`export type ${propsType}WithOverrides = ${propsType} & {`);
+  // Special handling for HostingBucket - omit injectEnvironment to replace with object-style
+  if (className === 'HostingBucket') {
+    lines.push(`export type ${propsType}WithOverrides = Omit<${propsType}, 'injectEnvironment'> & {`);
+
+    // Add object-style injectEnvironment
+    const injectEnvProperty: PropertyInfo = {
+      name: 'injectEnvironment',
+      type: '{ [envVarName: string]: string | number | boolean }',
+      optional: true,
+      jsdoc: DEFAULT_INJECT_ENVIRONMENT_JSDOC
+    };
+    lines.push(generatePropertyWithJSDoc(injectEnvProperty));
+  } else {
+    lines.push(`export type ${propsType}WithOverrides = ${propsType} & {`);
+  }
 
   const overridesProperty = getOverridesPropertyInfo(`${className}Overrides`);
   lines.push(generatePropertyWithJSDoc(overridesProperty));
