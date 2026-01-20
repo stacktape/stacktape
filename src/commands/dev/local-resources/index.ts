@@ -9,6 +9,7 @@ import { ensureDir } from 'fs-extra';
 import { devTuiManager } from 'src/app/tui-manager/dev-tui';
 import { startLocalDynamoDb } from './dynamodb';
 import { startLocalMysql } from './mysql';
+import { startLocalOpenSearch } from './opensearch';
 import { startLocalPostgres } from './postgres';
 import { startLocalRedis } from './redis';
 
@@ -35,7 +36,7 @@ const parseDockerError = (err: Error): string => {
   return msg;
 };
 
-export type LocalResourceType = 'postgres' | 'mysql' | 'mariadb' | 'redis' | 'dynamodb';
+export type LocalResourceType = 'postgres' | 'mysql' | 'mariadb' | 'redis' | 'dynamodb' | 'opensearch';
 
 export type LocalResourceConfig = {
   name: string;
@@ -70,7 +71,8 @@ export const getSupportedLocalResourceTypes = (): LocalResourceType[] => [
   'mysql',
   'mariadb',
   'redis',
-  'dynamodb'
+  'dynamodb',
+  'opensearch'
 ];
 
 const mapEngineToLocalType = (engineType: string): LocalResourceType | null => {
@@ -96,12 +98,12 @@ const isAuroraEngine = (engineType: string): boolean => {
 
 export const getLocalEmulateableResources = (): {
   name: string;
-  type: 'relational-database' | 'redis-cluster' | 'dynamo-db-table';
+  type: 'relational-database' | 'redis-cluster' | 'dynamo-db-table' | 'open-search-domain';
   engineType: string;
 }[] => {
   const resources: {
     name: string;
-    type: 'relational-database' | 'redis-cluster' | 'dynamo-db-table';
+    type: 'relational-database' | 'redis-cluster' | 'dynamo-db-table' | 'open-search-domain';
     engineType: string;
   }[] = [];
 
@@ -118,6 +120,10 @@ export const getLocalEmulateableResources = (): {
 
   for (const dynamoTable of configManager.dynamoDbTables || []) {
     resources.push({ name: dynamoTable.name, type: 'dynamo-db-table', engineType: 'dynamodb' });
+  }
+
+  for (const openSearchDomain of configManager.openSearchDomains || []) {
+    resources.push({ name: openSearchDomain.name, type: 'open-search-domain', engineType: 'opensearch' });
   }
 
   return resources;
@@ -150,6 +156,11 @@ export const getRemoteResourceNames = (): Set<string> => {
   for (const dynamoTable of configManager.dynamoDbTables || []) {
     if ((dynamoTable as any).dev?.remote) {
       remoteNames.add(dynamoTable.name);
+    }
+  }
+  for (const openSearchDomain of configManager.openSearchDomains || []) {
+    if ((openSearchDomain as any).dev?.remote) {
+      remoteNames.add(openSearchDomain.name);
     }
   }
 
@@ -252,6 +263,17 @@ const buildLocalResourceConfig = (resourceName: string): LocalResourceConfig | n
     };
   }
 
+  const openSearchDomain = configManager.openSearchDomains?.find((r) => r.name === resourceName);
+  if (openSearchDomain) {
+    return {
+      name: resourceName,
+      type: 'opensearch',
+      version: (openSearchDomain as any).engineVersion || '2.17.0',
+      port: 9200,
+      dataDir: getDataDir(resourceName)
+    };
+  }
+
   return null;
 };
 
@@ -298,6 +320,8 @@ export const startLocalResources = async (resourceNames: string[]): Promise<Loca
         instance = await startLocalRedis({ ...config, containerName });
       } else if (config.type === 'dynamodb') {
         instance = await startLocalDynamoDb({ ...config, containerName });
+      } else if (config.type === 'opensearch') {
+        instance = await startLocalOpenSearch({ ...config, containerName });
       } else {
         throw new Error(`Unsupported local resource type: ${config.type}`);
       }

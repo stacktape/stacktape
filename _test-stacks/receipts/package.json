@@ -1,0 +1,6 @@
+{
+  "dependencies": {},
+  "devDependencies": {
+    "stacktape": "3.2.0-beta.11"
+  }
+}

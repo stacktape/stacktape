@@ -77,7 +77,7 @@ export const commandStackInfo = async (): Promise<StackInfoReturnValue> => {
     calculatedStackInfoMap: calculatedStackOverviewManager.stackInfoMap,
     deployedStackInfoMap: deployedStackOverviewManager.stackInfoMap,
     cfTemplateDiff,
-    showSensitiveValues: globalStateManager.invokedFrom === 'sdk' || globalStateManager.args.showSensitiveValues
+    showSensitiveValues: globalStateManager.args.showSensitiveValues
   });
 
   if (globalStateManager.invokedFrom === 'cli' && globalStateManager.args.detailed) {

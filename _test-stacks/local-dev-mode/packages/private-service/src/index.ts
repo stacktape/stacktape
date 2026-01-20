@@ -1,3 +1,4 @@
+import { Client as OpenSearchClient } from '@opensearch-project/opensearch';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DeleteCommand, DynamoDBDocumentClient, GetCommand, PutCommand, ScanCommand } from '@aws-sdk/lib-dynamodb';
 import { PrismaPg } from '@prisma/adapter-pg';
@@ -31,6 +32,17 @@ if (process.env.STP_DYNAMO_DB_ENDPOINT) {
 const dynamoClient = new DynamoDBClient(dynamoConfig);
 const docClient = DynamoDBDocumentClient.from(dynamoClient as any);
 const dynamoTableName = process.env.STP_DYNAMO_DB_NAME || '';
+
+// Configure OpenSearch client
+let openSearchClient: OpenSearchClient | null = null;
+const getOpenSearch = () => {
+  if (openSearchClient) return openSearchClient;
+  const endpoint = process.env.STP_OPEN_SEARCH_DOMAIN_ENDPOINT;
+  if (!endpoint) return null;
+  openSearchClient = new OpenSearchClient({ node: endpoint });
+  return openSearchClient;
+};
+const openSearchIndex = 'test-index';
 
 const fastify = Fastify({ logger: true });
 
@@ -194,6 +206,100 @@ fastify.delete('/dynamo/items/:pk/:sk', async (request) => {
   if (!dynamoTableName) return { error: 'DynamoDB not configured' };
   await docClient.send(new DeleteCommand({ TableName: dynamoTableName, Key: { pk, sk } }));
   return { success: true };
+});
+
+// ============ OPENSEARCH ENDPOINTS (/opensearch/*) ============
+
+// Get cluster health
+fastify.get('/opensearch/health', async () => {
+  const client = getOpenSearch();
+  if (!client) return { error: 'OpenSearch not configured' };
+  const health = await client.cluster.health();
+  return health.body;
+});
+
+// Ensure index exists
+const ensureIndex = async (client: OpenSearchClient) => {
+  const exists = await client.indices.exists({ index: openSearchIndex });
+  if (!exists.body) {
+    await client.indices.create({ index: openSearchIndex });
+  }
+};
+
+// List all documents
+fastify.get('/opensearch/docs', async () => {
+  const client = getOpenSearch();
+  if (!client) return { error: 'OpenSearch not configured' };
+  await ensureIndex(client);
+  const result = await client.search({ index: openSearchIndex, body: { query: { match_all: {} } } });
+  return (
+    result.body.hits?.hits?.map((hit: { _id: string; _source: unknown }) => ({
+      id: hit._id,
+      ...(hit._source as object)
+    })) || []
+  );
+});
+
+// Get single document
+fastify.get('/opensearch/docs/:id', async (request) => {
+  const { id } = request.params as { id: string };
+  const client = getOpenSearch();
+  if (!client) return { error: 'OpenSearch not configured' };
+  try {
+    const result = await client.get({ index: openSearchIndex, id });
+    return { id: result.body._id, ...result.body._source };
+  } catch (err: any) {
+    if (err.meta?.statusCode === 404) return { error: 'Document not found' };
+    throw err;
+  }
+});
+
+// Create/update document
+fastify.post('/opensearch/docs', async (request) => {
+  const client = getOpenSearch();
+  if (!client) return { error: 'OpenSearch not configured' };
+  await ensureIndex(client);
+  const doc = request.body as Record<string, unknown>;
+  const id = (doc.id as string) || undefined;
+  const result = await client.index({ index: openSearchIndex, id, body: doc, refresh: true });
+  return { id: result.body._id, ...doc };
+});
+
+// Update document
+fastify.put('/opensearch/docs/:id', async (request) => {
+  const { id } = request.params as { id: string };
+  const client = getOpenSearch();
+  if (!client) return { error: 'OpenSearch not configured' };
+  const updates = request.body as Record<string, unknown>;
+  await client.update({ index: openSearchIndex, id, body: { doc: updates }, refresh: true });
+  const result = await client.get({ index: openSearchIndex, id });
+  return { id: result.body._id, ...result.body._source };
+});
+
+// Delete document
+fastify.delete('/opensearch/docs/:id', async (request) => {
+  const { id } = request.params as { id: string };
+  const client = getOpenSearch();
+  if (!client) return { error: 'OpenSearch not configured' };
+  await client.delete({ index: openSearchIndex, id, refresh: true });
+  return { success: true };
+});
+
+// Search documents
+fastify.post('/opensearch/search', async (request) => {
+  const client = getOpenSearch();
+  if (!client) return { error: 'OpenSearch not configured' };
+  const { query } = request.body as { query: string };
+  const result = await client.search({
+    index: openSearchIndex,
+    body: { query: { multi_match: { query, fields: ['*'] } } }
+  });
+  return (
+    result.body.hits?.hits?.map((hit: { _id: string; _source: unknown }) => ({
+      id: hit._id,
+      ...(hit._source as object)
+    })) || []
+  );
 });
 
 const start = async () => {

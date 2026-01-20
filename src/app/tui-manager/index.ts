@@ -28,9 +28,9 @@ import { createSpinner, createSpinnerProgressLogger, MultiSpinner } from './spin
 import { tuiState } from './state';
 import { formatDuration, stripAnsi } from './utils';
 
-export { tuiState } from './state';
 export type { Spinner } from './spinners';
 export { MultiSpinner } from './spinners';
+export { tuiState } from './state';
 export type {
   TuiDeploymentHeader,
   TuiEvent,
@@ -535,8 +535,8 @@ class TuiManager {
     return (kleur[color as keyof typeof kleur] as (text: string) => string)?.(text) ?? text;
   }
 
-  makeBold(text: string): string {
-    if (this.logFormat !== 'fancy') return text;
+  makeBold(text: string | number): string {
+    if (this.logFormat !== 'fancy') return text.toString();
     return kleur.bold(text);
   }
 
@@ -723,7 +723,7 @@ class TuiManager {
     logCollectorStream.write(horizontalLine);
   }
 
-  printListStack(listStacksResult: StackListReturnValue) {
+  printListStack(listStacksResult) {
     const header = [
       'Stack name',
       'Stage',

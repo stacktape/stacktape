@@ -1,5 +1,5 @@
-import cliArgsSchema from '@generated/schemas/cli-schema.json';
-import sdkArgsSchema from '@generated/schemas/sdk-schema.json';
+import { cliCommands, type StacktapeCommand } from '../../../src/config/cli/commands';
+import { getCommandInfo } from '../../../src/config/cli/utils';
 
 const forcedCommandOrder = [
   'deploy',
@@ -18,40 +18,25 @@ const forcedCommandOrder = [
 export const getSortedCliArgsSchema = async (): Promise<
   {
     command: string;
-    commandSchema: any;
+    commandSchema: ReturnType<typeof getCommandInfo>;
   }[]
 > => {
   const res: {
     command: string;
-    commandSchema: any;
+    commandSchema: ReturnType<typeof getCommandInfo>;
   }[] = [];
+
   forcedCommandOrder.forEach((command) => {
-    res.push({ command, commandSchema: cliArgsSchema[command] });
+    if (cliCommands.includes(command as StacktapeCommand)) {
+      res.push({ command, commandSchema: getCommandInfo(command as StacktapeCommand) });
+    }
   });
 
-  Object.entries(cliArgsSchema).forEach(async ([command, commandSchema]) => {
+  cliCommands.forEach((command) => {
     if (!res.find((s) => s.command === command)) {
-      res.push({ command, commandSchema });
+      res.push({ command, commandSchema: getCommandInfo(command) });
     }
   });
+
   return res;
-};
-
-export const getSortedSdkArgsSchema = async () => {
-  const res: {
-    method: string;
-    methodSchema: any;
-  }[] = [];
-  forcedCommandOrder.forEach((method) => {
-    if (sdkArgsSchema[method]) {
-      res.push({ method, methodSchema: sdkArgsSchema[method] });
-    }
-  });
-
-  Object.entries(sdkArgsSchema).forEach(async ([method, methodSchema]) => {
-    if (!res.find((s) => s.method === method)) {
-      res.push({ method, methodSchema });
-    }
-  });
-  return res.filter(Boolean);
 };

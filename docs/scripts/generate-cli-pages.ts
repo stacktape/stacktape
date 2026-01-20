@@ -1,5 +1,6 @@
 import { join } from 'node:path';
-import cliArgsSchema from '@generated/schemas/cli-schema.json';
+import { cliCommands, type StacktapeCommand } from '../../src/config/cli/commands';
+import { getCommandInfo } from '../../src/config/cli/utils';
 import fsExtra from 'fs-extra';
 import { format } from 'prettier';
 import { getSortedCliArgsSchema } from './utils/get-schema';
@@ -29,10 +30,10 @@ const getCommandDescriptionMarkdown = async ({
   requiredOptions,
   order,
   pagePath,
-  cliArgsSchema
+  commandInfo
 }) => {
   const existingWrittenContent = await getExistingWrittenContent(pagePath);
-  const sortedArgs = await getSortedArgs(cliArgsSchema[command].args);
+  const sortedArgs = await getSortedArgs(commandInfo.args);
 
   return `---
 title: "${command}"
@@ -67,7 +68,7 @@ export const generateCliPages = async () => {
   await Promise.all(
     sortedSchema.map(async ({ command, commandSchema }) => {
       const pagePath = join(process.cwd(), 'docs', 'cli', 'commands', `${command.replaceAll(':', '-')}.mdx`);
-      const requiredOptions = [];
+      const requiredOptions: string[] = [];
       for (const [opt, schema] of Object.entries(commandSchema.args as Record<string, any>)) {
         if (schema.required) {
           requiredOptions.push(opt);
@@ -79,7 +80,7 @@ export const generateCliPages = async () => {
         description: commandSchema.description,
         order: idx++,
         requiredOptions,
-        cliArgsSchema
+        commandInfo: commandSchema
       });
 
       return writeFile(pagePath, await format(mdxContent, { parser: 'mdx', ...prettierOptions }));

@@ -23,7 +23,8 @@ export const DEV_CONFIG = {
       mysql: 3306,
       mariadb: 3306,
       redis: 6379,
-      dynamodb: 8000
+      dynamodb: 8000,
+      opensearch: 9200
     },
     /** Timeouts for waiting for resources to become ready (ms) */
     readyTimeouts: {
@@ -31,7 +32,8 @@ export const DEV_CONFIG = {
       mysql: 60000,
       mariadb: 60000,
       redis: 30000,
-      dynamodb: 30000
+      dynamodb: 30000,
+      opensearch: 60000
     },
     /** Poll intervals when checking readiness (ms) */
     pollIntervals: {
@@ -39,7 +41,8 @@ export const DEV_CONFIG = {
       mysql: 1000,
       mariadb: 1000,
       redis: 500,
-      dynamodb: 300
+      dynamodb: 300,
+      opensearch: 1000
     }
   },
 

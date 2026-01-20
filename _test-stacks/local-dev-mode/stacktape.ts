@@ -7,6 +7,7 @@ import {
   LambdaFunction,
   LocalScript,
   NextjsWeb,
+  OpenSearchDomain,
   PrivateService,
   RedisCluster,
   RelationalDatabase,
@@ -43,6 +44,11 @@ export default defineConfig(() => {
     }
   });
 
+  const openSearch = new OpenSearchDomain({
+    instanceSize: 't3.small.search',
+    volumeSize: 10
+  });
+
   const privateService = new PrivateService({
     packaging: new StacktapeImageBuildpackPackaging({
       entryfilePath: './packages/private-service/src/index.ts'
@@ -52,7 +58,7 @@ export default defineConfig(() => {
       memory: 512
     },
     port: 8080,
-    connectTo: [postgresDb, redis, dynamoDb]
+    connectTo: [postgresDb, redis, dynamoDb, openSearch]
   });
 
   const webService = new WebService({
@@ -138,6 +144,7 @@ export default defineConfig(() => {
       postgresDb,
       redis,
       dynamoDb,
+      openSearch,
       privateService,
       webService,
       spaFrontend,

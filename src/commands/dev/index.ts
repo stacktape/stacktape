@@ -29,7 +29,7 @@ type DevCompatibleResource = {
 
 type EmulateableResource = {
   name: string;
-  type: 'relational-database' | 'redis-cluster' | 'dynamo-db-table';
+  type: 'relational-database' | 'redis-cluster' | 'dynamo-db-table' | 'open-search-domain';
   engineType: string;
 };
 

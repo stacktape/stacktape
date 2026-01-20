@@ -10,6 +10,7 @@ type Post = {
 };
 type CacheEntry = { key: string; value: string | null };
 type DynamoItem = { pk: string; sk: string; [key: string]: unknown };
+type OpenSearchDoc = { id: string; [key: string]: unknown };
 
 type ApiType = 'server' | 'lambda';
 
@@ -23,7 +24,7 @@ const getApiUrls = () => {
 };
 
 const App = () => {
-  const [activeTab, setActiveTab] = useState<'posts' | 'cache' | 'dynamo'>('posts');
+  const [activeTab, setActiveTab] = useState<'posts' | 'cache' | 'dynamo' | 'opensearch'>('posts');
   const [apiType, setApiType] = useState<ApiType>('server');
   const apiUrls = getApiUrls();
   const apiUrl = apiUrls[apiType];
@@ -80,11 +81,22 @@ const App = () => {
         >
           Items (DynamoDB)
         </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('opensearch')}
+          style={{
+            background: activeTab === 'opensearch' ? '#0070f3' : '#e0e0e0',
+            color: activeTab === 'opensearch' ? '#fff' : '#333'
+          }}
+        >
+          Docs (OpenSearch)
+        </button>
       </div>
 
       {activeTab === 'posts' && <PostsSection apiUrl={apiUrl} />}
       {activeTab === 'cache' && <CacheSection apiUrl={apiUrl} />}
       {activeTab === 'dynamo' && <DynamoSection apiUrl={apiUrl} />}
+      {activeTab === 'opensearch' && <OpenSearchSection apiUrl={apiUrl} />}
     </div>
   );
 };
@@ -498,6 +510,179 @@ const DynamoSection = ({ apiUrl }: { apiUrl: string }) => {
               <button
                 type="button"
                 onClick={() => deleteItem(item.pk, item.sk)}
+                style={{ background: '#ef4444', color: '#fff', fontSize: 12, marginLeft: 12 }}
+              >
+                Delete
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const OpenSearchSection = ({ apiUrl }: { apiUrl: string }) => {
+  const [docs, setDocs] = useState<OpenSearchDoc[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [newDoc, setNewDoc] = useState({ title: '', content: '' });
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<OpenSearchDoc[] | null>(null);
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch(`${apiUrl}/opensearch/docs`);
+      const data = await res.json();
+      setDocs(Array.isArray(data) ? data : []);
+      setError(null);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, [apiUrl]);
+
+  const createDoc = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newDoc.title) return;
+    try {
+      await fetch(`${apiUrl}/opensearch/docs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: newDoc.title, content: newDoc.content, createdAt: new Date().toISOString() })
+      });
+      setNewDoc({ title: '', content: '' });
+      fetchData();
+    } catch (err) {
+      console.error(`Failed: ${(err as Error).message}`);
+    }
+  };
+
+  const deleteDoc = async (id: string) => {
+    try {
+      await fetch(`${apiUrl}/opensearch/docs/${encodeURIComponent(id)}`, { method: 'DELETE' });
+      fetchData();
+      if (searchResults) {
+        setSearchResults(searchResults.filter((d) => d.id !== id));
+      }
+    } catch (err) {
+      console.error(`Failed: ${(err as Error).message}`);
+    }
+  };
+
+  const search = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!searchQuery) {
+      setSearchResults(null);
+      return;
+    }
+    try {
+      const res = await fetch(`${apiUrl}/opensearch/search`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: searchQuery })
+      });
+      const data = await res.json();
+      setSearchResults(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error(`Failed: ${(err as Error).message}`);
+    }
+  };
+
+  if (loading) return <p>Loading OpenSearch docs...</p>;
+  if (error) return <p style={{ color: 'red' }}>Error: {error}</p>;
+
+  const displayDocs = searchResults ?? docs;
+
+  return (
+    <div>
+      <form onSubmit={createDoc} style={{ background: '#fff', padding: 16, borderRadius: 8, marginBottom: 20 }}>
+        <h3 style={{ marginBottom: 12 }}>Add Document</h3>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <input
+            placeholder="Title"
+            value={newDoc.title}
+            onChange={(e) => setNewDoc((p) => ({ ...p, title: e.target.value }))}
+            style={{ flex: 1, minWidth: 150 }}
+          />
+          <input
+            placeholder="Content"
+            value={newDoc.content}
+            onChange={(e) => setNewDoc((p) => ({ ...p, content: e.target.value }))}
+            style={{ flex: 2, minWidth: 200 }}
+          />
+          <button type="submit" style={{ background: '#0070f3', color: '#fff' }}>
+            Add
+          </button>
+        </div>
+      </form>
+
+      <form onSubmit={search} style={{ background: '#fff', padding: 16, borderRadius: 8, marginBottom: 20 }}>
+        <h3 style={{ marginBottom: 12 }}>Search Documents</h3>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <input
+            placeholder="Search query..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={{ flex: 1 }}
+          />
+          <button type="submit" style={{ background: '#0070f3', color: '#fff' }}>
+            Search
+          </button>
+          {searchResults && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearchResults(null);
+                setSearchQuery('');
+              }}
+              style={{ background: '#6b7280', color: '#fff' }}
+            >
+              Clear
+            </button>
+          )}
+        </div>
+      </form>
+
+      <h3>{searchResults ? `Search Results (${displayDocs.length})` : `Documents (${displayDocs.length})`}</h3>
+      {displayDocs.length === 0 ? (
+        <p style={{ color: '#666' }}>{searchResults ? 'No results found' : 'No documents yet'}</p>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {displayDocs.map((doc) => (
+            <div
+              key={doc.id}
+              style={{
+                background: '#fff',
+                padding: 12,
+                borderRadius: 8,
+                border: '1px solid #e0e0e0',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'flex-start'
+              }}
+            >
+              <div style={{ flex: 1 }}>
+                <div>
+                  <strong style={{ color: '#0070f3' }}>{(doc.title as string) || 'Untitled'}</strong>
+                  <span style={{ marginLeft: 8, color: '#999', fontSize: 12 }}>ID: {doc.id}</span>
+                </div>
+                {doc.content && <p style={{ margin: '8px 0 0', color: '#666' }}>{String(doc.content)}</p>}
+                {doc.createdAt && (
+                  <span style={{ fontSize: 12, color: '#999' }}>
+                    Created: {new Date(String(doc.createdAt)).toLocaleString()}
+                  </span>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => deleteDoc(doc.id)}
                 style={{ background: '#ef4444', color: '#fff', fontSize: 12, marginLeft: 12 }}
               >
                 Delete

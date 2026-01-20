@@ -1,4 +1,4 @@
-import { parseYaml } from './yaml';
+import { parseYaml } from '@shared/utils/yaml';
 
 export const getTypescriptConfig = (yamlConfig: string) => {
   const jsObject = parseYaml(yamlConfig);
@@ -11,7 +11,7 @@ export const getTypescriptConfig = (yamlConfig: string) => {
       return match.replace(/"/g, '');
     });
 
-  return `import type { GetConfigFunction } from '@stacktape/sdk';
+  return `import type { GetConfigFunction } from 'stacktape';
 
 export const getConfig: GetConfigFunction = () => {
   return {

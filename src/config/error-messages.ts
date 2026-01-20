@@ -1412,7 +1412,7 @@ You have specified ${tuiManager.makeBold('app_variable')} "${appVariable}" in yo
             : []
         )
         .concat(
-          STACK_IS_READY_FOR_ROLLBACK_OPERATION_STATUS.includes(stackStatus)
+          STACK_IS_READY_FOR_ROLLBACK_OPERATION_STATUS.includes(stackStatus as any)
             ? [
                 `To rollback your stack to previously working state, try using ${tuiManager.prettyCommand(
                   'rollback'
@@ -1522,7 +1522,7 @@ You have specified ${tuiManager.makeBold('app_variable')} "${appVariable}" in yo
       type: 'CONFIG_VALIDATION',
       message: `Error in ${tuiManager.prettyResourceType('relational-database')} ${tuiManager.prettyResourceName(
         databaseStpResourceName
-      )}. You must specify engine ${tuiManager.prettyConfigProperty('version')} in engine properties.${currentDatabaseVersion ? `Currently, your database uses version ${tuiManager.colorize('gray', currentDatabaseVersion, true)}.\nOther available versions are:` : '\nAvailable versions are:'} ${availableVersions
+      )}. You must specify engine ${tuiManager.prettyConfigProperty('version')} in engine properties.${currentDatabaseVersion ? `Currently, your database uses version ${tuiManager.colorize('gray', currentDatabaseVersion)}.\nOther available versions are:` : '\nAvailable versions are:'} ${availableVersions
         .sort((v1, v2) => v2.localeCompare(v1))
         .map((version) => tuiManager.colorize('gray', version))
         .join(', ')}`

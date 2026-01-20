@@ -27,9 +27,11 @@
       "types": "./index.d.ts",
       "default": "./index.js"
     },
-    "./sdk": {
-      "types": "./sdk.d.ts",
-      "default": "./sdk.js"
+    "./types": {
+      "types": "./types.d.ts"
+    },
+    "./cloudformation": {
+      "types": "./cloudformation.d.ts"
     }
   },
   "main": "./index.js",

@@ -1,9 +1,11 @@
+import type { StacktapeCommand } from '../../config/cli/commands';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import orderBy from 'lodash/orderBy';
 import { marked } from 'marked';
 import { markedTerminal } from 'marked-terminal';
-import commandsInfo from '../../../@generated/schemas/cli-schema.json' with { type: 'json' };
+import { cliCommands } from '../../config/cli/commands';
+import { getCommandInfo } from '../../config/cli/utils';
 
 marked.use(
   markedTerminal({
@@ -54,11 +56,15 @@ const getDescription = (desc: string) => {
   ).replaceAll('*', '>');
 };
 
-const getSortedCliArgs = (command: StacktapeCommand): Record<string, any>[] => {
+const getSortedCliArgs = (
+  command: StacktapeCommand
+): { argName: string; description?: string; required: boolean }[] => {
+  const commandInfo = getCommandInfo(command);
   return orderBy(
-    Object.entries(commandsInfo[command].args).map(([argName, argData]) => ({
+    Object.entries(commandInfo.args).map(([argName, argData]) => ({
       argName,
-      ...argData
+      description: argData.description,
+      required: argData.required
     })),
     ['required'],
     ['desc']
@@ -66,30 +72,29 @@ const getSortedCliArgs = (command: StacktapeCommand): Record<string, any>[] => {
 };
 
 export const commandHelp = async () => {
-  const command = globalStateManager.args.command;
+  const command = globalStateManager.args.command as StacktapeCommand | undefined;
   if (command) {
-    logUsage({ command: command as StacktapeCommand });
+    logUsage({ command });
     console.info(`\n${tuiManager.makeBold('Options:\n')}`);
-    const lines = [];
-    for (const cliArg of getSortedCliArgs(command as StacktapeCliCommand)) {
-      const description: string = (cliArg as any).description;
+    const lines: string[] = [];
+    for (const cliArg of getSortedCliArgs(command)) {
       lines.push(
         `${tuiManager.makeBold(tuiManager.colorize('yellow', cliArg.argName))} ${
           cliArg.required ? '(required)' : ''
-        }\n  ${getDescription(description || '')}`
+        }\n  ${getDescription(cliArg.description || '')}`
       );
     }
     console.info(lines.join('\n'));
     logHints({ showOptionsHint: false });
   } else {
-    logUsage({ command: null });
+    logUsage({ command: null as any });
     console.info(`\n${tuiManager.makeBold('Available commands:\n')}`);
 
-    const lines = [];
-    for (const commandName in commandsInfo) {
-      const description: string = commandsInfo[commandName].description;
+    const lines: string[] = [];
+    for (const commandName of cliCommands) {
+      const commandInfo = getCommandInfo(commandName);
       lines.push(
-        `${tuiManager.makeBold(tuiManager.colorize('yellow', commandName))}\n  ${getDescription(description)}`
+        `${tuiManager.makeBold(tuiManager.colorize('yellow', commandName))}\n  ${getDescription(commandInfo.description)}`
       );
     }
     console.info(lines.join('\n'));

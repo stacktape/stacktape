@@ -3,7 +3,7 @@ import { applicationManager } from '@application-services/application-manager';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
-import { commandsWithDisabledAnnouncements } from '@cli-config';
+import { commandsWithDisabledAnnouncements } from './config/cli/commands';
 import { notificationManager } from '@domain-services/notification-manager';
 import { initializeSentry, setSentryTags } from '@utils/sentry';
 import { deleteTempFolder } from '@utils/temp-files';
@@ -71,11 +71,7 @@ export const runCommand = async (opts: StacktapeProgrammaticOptions) => {
     await tuiManager.stop();
 
     await applicationManager.cleanUpAfterSuccess();
-    const result = { result: commandResult, eventLog: eventManager.formattedEventLogData };
-    // console.dir(result.eventLog, { depth: 7 });
-    if (globalStateManager.invokedFrom === 'sdk') {
-      tuiManager.printStacktapeLog({ type: 'FINISH', data: result });
-    } else if (!commandsWithDisabledAnnouncements.includes(globalStateManager.command)) {
+    if (!commandsWithDisabledAnnouncements.includes(globalStateManager.command)) {
       await announcementsManager.checkForUpdates();
       await announcementsManager.printAnnouncements();
     }

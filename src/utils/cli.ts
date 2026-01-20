@@ -1,4 +1,4 @@
-import { cliArgsAliases } from '@cli-config';
+import { argAliases as cliArgsAliases } from '../config/cli/options';
 import { camelCase } from 'change-case';
 import yargsParser from 'yargs-parser';
 

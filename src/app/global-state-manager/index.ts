@@ -3,7 +3,7 @@ import { applicationManager } from '@application-services/application-manager';
 import { eventManager } from '@application-services/event-manager';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
 import { tuiManager } from '@application-services/tui-manager';
-import { commandsNotRequiringApiKey } from '@cli-config';
+import { commandsNotRequiringApiKey } from '../../config/cli/commands';
 import {
   DEFAULT_CLOUDFORMATION_REGISTRY_BUCKET_NAME,
   DEFAULT_CLOUDFORMATION_REGISTRY_BUCKET_REGION,
@@ -548,7 +548,6 @@ export class GlobalStateManager {
     if (
       !this.projects?.length ||
       (this.args as StacktapeCliArgs).autoConfirmOperation ||
-      this.invokedFrom === 'sdk' ||
       projectNameComesFromConfigServiceName
     ) {
       return createNewProject(projectName);

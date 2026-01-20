@@ -351,7 +351,7 @@ type StacktapeLog = {
   timestamp: number;
 };
 
-type InvokedFrom = 'sdk' | 'cli' | 'server';
+type InvokedFrom = 'cli' | 'server';
 
 // @note this should be consistent with generated typings for SDK (../scripts/generate-prog-api-declaration.ts)
 type SubscribeToLogStream = (
