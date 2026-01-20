@@ -473,6 +473,31 @@ export type StacktapeStackConfigPlain = import('./sdk').StackConfig;
 export type StacktapeCloudformationResourcesPlain = import('./sdk').StacktapeConfig['cloudformationResources'];
 
 /**
+ * Plain stack outputs type (stackConfig.outputs).
+ */
+export type StacktapeOutputsPlain = import('./sdk').StackConfig['outputs'];
+
+/**
+ * Plain variables section type.
+ */
+export type StacktapeVariablesPlain = import('./sdk').StacktapeConfig['variables'];
+
+/**
+ * Plain provider config section type.
+ */
+export type StacktapeProviderConfigPlain = import('./sdk').StacktapeConfig['providerConfig'];
+
+/**
+ * Plain budget control section type.
+ */
+export type StacktapeBudgetControlPlain = import('./sdk').BudgetControl;
+
+/**
+ * Plain directives section type.
+ */
+export type StacktapeDirectivesPlain = import('./sdk').StacktapeConfig['directives'];
+
+/**
  * Function type for plain config (legacy getConfig pattern).
  * Returns plain objects (YAML-equivalent), no class instances.
  */
@@ -521,6 +546,31 @@ export type StacktapeStackConfig = import('./sdk').StackConfig;
  * Use import from 'stacktape/cloudformation' for CloudFormationResource type.
  */
 export type StacktapeCloudformationResources = { [resourceName: string]: import('./cloudformation').CloudFormationResource };
+
+/**
+ * Stack outputs type (stackConfig.outputs).
+ */
+export type StacktapeOutputs = import('./sdk').StackConfig['outputs'];
+
+/**
+ * Variables section type.
+ */
+export type StacktapeVariables = import('./sdk').StacktapeConfig['variables'];
+
+/**
+ * Provider config section type.
+ */
+export type StacktapeProviderConfig = import('./sdk').StacktapeConfig['providerConfig'];
+
+/**
+ * Budget control section type.
+ */
+export type StacktapeBudgetControl = import('./sdk').BudgetControl;
+
+/**
+ * Directives section type.
+ */
+export type StacktapeDirectives = import('./sdk').StacktapeConfig['directives'];
 `;
 }
 
