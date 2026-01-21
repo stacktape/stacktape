@@ -1,0 +1,22 @@
+# Test case: Invalid CORS configuration
+# Expected error: Invalid CORS properties
+
+resources:
+  myService:
+    type: web-service
+    properties:
+      packaging:
+        type: stacktape-image-buildpack
+        properties:
+          entryfilePath: ./src/index.ts
+      resources:
+        cpu: 0.25
+        memory: 512
+      cors:
+        enabeld: true # typo - should be "enabled"
+        allowedOrigins: '*' # should be array, not string
+        allowedMethods:
+          - GETT # typo - should be "GET"
+          - POSTT # typo - should be "POST"
+          - DELEET # typo - should be "DELETE"
+        maxAge: '3600' # should be number, not string

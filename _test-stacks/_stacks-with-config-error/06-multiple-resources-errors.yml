@@ -1,0 +1,35 @@
+# Test case: Multiple resources with various errors
+# Expected error: Grouped errors by resource name
+
+resources:
+  # Error 1: Invalid resource type
+  badService:
+    type: container-workload # should be "multi-container-workload"
+    properties:
+      containers: []
+
+  # Error 2: Invalid enum + missing required
+  badFirewall:
+    type: web-app-firewall
+    properties:
+      scope: global # invalid - should be "cdn" or "regional"
+      # missing: defaultAction
+
+  # Error 3: Typos in properties
+  badFunction:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./handler.ts
+      enviornment: # typo - should be "environment"
+        - name: FOO
+          value: bar
+
+scripts:
+  # Error 4: Invalid script type
+  badScript:
+    type: local-scipt # typo - should be "local-script"
+    properties:
+      executeCommand: echo hello

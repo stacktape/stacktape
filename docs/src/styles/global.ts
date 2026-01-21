@@ -4,12 +4,36 @@ import { colors, fontFamily, fontFamilyMono, onMaxW750, prettyScrollBar } from '
 export const typographyCss = {
   fontFamily,
   fontStyle: 'normal',
+  fontWeight: 500,
   fontSize: '0.925rem',
   lineHeight: 1.9,
   color: colors.fontColorPrimary,
   [onMaxW750]: {
     fontSize: '0.85rem'
   }
+};
+
+/** Subtle grid background pattern */
+const pageBackgroundPattern = {
+  backgroundColor: colors.pageBackground,
+  backgroundImage: `
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(54, 190, 190, 0.02) 3px,
+      rgba(54, 190, 190, 0.02) 5px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 2px,
+      rgba(54, 190, 190, 0.02) 3px,
+      rgba(54, 190, 190, 0.02) 5px
+    )
+  `,
+  backgroundAttachment: 'fixed',
+  backgroundRepeat: 'repeat'
 };
 
 export const globalCss: Css = {
@@ -32,14 +56,24 @@ export const globalCss: Css = {
     ...prettyScrollBar
   },
   body: {
-    color: '#0ba29d',
-    backgroundColor: colors.backgroundColor,
+    color: colors.brandGreen,
+    ...pageBackgroundPattern,
     width: '100%'
-    // typographyCss
   },
   'h1,h2,h3,h4,p,li,th,td,input,button,textarea': {
     ...typographyCss,
-    fontWeight: 400
+    fontWeight: 500
+  },
+  h1: {
+    fontWeight: 600,
+    letterSpacing: '-0.02em'
+  },
+  h2: {
+    fontWeight: 600,
+    letterSpacing: '-0.01em'
+  },
+  h3: {
+    fontWeight: 600
   },
   h5: {
     ...typographyCss
@@ -49,10 +83,12 @@ export const globalCss: Css = {
   },
   a: {
     textDecoration: 'none',
-    color: 'rgb(34, 186, 181)'
+    color: colors.brandGreen,
+    transition: 'color 200ms ease'
   },
   'a:hover': {
-    textDecoration: 'none'
+    textDecoration: 'none',
+    color: colors.primaryLighter
   },
   pre: {
     border: '0 !important',
@@ -60,7 +96,20 @@ export const globalCss: Css = {
   },
   code: {
     fontFamily: fontFamilyMono,
-    fontSize: '0.85rem'
+    fontSize: '0.875em',
+    color: colors.brandGreen,
+    background: 'linear-gradient(135deg, rgba(54, 190, 190, 0.08), rgba(54, 190, 190, 0.04))',
+    padding: '2px 6px',
+    borderRadius: '4px',
+    border: '1px solid rgba(54, 190, 190, 0.2)'
+  },
+  // Reset code styling inside pre blocks (code blocks handled by Prism)
+  'pre code': {
+    color: 'inherit',
+    background: 'none',
+    padding: 0,
+    borderRadius: 0,
+    border: 'none'
   },
   img: {
     padding: '10px 0px',
@@ -68,21 +117,20 @@ export const globalCss: Css = {
   },
   '.highlight-wrapper': {
     margin: '16px 0',
-    padding: '14px',
-    borderLeft: '5px solid #ed8b00',
+    padding: '14px 16px',
+    borderLeft: '4px solid #ed8b00',
     color: colors.backgroundColor,
     '*': {
       color: colors.backgroundColor
     },
     code: {
-      // color: colors.fontColorPrimary,
       fontFamily: fontFamilyMono
     },
     backgroundColor: '#fbe9d0',
     alignItems: 'center',
     display: 'flex',
-    borderRadius: '4px',
-    boxShadow: '1px 1px 1.5px #ed8b00, -1px -1px 1.5px #ed8b00,'
+    borderRadius: '6px',
+    boxShadow: '0 2px 8px rgba(237, 139, 0, 0.15)'
   },
   'p,li,a,th,td,input,button,textarea': typographyCss,
   '*:focus': {

@@ -87,13 +87,10 @@ const createZipWithZip = async ({
   outputPath: string;
   compressionLevel: number;
 }): Promise<void> => {
-  const lastSepIndex = sourceDir.lastIndexOf(sep);
-  const cwd = sourceDir.slice(0, lastSepIndex);
-  const name = sourceDir.slice(lastSepIndex + 1);
-
   // zip compression: 0 = store, 1-9 = deflate levels
   const level = `-${compressionLevel}`;
-  await execa('zip', [level, '--quiet', '--recurse-paths', outputPath, name], { cwd });
+  // Run zip from inside sourceDir to avoid including the directory name in the archive
+  await execa('zip', [level, '--quiet', '--recurse-paths', outputPath, '.'], { cwd: sourceDir });
 };
 
 /**
@@ -111,8 +108,9 @@ const createZipWith7z = async ({
 }): Promise<void> => {
   // 7z compression: 0 = store, 1-9 = deflate levels (mx=0 to mx=9)
   // Use -tzip for zip format, -mx for compression level
-  await execa('7z', ['a', `-mx=${compressionLevel}`, '-tzip', outputPath, `${sourceDir}${sep}*`], {
-    cwd: dirname(sourceDir)
+  // Run from inside sourceDir and zip "." to avoid including directory name in archive
+  await execa('7z', ['a', `-mx=${compressionLevel}`, '-tzip', outputPath, '.'], {
+    cwd: sourceDir
   });
 };
 

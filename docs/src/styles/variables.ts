@@ -36,27 +36,34 @@ export const onMaxW1500 = '@media (max-width: 1500px)';
 export const onMaxW1600 = '@media (max-width: 1600px)';
 
 export const mainBackground = 'rgb(28,33,33)';
-export const elementBackground = 'rgb(28,33,33)';
+export const pageBackground = 'rgb(22,28,28)';
+export const elementBackground = 'rgb(34,40,40)';
 const tableBoxShadow = 'rgb(35,35,35)';
 
 export const colors = {
   primary: 'rgb(17 105 105)',
+  primaryLighter: 'rgb(34, 166, 166)',
   navigationHover: 'rgba(255,255,255,0.75)',
   primaryDisabled: 'rgb(21, 114, 120)',
   borderColor: 'rgb(8, 13, 13)',
+  borderColorLight: 'rgb(47,52,52)',
   primaryButtonBorder: '#40958e',
   secondary: 'rgb(34, 87, 122)',
   secondaryDisabled: 'rgb(34, 87, 122)',
   secondaryButtonBorder: 'rgb(69,151,203)',
   backgroundColor: mainBackground,
+  pageBackground,
   darkerBackground: 'rgb(22,27,27)',
-  highlightedCodeLine: 'rgb(55, 63, 63)',
+  highlightedCodeLine: 'rgb(53, 59, 69)',
   error: '#eb6161',
+  success: 'rgb(24, 153, 144)',
   elementBackground,
+  modalBackground: 'rgb(30,35,35)',
+  inputBackground: 'rgb(20,26,26)',
+  inputHover: 'rgb(25, 31, 31)',
   fontColorLightGray: 'rgb(140,140,140)',
   fontColorLighterGray: 'rgb(160,160,160)',
   fontColorPrimary: 'rgba(255,255,255,0.87)',
-  inputBackground: 'rgb(32,37,37)',
   fontColorSecondary: 'rgba(10, 187, 181, 1)',
   fontColorTernary: '#848484',
   fontColorHeadline: '#cecece',
@@ -67,10 +74,13 @@ export const colors = {
   hackernewsBackground: 'rgb(246, 246, 239)',
   lightGray: '#a6a5a5',
   hoverColorDarkGray: 'rgb(27,32,32)',
+  hover: 'rgb(35, 40, 40)',
+  listItemHoverColor: 'rgb(45, 50, 50)',
   launchWeekBorder: 'rgb(40.5,40.5,40.5)',
   imgFilterPrimary: 'invert(71%) sepia(25%) saturate(2%) hue-rotate(314deg) brightness(108%) contrast(102%)',
   imgFilterSecondary: 'invert(63%) sepia(93%) saturate(2270%) hue-rotate(133deg) brightness(91%) contrast(92%)',
   vscodeBlue: '#569CD6',
+  vscodeLighterBlue: 'rgb(102 160 208)',
   vscodeOrange: '#CE9178',
   vscodeLightGray: '#D4D4D4',
   vscodeNumberGreen: '#B5CEA8',
@@ -82,6 +92,7 @@ export const colors = {
   green: '#00965E',
   greenLight: '#D0EBE1',
   blue: '#0066CC',
+  brandGreen: 'rgb(54, 190, 190)',
   stacktapeGreen: 'rgb(54 190 190)',
   tableBoxShadow,
   vscodeBackground: '#1E1E1E',
@@ -94,30 +105,128 @@ export const colors = {
 } as const;
 
 export const border = `1px solid ${colors.borderColor}`;
+export const borderLight = `1px solid ${colors.borderColorLight}`;
 export const thinBorder = `0.5px solid ${colors.borderColor}`;
 export const thickBorder = `2px solid ${colors.borderColor}`;
 
+export const boxShadowSmall = '2px 2px 3px rgb(26,26,26), -2px -2px 6px rgb(30,30,30)';
 export const boxShadowLight = '3px 3px 5px rgb(26,26,26,1), -3px -3px 11px rgb(30,30,30)';
 export const boxShadow = '4px 4px 7px rgb(22,26,26), -4px -4px 11px rgb(28,28,28)';
 export const boxShadowDark = '3px 3px 5px rgb(20,20,20,1), -3px -3px 11px rgb(22,26,26)';
 
-export const boxShadowInset = 'inset 7px 7px 7px rgba(33,33,33,1), inset -7px -7px 7px rgba(59,59,59,0.75)';
+export const boxShadowInset = 'inset 6px 6px 6px #212121, inset -6px -6px 6px #333333';
 export const boxShadowInsetLarge = 'inset 14px 14px 14px rgba(33,33,33,1), inset -14px -14px 14px rgba(59,59,59,0.75)';
 export const boxShadowInsetXLarge = 'inset 20px 20px 20px rgba(33,33,33,1), inset -20px -20px 20px rgba(59,59,59,0.75)';
 export const boxShadowLarge = '12px 12px 6px rgba(33,33,33,1), -11px -11px 12px rgba(56,56,56,.33)';
 
+/** Modern glassy box style */
 export const box: Css = {
-  border,
-  boxShadow: boxShadowDark,
-  borderRadius: '6px',
-  background: colors.elementBackground
+  border: 'none',
+  boxShadow:
+    '0 2px 8px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.2)',
+  borderRadius: '8px',
+  background: colors.elementBackground,
+  backdropFilter: 'blur(10px)'
+};
+
+/** Clickable box with hover effects */
+export const clickableBoxStyle: Css = {
+  background: colors.elementBackground,
+  boxShadow:
+    '0 2px 8px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
+  border: 'none',
+  borderRadius: '8px',
+  cursor: 'pointer',
+  transition: 'all 250ms ease, transform 150ms ease',
+  '&:hover': {
+    boxShadow:
+      '0 3px 8px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 0 0 1px rgba(90, 96, 96, 0.18), inset 0 1px 0 rgba(140, 146, 146, 0.16), inset 0 0 0 1px rgba(90, 96, 96, 0.14)'
+  },
+  '&:active': {
+    transform: 'scale(0.993)'
+  }
+};
+
+/** Input box style with inset shadow */
+export const inputBoxStyle: Css = {
+  background: colors.inputBackground,
+  border: 'none',
+  boxShadow: 'inset 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 0 rgba(255, 255, 255, 0.05)',
+  transition: 'background 180ms ease, box-shadow 180ms ease, border 180ms ease, transform 160ms ease',
+  backdropFilter: 'blur(10px)',
+  '&:hover': {
+    boxShadow: 'inset 0 1px 4px rgba(0, 0, 0, 0.35), 0 1px 0 rgba(255, 255, 255, 0.07)'
+  },
+  ':has(input:focus), :has(textarea:focus)': {
+    boxShadow:
+      'inset 0 1px 4px rgba(0, 0, 0, 0.4), 0 1px 0 rgba(255, 255, 255, 0.08), 0 0 0 3px rgba(110, 116, 116, 0.12)'
+  }
 };
 
 export const clickableBox: Css = {
-  ...box,
-  cursor: 'pointer'
-  // ...getOnHoverEffect({ color: colors.primary, width: '1.5px', borderRadius: '6px' })
-  // '&:hover': {}
+  ...clickableBoxStyle
+};
+
+/** Tab container style (pill-shaped background) */
+export const tabContainerStyle: Css = {
+  position: 'relative',
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '4px',
+  padding: '4px 6px',
+  background: 'rgba(0, 0, 0, 0.25)',
+  borderRadius: '10px',
+  boxShadow: 'inset 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 0 rgba(255, 255, 255, 0.05)',
+  backdropFilter: 'blur(10px)'
+};
+
+/** Active tab indicator style */
+export const activeTabStyle: Css = {
+  background: 'linear-gradient(135deg, rgb(60, 64, 64), rgb(44, 47, 47))',
+  boxShadow:
+    '0 4px 12px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(190, 190, 190, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+  border: 'none',
+  borderRadius: '7px',
+  transition: 'all 250ms ease, transform 150ms ease'
+};
+
+/** Tab button style */
+export const tabButtonStyle: Css = {
+  position: 'relative',
+  fontSize: '13px',
+  fontWeight: 600,
+  padding: '6px 12px',
+  borderRadius: '7px',
+  color: 'rgba(190, 190, 190, 0.8)',
+  border: 'none',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: '6px',
+  background: 'transparent',
+  cursor: 'pointer',
+  transition: 'color 250ms ease, transform 150ms ease',
+  zIndex: 1,
+  outline: 'none',
+  whiteSpace: 'nowrap',
+  ':hover': {
+    color: 'rgba(220, 220, 220, 0.95)'
+  },
+  ':active': {
+    transform: 'scale(0.97)'
+  }
+};
+
+/** Active tab button style */
+export const activeTabButtonStyle: Css = {
+  ...tabButtonStyle,
+  color: colors.fontColorPrimary,
+  background: 'linear-gradient(135deg, rgb(60, 64, 64), rgb(44, 47, 47))',
+  boxShadow:
+    '0 4px 12px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(190, 190, 190, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+  ':hover': {
+    color: colors.fontColorPrimary
+  }
 };
 
 export const pageLayout = {
@@ -271,16 +380,48 @@ export const appearFromTopAnimation: Css = {
 export const interactiveBase: Css = {
   border: 'none',
   transition: 'all 250ms ease',
-  cursor: 'pointer',
-}
+  cursor: 'pointer'
+};
 
 export const interactiveGlow = {
   default: {
     boxShadow:
-      '0 4px 12px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.12)',
+      '0 4px 12px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.12)'
   },
   hover: {
     boxShadow:
-      '0 6px 16px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.18)',
+      '0 6px 16px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.18)'
+  }
+} as const;
+
+/** Icon button styles */
+export const iconButtonStyle: Css = {
+  width: '32px',
+  height: '32px',
+  borderRadius: '8px',
+  display: 'flex',
+  color: colors.fontColorPrimary,
+  justifyContent: 'center',
+  alignItems: 'center',
+  userSelect: 'none',
+  cursor: 'pointer',
+  transition: 'all 250ms ease, transform 150ms ease',
+  background: colors.elementBackground,
+  boxShadow:
+    '0 2px 8px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
+  border: 'none',
+  '&:hover': {
+    boxShadow:
+      '0 3px 8px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 0 0 1px rgba(90, 96, 96, 0.18), inset 0 1px 0 rgba(140, 146, 146, 0.16), inset 0 0 0 1px rgba(90, 96, 96, 0.14)'
   },
-} as const
+  '&:active': {
+    transform: 'scale(0.92)'
+  }
+};
+
+/** Centered flex helper */
+export const centeredFlex: Css = {
+  display: 'flex',
+  justifyContent: 'center',
+  alignItems: 'center'
+};

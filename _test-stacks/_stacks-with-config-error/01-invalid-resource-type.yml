@@ -1,0 +1,14 @@
+# Test case: Invalid resource type (typo)
+# Expected error: "Did you mean?" suggestion for resource type
+
+resources:
+  myApi:
+    type: web-servce # typo - should be "web-service"
+    properties:
+      packaging:
+        type: stacktape-image-buildpack
+        properties:
+          entryfilePath: ./src/index.ts
+      resources:
+        cpu: 0.25
+        memory: 512

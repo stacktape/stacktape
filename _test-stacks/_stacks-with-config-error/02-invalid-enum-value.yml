@@ -1,0 +1,10 @@
+# Test case: Invalid enum value (typo in scope)
+# Expected error: "Did you mean?" suggestion for enum value
+
+resources:
+  myFirewall:
+    type: web-app-firewall
+    properties:
+      scope: reginal # typo - should be "regional" or "cdn"
+      defaultAction: Allow
+      rules: []

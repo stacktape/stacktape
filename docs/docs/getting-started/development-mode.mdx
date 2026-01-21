@@ -1,0 +1,214 @@
+---
+title: 'Development Mode'
+order: 2
+---
+
+Development mode lets you run your application locally while connected to real (or emulated) cloud resources. This gives you fast iteration without deploying on every change.
+
+```bash
+stacktape dev --stage dev
+```
+
+## How It Works
+
+When you run `stacktape dev`:
+
+1. **Databases** run locally in Docker containers (Postgres, MySQL, Redis, DynamoDB)
+2. **Lambda functions** run locally with hot-reload, but can still be triggered via deployed API Gateway
+3. **Container workloads** run locally with live reload
+4. **Frontend apps** (Next.js, hosting buckets) run their dev servers locally
+
+All resources receive the correct environment variables and can communicate with each other just like in production.
+
+## Quick Start
+
+```bash
+# Run all dev-compatible resources
+stacktape dev --stage dev --resources all
+
+# Run specific resources
+stacktape dev --stage dev --resources myApi,myDatabase
+
+# Run all except certain resources
+stacktape dev --stage dev --resources all --skipResources myWorker
+```
+
+## Resource Selection
+
+When you run `stacktape dev` without arguments, you'll see an interactive picker:
+
+```
+? Select resources to run in dev mode:
+  ◯ myApi (function)
+  ◯ myWorker (web-service)
+  ◯ myDatabase (postgres)
+  ◯ myCache (redis)
+```
+
+Select the resources you want to run locally using spacebar, then press Enter.
+
+## Local Database Emulation
+
+Stacktape automatically spins up Docker containers for your databases:
+
+| Resource Type                    | Local Emulation          |
+| -------------------------------- | ------------------------ |
+| `relational-database` (Postgres) | PostgreSQL in Docker     |
+| `relational-database` (MySQL)    | MySQL in Docker          |
+| `redis-cluster`                  | Redis in Docker          |
+| `dynamo-db-table`                | DynamoDB Local in Docker |
+
+<Info>
+
+Make sure Docker is running before starting dev mode. Stacktape will pull the necessary images automatically.
+
+</Info>
+
+### Database Connection
+
+Your application receives the same environment variables it would in production:
+
+```typescript
+// These work in both dev mode and production
+const connectionString = process.env.STP_MY_DATABASE_CONNECTION_STRING;
+const host = process.env.STP_MY_DATABASE_HOST;
+const port = process.env.STP_MY_DATABASE_PORT;
+```
+
+In dev mode, these point to `localhost` with the emulated database.
+
+## Lambda Function Development
+
+Lambda functions run locally with hot-reload:
+
+1. Your function code is watched for changes
+2. On change, the function is rebuilt automatically
+3. The next invocation uses the updated code
+
+### Triggering Functions
+
+Functions connected to an HTTP API Gateway can be triggered through:
+
+- The deployed API Gateway URL (requests are tunneled to your local function)
+- Direct local invocation
+
+### Tunneling
+
+By default, Stacktape creates a tunnel so that deployed API Gateways can invoke your local Lambda functions. This is useful for:
+
+- Testing webhooks locally
+- Debugging production-like request flows
+- Sharing your local dev environment
+
+Disable tunneling if not needed:
+
+```bash
+stacktape dev --stage dev --noTunnel
+```
+
+## Container Workload Development
+
+Container-based resources (web-service, worker-service, multi-container-workload) run locally using Docker:
+
+1. Your container is built and started
+2. File changes trigger a rebuild
+3. Environment variables are injected automatically
+
+The container runs with the same configuration as it would on AWS ECS.
+
+## Frontend Development
+
+### Next.js
+
+Next.js apps run their standard dev server:
+
+```bash
+# Automatically runs: next dev
+```
+
+Environment variables from your Stacktape config are injected, including references to other resources.
+
+### Hosting Buckets (Static Sites)
+
+Static sites with a `dev` configuration run their specified dev command:
+
+```typescript
+const frontend = new HostingBucket({
+  hostingContentType: 'REACT_APP',
+  dev: {
+    command: 'npm run dev',
+    port: 3000
+  }
+});
+```
+
+## Dev Mode Commands
+
+While dev mode is running, you can use keyboard commands:
+
+| Command        | Action                    |
+| -------------- | ------------------------- |
+| `rs`           | Rebuild all workloads     |
+| `rs <name>`    | Rebuild specific workload |
+| `c` or `clear` | Clear logs                |
+| `q` or `quit`  | Exit dev mode             |
+
+## Dev vs Legacy Mode
+
+Stacktape dev has two modes:
+
+### Normal Mode (Default)
+
+- Creates a minimal "dev stack" with only necessary cloud resources
+- Databases run locally in Docker
+- Lambda functions connect to local databases via tunnels
+- Fastest iteration, lowest AWS costs
+
+### Legacy Mode
+
+- Requires an already-deployed production stack
+- All resources run on AWS (no local emulation)
+- Lambda functions deploy to AWS on each change
+- Useful when you need real AWS resources
+
+```bash
+# Use legacy mode
+stacktape dev --stage production --devMode legacy
+```
+
+## Example Workflow
+
+A typical development workflow:
+
+```bash
+# 1. Deploy your stack once
+stacktape deploy --stage dev --region us-east-1
+
+# 2. Start dev mode
+stacktape dev --stage dev --resources all
+
+# 3. Make changes to your code
+# -> Changes are automatically rebuilt and reloaded
+
+# 4. When ready, deploy to staging/production
+stacktape deploy --stage staging --region us-east-1
+```
+
+## Troubleshooting
+
+### "Docker is not running"
+
+Dev mode requires Docker for local database emulation. Start Docker Desktop and try again.
+
+### "Port already in use"
+
+Another process is using the required port. Either stop that process or Stacktape will automatically try alternative ports.
+
+### "Tunnel connection failed"
+
+The tunnel to your local machine couldn't be established. Check your firewall settings or use `--noTunnel` if you don't need external access.
+
+<PreviousNext
+  left={{ url: '/getting-started/configuration/', title: 'Configuration' }}
+  right={{ url: '/getting-started/deployment/', title: 'Deployment' }}
+/>

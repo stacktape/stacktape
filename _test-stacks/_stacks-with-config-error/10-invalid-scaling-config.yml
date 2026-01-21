@@ -1,0 +1,21 @@
+# Test case: Invalid scaling configuration
+# Expected error: Invalid scaling properties
+
+resources:
+  myService:
+    type: web-service
+    properties:
+      packaging:
+        type: stacktape-image-buildpack
+        properties:
+          entryfilePath: ./src/index.ts
+      resources:
+        cpu: 0.25
+        memory: 512
+      scaling:
+        minInstances: 5
+        maxInstances: 2 # maxInstances should be >= minInstances
+        scalingPolicy:
+          type: cpu-utilizaton # typo - should be some valid type
+          properties:
+            targetValue: 150 # should be 0-100 percentage

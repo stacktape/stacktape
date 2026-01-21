@@ -1,0 +1,11 @@
+# Test case: Invalid custom domain configuration
+# Expected error: Invalid domain properties
+
+resources:
+  myApi:
+    type: http-api-gateway
+    properties:
+      customDomains:
+        - domainName: 123.456.789 # invalid domain format
+          certificateArn: not-an-arn # should be valid ARN format
+        - domainNme: example.com # typo in property name

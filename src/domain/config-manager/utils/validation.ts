@@ -39,6 +39,7 @@ import { validateRelationalDatabaseConfig } from './relational-databases';
 import { validateSnsTopicConfig } from './sns-topics';
 import { validateSqsQueueConfig } from './sqs-queues';
 import { validateWebServiceConfig } from './web-services';
+import { validateConfigWithZod } from './zod-validator';
 
 export const validatePackagingProps = ({
   packaging,
@@ -780,58 +781,10 @@ export const validateConfigStructure = async ({
   configPath: string;
   templateId: string;
 }) => {
-  const validator = configSchemaValidator as any;
-  const isValid = configSchemaValidator(config);
-  const baseMessage = `Config at ${templateId ? `https://console.stacktape.com/template-editor?templateId=${templateId}` : configPath} is invalid.\n\n`;
-  if (!isValid) {
-    const validatorErrors: ErrorObject[] = uniqWith(
-      validator.errors
-        .filter((err) => {
-          const val = get(config, err.instancePath.slice(1));
-          // if it is a directive problem, we ignore it
-          return !getIsDirective(val);
-        })
-        // heuristic to ignore errors that are not relevant to the resource (if dealing with resource error)
-        .filter((err) => !isIrrelevantResourceError({ error: err, config })),
-      isEqual
-    );
-
-    const errorsGroupedByAnyOfParent = getCumulatedErrorsGroupedByAnyOfParent({ validatorErrors });
-
-    // if (Object.keys(errorsGroupedByAnyOfParent).length) {
-    const classifiedErrors = Object.values(errorsGroupedByAnyOfParent)
-      .map(({ instancePath, errorLines }) => {
-        let prefix = `${tuiManager.colorize(
-          'red',
-          `${BASE_PATH_PREFIX}${instancePath}`
-        )} does not match any of the allowed shapes.`;
-        if (instancePath.startsWith('.resources') || instancePath.startsWith('.scripts')) {
-          const [, section, name, ...restPath] = instancePath.split('.');
-          prefix = `${capitalizeFirstLetter(section.slice(0, -1))} ${tuiManager.colorize('red', name)} ${restPath.length ? `(section ${tuiManager.colorize('red', restPath.join('.'))}) ` : ''}is invalid.`;
-        }
-        return `${prefix} ${errorLines.length === 1 ? `${errorLines[0]}` : errorLines.length > 1 ? `Possible reasons:\n\n${errorLines.join('\n')}` : 'Details below.'}`;
-      })
-      .join('\n\n-----------\n\n');
-    //   throw new ExpectedError('CONFIG_VALIDATION', `${baseMessage}${finalErrorMessage}`);
-    // }
-    const coveredInstancePaths = Object.keys(errorsGroupedByAnyOfParent);
-    const unclassifiedErrors = mergeSimilarErrors(
-      validatorErrors.filter((err) => {
-        return !coveredInstancePaths.find((ip) => err.instancePath.includes(ip.replaceAll('.', '/')));
-      })
-    );
-
-    const formattedUnclassifiedErrors = unclassifiedErrors
-      .map((error, index) => {
-        const errMsg = extractError({ error });
-        return `${tuiManager.colorize('red', `${index + 1}.`.padEnd(3, ' '))} ${errMsg}`;
-      })
-      .join('\n');
-
-    throw new ExpectedError(
-      'CONFIG_VALIDATION',
-      `${baseMessage}${classifiedErrors}${classifiedErrors && formattedUnclassifiedErrors ? '\n\n-----------\n\nOther errors:\n\n' : ''}${formattedUnclassifiedErrors}` // Use the new formatted string
-    );
+  // Use Zod validator for better error messages (especially for discriminated unions)
+  const zodResult = validateConfigWithZod({ config, configPath, templateId });
+  if (!zodResult.valid && 'errorMessage' in zodResult) {
+    throw new ExpectedError('CONFIG_VALIDATION', zodResult.errorMessage);
   }
 };
 

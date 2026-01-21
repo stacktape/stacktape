@@ -16,7 +16,7 @@ import {
 } from '../src/api/npm/ts/resource-metadata';
 import {
   generateAugmentedPropsTypes,
-  generateSdkPropsImports,
+  generatePlainPropsImports,
   generateStacktapeConfigType
 } from './code-generation/generate-augmented-props';
 import { generatePropertiesInterfaces } from './code-generation/generate-cf-properties';
@@ -34,7 +34,7 @@ const PATHS = {
   distJs: join(NPM_RELEASE_FOLDER_PATH, 'index.js'),
   distDts: join(NPM_RELEASE_FOLDER_PATH, 'index.d.ts'),
   distTypesDts: join(NPM_RELEASE_FOLDER_PATH, 'types.d.ts'),
-  distSdkDts: join(NPM_RELEASE_FOLDER_PATH, 'sdk.d.ts'),
+  distPlainDts: join(NPM_RELEASE_FOLDER_PATH, 'plain.d.ts'),
   distCloudformationDts: join(NPM_RELEASE_FOLDER_PATH, 'cloudformation.d.ts'),
   childResources: join(SOURCE_FOLDER_PATH, 'api', 'npm', 'ts', 'child-resources.ts'),
   resourceMetadata: join(SOURCE_FOLDER_PATH, 'api', 'npm', 'ts', 'resource-metadata.ts')
@@ -50,10 +50,10 @@ const SOURCE_FILES = [
 ].map((file) => join(SOURCE_FOLDER_PATH, 'api', 'npm', 'ts', file));
 
 /**
- * Plain SDK types that need to be bundled into sdk.d.ts
+ * Plain types that need to be bundled into plain.d.ts
  * These are the YAML-equivalent types without class augmentation
  */
-const SDK_TYPES_TO_GENERATE = [
+const PLAIN_TYPES_TO_GENERATE = [
   'StacktapeConfig',
   'StacktapeResourceDefinition',
   // Resource types
@@ -401,14 +401,14 @@ function compileDeclarations(): Map<string, string> {
 }
 
 /**
- * Generates sdk.d.ts - plain types (YAML-equivalent) without class augmentation
+ * Generates plain.d.ts - plain types (YAML-equivalent) without class augmentation
  */
-async function generateSdkTypes(jsonSchemaGenerator: JsonSchemaGenerator): Promise<string> {
-  logInfo('Generating SDK plain types...');
+async function generatePlainTypes(jsonSchemaGenerator: JsonSchemaGenerator): Promise<string> {
+  logInfo('Generating plain types...');
 
   const typeDefinitions: string[] = [];
 
-  for (const typeName of SDK_TYPES_TO_GENERATE) {
+  for (const typeName of PLAIN_TYPES_TO_GENERATE) {
     try {
       const typeDef = await getTsTypeDef({ typeName, newTypeName: typeName, jsonSchemaGenerator });
       if (typeDef && typeDef.trim()) {
@@ -419,12 +419,12 @@ async function generateSdkTypes(jsonSchemaGenerator: JsonSchemaGenerator): Promi
     }
   }
 
-  logSuccess('SDK plain types generated successfully');
+  logSuccess('Plain types generated successfully');
 
   return `/* eslint-disable */
 // @ts-nocheck
 // Generated file - Do not edit manually
-// Plain SDK types (YAML-equivalent) - no class augmentation
+// Plain types (YAML-equivalent) - no class augmentation
 // For class-based types, use: import { X } from 'stacktape'
 
 ${typeDefinitions.join('\n\n')}
@@ -444,64 +444,64 @@ function generatePlainSectionTypes(): string {
  * Plain resources section type (YAML-equivalent).
  * Use this with GetConfigFunction for legacy configs.
  */
-export type StacktapeResourcesPlain = import('./sdk').StacktapeConfig['resources'];
+export type StacktapeResourcesPlain = import('./plain').StacktapeConfig['resources'];
 
 /**
  * Plain scripts section type (YAML-equivalent).
  * Use this with GetConfigFunction for legacy configs.
  */
-export type StacktapeScriptsPlain = import('./sdk').StacktapeConfig['scripts'];
+export type StacktapeScriptsPlain = import('./plain').StacktapeConfig['scripts'];
 
 /**
  * Plain hooks section type.
  */
-export type StacktapeHooksPlain = import('./sdk').Hooks;
+export type StacktapeHooksPlain = import('./plain').Hooks;
 
 /**
  * Plain deployment config section type.
  */
-export type StacktapeDeploymentConfigPlain = import('./sdk').DeploymentConfig;
+export type StacktapeDeploymentConfigPlain = import('./plain').DeploymentConfig;
 
 /**
  * Plain stack config section type.
  */
-export type StacktapeStackConfigPlain = import('./sdk').StackConfig;
+export type StacktapeStackConfigPlain = import('./plain').StackConfig;
 
 /**
  * Plain cloudformation resources section type.
  */
-export type StacktapeCloudformationResourcesPlain = import('./sdk').StacktapeConfig['cloudformationResources'];
+export type StacktapeCloudformationResourcesPlain = import('./plain').StacktapeConfig['cloudformationResources'];
 
 /**
  * Plain stack outputs type (stackConfig.outputs).
  */
-export type StacktapeOutputsPlain = import('./sdk').StackConfig['outputs'];
+export type StacktapeOutputsPlain = import('./plain').StackConfig['outputs'];
 
 /**
  * Plain variables section type.
  */
-export type StacktapeVariablesPlain = import('./sdk').StacktapeConfig['variables'];
+export type StacktapeVariablesPlain = import('./plain').StacktapeConfig['variables'];
 
 /**
  * Plain provider config section type.
  */
-export type StacktapeProviderConfigPlain = import('./sdk').StacktapeConfig['providerConfig'];
+export type StacktapeProviderConfigPlain = import('./plain').StacktapeConfig['providerConfig'];
 
 /**
  * Plain budget control section type.
  */
-export type StacktapeBudgetControlPlain = import('./sdk').BudgetControl;
+export type StacktapeBudgetControlPlain = import('./plain').BudgetControl;
 
 /**
  * Plain directives section type.
  */
-export type StacktapeDirectivesPlain = import('./sdk').StacktapeConfig['directives'];
+export type StacktapeDirectivesPlain = import('./plain').StacktapeConfig['directives'];
 
 /**
  * Function type for plain config (legacy getConfig pattern).
  * Returns plain objects (YAML-equivalent), no class instances.
  */
-export type GetConfigFunction = (params: GetConfigParams) => import('./sdk').StacktapeConfig;
+export type GetConfigFunction = (params: GetConfigParams) => import('./plain').StacktapeConfig;
 `;
 }
 
@@ -518,28 +518,28 @@ function generateAugmentedSectionTypes(resourceClassNames: string[]): string {
  * Resources section type (accepts class instances).
  * Use this with defineConfig for enhanced type-safe configs.
  */
-export type StacktapeResources = { [resourceName: string]: ${resourceClassNames.join(' | ')} | import('./sdk').StacktapeResourceDefinition };
+export type StacktapeResources = { [resourceName: string]: ${resourceClassNames.join(' | ')} | import('./plain').StacktapeResourceDefinition };
 
 /**
  * Scripts section type (accepts class instances).
  * Use this with defineConfig for enhanced type-safe configs.
  */
-export type StacktapeScripts = { [scriptName: string]: LocalScript | BastionScript | LocalScriptWithBastionTunneling | import('./sdk').LocalScript | import('./sdk').BastionScript | import('./sdk').LocalScriptWithBastionTunneling };
+export type StacktapeScripts = { [scriptName: string]: LocalScript | BastionScript | LocalScriptWithBastionTunneling | import('./plain').LocalScript | import('./plain').BastionScript | import('./plain').LocalScriptWithBastionTunneling };
 
 /**
  * Hooks section type.
  */
-export type StacktapeHooks = import('./sdk').Hooks;
+export type StacktapeHooks = import('./plain').Hooks;
 
 /**
  * Deployment config section type.
  */
-export type StacktapeDeploymentConfig = import('./sdk').DeploymentConfig;
+export type StacktapeDeploymentConfig = import('./plain').DeploymentConfig;
 
 /**
  * Stack config section type.
  */
-export type StacktapeStackConfig = import('./sdk').StackConfig;
+export type StacktapeStackConfig = import('./plain').StackConfig;
 
 /**
  * Cloudformation resources section type.
@@ -554,27 +554,27 @@ export type StacktapeCloudformationResource = import('./cloudformation').CloudFo
 /**
  * Stack outputs type (stackConfig.outputs).
  */
-export type StacktapeOutputs = import('./sdk').StackConfig['outputs'];
+export type StacktapeOutputs = import('./plain').StackConfig['outputs'];
 
 /**
  * Variables section type.
  */
-export type StacktapeVariables = import('./sdk').StacktapeConfig['variables'];
+export type StacktapeVariables = import('./plain').StacktapeConfig['variables'];
 
 /**
  * Provider config section type.
  */
-export type StacktapeProviderConfig = import('./sdk').StacktapeConfig['providerConfig'];
+export type StacktapeProviderConfig = import('./plain').StacktapeConfig['providerConfig'];
 
 /**
  * Budget control section type.
  */
-export type StacktapeBudgetControl = import('./sdk').BudgetControl;
+export type StacktapeBudgetControl = import('./plain').BudgetControl;
 
 /**
  * Directives section type.
  */
-export type StacktapeDirectives = import('./sdk').StacktapeConfig['directives'];
+export type StacktapeDirectives = import('./plain').StacktapeConfig['directives'];
 `;
 }
 
@@ -613,15 +613,15 @@ export async function generateTypeDeclarations(): Promise<void> {
   const typePropertiesClassDeclarations = generateTypePropertiesClassDeclarations();
 
   // Generate imports
-  const sdkPropsImports = generateSdkPropsImports();
+  const plainPropsImports = generatePlainPropsImports();
   const resourcesWithAugmented = getResourcesWithAugmentedProps();
-  const sdkPropsWithAugmentation = [
+  const propsWithAugmentation = [
     ...resourcesWithAugmented.map((r) => r.propsType),
     'LocalScriptProps',
     'BastionScriptProps',
     'LocalScriptWithBastionTunnelingProps'
   ];
-  const typePropertiesImports = getTypePropertiesImports(sdkPropsWithAugmentation);
+  const typePropertiesImports = getTypePropertiesImports(propsWithAugmentation);
 
   // Get all class names for re-export
   const resourceClassNames = RESOURCES_CONVERTIBLE_TO_CLASSES.map((r) => r.className) as string[];
@@ -629,8 +629,8 @@ export async function generateTypeDeclarations(): Promise<void> {
   const utilityClassNames = ['Alarm'];
   const allClassNames = [...resourceClassNames, ...typePropertiesClassNames, ...utilityClassNames];
 
-  // Generate sdk.d.ts - plain types
-  const sdkDts = await generateSdkTypes(jsonSchemaGenerator);
+  // Generate plain.d.ts - plain types
+  const plainDts = await generatePlainTypes(jsonSchemaGenerator);
 
   // Generate cloudformation.d.ts - CloudFormation resource types (separate file due to size)
   const cloudformationDts = `/* eslint-disable */
@@ -660,15 +660,15 @@ ${cloudFormationResourceType}
 // For plain configs using getConfig pattern
 
 // ==========================================
-// SDK TYPE RE-EXPORTS
+// PLAIN TYPE RE-EXPORTS
 // ==========================================
 
 export type {
-  ${sdkPropsImports},
+  ${plainPropsImports},
   ${typePropertiesImports.join(',\n  ')},
   AlarmUserIntegration,
   StpIamRoleStatement
-} from './sdk';
+} from './plain';
 
 // ==========================================
 // CONFIG TYPES
@@ -761,7 +761,7 @@ ${generateAugmentedSectionTypes(resourceClassNames)}
 
   // Write all output files
   await Promise.all([
-    outputFile(PATHS.distSdkDts, sdkDts, { encoding: 'utf8' }),
+    outputFile(PATHS.distPlainDts, plainDts, { encoding: 'utf8' }),
     outputFile(PATHS.distCloudformationDts, cloudformationDts, { encoding: 'utf8' }),
     outputFile(PATHS.distTypesDts, typesDts, { encoding: 'utf8' }),
     outputFile(PATHS.distDts, indexDts, { encoding: 'utf8' })
@@ -769,20 +769,20 @@ ${generateAugmentedSectionTypes(resourceClassNames)}
 
   // Format all files (run twice for prettier bug)
   await Promise.all([
-    prettifyFile({ filePath: PATHS.distSdkDts }),
+    prettifyFile({ filePath: PATHS.distPlainDts }),
     prettifyFile({ filePath: PATHS.distCloudformationDts }),
     prettifyFile({ filePath: PATHS.distTypesDts }),
     prettifyFile({ filePath: PATHS.distDts })
   ]);
   await Promise.all([
-    prettifyFile({ filePath: PATHS.distSdkDts }),
+    prettifyFile({ filePath: PATHS.distPlainDts }),
     prettifyFile({ filePath: PATHS.distCloudformationDts }),
     prettifyFile({ filePath: PATHS.distTypesDts }),
     prettifyFile({ filePath: PATHS.distDts })
   ]);
 
   logSuccess(
-    `TypeScript declarations generated to:\n  - ${PATHS.distDts}\n  - ${PATHS.distTypesDts}\n  - ${PATHS.distSdkDts}\n  - ${PATHS.distCloudformationDts}`
+    `TypeScript declarations generated to:\n  - ${PATHS.distDts}\n  - ${PATHS.distTypesDts}\n  - ${PATHS.distPlainDts}\n  - ${PATHS.distCloudformationDts}`
   );
 }
 

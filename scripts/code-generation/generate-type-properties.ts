@@ -64,20 +64,20 @@ ${constructorJsDoc}
     return `
 export declare class ${className} extends BaseTypeProperties {
 ${constructorJsDoc}
-  constructor(properties: ${propsType});
+  constructor(properties: import('./plain').${propsType});
   readonly type: '${typeValue}';
 }`;
   }).join('\n');
 }
 
 /**
- * Get unique props types from type properties (for importing from SDK)
+ * Get unique props types from type properties (for importing from plain types)
  */
-export function getTypePropertiesImports(sdkPropsWithAugmentation: string[]): string[] {
+export function getTypePropertiesImports(propsWithAugmentation: string[]): string[] {
   const typePropertiesAlreadyImported: string[] = [];
   const imports = MISC_TYPES_CONVERTIBLE_TO_CLASSES.map(({ propsType }) => {
-    // Skip script props as they're being augmented (imported with Sdk prefix)
-    if (sdkPropsWithAugmentation.includes(propsType)) {
+    // Skip script props as they're being augmented (imported with Plain prefix)
+    if (propsWithAugmentation.includes(propsType)) {
       return null;
     }
     if (typePropertiesAlreadyImported.includes(propsType)) {

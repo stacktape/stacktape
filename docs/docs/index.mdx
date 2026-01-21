@@ -1,37 +1,120 @@
 ---
-title: "Introduction"
+title: 'Introduction'
 order: 1
 ---
 
-## Welcome to Stacktape
+## What is Stacktape?
 
-**Deploy production-grade applications to your own AWS account in minutes, not months.**
+Stacktape is a **deployment framework** that gives you the simplicity of a PaaS (like Heroku, Vercel, or Render) while deploying directly to **your own AWS account**. No vendor lock-in. No black-box infrastructure. Full control.
 
-Stacktape is a deployment platform that combines the power and flexibility of AWS with a radically simplified developer experience. It handles the complexity of cloud infrastructure, so you can focus on what matters most: building your product.
+### The Problem
 
-With Stacktape, you can:
+Deploying to AWS is powerful but painful. You need to understand CloudFormation, IAM, VPCs, security groups, and dozens of other services. Even a simple API with a database requires 1,000+ lines of infrastructure code.
 
--   **Ship faster:** Go from source code to a production-ready deployment in a single day.
--   **Save money:** Avoid expensive PaaS solutions and over-provisioned infrastructure.
--   **Stay in control:** Deploy to your own AWS account with no vendor lock-in. You can extend, override, or eject at any time.
--   **Deploy anything:** From simple web services to complex, multi-service applications.
+PaaS solutions like Heroku are easy, but you give up control, pay premium prices, and get locked in.
 
-## Getting started
+### The Solution
 
-<GettingStartedOptions />
+Stacktape lets you define your entire infrastructure in **~30 lines of TypeScript** instead of 1,200+ lines of CloudFormation. It deploys to your AWS account, following all AWS well-architected best practices.
 
-## Deploying
+```typescript
+import { defineConfig, HttpApiGateway, LambdaFunction, RelationalDatabase } from 'stacktape';
 
-<DeploymentOptions />
+export default defineConfig(({ stage }) => {
+  const db = new RelationalDatabase({
+    engine: { type: 'postgres', version: '16' },
+    credentials: { masterUserPassword: $Secret('db-password') }
+  });
 
-## Starter projects
+  const api = new HttpApiGateway({});
 
-<StarterProjectListShort />
+  const handler = new LambdaFunction({
+    packaging: { entryfilePath: './src/handler.ts' },
+    connectTo: [db], // Auto-injects DB credentials + grants permissions
+    events: [{ httpApi: api, method: 'GET', path: '/' }]
+  });
 
-<br />
+  return { resources: { db, api, handler } };
+});
+```
 
-## Supported resources
+Deploy with one command:
+
+```bash
+stacktape deploy --stage production --region us-east-1
+```
+
+## Why Stacktape?
+
+### TypeScript-First Configuration
+
+Define infrastructure with full type safety, autocomplete, and the ability to use loops, conditionals, and functions. YAML and JSON also supported.
+
+### Development Mode
+
+Run your services locally while connected to real cloud resources. Databases run in Docker, Lambda functions hot-reload, and everything just works.
+
+### Zero Lock-in
+
+Everything deploys to standard AWS services (Lambda, ECS, RDS, etc.). You can inspect, extend, override, or eject at any time.
+
+### 30+ Resource Types
+
+Containers, serverless functions, databases (Postgres, MySQL, DynamoDB, MongoDB Atlas), Redis, queues, CDN, authentication, and more.
+
+## Quick Example
+
+A full-stack app with a Next.js frontend, API, and database:
+
+```typescript
+import { defineConfig, NextjsWeb, LambdaFunction, RelationalDatabase, HttpApiGateway } from 'stacktape';
+
+export default defineConfig(({ stage }) => {
+  const db = new RelationalDatabase({
+    engine: { type: 'postgres', version: '16' }
+  });
+
+  const api = new HttpApiGateway({
+    customDomains: [{ domainName: `api.${stage}.myapp.com` }]
+  });
+
+  const backend = new LambdaFunction({
+    packaging: { entryfilePath: './api/index.ts' },
+    connectTo: [db],
+    events: [{ httpApi: api, method: '*', path: '/*' }]
+  });
+
+  const frontend = new NextjsWeb({
+    customDomains: [{ domainName: `${stage}.myapp.com` }],
+    environment: { NEXT_PUBLIC_API_URL: api.url }
+  });
+
+  return { resources: { db, api, backend, frontend } };
+});
+```
+
+## Get Started
+
+<NavBoxGrid columns={3}>
+  <NavBox
+    url="/getting-started/quick-start/"
+    text="Quick Start"
+    description="Install Stacktape and deploy your first app in 5 minutes."
+  />
+  <NavBox
+    url="/getting-started/configuration/"
+    text="Configuration Guide"
+    description="Learn how to define your infrastructure in TypeScript, YAML, or JSON."
+  />
+  <NavBox
+    url="/getting-started/development-mode/"
+    text="Development Mode"
+    description="Run services locally with hot-reload and cloud resources."
+  />
+</NavBoxGrid>
+
+## Supported Resources
 
 <ResourceList />
 
-<PreviousNext right={{ url: "/getting-started/basics/", title: "Basics" }} />
+<PreviousNext right={{ url: '/getting-started/quick-start/', title: 'Quick Start' }} />

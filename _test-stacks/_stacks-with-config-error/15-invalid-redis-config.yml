@@ -1,0 +1,14 @@
+# Test case: Invalid Redis cluster configuration
+# Expected error: Invalid Redis properties
+
+resources:
+  myRedis:
+    type: redis-cluster
+    properties:
+      engine:
+        type: elasticache # wrong - should specify version directly
+        properties:
+          version: 7 # should be string like "7.0"
+          nodeType: cache.wrong.size # invalid instance type
+      defaultUserConfig:
+        accesString: 'on ~* +@all' # typo - should be "accessString"

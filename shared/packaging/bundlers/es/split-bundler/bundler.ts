@@ -13,6 +13,7 @@ import { SOURCE_MAP_INSTALL_DIST_PATH } from '@shared/naming/project-fs-paths';
 import { dependencyInstaller } from '@shared/utils/dependency-installer';
 import { getFirstExistingPath, isFileAccessible } from '@shared/utils/fs-utils';
 import { builtinModules, filterDuplicates, getError, getTsconfigAliases } from '@shared/utils/misc';
+import { findProjectRoot } from '@shared/utils/monorepo';
 import { copy, ensureDir, outputJSON, readFile, writeFile, writeJSON } from 'fs-extra';
 import { DEPENDENCIES_TO_EXCLUDE_FROM_BUNDLE, IGNORED_MODULES } from '../config';
 import { determineIfAlias, getInfoFromPackageJson, getLockFileData } from '../utils';
@@ -114,6 +115,9 @@ export const buildSplitBundle = async ({
   const tsConfigPathForBuild =
     tsConfigPath ?? (existsSync(join(cwd, 'tsconfig.json')) ? join(cwd, 'tsconfig.json') : undefined);
 
+  // Find monorepo root for resolving workspace packages
+  const monorepoRoot = await timePhase('find-monorepo-root', async () => findProjectRoot(cwd));
+
   // Track dependencies and source files during bundling
   const tracker = createDependencyTracker();
   const shouldIgnoreAllDeps = dependenciesToExcludeFromBundle.includes('*');
@@ -126,6 +130,7 @@ export const buildSplitBundle = async ({
         entrypoints,
         sharedOutdir,
         cwd,
+        monorepoRoot,
         minify,
         sourceMaps,
         sourceMapBannerType,
@@ -202,6 +207,7 @@ const executeBunBuild = async ({
   entrypoints,
   sharedOutdir,
   cwd,
+  monorepoRoot,
   minify,
   sourceMaps,
   sourceMapBannerType,
@@ -214,6 +220,7 @@ const executeBunBuild = async ({
   entrypoints: BuildSplitBundleOptions['entrypoints'];
   sharedOutdir: string;
   cwd: string;
+  monorepoRoot: string | null;
   minify: boolean;
   sourceMaps: 'inline' | 'external' | 'disabled';
   sourceMapBannerType: 'node_modules' | 'pre-compiled' | 'disabled';
@@ -225,6 +232,7 @@ const executeBunBuild = async ({
 }): Promise<Awaited<ReturnType<typeof Bun.build>>> => {
   const analyzePlugin = createAnalyzePlugin({
     cwd,
+    monorepoRoot,
     excludeDependencies,
     dependenciesToExcludeFromBundle,
     shouldIgnoreAllDeps,
@@ -238,6 +246,9 @@ const executeBunBuild = async ({
   await ensureDir(sharedOutdir);
 
   try {
+    // Use monorepo root for module resolution if available, otherwise cwd
+    const buildRoot = monorepoRoot || cwd;
+
     const result = await Bun.build({
       entrypoints: entrypoints.map((ep) => ep.entryfilePath),
       outdir: sharedOutdir,
@@ -252,7 +263,7 @@ const executeBunBuild = async ({
         __filename: '__stp_filename'
       },
       plugins: [analyzePlugin, nativeModulesPlugin],
-      root: cwd,
+      root: buildRoot,
       banner: sourceMapBannerType === 'pre-compiled' && banner ? banner : undefined,
       naming: {
         entry: '[dir]/[name].js',
@@ -284,9 +295,29 @@ const executeBunBuild = async ({
   }
 };
 
+/** Find module path, checking both cwd/node_modules and monorepo root/node_modules */
+const findModulePath = (moduleName: string, cwd: string, monorepoRoot: string | null): string | null => {
+  // First try cwd/node_modules
+  const cwdModulePath = join(cwd, 'node_modules', moduleName);
+  if (existsSync(join(cwdModulePath, 'package.json'))) {
+    return cwdModulePath;
+  }
+
+  // Then try monorepo root/node_modules (for workspace packages)
+  if (monorepoRoot && monorepoRoot !== cwd) {
+    const rootModulePath = join(monorepoRoot, 'node_modules', moduleName);
+    if (existsSync(join(rootModulePath, 'package.json'))) {
+      return rootModulePath;
+    }
+  }
+
+  return null;
+};
+
 /** Create plugin for analyzing and tracking dependencies */
 const createAnalyzePlugin = ({
   cwd,
+  monorepoRoot,
   excludeDependencies,
   dependenciesToExcludeFromBundle,
   shouldIgnoreAllDeps,
@@ -294,6 +325,7 @@ const createAnalyzePlugin = ({
   tracker
 }: {
   cwd: string;
+  monorepoRoot: string | null;
   excludeDependencies: string[];
   dependenciesToExcludeFromBundle: string[];
   shouldIgnoreAllDeps: boolean;
@@ -332,10 +364,11 @@ const createAnalyzePlugin = ({
         return undefined;
       }
 
-      const modulePath = join(cwd, 'node_modules', moduleName);
+      // Find module in cwd or monorepo root node_modules
+      const modulePath = findModulePath(moduleName, cwd, monorepoRoot);
 
       // Handle wildcard externalization
-      if (shouldIgnoreAllDeps && modulePath.includes('node_modules')) {
+      if (shouldIgnoreAllDeps && modulePath) {
         const pkgInfo = await getInfoFromPackageJson({
           directoryPath: modulePath,
           parentModule: null,
@@ -355,7 +388,7 @@ const createAnalyzePlugin = ({
       }
 
       // Analyze dependency for native binaries
-      if (existsSync(join(modulePath, 'package.json'))) {
+      if (modulePath) {
         const { dependenciesToInstallInDocker, allExternalDeps } = await analyzeDependency({
           dependency: { name: moduleName, path: modulePath },
           dependenciesToExcludeFromBundle

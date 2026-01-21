@@ -1,0 +1,10 @@
+# Test case: Missing required properties
+# Expected error: Show which required properties are missing
+
+resources:
+  myDatabase:
+    type: relational-database
+    properties:
+      # Missing: credentials, engine
+      accessibility:
+        accessibilityMode: vpc

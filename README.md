@@ -68,18 +68,18 @@ import {
 } from 'stacktape';
 
 export default defineConfig(({ stage }) => {
-  const database = new DynamoDbTable('myDatabase', {
+  const database = new DynamoDbTable({
     primaryKey: {
       partitionKey: { name: 'id', type: 'string' }
     }
   });
 
-  const api = new HttpApiGateway('api', {
+  const api = new HttpApiGateway({
     cors: { enabled: true },
     customDomains: [{ domainName: stage === 'production' ? 'acme.com' : `${stage}-acme.com` }]
   });
 
-  const myFunction = new LambdaFunction('myFunction', {
+  const myFunction = new LambdaFunction({
     packaging: new StacktapeLambdaBuildpackPackaging({
       entryfilePath: './src/index.ts'
     }),
@@ -268,7 +268,7 @@ const mainDatabase = new RelationalDatabase({
 Then, add a bastion resource, so you can perform management tasks.
 
 ```typescript
-const bastion = new Bastion('bastion', {})
+const bastion = new Bastion({})
 
 const migrationScript = new LocalScriptWithBastionTunnelingCommand({
   executeCommand: 'prisma migrate',
@@ -281,7 +281,7 @@ const migrationScript = new LocalScriptWithBastionTunnelingCommand({
 Need more control? Override any AWS resource:
 
 ```typescript
-const myFunction = new LambdaFunction('myFunction', {
+const myFunction = new LambdaFunction({
   // ... standard config
   overrides: {
     lambda: {

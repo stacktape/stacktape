@@ -302,9 +302,16 @@ export class AwsSdkManager {
   }
 
   #getClientArgs() {
+    // Use explicit timeouts and disable keep-alive for stable connections in Lambda environment
+    const httpsAgent = new HttpsAgent({ keepAlive: false });
     return {
       region: this.region,
-      credentials: this.credentials
+      credentials: this.credentials,
+      requestHandler: new NodeHttpHandler({
+        connectionTimeout: 10000,
+        socketTimeout: 20000,
+        httpsAgent
+      })
     };
   }
 

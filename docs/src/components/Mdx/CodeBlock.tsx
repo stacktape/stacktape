@@ -1,10 +1,21 @@
 import type { Language } from 'prism-react-renderer';
-import type { CSSProperties } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
+import { keyframes } from '@emotion/react';
 import { Highlight, Prism, themes } from 'prism-react-renderer';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { BiCheck, BiCopy } from 'react-icons/bi';
 import { onMaxW500 } from '../../styles/responsive';
-import { box, colors, fontFamilyMono, prettyScrollBar } from '../../styles/variables';
+import {
+  activeTabButtonStyle,
+  box,
+  colors,
+  fontFamilyMono,
+  iconButtonStyle,
+  prettyScrollBar,
+  tabButtonStyle,
+  tabContainerStyle
+} from '../../styles/variables';
+import { convertYamlToTypescript } from '../../utils/yaml-to-typescript';
 
 (typeof globalThis !== 'undefined' ? globalThis : window).Prism = Prism;
 Prism.languages.prisma = Prism.languages.extend('clike', {
@@ -179,62 +190,92 @@ export const copyToClipboard = (text: string) => {
   }
 };
 
-function ActionRow({ tabs }: { tabs: React.ReactElement[] }) {
+function TabSwitcher({
+  tabs,
+  activeIndex,
+  onTabClick
+}: {
+  tabs: { label: ReactNode }[];
+  activeIndex: number;
+  onTabClick: (index: number) => void;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [indicatorStyle, setIndicatorStyle] = useState<{ left: number; width: number }>({ left: 0, width: 0 });
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const buttons = containerRef.current.querySelectorAll('button');
+    const activeButton = buttons[activeIndex];
+    if (activeButton) {
+      setIndicatorStyle({
+        left: activeButton.offsetLeft,
+        width: activeButton.offsetWidth
+      });
+    }
+  }, [activeIndex]);
+
+  if (tabs.length <= 1) return null;
+
   return (
-    <div
-      css={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        width: '100%',
-        zIndex: 2
-        // marginTop: '-3px'
-      }}
-    >
-      <div>
-        {tabs.length > 1 ? (
-          <div css={{ paddingLeft: '10px', paddingBottom: '4px', '*': { fontWeight: 'bold' } }}>{tabs}</div>
-        ) : null}
+    <div css={{ display: 'flex', marginBottom: '8px' }}>
+      <div ref={containerRef} css={{ ...tabContainerStyle, position: 'relative' }}>
+        <div
+          css={{
+            position: 'absolute',
+            top: '4px',
+            height: 'calc(100% - 8px)',
+            background: 'linear-gradient(135deg, rgb(60, 64, 64), rgb(44, 47, 47))',
+            boxShadow:
+              '0 4px 12px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(190, 190, 190, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+            borderRadius: '7px',
+            transition: 'left 200ms ease, width 200ms ease',
+            zIndex: 0
+          }}
+          style={{ left: indicatorStyle.left, width: indicatorStyle.width }}
+        />
+        {tabs.map((tab, index) => {
+          const isActive = activeIndex === index;
+          return (
+            <button
+              key={index}
+              type="button"
+              css={{
+                ...tabButtonStyle,
+                zIndex: 1,
+                color: isActive ? colors.fontColorPrimary : tabButtonStyle.color
+              }}
+              onClick={() => onTabClick(index)}
+            >
+              {tab.label}
+            </button>
+          );
+        })}
       </div>
     </div>
   );
 }
 
-function SwitchButton({ label, isActive, onClick }: { label: string; isActive: boolean; onClick: () => any }) {
-  return (
-    <button
-      type="button"
-      key={label}
-      css={{
-        all: 'unset',
-        cursor: 'pointer',
-        textAlign: 'center',
-        marginRight: '17px',
-        fontSize: '14px',
-        fontWeight: 'bold',
-        color: colors.fontColorPrimary,
-        backgroundColor: colors.backgroundColor,
-        ...(isActive ? { borderBottom: `3px solid ${colors.fontColorPrimary}` } : { paddingBottom: '4px' })
-      }}
-      onClick={onClick}
-    >
-      <p css={{ lineHeight: 1.5 }}>{label}</p>
-    </button>
-  );
-}
-
 type CodeTab = { label: ReactNode; code: string; lang: Language };
 
-export function MdxCodeBlock({ children: code, ...props }) {
+export function MdxCodeBlock({ children: code, typescript, ...props }) {
   const lang = props.className ? props.className.split('-')[1] : null;
+  const codeString = typeof code === 'string' ? code : code?.props?.children || '';
 
-  const tabs: CodeTab[] = [
-    {
-      code: code || code.props.children,
-      label: <span>YAML</span>,
-      lang
-    }
-  ];
+  // Try to auto-convert YAML to TypeScript if not provided
+  const autoTypescript = useMemo(() => {
+    if (typescript) return null; // Don't auto-convert if explicit TS provided
+    if (lang !== 'yaml' && lang !== 'yml') return null;
+    return convertYamlToTypescript(codeString);
+  }, [codeString, lang, typescript]);
+
+  const tsCode = typescript || autoTypescript;
+
+  const tabs: CodeTab[] = tsCode
+    ? [
+        { code: tsCode, label: 'TypeScript', lang: 'typescript' as Language },
+        { code: codeString, label: 'YAML', lang: lang as Language }
+      ]
+    : [{ code: codeString, label: lang === 'yaml' || lang === 'yml' ? 'YAML' : '', lang: lang as Language }];
 
   return <CodeBlock lang={lang} tabs={tabs} />;
 }
@@ -275,9 +316,15 @@ const getPlatformName = () => {
   return 'Macos';
 };
 
+const fadeIn = keyframes`
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+`;
+
 export function CodeBlock({ tabs, lang }: { tabs: CodeTab[]; lang: string }) {
   const [activeTab, setActiveTab] = useState(tabs[0]);
   const [isCopiedShown, setIsCopiedShown] = useState(false);
+  const [animationKey, setAnimationKey] = useState(0);
   const amountOfLines = activeTab.code.split('\n').length;
   useEffect(() => {
     const platformName = getPlatformName();
@@ -294,6 +341,13 @@ export function CodeBlock({ tabs, lang }: { tabs: CodeTab[]; lang: string }) {
     copyToClipboard(activeTab.code);
   };
 
+  const handleTabClick = (index: number) => {
+    setActiveTab(tabs[index]);
+    setAnimationKey((k) => k + 1);
+  };
+
+  const activeIndex = tabs.findIndex((t) => t.label === activeTab.label);
+
   return (
     <div
       css={{
@@ -305,24 +359,12 @@ export function CodeBlock({ tabs, lang }: { tabs: CodeTab[]; lang: string }) {
         lineHeight: '1.5'
       }}
     >
-      <ActionRow
-        tabs={tabs.map((tab, idx) => (
-          <SwitchButton
-            key={idx}
-            onClick={() => {
-              setActiveTab(tab);
-            }}
-            label={tab.label as string}
-            isActive={activeTab.label === tab.label}
-          />
-        ))}
-      />
+      <TabSwitcher tabs={tabs} activeIndex={activeIndex >= 0 ? activeIndex : 0} onTabClick={handleTabClick} />
       <div
         css={{
           overflowX: 'auto',
           ...prettyScrollBar,
           ...box,
-          // margin: '7px 0px 7px 0px',
           [onMaxW500]: {
             marginTop: '3.5px'
           },
@@ -340,22 +382,13 @@ export function CodeBlock({ tabs, lang }: { tabs: CodeTab[]; lang: string }) {
           type="button"
           className="copy-button"
           css={{
+            ...iconButtonStyle,
             position: 'absolute',
             top: amountOfLines <= 2 ? '7px' : '14px',
             right: '14px',
             zIndex: 10,
-            background: colors.backgroundColor,
-            border: `1px solid ${colors.borderColor}`,
-            borderRadius: '6px',
-            width: '32px',
-            height: '32px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
             opacity: 0,
-            transition: 'opacity 0.2s ease-in-out',
-            color: colors.fontColorPrimary
+            transition: 'all 250ms ease, opacity 0.2s ease-in-out'
           }}
           onClick={handleCopyClick}
         >
@@ -371,7 +404,12 @@ export function CodeBlock({ tabs, lang }: { tabs: CodeTab[]; lang: string }) {
             let ignoreSection = false;
             const classNameToUse = activeTab.lang === 'typescript' ? 'language-ts' : className;
             return (
-              <span className={classNameToUse} style={style}>
+              <span
+                key={animationKey}
+                className={classNameToUse}
+                style={style}
+                css={{ animation: `${fadeIn} 180ms ease-out` }}
+              >
                 {tokens.map((line, i) => {
                   const directive = parseDirectiveCommentLine({ line });
                   if (directive) {
@@ -395,69 +433,72 @@ export function CodeBlock({ tabs, lang }: { tabs: CodeTab[]; lang: string }) {
                   if (ignoreSection) {
                     return null;
                   }
-                  if (i !== tokens.length - 1) {
-                    return (
-                      <div
-                        key={i}
-                        css={{
-                          padding: '0px 18px',
-                          ...(applyHighlighting &&
-                            !(activeTab.lang === 'typescript') && {
-                              backgroundColor: colors.highlightedCodeLine,
-                              borderLeft: `1px solid ${colors.fontColorPrimary}`
-                            }),
-                          width: '100%'
-                        }}
-                        {...getLineProps({ line })}
-                      >
-                        {line.map((token, key) => {
-                          // we do this because bash coloring parses stacktape bash lines in a wrong way
-                          if (
-                            activeTab.lang === 'bash' &&
-                            (BASH_COMMAND_TOKENS.some((t) => token.content.split(' ')[0].trim().startsWith(t)) ||
-                              token.content.trim().startsWith('-') ||
-                              token.content.trim().startsWith('--'))
-                          ) {
-                            return token.content
-                              .split(' ')
-                              .map((t, idx) => ({ content: idx === 0 ? t : ` ${t}`, types: ['plain'] }))
-                              .map((nestedToken, index) => {
-                                const tokenProps = getTokenProps({
-                                  token: nestedToken,
-                                  key: index,
-                                  style: {
-                                    ...addCustomStacktapeStyle({
-                                      token: nestedToken,
-                                      tokenKey: key,
-                                      line,
-                                      lang: activeTab.lang,
-                                      amountOfLines
-                                    })
-                                  }
-                                });
-                                return <span {...tokenProps} key={index} />;
-                              });
-                          }
-                          const tokenProps = getTokenProps({
-                            token,
-                            key,
-                            style: {
-                              ...addCustomStacktapeStyle({
-                                amountOfLines,
-                                token,
-                                tokenKey: key,
-                                line,
-                                lang: activeTab.lang,
-                                prevToken: line[key - 1]
-                              })
-                            }
-                          });
-                          return <span {...tokenProps} key={tokenProps.key as string} />;
-                        })}
-                      </div>
-                    );
+                  // Skip empty last line (Prism adds trailing empty token)
+                  const isLastLine = i === tokens.length - 1;
+                  const isEmptyLine = line.length === 1 && line[0].empty;
+                  if (isLastLine && isEmptyLine) {
+                    return null;
                   }
-                  return null;
+                  return (
+                    <div
+                      key={i}
+                      css={{
+                        padding: '0px 18px',
+                        ...(applyHighlighting &&
+                          !(activeTab.lang === 'typescript') && {
+                            backgroundColor: colors.highlightedCodeLine,
+                            borderLeft: `1px solid ${colors.fontColorPrimary}`
+                          }),
+                        width: '100%'
+                      }}
+                      {...getLineProps({ line })}
+                    >
+                      {line.map((token, key) => {
+                        // we do this because bash coloring parses stacktape bash lines in a wrong way
+                        if (
+                          activeTab.lang === 'bash' &&
+                          (BASH_COMMAND_TOKENS.some((t) => token.content.split(' ')[0].trim().startsWith(t)) ||
+                            token.content.trim().startsWith('-') ||
+                            token.content.trim().startsWith('--'))
+                        ) {
+                          return token.content
+                            .split(' ')
+                            .map((t, idx) => ({ content: idx === 0 ? t : ` ${t}`, types: ['plain'] }))
+                            .map((nestedToken, index) => {
+                              const tokenProps = getTokenProps({
+                                token: nestedToken,
+                                key: index,
+                                style: {
+                                  ...addCustomStacktapeStyle({
+                                    token: nestedToken,
+                                    tokenKey: key,
+                                    line,
+                                    lang: activeTab.lang,
+                                    amountOfLines
+                                  })
+                                }
+                              });
+                              return <span {...tokenProps} key={index} />;
+                            });
+                        }
+                        const tokenProps = getTokenProps({
+                          token,
+                          key,
+                          style: {
+                            ...addCustomStacktapeStyle({
+                              amountOfLines,
+                              token,
+                              tokenKey: key,
+                              line,
+                              lang: activeTab.lang,
+                              prevToken: line[key - 1]
+                            })
+                          }
+                        });
+                        return <span {...tokenProps} key={tokenProps.key as string} />;
+                      })}
+                    </div>
+                  );
                 })}
               </span>
             );

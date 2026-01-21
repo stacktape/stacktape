@@ -6,7 +6,7 @@ import { colors } from '../../styles/variables';
 import { Badge } from './Badge';
 import { CliCommandsApiReference } from './CliCommandsApiReference';
 import { CodeBlock, MdxCodeBlock } from './CodeBlock';
-import { DeploymentOptions, GettingStartedOptions } from './DeploymentOptions';
+import { DeploymentOptions, GettingStartedOptions, NavBox, NavBoxGrid } from './DeploymentOptions';
 import { Divider } from './Divider';
 import { EngineVersionsList } from './EngineVersionList';
 import { Highlighter } from './Highlighter';
@@ -18,7 +18,6 @@ import PropDescription from './PropDescription';
 import PropertiesTable from './PropertiesTable';
 import { ReferenceableParams } from './ReferenceableParams';
 import { ResourceList } from './ResourceList';
-import SdkMethodsApiReference from './SdkMethodsApiReference';
 import { StarterProjectList, StarterProjectListShort } from './StarterProjectList';
 import { Table } from './Table';
 
@@ -163,6 +162,31 @@ export const MdxComponents = {
   p: (props) => <p css={{ margin: '10px 0px', fontSize: '0.925rem' }} className="paragraph" {...props} />,
   table: Table,
   img: MdxImage,
+  pre: (props) => {
+    const codeChild = props.children;
+    if (codeChild?.props?.className?.startsWith('language-')) {
+      return <pre {...props} />;
+    }
+    const content = codeChild?.props?.children || props.children;
+    return (
+      <pre
+        css={{
+          margin: '25px 0 30px 0',
+          padding: '16px 18px',
+          background: colors.elementBackground,
+          borderRadius: '8px',
+          boxShadow:
+            '0 2px 8px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.2)',
+          fontSize: '13.5px',
+          lineHeight: '1.5',
+          overflowX: 'auto',
+          color: colors.fontColorPrimary
+        }}
+      >
+        {content}
+      </pre>
+    );
+  },
   code: (props) => {
     const isCodeBlock = props.className && props.className.startsWith('language-');
     if (isCodeBlock) {
@@ -180,7 +204,6 @@ export const MdxComponents = {
   CodeBlock,
   Link,
   CliCommandsApiReference,
-  SdkMethodsApiReference,
   PropertiesTable,
   PropDescription,
   EngineVersionsList,
@@ -195,7 +218,9 @@ export const MdxComponents = {
   StarterProjectListShort,
   DeploymentOptions,
   GettingStartedOptions,
-  ResourceList
+  ResourceList,
+  NavBox,
+  NavBoxGrid
 };
 
 // <hr

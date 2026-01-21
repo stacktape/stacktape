@@ -14,6 +14,7 @@ import {
   transformToUnixPath
 } from '@shared/utils/fs-utils';
 import { builtinModules, filterDuplicates, getError, getTsconfigAliases, raiseError } from '@shared/utils/misc';
+import { findProjectRoot } from '@shared/utils/monorepo';
 import { copy, outputJSON, readFile, writeJson } from 'fs-extra';
 import uniqWith from 'lodash/uniqWith';
 import objectHash from 'object-hash';
@@ -116,6 +117,40 @@ export const buildEsCode = async ({
       (v) => nodeTarget.includes(String(v)) || String(nodeTarget) === String(v)
     );
 
+  // Find monorepo root for resolving workspace packages
+  const monorepoRoot = await findProjectRoot(cwd);
+  const unixMonorepoRoot = monorepoRoot ? transformToUnixPath(monorepoRoot) : null;
+
+  // Helper to find module path in cwd or monorepo root
+  const findModulePath = (moduleName: string): string | null => {
+    const cwdModulePath = join(cwd, 'node_modules', moduleName);
+    if (isFileAccessible(join(cwdModulePath, 'package.json'))) {
+      return cwdModulePath;
+    }
+    if (monorepoRoot && monorepoRoot !== cwd) {
+      const rootModulePath = join(monorepoRoot, 'node_modules', moduleName);
+      if (isFileAccessible(join(rootModulePath, 'package.json'))) {
+        return rootModulePath;
+      }
+    }
+    return null;
+  };
+
+  // Helper to check if a module path is a workspace package (symlink pointing within monorepo)
+  const isWorkspacePackage = (modulePath: string): boolean => {
+    if (!unixMonorepoRoot) return false;
+    try {
+      const { lstatSync, realpathSync } = require('node:fs');
+      const isSymlink = lstatSync(modulePath).isSymbolicLink();
+      if (!isSymlink) return false;
+      const realPath = transformToUnixPath(realpathSync(modulePath));
+      // Workspace packages are symlinks pointing to paths within the monorepo but not in node_modules
+      return realPath.startsWith(unixMonorepoRoot) && !realPath.includes('node_modules');
+    } catch {
+      return false;
+    }
+  };
+
   const runBuild = async ({ dynamicallyImportedModules = [] }: { dynamicallyImportedModules?: string[] }) => {
     const allDependenciesToInstallInDocker: ModuleInfo[] = [];
     const externalModules: { name: string; note: string }[] = [];
@@ -129,7 +164,8 @@ export const buildEsCode = async ({
       setup(build) {
         // Track source files via onLoad
         build.onLoad({ filter: /\.(ts|tsx|js|jsx|mjs|cjs)$/ }, async (args) => {
-          sourceFilesSet.add(args.path);
+          // Convert to Unix paths for consistency
+          sourceFilesSet.add(transformToUnixPath(args.path));
           return undefined; // Let Bun handle the actual loading
         });
 
@@ -166,19 +202,49 @@ export const buildEsCode = async ({
               return undefined;
             }
 
-            const modulePath = join(cwd, 'node_modules', moduleName);
-            const isWildcardExternalized = shouldIgnoreAllDeps && modulePath.includes('node_modules');
+            // Find module in cwd or monorepo root node_modules
+            const modulePath = findModulePath(moduleName);
+
+            // Check if this is a workspace package (symlinked monorepo package)
+            // For workspace packages, we need to explicitly resolve to avoid Bun crash on Windows
+            // when it tries to resolve symlinked paths internally
+            if (modulePath && isWorkspacePackage(modulePath)) {
+              // Let Bun bundle workspace packages - resolve to the real path to avoid Windows symlink issues
+              const { realpathSync } = require('node:fs');
+              const realPath = transformToUnixPath(realpathSync(modulePath));
+              // Find the entry file in the workspace package
+              const packageJsonPath = join(realPath, 'package.json');
+              try {
+                const pkgJson = require(packageJsonPath);
+                const entryFile = pkgJson.main || pkgJson.module || 'index.js';
+                const resolvedEntry = join(realPath, entryFile.replace(/\.js$/, '.ts'));
+                if (isFileAccessible(resolvedEntry)) {
+                  return { path: transformToUnixPath(resolvedEntry) };
+                }
+                // Try src/index.ts as fallback
+                const srcEntry = join(realPath, 'src', 'index.ts');
+                if (isFileAccessible(srcEntry)) {
+                  return { path: transformToUnixPath(srcEntry) };
+                }
+              } catch {
+                // Fallback - let Bun resolve but this might crash on Windows
+              }
+              return undefined;
+            }
+
             const isDynamicallyImported = dynamicallyImportedModules.includes(moduleName);
 
-            if (isDynamicallyImported || isWildcardExternalized) {
-              allDependenciesToInstallInDocker.push({
-                ...(await getInfoFromPackageJson({
-                  directoryPath: modulePath,
-                  parentModule: null,
-                  dependencyType: 'root'
-                })),
-                note: isDynamicallyImported ? 'DYNAMIC_IMPORT' : 'WILDCARD_EXTERNALIZED'
-              });
+            if (isDynamicallyImported || (shouldIgnoreAllDeps && modulePath)) {
+              if (modulePath) {
+                allDependenciesToInstallInDocker.push({
+                  ...(await getInfoFromPackageJson({
+                    directoryPath: modulePath,
+                    parentModule: null,
+                    dependencyType: 'root'
+                  })),
+                  note: isDynamicallyImported ? 'DYNAMIC_IMPORT' : 'WILDCARD_EXTERNALIZED'
+                });
+              }
               externalModules.push({
                 name: moduleName,
                 note: isDynamicallyImported ? 'DYNAMIC_IMPORT' : 'WILDCARD_EXTERNALIZED'
@@ -191,7 +257,7 @@ export const buildEsCode = async ({
               return { path: args.path, external: true };
             }
 
-            if (!isFileAccessible(join(modulePath, 'package.json'))) {
+            if (!modulePath) {
               return undefined;
             }
 
@@ -237,11 +303,12 @@ export const buildEsCode = async ({
 
     const allBunPlugins: BunPlugin[] = [stpAnalyzeDepsPlugin, nativeNodeModulesPlugin, ...(plugins || [])];
 
-    // Determine entry points
-    const entryPoints = sourcePath ? [sourcePath] : sourcePaths || [];
+    // Determine entry points - convert to Unix paths for Bun on Windows
+    const entryPoints = (sourcePath ? [sourcePath] : sourcePaths || []).map(transformToUnixPath);
 
-    // Determine output directory
+    // Determine output directory - convert to Unix path
     const outdir = distDir || (distPath ? dirname(distPath) : undefined);
+    const unixOutdir = outdir ? transformToUnixPath(outdir) : undefined;
 
     // Handle raw code by writing to a temp file
     let tempEntryFile: string | undefined;
@@ -269,11 +336,15 @@ export const buildEsCode = async ({
       (outputModuleFormat === 'cjs' && sourceMapBannerType !== 'disabled') ||
       (outputModuleFormat === 'esm' && sourceMapBannerType === 'pre-compiled');
 
+    // Use monorepo root for module resolution if available
+    // Convert to Unix paths for Bun compatibility on Windows
+    const buildRoot = transformToUnixPath(monorepoRoot || cwd);
+
     let buildResult: Awaited<ReturnType<typeof Bun.build>>;
     try {
       buildResult = await Bun.build({
         entrypoints: entryPoints,
-        outdir,
+        outdir: unixOutdir,
         target: 'node',
         format: splitting ? 'esm' : outputModuleFormat,
         splitting: splitting && outputModuleFormat === 'esm',
@@ -282,7 +353,7 @@ export const buildEsCode = async ({
         external: ['fsevents', ...externals, ...externalModules.map((m) => m.name)],
         define: { ...esmDefines, ...define },
         plugins: allBunPlugins,
-        root: cwd,
+        root: buildRoot,
         banner: shouldInjectBanner && banner.js ? banner.js : undefined
       });
     } catch (err: any) {
@@ -472,7 +543,10 @@ export const createEsBundle = async ({
     await progressLogger.startEvent({ eventType: 'BUILD_CODE', description: buildDescription });
   }
 
-  const { packageManager } = await getLockFileData(cwd);
+  // Look for lockfile in monorepo root first, then cwd
+  const monorepoRoot = await findProjectRoot(cwd);
+  const lockFileDir = monorepoRoot || cwd;
+  const { packageManager } = await getLockFileData(lockFileDir);
   const { dependenciesToInstallInDocker, dynamicallyImportedModules, sourceFiles, allModules, externalModules } =
     await buildEsCode({
       minify,

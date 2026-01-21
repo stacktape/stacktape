@@ -1,0 +1,19 @@
+# Test case: Invalid environment variable format
+# Expected error: Wrong structure for environment variables
+
+resources:
+  myFunction:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./handler.ts
+      runtime: nodejs20.x
+      environment:
+        - nama: MY_VAR # typo - should be "name"
+          value: some_value
+        - name: ANOTHER_VAR
+          valeu: another_value # typo - should be "value"
+        - name: 12345 # name should be string
+          value: test

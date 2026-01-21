@@ -384,18 +384,19 @@ export function generateAugmentedPropsTypes(): string {
 }
 
 /**
- * Generate SDK import aliases for props types
+ * Generate plain type import aliases for props types
+ * Props with augmented versions are aliased as Plain* to avoid conflicts
  * Returns a string for the import statement
  */
-export function generateSdkPropsImports(): string {
-  const sdkPropsWithAugmentation = [...getResourcesWithAugmentedProps().map((r) => r.propsType), ...SCRIPT_PROPS_TYPES];
+export function generatePlainPropsImports(): string {
+  const propsWithAugmentation = [...getResourcesWithAugmentedProps().map((r) => r.propsType), ...SCRIPT_PROPS_TYPES];
 
   const allResources = RESOURCES_CONVERTIBLE_TO_CLASSES;
-  const sdkPropsWithoutAugmentation = allResources
+  const propsWithoutAugmentation = allResources
     .map((r) => r.propsType)
-    .filter((propsType) => !sdkPropsWithAugmentation.includes(propsType));
+    .filter((propsType) => !propsWithAugmentation.includes(propsType));
 
-  const imports = [...sdkPropsWithAugmentation.map((prop) => `${prop} as Sdk${prop}`), ...sdkPropsWithoutAugmentation];
+  const imports = [...propsWithAugmentation.map((prop) => `${prop} as Plain${prop}`), ...propsWithoutAugmentation];
 
   return imports.join(',\n  ');
 }
@@ -409,7 +410,7 @@ export function generateStacktapeConfigType(): string {
 
   return `// Re-export StacktapeConfig with properly typed resources
 // Accepts both class instances and plain objects
-import type { StacktapeResourceDefinition } from './sdk';
+import type { StacktapeResourceDefinition } from './plain';
 
 /**
  * CloudFormation template structure
@@ -426,7 +427,7 @@ export type CloudFormationTemplate = {
   Hooks?: Record<string, unknown>;
 };
 
-export type StacktapeConfig = Omit<import('./sdk').StacktapeConfig, 'resources' | 'cloudformationResources' | 'scripts'> & {
+export type StacktapeConfig = Omit<import('./plain').StacktapeConfig, 'resources' | 'cloudformationResources' | 'scripts'> & {
   resources: { [resourceName: string]: ${resourceClassNames.join(' | ')} | StacktapeResourceDefinition };
   /**
    * #### Scripts that can be executed using the \`stacktape script:run\` command.
@@ -435,7 +436,7 @@ export type StacktapeConfig = Omit<import('./sdk').StacktapeConfig, 'resources' 
    *
    * Scripts can be either shell commands or files written in JavaScript, TypeScript, or Python.
    */
-  scripts?: { [scriptName: string]: LocalScript | BastionScript | LocalScriptWithBastionTunneling | import('./sdk').LocalScript | import('./sdk').BastionScript | import('./sdk').LocalScriptWithBastionTunneling };
+  scripts?: { [scriptName: string]: LocalScript | BastionScript | LocalScriptWithBastionTunneling | import('./plain').LocalScript | import('./plain').BastionScript | import('./plain').LocalScriptWithBastionTunneling };
   /**
    * #### Raw CloudFormation resources that will be deployed in this stack.
    *

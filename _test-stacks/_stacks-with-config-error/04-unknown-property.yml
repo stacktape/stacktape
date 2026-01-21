@@ -1,0 +1,14 @@
+# Test case: Unknown/misspelled property names
+# Expected error: "Did you mean?" suggestion for property name
+
+resources:
+  myFunction:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/handler.ts
+      timout: 30 # typo - should be "timeout"
+      memmory: 512 # typo - should be "memory"
+      runtim: nodejs20.x # typo - should be "runtime"

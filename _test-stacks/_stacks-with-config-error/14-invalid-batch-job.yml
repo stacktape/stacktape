@@ -1,0 +1,20 @@
+# Test case: Invalid batch job configuration
+# Expected error: Various batch job errors
+
+resources:
+  myBatchJob:
+    type: batch-job
+    properties:
+      packaging:
+        type: stacktape-image-buildpack
+        properties:
+          entryfilePath: ./src/job.ts
+      resources:
+        cpu: 0.25
+        memory: 512
+      timeout: -100 # should be positive number
+      retryAttempts: 'three' # should be number
+      events:
+        - type: schedul # typo - should be "schedule"
+          properties:
+            scheduleRate: every 5 minutes # invalid format

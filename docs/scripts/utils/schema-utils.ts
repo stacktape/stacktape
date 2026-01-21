@@ -1,4 +1,4 @@
-import type { CommandArg } from '../../src/components/Mdx/SdkMethodsApiReference';
+import type { CommandArg } from '../../src/components/Mdx/CliCommandsApiReference';
 import orderBy from 'lodash/orderBy.js';
 import { marked } from './marked-mdx-parser';
 

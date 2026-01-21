@@ -1,12 +1,12 @@
 import { ChevronLeft, ChevronRight } from 'react-feather';
-import { border, boxShadow, colors, onMaxW500 } from '@/styles/variables';
+import { clickableBoxStyle, colors, onMaxW500 } from '@/styles/variables';
 import { Link } from './Link';
 
 function LeftButton({ url, title, label }) {
   return (
     <div
       css={{
-        cursor: 'pointer',
+        ...clickableBoxStyle,
         margin: 0,
         position: 'relative',
         display: 'flex',
@@ -14,22 +14,14 @@ function LeftButton({ url, title, label }) {
         alignItems: 'center',
         placeSelf: 'stretch',
         color: colors.fontColorPrimary,
-        backgroundColor: colors.elementBackground,
-        borderRadius: '6px',
-        padding: '0px 7px',
-        border,
-        boxShadow,
+        padding: '0px 8px',
         textDecoration: 'none',
         visibility: url ? 'visible' : 'hidden',
         opacity: url ? 1 : 0,
-        transition: '0.25s',
         a: {
           width: '100%',
           display: 'flex',
           alignItems: 'center'
-        },
-        '&:hover': {
-          boxShadow: '0 1px 2px 2.5px rgba(19, 24, 24, 0.9)'
         }
       }}
     >
@@ -104,7 +96,7 @@ function RightButton({ url, title, label }) {
   return (
     <div
       css={{
-        cursor: 'pointer',
+        ...clickableBoxStyle,
         margin: 0,
         position: 'relative',
         display: 'flex',
@@ -112,22 +104,14 @@ function RightButton({ url, title, label }) {
         alignItems: 'center',
         placeSelf: 'stretch',
         color: colors.fontColorPrimary,
-        backgroundColor: colors.elementBackground,
-        borderRadius: '6px',
-        padding: '0px 7px',
-        border,
-        boxShadow,
+        padding: '0px 8px',
         textDecoration: 'none',
         visibility: url ? 'visible' : 'hidden',
         opacity: url ? 1 : 0,
-        transition: '0.25s',
         a: {
           width: '100%',
           display: 'flex',
           alignItems: 'center'
-        },
-        '&:hover': {
-          boxShadow: '0 1px 2px 2.5px rgba(19, 24, 24, 0.9)'
         }
       }}
     >

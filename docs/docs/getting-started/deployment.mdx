@@ -1,0 +1,205 @@
+---
+title: 'Deployment'
+order: 3
+---
+
+Stacktape offers multiple ways to deploy your application. Choose based on your workflow.
+
+## CLI Deployment
+
+Deploy directly from your terminal:
+
+```bash
+stacktape deploy --stage production --region us-east-1
+```
+
+### Required Options
+
+| Option     | Description      | Example                        |
+| ---------- | ---------------- | ------------------------------ |
+| `--stage`  | Environment name | `dev`, `staging`, `production` |
+| `--region` | AWS region       | `us-east-1`, `eu-west-1`       |
+
+The project name is taken from your config file or can be specified with `--projectName`.
+
+### Deployment Process
+
+1. **Build** - Code is packaged (container images or Lambda bundles)
+2. **Upload** - Artifacts uploaded to S3/ECR
+3. **Deploy** - CloudFormation creates/updates resources
+4. **Verify** - Health checks confirm deployment success
+
+If deployment fails, it automatically rolls back to the last working state.
+
+### Hot-Swap Deployments
+
+When only your code changes (not infrastructure), use hot-swap for faster deployments:
+
+```bash
+stacktape deploy --stage production --region us-east-1 --hotSwap
+```
+
+Hot-swap updates Lambda functions and container images directly, bypassing CloudFormation. This reduces deployment time from minutes to seconds.
+
+## Web Console Deployment
+
+Deploy through the [Stacktape Console](https://console.stacktape.com/) with a visual interface.
+
+### Setup
+
+1. Create a project in the console
+2. Connect your GitHub or GitLab repository
+3. Select the branch and commit to deploy
+
+### Deploying a Stage
+
+1. Navigate to your project
+2. Click **Create new stage**
+3. Configure:
+   - Branch and commit
+   - Stage name
+   - AWS account and region
+4. Click **Deploy now**
+
+The console shows real-time deployment logs and resource status.
+
+## GitOps (CI/CD)
+
+Automate deployments triggered by Git events.
+
+### Push-to-Branch Deployments
+
+Automatically deploy when you push to a specific branch:
+
+1. In the console, go to your project
+2. Click **Actions** > **View Git configuration**
+3. Click **Set up Push-To-Branch deployments**
+4. Configure:
+   - Trigger branch (e.g., `main`)
+   - Target stage (e.g., `production`)
+   - AWS account
+
+Now every push to `main` automatically deploys to production.
+
+### Preview Deployments (PR Environments)
+
+Create temporary environments for each pull request:
+
+1. Click **Set up PR deployments**
+2. Configure the default settings for preview environments
+
+For each PR:
+
+- A new stage is created automatically
+- A comment is added to the PR with the deployment URL
+- The stage is updated on each push
+- The stage can be automatically deleted when the PR is merged/closed
+
+## External CI/CD
+
+Use Stacktape in your existing CI pipeline (GitHub Actions, GitLab CI, etc.).
+
+### GitHub Actions Example
+
+```yaml
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Stacktape
+        run: npm install -g stacktape
+
+      - name: Deploy
+        run: stacktape deploy --stage production --region us-east-1
+        env:
+          STACKTAPE_API_KEY: ${{ secrets.STACKTAPE_API_KEY }}
+```
+
+### GitLab CI Example
+
+```yaml
+deploy:
+  image: node:20
+  stage: deploy
+  script:
+    - npm install -g stacktape
+    - stacktape deploy --stage production --region us-east-1
+  only:
+    - main
+  variables:
+    STACKTAPE_API_KEY: $STACKTAPE_API_KEY
+```
+
+### Required Secrets
+
+Set `STACKTAPE_API_KEY` in your CI/CD secrets. Get your API key from the [console](https://console.stacktape.com/api-keys/).
+
+## Multi-Stage Strategy
+
+A typical deployment strategy:
+
+| Stage        | Trigger           | Purpose                      |
+| ------------ | ----------------- | ---------------------------- |
+| `dev`        | Manual / local    | Individual developer testing |
+| `staging`    | Push to `develop` | Integration testing          |
+| `production` | Push to `main`    | Live users                   |
+| `pr-123`     | Pull request      | PR review environments       |
+
+Each stage is completely isolated with its own resources.
+
+## Deployment Commands
+
+### View Deployment Status
+
+```bash
+stacktape stack:info --stage production --region us-east-1
+```
+
+### Delete a Stack
+
+```bash
+stacktape delete --stage production --region us-east-1
+```
+
+<Warning>
+
+This permanently deletes all resources in the stack, including databases and their data.
+
+</Warning>
+
+### View Logs
+
+```bash
+# Tail logs in real-time
+stacktape logs:tail --stage production --resource myFunction
+
+# Get recent logs
+stacktape logs:get --stage production --resource myFunction
+```
+
+## How Deployment Works
+
+Under the hood, Stacktape:
+
+1. **Compiles** your config into a CloudFormation template (~30 lines becomes ~1,200+)
+2. **Builds** container images and Lambda bundles with optimized caching
+3. **Uploads** artifacts to S3 and ECR in your AWS account
+4. **Deploys** using CloudFormation with automatic rollback on failure
+5. **Performs** health checks and surfaces any errors
+
+All resources follow AWS well-architected best practices for security, reliability, and cost optimization.
+
+<PreviousNext left={{ url: '/getting-started/development-mode/', title: 'Development Mode' }} />

@@ -1,0 +1,15 @@
+# Test case: Invalid database engine configuration
+# Expected error: Invalid engine type and version
+
+resources:
+  myDatabase:
+    type: relational-database
+    properties:
+      credentials:
+        masterUserPassword: supersecret123
+      engine:
+        type: postgresql # should be "postgres"
+        properties:
+          version: '15' # valid versions are like "16.1", "15.4" etc
+          primaryInstance:
+            instanceSize: db.t3.small

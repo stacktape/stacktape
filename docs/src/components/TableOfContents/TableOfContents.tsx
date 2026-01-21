@@ -95,7 +95,7 @@ export function TableOfContents({ tableOfContents }: { tableOfContents: TableOfC
     <div
       css={{
         ...prettyScrollBar,
-        backgroundColor: colors.backgroundColor,
+        backgroundColor: 'transparent',
         height: `calc(100vh - ${pageLayout.headerHeight}px)`,
         padding: '15px 10px 0px 15px',
         position: 'sticky',

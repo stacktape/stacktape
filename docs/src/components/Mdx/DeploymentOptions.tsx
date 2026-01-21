@@ -16,33 +16,67 @@ import { Box } from '../Box/Box';
 import { GridList } from '../Misc/GridList';
 import { Link } from './Link';
 
-export function NavBox({ icon, text, url }: { icon: ReactNode; text: ReactNode; url: string }) {
+export function NavBox({
+  icon,
+  text,
+  url,
+  description
+}: {
+  icon?: ReactNode;
+  text: ReactNode;
+  url: string;
+  description?: string;
+}) {
   return (
     <Link href={url}>
       <Box
         interactive
         rootCss={{
           height: '100%',
-          padding: '10px 18px 12px 18px',
+          padding: description ? '14px 18px 16px 18px' : '10px 18px 12px 18px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           [onMaxW650]: {
             width: '100%',
             marginBottom: '10px'
-          },
-          '&:hover': {
-            boxShadow: '0 1px 2px 2.5px rgba(19, 24, 24, 0.9)'
           }
         }}
       >
-        <div css={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+        <div css={{ display: 'flex', alignItems: 'center', gap: '14px', flex: 1 }}>
           {icon}
-          <h3 css={{ fontSize: '1.025rem' }}>{text}</h3>
+          <div>
+            <h4 css={{ fontSize: '1rem', margin: 0 }}>{text}</h4>
+            {description && (
+              <p css={{ fontSize: '0.85rem', color: colors.fontColorTernary, margin: '4px 0 0 0', lineHeight: 1.4 }}>
+                {description}
+              </p>
+            )}
+          </div>
         </div>
-        <BiChevronRight color={colors.fontColorPrimary} css={{ width: 30 }} size={30} />
+        <BiChevronRight color={colors.fontColorPrimary} css={{ width: 24, flexShrink: 0 }} size={24} />
       </Box>
     </Link>
+  );
+}
+
+export function NavBoxGrid({ children, columns = 2 }: { children: ReactNode; columns?: number }) {
+  const minWidth = columns === 3 ? '280px' : columns === 2 ? '320px' : '100%';
+  return (
+    <GridList
+      minItemWidth={minWidth}
+      rootCss={{
+        marginTop: '20px',
+        marginBottom: '20px',
+        gap: '12px',
+        [onMaxW650]: {
+          display: 'block',
+          width: '100%'
+        }
+      }}
+    >
+      {children}
+    </GridList>
   );
 }
 

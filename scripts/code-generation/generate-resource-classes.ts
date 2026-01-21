@@ -1,4 +1,4 @@
-import type { ResourceClassName } from '@api/npm/ts/class-config';
+import type { ResourceClassName, ResourceDefinition } from '@api/npm/ts/class-config';
 import type { JSDocComment, ReferenceableParam, ReferenceableParamsMap } from './types';
 import {
   getResourcesWithAugmentedProps,
@@ -23,9 +23,21 @@ function generateGetters(params: ReferenceableParam[]): string {
 
 /**
  * Determines the props type to use for a resource constructor
+ * - If hasAugmentedProps: use local augmented propsType (defined in types.d.ts)
+ * - Else if supportsOverrides: use ${propsType}WithOverrides (defined in types.d.ts)
+ * - Else: use plain propsType from ./plain (needs import() qualifier)
  */
-function determinePropsType(propsType: string, hasAugmentedProps: boolean): string {
-  return hasAugmentedProps ? propsType : `${propsType}WithOverrides`;
+function determinePropsType(propsType: string, hasAugmentedProps: boolean, supportsOverrides: boolean): string {
+  if (hasAugmentedProps) {
+    // Local augmented type defined in types.d.ts
+    return propsType;
+  }
+  if (supportsOverrides) {
+    // Local WithOverrides type defined in types.d.ts
+    return `${propsType}WithOverrides`;
+  }
+  // Plain type from ./plain - needs import() qualifier
+  return `import('./plain').${propsType}`;
 }
 
 /**
@@ -72,10 +84,11 @@ function generateResourceClass(
   propsType: string,
   resourceType: string,
   hasAugmentedProps: boolean,
+  supportsOverrides: boolean,
   referenceableParams: ReferenceableParam[],
   description: JSDocComment | undefined
 ): string {
-  const finalPropsType = determinePropsType(propsType, hasAugmentedProps);
+  const finalPropsType = determinePropsType(propsType, hasAugmentedProps, supportsOverrides);
   const getters = generateGetters(referenceableParams);
   const constructorJsDoc = formatConstructorJSDoc(description, className as string);
 
@@ -99,13 +112,25 @@ export function generateResourceClassDeclarations(REFERENCEABLE_PARAMS: Referenc
   const resourcesWithAugmented = getResourcesWithAugmentedProps();
   const augmentedPropsTypes = new Set(resourcesWithAugmented.map((r) => r.propsType));
 
-  const classDeclarations = RESOURCES_CONVERTIBLE_TO_CLASSES.map(({ className, resourceType, propsType }) => {
-    const params = REFERENCEABLE_PARAMS[resourceType] || [];
-    const hasAugmentedProps = augmentedPropsTypes.has(propsType);
-    const description = getResourceClassDescription(className);
+  const classDeclarations = RESOURCES_CONVERTIBLE_TO_CLASSES.map(
+    ({ className, resourceType, propsType, supportsOverrides }) => {
+      const params = REFERENCEABLE_PARAMS[resourceType] || [];
+      const hasAugmentedProps = augmentedPropsTypes.has(propsType);
+      const description = getResourceClassDescription(className);
+      // supportsOverrides defaults to true if not specified
+      const hasOverrides = supportsOverrides !== false;
 
-    return generateResourceClass(className, propsType, resourceType, hasAugmentedProps, params, description);
-  });
+      return generateResourceClass(
+        className,
+        propsType,
+        resourceType,
+        hasAugmentedProps,
+        hasOverrides,
+        params,
+        description
+      );
+    }
+  );
 
   return classDeclarations.join('\n');
 }

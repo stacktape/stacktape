@@ -1,0 +1,20 @@
+# Test case: Wrong value types (string instead of number, etc.)
+# Expected error: Show expected vs received type
+
+resources:
+  myFunction:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/handler.ts
+      timeout: 'thirty' # should be number
+      memory: true # should be number
+      runtime: nodejs20.x
+
+  myBucket:
+    type: bucket
+    properties:
+      versioning:
+        enabled: 'yes' # should be boolean

@@ -1,0 +1,20 @@
+# Test case: Invalid event type in function
+# Expected error: Invalid event type
+
+resources:
+  myFunction:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/handler.ts
+      runtime: nodejs20.x
+      events:
+        - type: http-api # should be "http-api-gateway"
+          properties:
+            method: GET
+            path: /hello
+        - type: scheduled # should be "schedule"
+          properties:
+            scheduleRate: rate(5 minutes)

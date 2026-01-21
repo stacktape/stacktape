@@ -1,0 +1,32 @@
+# Test case: Invalid SQS and SNS configuration
+# Expected error: Various queue/topic errors
+
+resources:
+  myQueue:
+    type: sqs-queue
+    properties:
+      fifoEnabled: 'true' # should be boolean
+      fifoHighThroughput: yes # should be boolean, and requires fifoEnabled
+      visibilityTimeout: '30 seconds' # should be number
+      messageRetentionPeriod: -1 # should be positive
+      delaySeconds: 1000 # max is 900
+
+  myTopic:
+    type: sns-topic
+    properties:
+      fifoEnabeld: true # typo - should be "fifoEnabled"
+      contentBasedDeduplication: 'enabled' # should be boolean
+
+  myFunction:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./handler.ts
+      runtime: nodejs20.x
+      events:
+        - type: sqs
+          properties:
+            sqsQueueNam: myQueue # typo - should be "sqsQueueName"
+            batchSize: 'ten' # should be number
