@@ -1,9 +1,9 @@
-import type { TuiEvent, TuiMessageType, TuiPhase, TuiState } from './types';
-import { logCollectorStream } from '@utils/log-collector';
-import stringWidth from 'string-width';
 import type { ErrorDisplayData } from './components/Error';
 import type { NextStep } from './components/NextSteps';
 import type { StackError } from './components/StackErrors';
+import type { TuiEvent, TuiMessageType, TuiPhase, TuiState } from './types';
+import { logCollectorStream } from '@utils/log-collector';
+import stringWidth from 'string-width';
 import { PHASE_NAMES, PHASE_ORDER } from './types';
 import { formatDuration } from './utils';
 
@@ -18,7 +18,7 @@ const SYMBOLS = {
 
 const MESSAGE_TYPE_PREFIXES: Record<TuiMessageType, string> = {
   info: '[i]',
-  success: '[+]',
+  success: '[✓]',
   error: '[x]',
   warn: '[!]',
   debug: '[.]',
@@ -263,9 +263,13 @@ const ERROR_TYPE_LABELS: Record<string, string> = {
 };
 
 const getErrorLabel = (errorType: string): string => {
-  return ERROR_TYPE_LABELS[errorType] || errorType.replace(/_/g, ' ') + ' Error';
+  return ERROR_TYPE_LABELS[errorType] || `${errorType.replace(/_/g, ' ')} Error`;
 };
 
+/**
+ * Wrap text to fit within a given width, breaking on word boundaries.
+ * Uses stringWidth to properly handle ANSI escape codes (colors, bold, etc.)
+ */
 const wrapText = (text: string, maxWidth: number): string[] => {
   const lines: string[] = [];
   const paragraphs = text.split('\n');
@@ -278,13 +282,18 @@ const wrapText = (text: string, maxWidth: number): string[] => {
 
     const words = paragraph.split(' ');
     let currentLine = '';
+    let currentLineWidth = 0;
 
     for (const word of words) {
-      if (currentLine.length + word.length + 1 <= maxWidth) {
+      const wordWidth = stringWidth(word);
+
+      if (currentLineWidth + wordWidth + (currentLine ? 1 : 0) <= maxWidth) {
         currentLine += (currentLine ? ' ' : '') + word;
+        currentLineWidth += wordWidth + (currentLineWidth > 0 ? 1 : 0);
       } else {
         if (currentLine) lines.push(currentLine);
         currentLine = word;
+        currentLineWidth = wordWidth;
       }
     }
     if (currentLine) lines.push(currentLine);
@@ -337,7 +346,7 @@ export const renderErrorToString = (
 
   if (error.stackTrace) {
     lines.push('');
-    lines.push(colorize('yellow', makeBold('Stack trace:')));
+    lines.push(makeBold('Stack trace:'));
     lines.push(colorize('gray', error.stackTrace));
   }
 

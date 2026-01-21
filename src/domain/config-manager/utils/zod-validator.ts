@@ -17,6 +17,7 @@ type FormattedError = {
   resourceName?: string;
   section?: string;
   lineNumber?: number;
+  lineNumbers?: number[]; // Multiple line numbers for errors spanning multiple lines (e.g., unrecognized_keys)
   actualValue?: unknown;
 };
 
@@ -106,8 +107,8 @@ const buildSourceMap = (configPath: string): SourceMap | null => {
 
 type SnippetLine = { isHighlighted: boolean; lineNum: string; content: string };
 
-// Get code snippet around a line
-const getCodeSnippet = (configPath: string, lineNumber: number, contextLines = 2): SnippetLine[] | null => {
+// Get code snippet around line(s) - supports multiple highlighted lines
+const getCodeSnippet = (configPath: string, lineNumbers: number | number[], contextLines = 2): SnippetLine[] | null => {
   if (!configPath || configPath.endsWith('.ts') || configPath.endsWith('.js')) {
     return null;
   }
@@ -115,15 +116,24 @@ const getCodeSnippet = (configPath: string, lineNumber: number, contextLines = 2
   try {
     const content = readFileSync(configPath, 'utf-8');
     const lines = content.split('\n');
-    const startLine = Math.max(0, lineNumber - contextLines - 1);
-    const endLine = Math.min(lines.length, lineNumber + contextLines);
+
+    // Normalize to array
+    const highlightLines = Array.isArray(lineNumbers) ? lineNumbers : [lineNumbers];
+    const highlightSet = new Set(highlightLines);
+
+    // Calculate range to show (from first highlighted - context to last highlighted + context)
+    const minLine = Math.min(...highlightLines);
+    const maxLine = Math.max(...highlightLines);
+    const startLine = Math.max(0, minLine - contextLines - 1);
+    const endLine = Math.min(lines.length, maxLine + contextLines);
+
     const snippetLines: SnippetLine[] = [];
     const lineNumWidth = String(endLine).length;
 
     for (let i = startLine; i < endLine; i++) {
       const lineNum = String(i + 1).padStart(lineNumWidth, ' ');
       snippetLines.push({
-        isHighlighted: i + 1 === lineNumber,
+        isHighlighted: highlightSet.has(i + 1),
         lineNum,
         content: lines[i]
       });
@@ -201,7 +211,18 @@ const formatZodIssue = (issue: ZodIssue, config: unknown, sourceMap: SourceMap |
   // Enhance messages for common error types
   if (issue.code === 'invalid_type') {
     const expected = (issue as any).expected;
-    const received = (issue as any).received ?? 'unknown';
+    let received = (issue as any).received ?? 'unknown';
+
+    // If Zod reports "unknown", derive the actual JS type from the value
+    if (received === 'unknown' && actualValue !== undefined) {
+      if (Array.isArray(actualValue)) {
+        received = 'array';
+      } else if (actualValue === null) {
+        received = 'null';
+      } else {
+        received = typeof actualValue; // 'string', 'number', 'boolean', 'object'
+      }
+    }
 
     // Handle missing required property (undefined value)
     if (actualValue === undefined || received === 'undefined') {
@@ -280,16 +301,37 @@ const formatZodIssue = (issue: ZodIssue, config: unknown, sourceMap: SourceMap |
     resourceName = pathParts[1];
   }
 
-  // Get line number from source map
+  // Get line number(s) from source map
   let lineNumber: number | undefined;
+  let lineNumbers: number[] | undefined;
+
   if (sourceMap) {
-    const location = sourceMap.get(pathStr);
-    if (location) {
-      lineNumber = location.line;
+    // For unrecognized_keys, find line numbers for ALL unknown keys
+    if (issue.code === 'unrecognized_keys') {
+      const unknownKeys = issue.keys as string[];
+      const foundLines: number[] = [];
+      for (const key of unknownKeys) {
+        const keyPath = pathStr ? `${pathStr}.${key}` : key;
+        const location = sourceMap.get(keyPath);
+        if (location) {
+          foundLines.push(location.line);
+        }
+      }
+      if (foundLines.length > 0) {
+        lineNumber = foundLines[0]; // First line for the "Line X" display
+        lineNumbers = foundLines; // All lines for snippet highlighting
+      }
+    }
+    // Fall back to the issue path if no unknown key found or not unrecognized_keys
+    if (!lineNumber) {
+      const location = sourceMap.get(pathStr);
+      if (location) {
+        lineNumber = location.line;
+      }
     }
   }
 
-  return { path, message, hint, resourceName, section, lineNumber, actualValue };
+  return { path, message, hint, resourceName, section, lineNumber, lineNumbers, actualValue };
 };
 
 const groupErrorsByResource = (errors: FormattedError[]): Map<string, FormattedError[]> => {
@@ -315,9 +357,20 @@ const formatErrorGroup = (key: string, errors: FormattedError[], configPath: str
   const formatSnippet = (snippetLines: SnippetLine[]): string => {
     return snippetLines
       .map(({ isHighlighted, lineNum, content }) => {
-        const marker = isHighlighted ? tuiManager.makeBold('>') : ' ';
-        const lineText = `${lineNum} | ${content}`;
-        return `${snippetIndent}${marker} ${tuiManager.colorize('gray', lineText)}`;
+        // Highlighted: "> 14 |", Non-highlighted: "  14 |" - keeps | aligned
+        if (isHighlighted) {
+          // Extract comment if present
+          const commentMatch = content.match(/^([^#]*)(#.*)$/);
+          if (commentMatch) {
+            const [, code, comment] = commentMatch;
+            const lineText = `${lineNum} | ${code}`;
+            return `${snippetIndent}${tuiManager.makeBold('> ')}${tuiManager.colorize('gray', lineText)}${tuiManager.makeBold(comment)}`;
+          }
+          const lineText = `${lineNum} | ${content}`;
+          return `${snippetIndent}${tuiManager.makeBold('> ')}${tuiManager.colorize('gray', lineText)}`;
+        }
+        const lineText = `  ${lineNum} | ${content}`;
+        return `${snippetIndent}${tuiManager.colorize('gray', lineText)}`;
       })
       .join('\n');
   };
@@ -326,16 +379,16 @@ const formatErrorGroup = (key: string, errors: FormattedError[], configPath: str
     return errors
       .map((e) => {
         const lineInfo = e.lineNumber ? `Line ${e.lineNumber}, ` : '';
-        let errorLine = `  - ${lineInfo}${tuiManager.prettyConfigProperty(e.path || '/')}: ${e.message}`;
+        let errorLine = `• ${lineInfo}${tuiManager.prettyConfigProperty(e.path || '/')}: ${e.message}`;
 
         // Add hint if available
         if (e.hint) {
           errorLine += `\n${hintPrefix}${e.hint}`;
         }
 
-        // Add code snippet if available
+        // Add code snippet if available - use lineNumbers array if available for multi-line highlighting
         if (showSnippets && e.lineNumber) {
-          const snippet = getCodeSnippet(configPath, e.lineNumber);
+          const snippet = getCodeSnippet(configPath, e.lineNumbers || e.lineNumber);
           if (snippet) {
             errorLine += `\n\n${formatSnippet(snippet)}`;
           }
@@ -354,16 +407,16 @@ const formatErrorGroup = (key: string, errors: FormattedError[], configPath: str
     // Remove the resource prefix from path for cleaner output
     const shortPath = e.path.replace(new RegExp(`^\\.${section}\\.${name}`), '') || '/';
     const lineInfo = e.lineNumber ? `Line ${e.lineNumber}, ` : '';
-    let errorLine = `  - ${lineInfo}${tuiManager.prettyConfigProperty(shortPath)}: ${e.message}`;
+    let errorLine = `• ${lineInfo}${tuiManager.prettyConfigProperty(shortPath)}: ${e.message}`;
 
     // Add hint if available
     if (e.hint) {
       errorLine += `\n${hintPrefix}${e.hint}`;
     }
 
-    // Add code snippet if available and this is a YAML config
+    // Add code snippet if available and this is a YAML config - use lineNumbers array if available
     if (showSnippets && e.lineNumber) {
-      const snippet = getCodeSnippet(configPath, e.lineNumber);
+      const snippet = getCodeSnippet(configPath, e.lineNumbers || e.lineNumber);
       if (snippet) {
         errorLine += `\n\n${formatSnippet(snippet)}`;
       }

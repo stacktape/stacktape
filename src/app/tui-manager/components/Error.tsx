@@ -143,6 +143,7 @@ const VERTICAL = '│';
 /**
  * Wrap text to fit within a given width, breaking on word boundaries.
  * Handles newlines in the original text properly.
+ * Uses stringWidth to properly handle ANSI escape codes (colors, bold, etc.)
  */
 const wrapText = (text: string, maxWidth: number): string[] => {
   const result: string[] = [];
@@ -159,32 +160,46 @@ const wrapText = (text: string, maxWidth: number): string[] => {
 
     const words = paragraph.split(' ').filter((w) => w !== '');
     let currentLine = '';
+    let currentLineWidth = 0;
 
     for (const word of words) {
+      const wordWidth = stringWidth(word);
+
       // Handle words longer than maxWidth by breaking them across lines
-      if (word.length > maxWidth) {
+      if (wordWidth > maxWidth) {
         // Push current line if not empty
         if (currentLine) {
           result.push(currentLine);
           currentLine = '';
+          currentLineWidth = 0;
         }
-        // Break long word into chunks
-        let remaining = word;
-        while (remaining.length > maxWidth) {
-          result.push(remaining.slice(0, maxWidth));
-          remaining = remaining.slice(maxWidth);
-        }
-        if (remaining) {
-          currentLine = remaining;
+        // For very long words without ANSI codes, break them
+        // For words with ANSI codes that appear long, just add them as-is
+        if (word.length === wordWidth) {
+          // No ANSI codes, safe to break
+          let remaining = word;
+          while (remaining.length > maxWidth) {
+            result.push(remaining.slice(0, maxWidth));
+            remaining = remaining.slice(maxWidth);
+          }
+          if (remaining) {
+            currentLine = remaining;
+            currentLineWidth = remaining.length;
+          }
+        } else {
+          // Has ANSI codes, don't break the word
+          result.push(word);
         }
         continue;
       }
 
-      if (currentLine.length + word.length + 1 <= maxWidth) {
+      if (currentLineWidth + wordWidth + (currentLine ? 1 : 0) <= maxWidth) {
         currentLine += (currentLine ? ' ' : '') + word;
+        currentLineWidth += wordWidth + (currentLineWidth > 0 ? 1 : 0);
       } else {
         if (currentLine) result.push(currentLine);
         currentLine = word;
+        currentLineWidth = wordWidth;
       }
     }
     if (currentLine) result.push(currentLine);
