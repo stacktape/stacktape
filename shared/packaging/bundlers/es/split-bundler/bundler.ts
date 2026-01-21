@@ -16,7 +16,7 @@ import { builtinModules, filterDuplicates, getError, getTsconfigAliases } from '
 import { findProjectRoot } from '@shared/utils/monorepo';
 import { copy, ensureDir, outputJSON, readFile, writeFile, writeJSON } from 'fs-extra';
 import { DEPENDENCIES_TO_EXCLUDE_FROM_BUNDLE, IGNORED_MODULES } from '../config';
-import { determineIfAlias, getInfoFromPackageJson, getLockFileData } from '../utils';
+import { createModuleResolver, determineIfAlias, getInfoFromPackageJson, getLockFileData } from '../utils';
 import { findChunkImports, rewriteChunkImports } from './chunk-rewriter';
 import type {
   BuildSplitBundleOptions,
@@ -295,24 +295,7 @@ const executeBunBuild = async ({
   }
 };
 
-/** Find module path, checking both cwd/node_modules and monorepo root/node_modules */
-const findModulePath = (moduleName: string, cwd: string, monorepoRoot: string | null): string | null => {
-  // First try cwd/node_modules
-  const cwdModulePath = join(cwd, 'node_modules', moduleName);
-  if (existsSync(join(cwdModulePath, 'package.json'))) {
-    return cwdModulePath;
-  }
-
-  // Then try monorepo root/node_modules (for workspace packages)
-  if (monorepoRoot && monorepoRoot !== cwd) {
-    const rootModulePath = join(monorepoRoot, 'node_modules', moduleName);
-    if (existsSync(join(rootModulePath, 'package.json'))) {
-      return rootModulePath;
-    }
-  }
-
-  return null;
-};
+// Module resolver is created per-build in createAnalyzePlugin
 
 /** Create plugin for analyzing and tracking dependencies */
 const createAnalyzePlugin = ({
@@ -331,86 +314,91 @@ const createAnalyzePlugin = ({
   shouldIgnoreAllDeps: boolean;
   aliases: Record<string, string>;
   tracker: DependencyTracker;
-}): BunPlugin => ({
-  name: 'stp-analyze-deps',
-  setup(build) {
-    // Track source files
-    build.onLoad({ filter: /\.(ts|tsx|js|jsx|mjs|cjs)$/ }, async (args) => {
-      tracker.sourceFiles.add(args.path);
-      return undefined;
-    });
+}): BunPlugin => {
+  // Create module resolver with loose resolution (mimics esbuild behavior)
+  const moduleResolver = createModuleResolver({ cwd, monorepoRoot });
 
-    // Analyze and handle external dependencies
-    build.onResolve({ filter: /^[^.]/ }, async (args): Promise<{ path: string; external?: boolean } | undefined> => {
-      if (args.path.startsWith('.') || args.path.startsWith('/')) {
+  return {
+    name: 'stp-analyze-deps',
+    setup(build) {
+      // Track source files
+      build.onLoad({ filter: /\.(ts|tsx|js|jsx|mjs|cjs)$/ }, async (args) => {
+        tracker.sourceFiles.add(args.path);
         return undefined;
-      }
+      });
 
-      const moduleName = getModuleName(args.path);
-      tracker.resolvedModules.add(moduleName);
-
-      // Skip built-in modules
-      if (builtinModules.includes(moduleName) || args.path.startsWith('node:')) {
-        return undefined;
-      }
-
-      // Already marked as external
-      if (tracker.externalModules.find((m) => m.name === moduleName)) {
-        return { path: args.path, external: true };
-      }
-
-      // Check if it's a tsconfig alias
-      if (await determineIfAlias({ moduleName, aliases })) {
-        return undefined;
-      }
-
-      // Find module in cwd or monorepo root node_modules
-      const modulePath = findModulePath(moduleName, cwd, monorepoRoot);
-
-      // Handle wildcard externalization
-      if (shouldIgnoreAllDeps && modulePath) {
-        const pkgInfo = await getInfoFromPackageJson({
-          directoryPath: modulePath,
-          parentModule: null,
-          dependencyType: 'root'
-        }).catch(() => null);
-        if (pkgInfo) {
-          tracker.dependenciesToInstallInDocker.push({ ...pkgInfo, note: 'WILDCARD_EXTERNALIZED' });
+      // Analyze and handle external dependencies
+      build.onResolve({ filter: /^[^.]/ }, async (args): Promise<{ path: string; external?: boolean } | undefined> => {
+        if (args.path.startsWith('.') || args.path.startsWith('/')) {
+          return undefined;
         }
-        tracker.externalModules.push({ name: moduleName, note: 'WILDCARD_EXTERNALIZED' });
-        return { path: args.path, external: true };
-      }
 
-      // Handle ignored modules
-      if (IGNORED_MODULES.concat(excludeDependencies).includes(moduleName)) {
-        tracker.externalModules.push({ name: moduleName, note: 'IGNORED' });
-        return { path: args.path, external: true };
-      }
+        const moduleName = getModuleName(args.path);
+        tracker.resolvedModules.add(moduleName);
 
-      // Analyze dependency for native binaries
-      if (modulePath) {
-        const { dependenciesToInstallInDocker, allExternalDeps } = await analyzeDependency({
-          dependency: { name: moduleName, path: modulePath },
-          dependenciesToExcludeFromBundle
-        });
+        // Skip built-in modules
+        if (builtinModules.includes(moduleName) || args.path.startsWith('node:')) {
+          return undefined;
+        }
 
-        tracker.dependenciesToInstallInDocker.push(...dependenciesToInstallInDocker);
-
-        if (dependenciesToInstallInDocker.find((dep) => dep.name === moduleName)) {
-          tracker.externalModules.push({ name: moduleName, note: 'INSTALLED_IN_DOCKER' });
-          for (const dep of allExternalDeps) {
-            if (!tracker.externalModules.find((m) => m.name === dep)) {
-              tracker.externalModules.push({ name: dep, note: `ADDED_BY_${moduleName}` });
-            }
-          }
+        // Already marked as external
+        if (tracker.externalModules.find((m) => m.name === moduleName)) {
           return { path: args.path, external: true };
         }
-      }
 
-      return undefined;
-    });
-  }
-});
+        // Check if it's a tsconfig alias
+        if (await determineIfAlias({ moduleName, aliases })) {
+          return undefined;
+        }
+
+        // Find module using loose resolution (handles nested node_modules)
+        const modulePath = moduleResolver.findModulePath(moduleName, args.importer);
+
+        // Handle wildcard externalization
+        if (shouldIgnoreAllDeps && modulePath) {
+          const pkgInfo = await getInfoFromPackageJson({
+            directoryPath: modulePath,
+            parentModule: null,
+            dependencyType: 'root'
+          }).catch(() => null);
+          if (pkgInfo) {
+            tracker.dependenciesToInstallInDocker.push({ ...pkgInfo, note: 'WILDCARD_EXTERNALIZED' });
+          }
+          tracker.externalModules.push({ name: moduleName, note: 'WILDCARD_EXTERNALIZED' });
+          return { path: args.path, external: true };
+        }
+
+        // Handle ignored modules
+        if (IGNORED_MODULES.concat(excludeDependencies).includes(moduleName)) {
+          tracker.externalModules.push({ name: moduleName, note: 'IGNORED' });
+          return { path: args.path, external: true };
+        }
+
+        // Analyze dependency for native binaries
+        if (modulePath) {
+          const { dependenciesToInstallInDocker, allExternalDeps } = await analyzeDependency({
+            dependency: { name: moduleName, path: modulePath },
+            dependenciesToExcludeFromBundle
+          });
+
+          tracker.dependenciesToInstallInDocker.push(...dependenciesToInstallInDocker);
+
+          if (dependenciesToInstallInDocker.find((dep) => dep.name === moduleName)) {
+            tracker.externalModules.push({ name: moduleName, note: 'INSTALLED_IN_DOCKER' });
+            for (const dep of allExternalDeps) {
+              if (!tracker.externalModules.find((m) => m.name === dep)) {
+                tracker.externalModules.push({ name: dep, note: `ADDED_BY_${moduleName}` });
+              }
+            }
+            return { path: args.path, external: true };
+          }
+        }
+
+        return undefined;
+      });
+    }
+  };
+};
 
 /** Create plugin for handling native .node modules */
 const createNativeModulesPlugin = (): BunPlugin => ({

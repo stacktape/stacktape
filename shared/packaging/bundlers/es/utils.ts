@@ -577,3 +577,155 @@ export const resolveDifferentSourceMapLocation = async ({
 
   return remove(originalLocation);
 };
+
+/**
+ * Module resolver that mimics esbuild's loose resolution behavior.
+ * This handles transitive dependencies that aren't hoisted to root node_modules.
+ */
+export const createModuleResolver = ({ cwd, monorepoRoot }: { cwd: string; monorepoRoot: string | null }) => {
+  // Cache for module resolution to avoid repeated filesystem checks
+  const modulePathCache = new Map<string, string | null>();
+
+  // Fast path: find module in standard locations (cwd/node_modules, monorepo root/node_modules)
+  const findModulePathFast = (moduleName: string): string | null => {
+    if (modulePathCache.has(moduleName)) {
+      return modulePathCache.get(moduleName)!;
+    }
+
+    // 1. Check cwd/node_modules (most common case)
+    const cwdModulePath = join(cwd, 'node_modules', moduleName);
+    if (isFileAccessible(join(cwdModulePath, 'package.json'))) {
+      modulePathCache.set(moduleName, cwdModulePath);
+      return cwdModulePath;
+    }
+
+    // 2. Check monorepo root/node_modules
+    if (monorepoRoot && monorepoRoot !== cwd) {
+      const rootModulePath = join(monorepoRoot, 'node_modules', moduleName);
+      if (isFileAccessible(join(rootModulePath, 'package.json'))) {
+        modulePathCache.set(moduleName, rootModulePath);
+        return rootModulePath;
+      }
+    }
+
+    return null;
+  };
+
+  // Walk up from importer directory checking nested node_modules
+  // This mimics Node.js resolution algorithm for transitive dependencies
+  const findModulePathFromImporter = (moduleName: string, importer: string): string | null => {
+    const cacheKey = `${moduleName}:importer:${importer}`;
+    if (modulePathCache.has(cacheKey)) {
+      return modulePathCache.get(cacheKey)!;
+    }
+
+    const { dirname } = require('node:path');
+    let currentDir = dirname(importer);
+    const rootDir = monorepoRoot || cwd;
+
+    // Walk up directory tree, checking node_modules at each level
+    while (currentDir.length >= rootDir.length) {
+      const nestedPath = join(currentDir, 'node_modules', moduleName);
+      if (isFileAccessible(join(nestedPath, 'package.json'))) {
+        modulePathCache.set(cacheKey, nestedPath);
+        return nestedPath;
+      }
+      const parentDir = dirname(currentDir);
+      if (parentDir === currentDir) break;
+      currentDir = parentDir;
+    }
+
+    modulePathCache.set(cacheKey, null);
+    return null;
+  };
+
+  // Deep search: recursively search nested node_modules (slower, used as fallback)
+  // Cached to avoid repeated searches for the same module
+  const deepSearchCache = new Map<string, string | null>();
+
+  const findModulePathDeep = (moduleName: string): string | null => {
+    if (deepSearchCache.has(moduleName)) {
+      return deepSearchCache.get(moduleName)!;
+    }
+
+    const { readdirSync, statSync } = require('node:fs');
+    const { existsSync } = require('node:fs');
+
+    const searchNestedNodeModules = (baseDir: string, depth = 0): string | null => {
+      if (depth > 4) return null; // Limit depth to avoid performance issues
+
+      const nodeModulesPath = join(baseDir, 'node_modules');
+      if (!existsSync(nodeModulesPath)) return null;
+
+      // Check if module exists directly here
+      const directPath = join(nodeModulesPath, moduleName);
+      if (isFileAccessible(join(directPath, 'package.json'))) {
+        return directPath;
+      }
+
+      // Search in subdirectories' node_modules
+      try {
+        const entries = readdirSync(nodeModulesPath);
+        for (const entry of entries) {
+          if (entry.startsWith('.') || entry === moduleName) continue;
+          const entryPath = join(nodeModulesPath, entry);
+          try {
+            if (statSync(entryPath).isDirectory()) {
+              const found = searchNestedNodeModules(entryPath, depth + 1);
+              if (found) return found;
+            }
+          } catch {
+            // Skip inaccessible directories
+          }
+        }
+      } catch {
+        // Skip if can't read directory
+      }
+      return null;
+    };
+
+    // Search from cwd first
+    let result = searchNestedNodeModules(cwd);
+    if (!result && monorepoRoot && monorepoRoot !== cwd) {
+      result = searchNestedNodeModules(monorepoRoot);
+    }
+
+    deepSearchCache.set(moduleName, result);
+    return result;
+  };
+
+  // Combined resolution: fast path first, then walk-up from importer
+  // Does NOT include deep search for performance - use findModulePathDeep explicitly if needed
+  const findModulePath = (moduleName: string, importer?: string): string | null => {
+    // Try fast path first (covers 99% of cases)
+    const fastResult = findModulePathFast(moduleName);
+    if (fastResult) return fastResult;
+
+    // If we have an importer, try walking up from there
+    if (importer) {
+      const importerResult = findModulePathFromImporter(moduleName, importer);
+      if (importerResult) return importerResult;
+    }
+
+    return null;
+  };
+
+  // Check if module is in a non-standard location (nested node_modules)
+  const isNestedLocation = (modulePath: string, moduleName: string): boolean => {
+    const standardCwdPath = join(cwd, 'node_modules', moduleName);
+    const standardRootPath = monorepoRoot ? join(monorepoRoot, 'node_modules', moduleName) : null;
+    return modulePath !== standardCwdPath && (!standardRootPath || modulePath !== standardRootPath);
+  };
+
+  return {
+    findModulePath,
+    findModulePathFast,
+    findModulePathFromImporter,
+    findModulePathDeep,
+    isNestedLocation,
+    cwd,
+    monorepoRoot
+  };
+};
+
+export type ModuleResolver = ReturnType<typeof createModuleResolver>;

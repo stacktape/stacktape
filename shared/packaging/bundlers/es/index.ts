@@ -28,6 +28,7 @@ import {
 } from './config';
 import { copyDockerInstalledModulesForLambda } from './copy-docker-installed-modules';
 import {
+  createModuleResolver,
   determineIfAlias,
   getAllJsDependenciesFromMultipleFiles,
   getExternalDeps,
@@ -121,20 +122,9 @@ export const buildEsCode = async ({
   const monorepoRoot = await findProjectRoot(cwd);
   const unixMonorepoRoot = monorepoRoot ? transformToUnixPath(monorepoRoot) : null;
 
-  // Helper to find module path in cwd or monorepo root
-  const findModulePath = (moduleName: string): string | null => {
-    const cwdModulePath = join(cwd, 'node_modules', moduleName);
-    if (isFileAccessible(join(cwdModulePath, 'package.json'))) {
-      return cwdModulePath;
-    }
-    if (monorepoRoot && monorepoRoot !== cwd) {
-      const rootModulePath = join(monorepoRoot, 'node_modules', moduleName);
-      if (isFileAccessible(join(rootModulePath, 'package.json'))) {
-        return rootModulePath;
-      }
-    }
-    return null;
-  };
+  // Create module resolver with loose resolution (mimics esbuild behavior)
+  const moduleResolver = createModuleResolver({ cwd, monorepoRoot });
+  const { findModulePath } = moduleResolver;
 
   // Helper to check if a module path is a workspace package (symlink pointing within monorepo)
   const isWorkspacePackage = (modulePath: string): boolean => {
@@ -202,8 +192,8 @@ export const buildEsCode = async ({
               return undefined;
             }
 
-            // Find module in cwd or monorepo root node_modules
-            const modulePath = findModulePath(moduleName);
+            // Find module in cwd, monorepo root, or nested node_modules (mimics esbuild's loose resolution)
+            const modulePath = findModulePath(moduleName, args.importer);
 
             // Check if this is a workspace package (symlinked monorepo package)
             // For workspace packages, we need to explicitly resolve to avoid Bun crash on Windows
@@ -301,7 +291,89 @@ export const buildEsCode = async ({
       }
     };
 
-    const allBunPlugins: BunPlugin[] = [stpAnalyzeDepsPlugin, nativeNodeModulesPlugin, ...(plugins || [])];
+    // Bun plugin to resolve modules that Bun can't find on its own (mimics esbuild's loose resolution)
+    // This handles transitive dependencies that aren't hoisted to root node_modules
+    // Only intervenes for modules in non-standard (nested) locations
+    const looseResolvePlugin: BunPlugin = {
+      name: 'loose-resolve-plugin',
+      setup(build) {
+        build.onResolve({ filter: /^[^./]/ }, (args) => {
+          if (args.path.startsWith('.') || args.path.startsWith('/')) return undefined;
+
+          const moduleName = getModuleNameFromPath(args.path);
+          if (builtinModules.includes(moduleName) || args.path.startsWith('node:')) return undefined;
+
+          // Use combined resolution: fast path first, then walk-up from importer
+          // Skip deep search for performance - it's rarely needed and expensive
+          const modulePath = findModulePath(moduleName, args.importer);
+          if (!modulePath) return undefined;
+
+          // Only intervene if module is in a non-standard location (nested node_modules)
+          // Standard locations are handled by Bun natively
+          if (!moduleResolver.isNestedLocation(modulePath, moduleName)) return undefined;
+
+          // Module is in nested node_modules - resolve entry point manually
+          try {
+            const pkgJsonPath = join(modulePath, 'package.json');
+            const pkgJson = JSON.parse(require('node:fs').readFileSync(pkgJsonPath, 'utf-8'));
+
+            // Handle subpath imports (e.g., 'lodash/merge')
+            const subpath = args.path.slice(moduleName.length);
+            if (subpath && subpath !== '/') {
+              const subpathFile = join(modulePath, subpath);
+              const extensions = ['.js', '.mjs', '.cjs', '.ts', '.tsx', '.json', ''];
+              for (const ext of extensions) {
+                const fullPath = subpathFile + ext;
+                if (isFileAccessible(fullPath)) return { path: resolve(fullPath) };
+                const indexPath = join(subpathFile, `index${ext || '.js'}`);
+                if (isFileAccessible(indexPath)) return { path: resolve(indexPath) };
+              }
+            }
+
+            // Resolve main entry point
+            let entryPoint: string | undefined;
+            if (pkgJson.exports) {
+              const exports = pkgJson.exports;
+              if (typeof exports === 'string') {
+                entryPoint = exports;
+              } else if (exports['.']) {
+                const dotExport = exports['.'];
+                if (typeof dotExport === 'string') {
+                  entryPoint = dotExport;
+                } else if (dotExport.import) {
+                  entryPoint = typeof dotExport.import === 'string' ? dotExport.import : dotExport.import.default;
+                } else if (dotExport.require) {
+                  entryPoint = typeof dotExport.require === 'string' ? dotExport.require : dotExport.require.default;
+                } else if (dotExport.default) {
+                  entryPoint = dotExport.default;
+                }
+              }
+            }
+            if (!entryPoint) entryPoint = pkgJson.module || pkgJson.main || 'index.js';
+
+            const resolvedPath = join(modulePath, entryPoint);
+            if (isFileAccessible(resolvedPath)) return { path: resolve(resolvedPath) };
+
+            const extensions = ['.js', '.mjs', '.cjs', '.ts', '.json'];
+            for (const ext of extensions) {
+              const pathWithExt = resolvedPath.replace(/\.(js|mjs|cjs)$/, '') + ext;
+              if (isFileAccessible(pathWithExt)) return { path: resolve(pathWithExt) };
+            }
+          } catch {
+            // If we can't read package.json, let Bun try its resolution
+          }
+
+          return undefined;
+        });
+      }
+    };
+
+    const allBunPlugins: BunPlugin[] = [
+      looseResolvePlugin,
+      stpAnalyzeDepsPlugin,
+      nativeNodeModulesPlugin,
+      ...(plugins || [])
+    ];
 
     // Determine entry points - convert to Unix paths for Bun on Windows
     const entryPoints = (sourcePath ? [sourcePath] : sourcePaths || []).map(transformToUnixPath);
