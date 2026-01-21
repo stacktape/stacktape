@@ -565,5 +565,6 @@ export const commandsNotRequiringApiKey: StacktapeCommand[] = [
   'help',
   'defaults:list',
   'defaults:configure',
-  'upgrade'
+  'upgrade',
+  'init'
 ];

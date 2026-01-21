@@ -2,6 +2,7 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { initUsingExistingConfig } from './using-existing-config';
 import { initUsingStarterProject } from './using-starter-project';
+import { initUsingAiConfigGen } from './using-ai-config-gen';
 
 export const commandInit = async () => {
   if (globalStateManager.args.templateId) {
@@ -15,6 +16,11 @@ export const commandInit = async () => {
     message: 'How do you want to initialize the project?',
     options: [
       {
+        label: 'Generate config using AI (Recommended)',
+        description: 'Automatically analyze your project and generate a Stacktape configuration',
+        value: 'ai-config-gen'
+      },
+      {
         label: 'Create new config (template) using Interactive Config Editor',
         description: 'The config will be automatically synced to your project directory',
         value: 'create-config'
@@ -26,6 +32,10 @@ export const commandInit = async () => {
       }
     ]
   });
+
+  if (selectedInitType === 'ai-config-gen') {
+    return initUsingAiConfigGen();
+  }
 
   if (selectedInitType === 'starter-project') {
     return initUsingStarterProject();
