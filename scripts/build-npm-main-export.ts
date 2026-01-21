@@ -401,6 +401,20 @@ function compileDeclarations(): Map<string, string> {
 }
 
 /**
+ * Post-processes generated types to fix index signature patterns.
+ * Converts `{ [k: string]: any }` to `any` for fields that were originally typed as `any`.
+ * This fixes issues with EventBusIntegrationPattern and similar types where fields
+ * should accept arrays, objects, or any other value.
+ */
+function postProcessPlainTypes(content: string): string {
+  // Replace standalone `{ [k: string]: any }` or `{ [k: string]: any; }` with `any`
+  // This pattern appears when json-schema-to-typescript converts `any` types
+  return content
+    .replace(/\?:\s*\{\s*\[k:\s*string\]:\s*any;?\s*\}/g, '?: any')
+    .replace(/:\s*\{\s*\[k:\s*string\]:\s*any;?\s*\}/g, ': any');
+}
+
+/**
  * Generates plain.d.ts - plain types (YAML-equivalent) without class augmentation
  */
 async function generatePlainTypes(jsonSchemaGenerator: JsonSchemaGenerator): Promise<string> {
@@ -421,7 +435,7 @@ async function generatePlainTypes(jsonSchemaGenerator: JsonSchemaGenerator): Pro
 
   logSuccess('Plain types generated successfully');
 
-  return `/* eslint-disable */
+  const rawContent = `/* eslint-disable */
 // @ts-nocheck
 // Generated file - Do not edit manually
 // Plain types (YAML-equivalent) - no class augmentation
@@ -429,6 +443,8 @@ async function generatePlainTypes(jsonSchemaGenerator: JsonSchemaGenerator): Pro
 
 ${typeDefinitions.join('\n\n')}
 `;
+
+  return postProcessPlainTypes(rawContent);
 }
 
 /**

@@ -43,6 +43,9 @@ function formatConstructorJSDoc(
   return lines.join('\n');
 }
 
+// Script props types that have local augmented versions (with connectTo accepting class instances)
+const AUGMENTED_SCRIPT_PROPS = ['LocalScriptProps', 'BastionScriptProps', 'LocalScriptWithBastionTunnelingProps'];
+
 /**
  * Generate type/properties class declarations
  */
@@ -61,10 +64,14 @@ ${constructorJsDoc}
 }`;
     }
 
+    // Script props have local augmented versions that accept class instances for connectTo
+    // Use local type instead of import('./plain')
+    const propsTypeRef = AUGMENTED_SCRIPT_PROPS.includes(propsType) ? propsType : `import('./plain').${propsType}`;
+
     return `
 export declare class ${className} extends BaseTypeProperties {
 ${constructorJsDoc}
-  constructor(properties: import('./plain').${propsType});
+  constructor(properties: ${propsTypeRef});
   readonly type: '${typeValue}';
 }`;
   }).join('\n');

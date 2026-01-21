@@ -68,6 +68,8 @@ export const getTsTypeDef = async ({
 }) => {
   const generator = jsonSchemaGenerator || (await getJsonSchemaGenerator());
   const jsonSchema = generator.getSchemaForSymbol(typeName);
-  const res = await compileJsonSchemaToTypescript(jsonSchema as any, newTypeName);
+  const res = await compileJsonSchemaToTypescript(jsonSchema as any, newTypeName, {
+    unknownAny: false // Use 'any' instead of '{ [k: string]: unknown }' for untyped fields
+  });
   return res.split('\n').slice(7).join('\n');
 };
