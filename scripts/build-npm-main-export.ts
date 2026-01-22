@@ -50,6 +50,72 @@ const SOURCE_FILES = [
 ].map((file) => join(SOURCE_FOLDER_PATH, 'api', 'npm', 'ts', file));
 
 /**
+ * Type aliases for Props types that need to extract 'properties' from discriminated unions
+ * Maps expected propsType name to the path to access the properties
+ */
+const PROPS_TYPE_PROPERTIES_ALIASES: Record<string, string> = {
+  // Lambda event integration types - need ['properties'] accessor
+  HttpApiIntegrationProps: "HttpApiIntegration['properties']",
+  S3IntegrationProps: "S3Integration['properties']",
+  ScheduleIntegrationProps: "ScheduleIntegration['properties']",
+  SnsIntegrationProps: "SnsIntegration['properties']",
+  SqsIntegrationProps: "SqsIntegration['properties']",
+  KinesisIntegrationProps: "KinesisIntegration['properties']",
+  DynamoDbIntegrationProps: "DynamoDbIntegration['properties']",
+  CloudwatchLogIntegrationProps: "CloudwatchLogIntegration['properties']",
+  ApplicationLoadBalancerIntegrationProps: "ApplicationLoadBalancerIntegration['properties']",
+  EventBusIntegrationProps: "EventBusIntegration['properties']",
+  KafkaTopicIntegrationProps: "KafkaTopicIntegration['properties']",
+  AlarmIntegrationProps: "AlarmIntegration['properties']",
+  // Container workload integration types
+  SqsQueueEventBusIntegrationProps: "SqsQueueEventBusIntegration['properties']",
+  ContainerWorkloadHttpApiIntegrationProps: "ContainerWorkloadHttpApiIntegration['properties']",
+  ContainerWorkloadLoadBalancerIntegrationProps: "ContainerWorkloadLoadBalancerIntegration['properties']",
+  ContainerWorkloadNetworkLoadBalancerIntegrationProps: "ContainerWorkloadNetworkLoadBalancerIntegration['properties']",
+  ContainerWorkloadInternalIntegrationProps: "ContainerWorkloadInternalIntegration['properties']",
+  ContainerWorkloadServiceConnectIntegrationProps: "ContainerWorkloadServiceConnectIntegration['properties']"
+};
+
+/**
+ * Type aliases for Props types that map directly to different type names (no properties extraction)
+ */
+const PROPS_TYPE_ALIASES: Record<string, string> = {
+  // EFS mount types - these don't have type/properties structure
+  ContainerEfsMountProps: 'ContainerEfsMount',
+  LambdaEfsMountProps: 'LambdaEfsMount'
+};
+
+/**
+ * Types that don't exist at all and need placeholder definitions
+ * These are typically types that aren't referenced from StacktapeConfig root
+ */
+const MISSING_TYPES_PLACEHOLDERS = [
+  'IotIntegrationProps' // IoT integration exists in source but not generated from schema
+];
+
+/**
+ * Generates type aliases for Props types that don't exist in plain.d.ts
+ * Also generates placeholder types for types that don't exist at all
+ */
+function generatePropsTypeAliases(): string {
+  // Aliases that extract 'properties' from discriminated unions
+  const propertiesAliases = Object.entries(PROPS_TYPE_PROPERTIES_ALIASES)
+    .map(([aliasName, path]) => `export type ${aliasName} = import('./plain').${path};`)
+    .join('\n');
+
+  // Aliases that map directly to different type names
+  const directAliases = Object.entries(PROPS_TYPE_ALIASES)
+    .map(([aliasName, actualName]) => `export type ${aliasName} = import('./plain').${actualName};`)
+    .join('\n');
+
+  const placeholders = MISSING_TYPES_PLACEHOLDERS.map(
+    (typeName) => `export type ${typeName} = Record<string, unknown>;`
+  ).join('\n');
+
+  return `// Props type aliases extracting 'properties' from discriminated unions\n${propertiesAliases}\n\n// Direct type aliases\n${directAliases}\n\n// Placeholder types for missing types\n${placeholders}`;
+}
+
+/**
  * Plain types that need to be bundled into plain.d.ts
  * These are the YAML-equivalent types without class augmentation
  */
@@ -213,72 +279,105 @@ const PLAIN_TYPES_TO_GENERATE = [
 /**
  * Extracts essential declarations from compiled config.d.ts
  */
-function extractEssentialDeclarations(configDts: string): string {
-  const matches: string[] = [];
+/**
+ * Generates essential declarations inline to avoid duplication issues from compiled TS
+ */
+function generateEssentialDeclarations(): string {
+  return `
+/**
+ * Parameters passed to the getConfig/defineConfig function.
+ */
+export type GetConfigParams = {
+  /** Project name used for this operation */
+  projectName: string;
+  /** Stage ("environment") used for this operation */
+  stage: string;
+  /** AWS region used for this operation */
+  region: string;
+  /** List of arguments passed to the operation */
+  cliArgs: StacktapeArgs;
+  /** Stacktape command used to perform this operation */
+  command: string;
+  /** Locally-configured AWS profile used to execute the operation */
+  profile: string | undefined;
+};
 
-  const symbolPatterns = [
-    'declare const getParamReferenceSymbol:',
-    'declare const getTypeSymbol:',
-    'declare const getPropertiesSymbol:',
-    'declare const getOverridesSymbol:'
-  ];
+declare const getParamReferenceSymbol: unique symbol;
+declare const getTypeSymbol: unique symbol;
+declare const getPropertiesSymbol: unique symbol;
+declare const getOverridesSymbol: unique symbol;
+declare const getTransformsSymbol: unique symbol;
+declare const setResourceNameSymbol: unique symbol;
+declare const resourceParamRefSymbol: unique symbol;
+declare const baseTypePropertiesSymbol: unique symbol;
+declare const alarmSymbol: unique symbol;
 
-  for (const pattern of symbolPatterns) {
-    const startIdx = configDts.indexOf(pattern);
-    if (startIdx !== -1) {
-      const endIdx = configDts.indexOf(';', startIdx);
-      if (endIdx !== -1) {
-        matches.push(configDts.substring(startIdx, endIdx + 1));
-      }
-    }
-  }
+/**
+ * A reference to a resource parameter that will be resolved at runtime.
+ * Stores a reference to the resource for lazy name resolution.
+ */
+export declare class ResourceParamReference {
+  private __resource;
+  private __param;
+  readonly [resourceParamRefSymbol]: true;
+  constructor(resource: BaseResource, param: string);
+  toString(): string;
+  toJSON(): string;
+  valueOf(): string;
+}
 
-  const classPatterns = [
-    'export declare class ResourceParamReference',
-    'export declare class BaseTypeProperties',
-    'export declare class BaseTypeOnly',
-    'export declare class Alarm',
-    'export declare class BaseResource',
-    'export type GetConfigParams'
-  ];
+/**
+ * Base class for type/properties structures (engines, packaging, events, etc.)
+ */
+export declare class BaseTypeProperties {
+  readonly type: string;
+  readonly properties: any;
+  readonly [baseTypePropertiesSymbol]: true;
+  constructor(type: string, properties: any);
+}
 
-  for (const pattern of classPatterns) {
-    let startIdx = configDts.indexOf(pattern);
-    if (startIdx !== -1) {
-      const searchStart = Math.max(0, startIdx - 1000);
-      const beforePattern = configDts.substring(searchStart, startIdx);
-      const jsdocMatch = beforePattern.match(/\/\*\*[\s\S]*?\*\/\s*$/);
-      if (jsdocMatch) {
-        startIdx = searchStart + beforePattern.lastIndexOf(jsdocMatch[0]);
-      }
+/**
+ * Base class for type-only structures (no properties field, just type discriminator)
+ */
+export declare class BaseTypeOnly {
+  readonly type: string;
+  readonly [baseTypePropertiesSymbol]: true;
+  constructor(type: string);
+}
 
-      let braceCount = 0;
-      let inBlock = false;
-      let endIdx = startIdx;
+/**
+ * Defines a CloudWatch alarm that monitors a metric and triggers notifications when thresholds are breached.
+ */
+export declare class Alarm {
+  readonly trigger: any;
+  readonly evaluation?: any;
+  readonly notificationTargets?: import('./plain').AlarmUserIntegration[];
+  readonly description?: string;
+  readonly [alarmSymbol]: true;
+  constructor(props: { trigger: any; evaluation?: any; notificationTargets?: import('./plain').AlarmUserIntegration[]; description?: string });
+}
 
-      for (let i = configDts.indexOf(pattern); i < configDts.length; i++) {
-        const char = configDts[i];
-
-        if (char === '{') {
-          inBlock = true;
-          braceCount++;
-        } else if (char === '}') {
-          braceCount--;
-          if (inBlock && braceCount === 0) {
-            endIdx = i;
-            break;
-          }
-        } else if (char === ';' && !inBlock) {
-          endIdx = i;
-          break;
-        }
-      }
-
-      matches.push(configDts.substring(startIdx, endIdx + 1));
-    }
-  }
-
-  return matches.join('\n\n');
+/**
+ * Base resource class that provides common functionality
+ */
+export declare class BaseResource {
+  private readonly _type;
+  private _properties;
+  private _overrides?;
+  private _transforms?;
+  private _resourceName;
+  private _explicitName;
+  constructor(name: string | undefined, type: string, properties: any, overrides?: any);
+  private _processOverridesAndTransforms;
+  get resourceName(): string;
+  [setResourceNameSymbol](name: string): void;
+  [getParamReferenceSymbol](paramName: string): ResourceParamReference;
+  [getTypeSymbol](): string;
+  [getPropertiesSymbol](): any;
+  [getOverridesSymbol](): any | undefined;
+  [getTransformsSymbol](): any | undefined;
+}
+`;
 }
 
 const compileTsConfigHelpersSource = async () => {
@@ -325,6 +424,11 @@ function removeDuplicateDeclarations(content: string): string {
     'declare const getTypeSymbol:',
     'declare const getPropertiesSymbol:',
     'declare const getOverridesSymbol:',
+    'declare const getTransformsSymbol:',
+    'declare const setResourceNameSymbol:',
+    'declare const resourceParamRefSymbol:',
+    'declare const baseTypePropertiesSymbol:',
+    'declare const alarmSymbol:',
     'export declare class BaseResource',
     'export declare class ResourceParamReference',
     'export declare class BaseTypeProperties',
@@ -416,32 +520,26 @@ function postProcessPlainTypes(content: string): string {
 
 /**
  * Generates plain.d.ts - plain types (YAML-equivalent) without class augmentation
+ * Uses StacktapeConfig as the root type to generate all types once without duplication
  */
 async function generatePlainTypes(jsonSchemaGenerator: JsonSchemaGenerator): Promise<string> {
   logInfo('Generating plain types...');
 
-  const typeDefinitions: string[] = [];
-
-  for (const typeName of PLAIN_TYPES_TO_GENERATE) {
-    try {
-      const typeDef = await getTsTypeDef({ typeName, newTypeName: typeName, jsonSchemaGenerator });
-      if (typeDef && typeDef.trim()) {
-        typeDefinitions.push(typeDef);
-      }
-    } catch {
-      // Type might not exist, skip it
-    }
-  }
+  // Generate all types from StacktapeConfig root - this includes all nested types without duplication
+  const typeDef = await getTsTypeDef({
+    typeName: 'StacktapeConfig',
+    newTypeName: 'StacktapeConfig',
+    jsonSchemaGenerator
+  });
 
   logSuccess('Plain types generated successfully');
 
   const rawContent = `/* eslint-disable */
-// @ts-nocheck
 // Generated file - Do not edit manually
 // Plain types (YAML-equivalent) - no class augmentation
 // For class-based types, use: import { X } from 'stacktape'
 
-${typeDefinitions.join('\n\n')}
+${typeDef}
 `;
 
   return postProcessPlainTypes(rawContent);
@@ -525,6 +623,9 @@ export type GetConfigFunction = (params: GetConfigParams) => import('./plain').S
  * Generates augmented section types for stacktape (index) export
  */
 function generateAugmentedSectionTypes(resourceClassNames: string[]): string {
+  // Use import('./types') syntax for classes to ensure they're properly resolved
+  const classTypeRefs = resourceClassNames.map((name) => `import('./types').${name}`).join(' | ');
+
   return `
 // ==========================================
 // AUGMENTED SECTION TYPES (for defineConfig pattern)
@@ -534,13 +635,13 @@ function generateAugmentedSectionTypes(resourceClassNames: string[]): string {
  * Resources section type (accepts class instances).
  * Use this with defineConfig for enhanced type-safe configs.
  */
-export type StacktapeResources = { [resourceName: string]: ${resourceClassNames.join(' | ')} | import('./plain').StacktapeResourceDefinition };
+export type StacktapeResources = { [resourceName: string]: ${classTypeRefs} | import('./plain').StacktapeResourceDefinition };
 
 /**
  * Scripts section type (accepts class instances).
  * Use this with defineConfig for enhanced type-safe configs.
  */
-export type StacktapeScripts = { [scriptName: string]: LocalScript | BastionScript | LocalScriptWithBastionTunneling | import('./plain').LocalScript | import('./plain').BastionScript | import('./plain').LocalScriptWithBastionTunneling };
+export type StacktapeScripts = { [scriptName: string]: import('./types').LocalScript | import('./types').BastionScript | import('./types').LocalScriptWithBastionTunneling | import('./plain').LocalScript | import('./plain').BastionScript | import('./plain').LocalScriptWithBastionTunneling };
 
 /**
  * Hooks section type.
@@ -607,10 +708,11 @@ export async function generateTypeDeclarations(): Promise<void> {
 
   // Generate CloudFormation-related types
   logInfo('Extracting Properties interfaces from CloudFormation files...');
-  const propertiesInterfaces = generatePropertiesInterfaces(CHILD_RESOURCES);
+  const { content: propertiesInterfaces, generatedTypes: cfGeneratedTypes } =
+    generatePropertiesInterfaces(CHILD_RESOURCES);
   const overridesTypes = generateOverrideTypes(CHILD_RESOURCES);
   const transformsTypes = generateTransformsTypes(CHILD_RESOURCES);
-  const cloudFormationResourceType = generateCloudFormationResourceType();
+  const cloudFormationResourceType = generateCloudFormationResourceType(cfGeneratedTypes);
 
   // Compile source files
   logInfo('Compiling TypeScript source files...');
@@ -618,8 +720,10 @@ export async function generateTypeDeclarations(): Promise<void> {
 
   // Extract and process declarations
   const configDts = cleanDeclarations(declarations.get('config') || '');
-  const essentialDeclarations = extractEssentialDeclarations(configDts);
   const configCleaned = removeDuplicateDeclarations(configDts);
+
+  // Essential declarations are defined inline to avoid duplication issues from compiled TS
+  const essentialDeclarations = generateEssentialDeclarations();
 
   // Generate custom declarations
   logInfo('Generating resource and type property declarations...');
@@ -637,7 +741,25 @@ export async function generateTypeDeclarations(): Promise<void> {
     'BastionScriptProps',
     'LocalScriptWithBastionTunnelingProps'
   ];
-  const typePropertiesImports = getTypePropertiesImports(propsWithAugmentation);
+  const rawTypePropertiesImports = getTypePropertiesImports(propsWithAugmentation);
+  // Filter out types that have aliases or placeholders (will be generated as type aliases instead)
+  const typePropertiesImports = rawTypePropertiesImports.filter(
+    (t) =>
+      !(t in PROPS_TYPE_ALIASES) && !(t in PROPS_TYPE_PROPERTIES_ALIASES) && !MISSING_TYPES_PLACEHOLDERS.includes(t)
+  );
+
+  // Generate Sdk* type imports for augmented props (import from ./plain with Sdk prefix)
+  const sdkTypeImports = propsWithAugmentation.map((prop) => `${prop} as Sdk${prop}`).join(',\n  ');
+
+  // Get CloudFormation types used in overrides/transforms (from ./cloudformation)
+  const cfTypesUsedInOverrides = new Set<string>();
+  for (const match of overridesTypes.matchAll(/Partial<(Aws[A-Za-z0-9]+)>/g)) {
+    cfTypesUsedInOverrides.add(match[1]);
+  }
+  for (const match of transformsTypes.matchAll(/Partial<(Aws[A-Za-z0-9]+)>/g)) {
+    cfTypesUsedInOverrides.add(match[1]);
+  }
+  const cfTypeImports = [...cfTypesUsedInOverrides].sort().join(',\n  ');
 
   // Get all class names for re-export
   const resourceClassNames = RESOURCES_CONVERTIBLE_TO_CLASSES.map((r) => r.className) as string[];
@@ -650,7 +772,6 @@ export async function generateTypeDeclarations(): Promise<void> {
 
   // Generate cloudformation.d.ts - CloudFormation resource types (separate file due to size)
   const cloudformationDts = `/* eslint-disable */
-// @ts-nocheck
 // Generated file - Do not edit manually
 // CloudFormation resource types
 // Import: import type { CloudFormationResource } from 'stacktape/cloudformation'
@@ -670,10 +791,25 @@ ${cloudFormationResourceType}
 
   // Generate types.d.ts - plain section types + GetConfigFunction
   const typesDts = `/* eslint-disable */
-// @ts-nocheck
 // Generated file - Do not edit manually
 // Types export for 'stacktape/types'
 // For plain configs using getConfig pattern
+
+// ==========================================
+// CLOUDFORMATION TYPE IMPORTS (for overrides/transforms)
+// ==========================================
+
+import type {
+  ${cfTypeImports}
+} from './cloudformation';
+
+// ==========================================
+// SDK TYPE IMPORTS (for augmented props base types)
+// ==========================================
+
+import type {
+  ${sdkTypeImports}
+} from './plain';
 
 // ==========================================
 // PLAIN TYPE RE-EXPORTS
@@ -685,6 +821,23 @@ export type {
   AlarmUserIntegration,
   StpIamRoleStatement
 } from './plain';
+
+// ==========================================
+// PROPS TYPE ALIASES
+// These map expected *Props type names to actual generated types
+// ==========================================
+
+${generatePropsTypeAliases()}
+
+// ==========================================
+// ADDITIONAL TYPE DEFINITIONS
+// ==========================================
+
+/**
+ * CLI arguments passed to the getConfig function.
+ * Contains any additional arguments passed via --arg flag.
+ */
+export type StacktapeArgs = Record<string, string | number | boolean>;
 
 // ==========================================
 // CONFIG TYPES
@@ -746,7 +899,6 @@ ${generatePlainSectionTypes()}
 
   // Generate index.d.ts - classes, defineConfig, directives, augmented section types
   const indexDts = `/* eslint-disable */
-// @ts-nocheck
 // Generated file - Do not edit manually
 // Main export for 'stacktape' - classes, directives, defineConfig, augmented section types
 // For plain types (getConfig pattern), use: import type { X } from 'stacktape/types'

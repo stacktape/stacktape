@@ -337,24 +337,35 @@ function typeNameToAwsType(typeName: string): string {
 }
 
 /**
- * Generates the CloudFormationResource union type from all types in cloudformation-ts-types
+ * Generates the CloudFormationResource union type.
+ * When generatedTypes is provided, only those types are included in the union.
+ * Otherwise, falls back to reading all types from cloudformation-ts-types directory.
  */
-export function generateCloudFormationResourceType(): string {
-  const typesDir = join(process.cwd(), '@generated', 'cloudformation-ts-types');
-
-  if (!fs.existsSync(typesDir)) {
-    console.warn('[generate-cloudformation-resource] Types directory not found:', typesDir);
-    return '';
-  }
-
-  const files = fs.readdirSync(typesDir).filter((f) => f.endsWith('.ts'));
-
+export function generateCloudFormationResourceType(generatedTypes?: Set<string>): string {
   const resourceTypes: Array<{ typeName: string; awsType: string }> = [];
 
-  for (const file of files) {
-    const typeName = file.replace('.ts', '');
-    const awsType = typeNameToAwsType(typeName);
-    resourceTypes.push({ typeName, awsType });
+  if (generatedTypes && generatedTypes.size > 0) {
+    // Use only the types that were actually generated
+    for (const typeName of generatedTypes) {
+      const awsType = typeNameToAwsType(typeName);
+      resourceTypes.push({ typeName, awsType });
+    }
+  } else {
+    // Fallback: read all types from directory
+    const typesDir = join(process.cwd(), '@generated', 'cloudformation-ts-types');
+
+    if (!fs.existsSync(typesDir)) {
+      console.warn('[generate-cloudformation-resource] Types directory not found:', typesDir);
+      return '';
+    }
+
+    const files = fs.readdirSync(typesDir).filter((f) => f.endsWith('.ts'));
+
+    for (const file of files) {
+      const typeName = file.replace('.ts', '');
+      const awsType = typeNameToAwsType(typeName);
+      resourceTypes.push({ typeName, awsType });
+    }
   }
 
   // Sort for consistent output
@@ -386,10 +397,16 @@ export type CloudFormationResourceBase = {
 };
 `;
 
-  // Generate individual resource types
-  const resourceTypeUnion = resourceTypes
-    .map(({ typeName, awsType }) => `  | { Type: '${awsType}'; Properties?: ${typeName} } & CloudFormationResourceBase`)
-    .join('\n');
+  // Generate individual resource types (only if we have any)
+  const resourceTypeUnion =
+    resourceTypes.length > 0
+      ? resourceTypes
+          .map(
+            ({ typeName, awsType }) =>
+              `  | { Type: '${awsType}'; Properties?: ${typeName} } & CloudFormationResourceBase`
+          )
+          .join('\n')
+      : '';
 
   const result = `${baseAttributes}
 

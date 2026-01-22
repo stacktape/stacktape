@@ -63,17 +63,21 @@ function generateTransformProperties(childResources: ChildResourceMetadata[]): s
 
 /**
  * Generates a single override type declaration
+ * Includes index signature for dynamic CloudFormation logical IDs
  */
 function generateOverrideType(typeName: string, properties: string[]): string {
   if (properties.length === 0) {
     return '';
   }
 
+  // Add index signature to allow dynamic CloudFormation resource logical IDs
+  // The actual CF resource names include the user's resource name (e.g., "MainLoadBalancerLoadBalancer")
+  // Use Record<string, unknown> to allow any CloudFormation properties
   const lines = [
     `export type ${typeName} = {`,
     ...properties,
-    '  // Allow any additional CloudFormation properties',
-    '  [key: string]: { [propName: string]: any } | undefined;',
+    `  /** Index signature for dynamic CloudFormation resource names */`,
+    `  [key: string]: Record<string, unknown> | undefined;`,
     '};',
     ''
   ];
@@ -83,17 +87,20 @@ function generateOverrideType(typeName: string, properties: string[]): string {
 
 /**
  * Generates a single transforms type declaration
+ * Includes index signature for dynamic CloudFormation logical IDs
  */
 function generateTransformsType(typeName: string, properties: string[]): string {
   if (properties.length === 0) {
     return '';
   }
 
+  // Add index signature to allow dynamic CloudFormation resource logical IDs
+  // Use Record<string, unknown> to allow any CloudFormation properties
   const lines = [
     `export type ${typeName} = {`,
     ...properties,
-    '  // Allow any additional transform functions',
-    '  [key: string]: ((props: any) => any) | undefined;',
+    `  /** Index signature for dynamic CloudFormation resource names */`,
+    `  [key: string]: ((props: Record<string, unknown>) => Record<string, unknown>) | undefined;`,
     '};',
     ''
   ];

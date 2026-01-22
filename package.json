@@ -101,7 +101,6 @@
     "@trpc/client": "^11.7.1",
     "@types/mime": "^3.0.4",
     "adm-zip": "^0.5.16",
-    "ajv": "8.17.1",
     "archiver": "^7.0.1",
     "aws-cdk-lib": "2.88.0",
     "aws-cron-validate": "^0.0.1",

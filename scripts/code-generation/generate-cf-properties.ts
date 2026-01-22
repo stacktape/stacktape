@@ -1,11 +1,17 @@
 import fs from 'node:fs';
 import { cfTypeToFilePath, cfTypeToInterface } from './cloudform-utils';
 
+export type PropertiesInterfacesResult = {
+  content: string;
+  generatedTypes: Set<string>;
+};
+
 /**
  * Generate Properties interfaces from cloudformation-ts-types files for all child resources.
  * The new types are already clean TypeScript types without Value<T> or List<T> wrappers.
+ * Returns both the generated content and the set of type names that were generated.
  */
-export function generatePropertiesInterfaces(CHILD_RESOURCES: any): string {
+export function generatePropertiesInterfaces(CHILD_RESOURCES: any): PropertiesInterfacesResult {
   const processedTypes = new Set<string>();
   const results: string[] = [];
 
@@ -62,5 +68,8 @@ export function generatePropertiesInterfaces(CHILD_RESOURCES: any): string {
     }
   }
 
-  return results.join('\n\n');
+  return {
+    content: results.join('\n\n'),
+    generatedTypes: processedTypes
+  };
 }

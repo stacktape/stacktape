@@ -228,7 +228,7 @@ function generateContainerAugmentedTypes(): string {
  * Container configuration with object-style environment variables.
  * Environment is specified as { KEY: 'value' } for better developer experience.
  */
-export type ContainerWithObjectEnv = Omit<import('./sdk').ContainerWorkloadContainer, 'environment'> & {
+export type ContainerWithObjectEnv = Omit<import('./plain').ContainerWorkloadContainer, 'environment'> & {
   /**
    * Environment variables to inject into the container.
    * Specified as key-value pairs: { PORT: '3000', NODE_ENV: 'production' }
@@ -240,7 +240,7 @@ export type ContainerWithObjectEnv = Omit<import('./sdk').ContainerWorkloadConta
  * Batch job container configuration with object-style environment variables.
  * Environment is specified as { KEY: 'value' } for better developer experience.
  */
-export type BatchJobContainerWithObjectEnv = Omit<import('./sdk').BatchJobContainer, 'environment'> & {
+export type BatchJobContainerWithObjectEnv = Omit<import('./plain').BatchJobContainer, 'environment'> & {
   /**
    * Environment variables to inject into the batch job container.
    * Specified as key-value pairs: { PORT: '3000', NODE_ENV: 'production' }
@@ -267,10 +267,11 @@ This is useful for automatically referencing parameters that are only known afte
  */
 function generateWithOverridesAndTransformsType(propsType: string, className: string): string {
   const lines: string[] = [];
+  const plainPropsRef = `import('./plain').${propsType}`;
 
   // Special handling for HostingBucket - omit injectEnvironment to replace with object-style
   if (className === 'HostingBucket') {
-    lines.push(`export type ${propsType}WithOverrides = Omit<${propsType}, 'injectEnvironment'> & {`);
+    lines.push(`export type ${propsType}WithOverrides = Omit<${plainPropsRef}, 'injectEnvironment'> & {`);
 
     // Add object-style injectEnvironment
     const injectEnvProperty: PropertyInfo = {
@@ -281,7 +282,7 @@ function generateWithOverridesAndTransformsType(propsType: string, className: st
     };
     lines.push(generatePropertyWithJSDoc(injectEnvProperty));
   } else {
-    lines.push(`export type ${propsType}WithOverrides = ${propsType} & {`);
+    lines.push(`export type ${propsType}WithOverrides = ${plainPropsRef} & {`);
   }
 
   const overridesProperty = getOverridesPropertyInfo(`${className}Overrides`);
@@ -411,6 +412,7 @@ export function generateStacktapeConfigType(): string {
   return `// Re-export StacktapeConfig with properly typed resources
 // Accepts both class instances and plain objects
 import type { StacktapeResourceDefinition } from './plain';
+import type { CloudFormationResource } from './cloudformation';
 
 /**
  * CloudFormation template structure

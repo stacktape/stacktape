@@ -1,12 +1,10 @@
 import type { JsonSchemaGenerator } from 'typescript-json-schema';
 import { join } from 'node:path';
 import { argAliases as cliArgsAliases } from '../../src/config/cli/options';
-import { AJV_VALIDATION_CODE_PATH, CONFIG_SCHEMA_PATH } from '@shared/naming/project-fs-paths';
-import { logInfo, logSuccess } from '@shared/utils/logging';
-import Ajv from 'ajv';
-import generateStandaloneAjvCode from 'ajv/dist/standalone';
+import { CONFIG_SCHEMA_PATH } from '@shared/naming/project-fs-paths';
+import { logInfo } from '@shared/utils/logging';
 import fastGlob from 'fast-glob';
-import { readJson, writeFile, writeJSON } from 'fs-extra';
+import { readJson, writeJSON } from 'fs-extra';
 import { compile as compileJsonSchemaToTypescript } from 'json-schema-to-typescript';
 import { buildGenerator, getProgramFromFiles } from 'typescript-json-schema';
 
@@ -32,21 +30,6 @@ export const getJsonSchemaGenerator = async () => {
     //
   }
   return jsonSchemaGenerator;
-};
-
-export const generateAjvValidationCode = async (schema: any) => {
-  logInfo('Generating Ajv validation code');
-  const ajv = new Ajv({
-    code: { source: true /* esm: true */ },
-    allErrors: true,
-    allowUnionTypes: true,
-    strict: false,
-    verbose: true
-  });
-  const validate = ajv.compile(schema);
-  const validationCode = generateStandaloneAjvCode(ajv, validate);
-  await writeFile(AJV_VALIDATION_CODE_PATH, validationCode);
-  logSuccess('Ajv validation code generated successfully.');
 };
 
 export const generateConfigSchema = async ({ jsonSchemaGenerator }: { jsonSchemaGenerator?: JsonSchemaGenerator }) => {

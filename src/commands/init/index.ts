@@ -5,13 +5,24 @@ import { initUsingStarterProject } from './using-starter-project';
 import { initUsingAiConfigGen } from './using-ai-config-gen';
 
 export const commandInit = async () => {
+  // Handle --templateId flag
   if (globalStateManager.args.templateId) {
     return initUsingExistingConfig();
   }
+
+  // Handle --starterId flag
   if (globalStateManager.args.starterId) {
     return initUsingStarterProject();
   }
 
+  // Handle --useAi flag (skip prompt and go directly to AI config gen)
+  if (globalStateManager.args.useAi) {
+    return initUsingAiConfigGen({
+      configFormat: globalStateManager.args.configFormat as 'yaml' | 'typescript' | undefined
+    });
+  }
+
+  // Interactive mode - show menu
   const selectedInitType = await tuiManager.promptSelect({
     message: 'How do you want to initialize the project?',
     options: [

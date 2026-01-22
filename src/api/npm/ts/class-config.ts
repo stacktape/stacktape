@@ -126,7 +126,9 @@ export const RESOURCES_CONVERTIBLE_TO_CLASSES: ResourceDefinition[] = [
       'SnsTopic',
       'OpenSearchDomain',
       'EfsFilesystem',
-      'LambdaFunction'
+      'LambdaFunction',
+      'BatchJob',
+      'UserAuthPool'
     ]
   },
   {
@@ -150,7 +152,10 @@ export const RESOURCES_CONVERTIBLE_TO_CLASSES: ResourceDefinition[] = [
       'OpenSearchDomain',
       'EfsFilesystem',
       'PrivateService',
-      'WebService'
+      'WebService',
+      'LambdaFunction',
+      'BatchJob',
+      'UserAuthPool'
     ]
   },
   {

@@ -49,6 +49,7 @@ import {
   startTime,
   templateId,
   universalArgs,
+  useAi,
   watch
 } from './options';
 
@@ -347,7 +348,12 @@ This is useful for inspecting the packaged artifacts before deploying.`,
   },
 
   init: {
-    description: `Initializes a new Stacktape project in a specified directory.`,
+    description: `Initializes a new Stacktape project in a specified directory.
+
+You can initialize a project in several ways:
+- **AI-powered (recommended):** Use \`--useAi\` to automatically analyze your project and generate a configuration.
+- **Interactive Config Editor:** Create a config using the web-based editor.
+- **Starter project:** Use \`--starterId\` to initialize from a pre-configured template.`,
     args: {
       logLevel: logLevel.optional(),
       logFormat: logFormat.optional(),
@@ -355,7 +361,8 @@ This is useful for inspecting the packaged artifacts before deploying.`,
       projectDirectory: projectDirectory.optional(),
       templateId: templateId.optional(),
       initializeProjectTo: initializeProjectTo.optional(),
-      configFormat: configFormat.optional()
+      configFormat: configFormat.optional(),
+      useAi: useAi.optional()
     },
     requiredArgs: [] as const
   },

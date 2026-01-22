@@ -13,6 +13,83 @@ const OUTPUT_PATH = join(process.cwd(), '@generated/schemas/validate-config-zod.
 // This caused previously valid configs to fail validation (e.g. custom rule types in WAF).
 // The AJV validator was more lenient, so we keep unions to maintain backwards compatibility.
 
+// Marker prefix added to descriptions of optional properties
+// This survives dereferencing and is used in post-processing to add .optional()
+const OPTIONAL_MARKER = '[__OPTIONAL__]';
+
+// Pre-process: Mark optional properties in the JSON schema before dereferencing
+// This traverses the schema and adds a marker to the description of properties
+// that are NOT in the required array of their parent object
+const markOptionalProperties = (schema: any): { schema: any; count: number } => {
+  let count = 0;
+
+  const traverse = (node: any, path: string[] = []): any => {
+    if (!node || typeof node !== 'object') return node;
+
+    // Handle arrays
+    if (Array.isArray(node)) {
+      return node.map((item, i) => traverse(item, [...path, String(i)]));
+    }
+
+    // Clone the node to avoid mutating the original
+    const result: any = {};
+
+    for (const [key, value] of Object.entries(node)) {
+      result[key] = traverse(value, [...path, key]);
+    }
+
+    // If this is an object with properties, mark non-required ones
+    if (result.type === 'object' && result.properties && typeof result.properties === 'object') {
+      const required = new Set(result.required || []);
+
+      for (const [propName, propSchema] of Object.entries(result.properties)) {
+        if (!required.has(propName) && propSchema && typeof propSchema === 'object') {
+          const prop = propSchema as any;
+          // Add marker to description (or create one)
+          if (prop.description) {
+            prop.description = `${OPTIONAL_MARKER}${prop.description}`;
+          } else {
+            prop.description = OPTIONAL_MARKER;
+          }
+          count++;
+        }
+      }
+    }
+
+    return result;
+  };
+
+  return { schema: traverse(schema), count };
+};
+
+// Post-process: Convert optional markers to .optional() calls
+// Finds properties with our marker in their .describe() and adds .optional()
+const applyOptionalMarkers = (code: string): { code: string; count: number } => {
+  let count = 0;
+
+  // Match: "propName": z.something().describe("[__OPTIONAL__]...")
+  // We need to find the end of the zod chain and add .optional() before .describe()
+  // Pattern: "propName": <zod-chain>.describe("[__OPTIONAL__]
+  // The zod chain can be complex, but .describe() is always at the end
+
+  // Strategy: Find all occurrences of .describe("[__OPTIONAL__] and work backwards to insert .optional()
+  // We need to handle cases like:
+  //   z.string().describe("[__OPTIONAL__]...")
+  //   z.enum([...]).describe("[__OPTIONAL__]...")
+  //   z.object({...}).strict().describe("[__OPTIONAL__]...")
+  //   z.union([...]).describe("[__OPTIONAL__]...")
+  //   z.array(z.string()).describe("[__OPTIONAL__]...")
+
+  // Replace .describe("[__OPTIONAL__] with .optional().describe("
+  // This works because .describe() is always at the end of the chain
+  const modified = code.replace(/\.describe\("\[__OPTIONAL__\]/g, () => {
+    count++;
+    return '.optional().describe("';
+  });
+
+  return { code: modified, count };
+};
+
 // Post-process: Fix z.record() for Zod 4 (needs two arguments: key schema and value schema)
 const fixRecordSyntax = (code: string): string => {
   let modified = code;
@@ -81,13 +158,13 @@ const fixArrayDefaults = (code: string): string => {
   let modified = code;
   let replacements = 0;
 
-  // Match z.array(z.string()) with optional .describe() followed by .default("string")
-  // Use non-greedy .*? to match describe content since it may contain \n sequences
+  // Match z.array(...) with optional .optional() and .describe() followed by .default("string")
+  // The .optional() may appear before .describe() now
   modified = modified.replace(
-    /z\.array\(z\.string\(\)\)(\.describe\(".*?"\))?\.default\("[^"]*"\)/g,
-    (_, describeCall) => {
+    /z\.array\(z\.string\(\)\)(\.optional\(\))?(\.describe\(".*?"\))?\.default\("[^"]*"\)/g,
+    (_, optionalCall, describeCall) => {
       replacements++;
-      return `z.array(z.string())${describeCall || ''}`;
+      return `z.array(z.string())${optionalCall || ''}${describeCall || ''}`;
     }
   );
 
@@ -101,17 +178,20 @@ const fixObjectDefaults = (code: string): string => {
   let modified = code;
   let replacements = 0;
 
-  // Match .strict() or .passthrough() with optional .describe() followed by .default("string")
-  modified = modified.replace(/\}\)\.strict\(\)(\.describe\("[^"]*"\))?\.default\("[^"]+"\)/g, (_, describeCall) => {
-    replacements++;
-    return `}).strict()${describeCall || ''}`;
-  });
+  // Match .strict() or .passthrough() with optional .optional() and .describe() followed by .default("string")
+  modified = modified.replace(
+    /\}\)\.strict\(\)(\.optional\(\))?(\.describe\("[^"]*"\))?\.default\("[^"]+"\)/g,
+    (_, optionalCall, describeCall) => {
+      replacements++;
+      return `}).strict()${optionalCall || ''}${describeCall || ''}`;
+    }
+  );
 
   modified = modified.replace(
-    /\}\)\.passthrough\(\)(\.describe\("[^"]*"\))?\.default\("[^"]+"\)/g,
-    (_, describeCall) => {
+    /\}\)\.passthrough\(\)(\.optional\(\))?(\.describe\("[^"]*"\))?\.default\("[^"]+"\)/g,
+    (_, optionalCall, describeCall) => {
       replacements++;
-      return `}).passthrough()${describeCall || ''}`;
+      return `}).passthrough()${optionalCall || ''}${describeCall || ''}`;
     }
   );
 
@@ -119,105 +199,48 @@ const fixObjectDefaults = (code: string): string => {
   return modified;
 };
 
-// Post-process: Make certain fields optional that have defaults in the implementation
-// These fields are marked as required in JSON schema but actually have runtime defaults
-const makeFieldsOptional = (code: string): string => {
-  let modified = code;
-  let replacements = 0;
-
-  // Fields that should be optional (have runtime defaults)
-  // Format: property name pattern -> make the field optional by adding .optional()
-  const fieldsToMakeOptional = [
-    // Script cwd - defaults to current working directory
-    {
-      pattern: /"cwd": z\.string\(\)\.describe\("#### Working Directory/g,
-      replacement: '"cwd": z.string().optional().describe("#### Working Directory'
-    },
-    // Bastion instanceSize - has default (matches all instanceSize that are z.string)
-    {
-      pattern: /"instanceSize": z\.string\(\)\.describe\(/g,
-      replacement: '"instanceSize": z.string().optional().describe('
-    },
-    // HTTP API integration payloadFormat - defaults to "1.0"
-    {
-      pattern: /"payloadFormat": z\.enum\(\["1\.0","2\.0"\]\)\.describe\(/g,
-      replacement: '"payloadFormat": z.enum(["1.0","2.0"]).optional().describe('
-    },
-    // Function URL authMode - defaults to "NONE"
-    {
-      pattern: /"authMode": z\.enum\(\["AWS_IAM","NONE"\]\)\.describe\(/g,
-      replacement: '"authMode": z.enum(["AWS_IAM","NONE"]).optional().describe('
-    },
-    // CORS allowedOrigins - defaults to ["*"]
-    {
-      pattern: /"allowedOrigins": z\.array\(z\.string\(\)\)\.describe\(/g,
-      replacement: '"allowedOrigins": z.array(z.string()).optional().describe('
-    },
-    // IAM role statement Effect - defaults to "Allow"
-    { pattern: /"Effect": z\.string\(\)\.describe\(/g, replacement: '"Effect": z.string().optional().describe(' },
-    // Resources architecture - has default based on packaging
-    {
-      pattern: /"architecture": z\.enum\(\["arm64","x86_64"\]\)\.describe\(/g,
-      replacement: '"architecture": z.enum(["arm64","x86_64"]).optional().describe('
-    },
-    // CDN cloudfrontPriceClass - has default
-    {
-      pattern: /"cloudfrontPriceClass": z\.enum\(\["PriceClass_100","PriceClass_200","PriceClass_All"\]\)\.describe\(/g,
-      replacement:
-        '"cloudfrontPriceClass": z.enum(["PriceClass_100","PriceClass_200","PriceClass_All"]).optional().describe('
-    },
-    // languageSpecificConfig outputModuleFormat - has default
-    {
-      pattern: /"outputModuleFormat": z\.enum\(\["cjs","esm"\]\)\.describe\(/g,
-      replacement: '"outputModuleFormat": z.enum(["cjs","esm"]).optional().describe('
-    }
-  ];
-
-  for (const { pattern, replacement } of fieldsToMakeOptional) {
-    const before = modified;
-    modified = modified.replace(pattern, replacement);
-    if (modified !== before) {
-      const count = (before.match(pattern) || []).length;
-      replacements += count;
-    }
-  }
-
-  logInfo(`Made ${replacements} fields optional (have runtime defaults)`);
-  return modified;
-};
-
-// Post-process: Add coercion for numbers to accept strings like "512"
+// Post-process: Add preprocessing for numbers to accept strings like "512"
 // This maintains backwards compatibility with YAML configs where numbers might be quoted
+// Uses z.preprocess to only accept number or numeric string (NOT boolean or other types)
 const addNumberCoercion = (code: string): string => {
   let modified = code;
   let count = 0;
-  // Replace z.number() with z.coerce.number() - handles "512" -> 512
+  // Replace z.number() with a preprocessed version that accepts numeric strings
+  // z.preprocess checks if it's already a number, or a string that parses to a valid number
   modified = modified.replace(/z\.number\(\)/g, () => {
     count++;
-    return 'z.coerce.number()';
+    return 'z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number())';
   });
-  logInfo(`Added coercion to ${count} number fields (accepts strings like "512")`);
+  logInfo(`Added number preprocessing to ${count} number fields (accepts strings like "512")`);
   return modified;
 };
 
-// Post-process: Add coercion for booleans to accept strings like "true"/"false"
-// Note: z.coerce.boolean() treats any truthy value as true, which might be too permissive
-// But it's needed for backwards compatibility with string booleans in YAML
+// Post-process: Add preprocessing for booleans to accept strings "true"/"false"
+// Only accepts actual boolean or the exact strings "true"/"false" (case-insensitive)
+// Does NOT accept truthy/falsy values like "yes", 1, etc.
 const addBooleanCoercion = (code: string): string => {
   let modified = code;
   let count = 0;
   modified = modified.replace(/z\.boolean\(\)/g, () => {
     count++;
-    return 'z.coerce.boolean()';
+    return 'z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean())';
   });
-  logInfo(`Added coercion to ${count} boolean fields (accepts strings like "true")`);
+  logInfo(`Added boolean preprocessing to ${count} boolean fields (accepts strings "true"/"false")`);
   return modified;
 };
 
 export const generateZodSchema = async (jsonSchema: object): Promise<void> => {
-  logInfo('Dereferencing JSON schema $ref pointers...');
-  const dereferencedSchema = await $RefParser.dereference(jsonSchema as any);
+  // Step 1: Mark optional properties BEFORE dereferencing
+  // This adds a marker to the description of properties not in the required array
+  logInfo('Marking optional properties in JSON schema...');
+  const { schema: markedSchema, count: markedCount } = markOptionalProperties(jsonSchema);
+  logInfo(`Marked ${markedCount} optional properties`);
 
+  // Step 2: Dereference $refs (this preserves our markers in descriptions)
+  logInfo('Dereferencing JSON schema $ref pointers...');
+  const dereferencedSchema = await $RefParser.dereference(markedSchema as any);
+
+  // Step 3: Convert to Zod schema
   logInfo('Converting JSON schema to Zod schema...');
   let zodSchemaCode = jsonSchemaToZod(dereferencedSchema as any, {
     module: 'esm',
@@ -225,13 +248,19 @@ export const generateZodSchema = async (jsonSchema: object): Promise<void> => {
     type: true
   });
 
+  // Step 4: Post-process the generated code
   logInfo('Post-processing Zod schema...');
+
+  // Apply optional markers first (converts [__OPTIONAL__] to .optional())
+  const { code: withOptionals, count: optionalCount } = applyOptionalMarkers(zodSchemaCode);
+  zodSchemaCode = withOptionals;
+  logInfo(`Applied ${optionalCount} .optional() modifiers from markers`);
+
   zodSchemaCode = fixRecordSyntax(zodSchemaCode);
   zodSchemaCode = fixDefaultValues(zodSchemaCode);
   zodSchemaCode = fixEnumNumericDefaults(zodSchemaCode);
   zodSchemaCode = fixArrayDefaults(zodSchemaCode);
   zodSchemaCode = fixObjectDefaults(zodSchemaCode);
-  zodSchemaCode = makeFieldsOptional(zodSchemaCode);
   zodSchemaCode = addNumberCoercion(zodSchemaCode);
   zodSchemaCode = addBooleanCoercion(zodSchemaCode);
 

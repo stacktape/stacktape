@@ -20,27 +20,38 @@ type TuiState = {
   success: boolean;
 };
 
+type InitUsingAiConfigGenOptions = {
+  /** Pre-selected config format (skips format prompt) */
+  configFormat?: 'yaml' | 'typescript';
+};
+
 // ============ Main Function ============
 
-export const initUsingAiConfigGen = async (): Promise<void> => {
+export const initUsingAiConfigGen = async (options: InitUsingAiConfigGenOptions = {}): Promise<void> => {
   const cwd = process.cwd();
   const projectName = basename(cwd);
 
   tuiManager.info(`Generating Stacktape configuration for ${tuiManager.makeBold(projectName)}...`);
   tuiManager.info('');
 
-  // Check if config already exists
+  // Check if config already exists (only prompt if in interactive mode)
   const existingConfig = await configGenManager.configFileExists();
   if (existingConfig.exists) {
     const relativePath = relative(cwd, existingConfig.path!);
-    const shouldOverwrite = await tuiManager.promptConfirm({
-      message: `A config file already exists at ${tuiManager.prettyFilePath(relativePath)}. Overwrite?`,
-      defaultValue: false
-    });
 
-    if (!shouldOverwrite) {
-      tuiManager.info('Config generation cancelled.');
-      return;
+    // If configFormat is pre-specified via CLI, we're in non-interactive mode - auto-overwrite
+    if (!options.configFormat) {
+      const shouldOverwrite = await tuiManager.promptConfirm({
+        message: `A config file already exists at ${tuiManager.prettyFilePath(relativePath)}. Overwrite?`,
+        defaultValue: false
+      });
+
+      if (!shouldOverwrite) {
+        tuiManager.info('Config generation cancelled.');
+        return;
+      }
+    } else {
+      tuiManager.info(`Overwriting existing config at ${tuiManager.prettyFilePath(relativePath)}...`);
     }
   }
 
@@ -135,28 +146,31 @@ export const initUsingAiConfigGen = async (): Promise<void> => {
       tuiManager.info('');
     }
 
-    // Prompt for format
-    const format = await tuiManager.promptSelect({
-      message: 'Choose config format:',
-      options: [
-        {
-          label: 'TypeScript (stacktape.ts)',
-          description: 'Type-safe configuration with IDE autocompletion',
-          value: 'typescript'
-        },
-        {
-          label: 'YAML (stacktape.yml)',
-          description: 'Simple, declarative configuration',
-          value: 'yaml'
-        }
-      ]
-    });
+    // Determine config format (use pre-specified or prompt)
+    let format: 'yaml' | 'typescript';
+    if (options.configFormat) {
+      format = options.configFormat;
+      tuiManager.info(`Using ${format === 'typescript' ? 'TypeScript' : 'YAML'} format (from --configFormat)`);
+    } else {
+      format = (await tuiManager.promptSelect({
+        message: 'Choose config format:',
+        options: [
+          {
+            label: 'TypeScript (stacktape.ts)',
+            description: 'Type-safe configuration with IDE autocompletion',
+            value: 'typescript'
+          },
+          {
+            label: 'YAML (stacktape.yml)',
+            description: 'Simple, declarative configuration',
+            value: 'yaml'
+          }
+        ]
+      })) as 'yaml' | 'typescript';
+    }
 
     // Write the config file
-    const outputPath = await configGenManager.writeConfig(
-      result.config,
-      format as 'yaml' | 'typescript'
-    );
+    const outputPath = await configGenManager.writeConfig(result.config, format);
 
     const relativePath = relative(cwd, outputPath);
     tuiManager.info('');

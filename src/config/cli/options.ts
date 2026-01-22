@@ -228,6 +228,10 @@ export const configFormat = z.enum(['yaml', 'typescript']).describe(`#### Config
 ---
 Format (language) used for the generated config. Options are typescript or yaml.`);
 
+export const useAi = z.boolean().describe(`#### Use AI
+---
+If \`true\`, uses AI to automatically analyze your project and generate a Stacktape configuration. The AI will scan your project files, identify deployable units (services, functions, frontends), and create an appropriate configuration.`);
+
 export const newVersion = z.string().describe(`#### New Version
 ---
 The version of Stacktape to install.`);
@@ -321,7 +325,8 @@ export const argAliases = {
   remoteResources: 'rr',
   resources: 'res',
   skipResources: 'sr',
-  devMode: 'dm'
+  devMode: 'dm',
+  useAi: 'ai'
 } as const;
 
 // ============ Combined Args Schema ============
@@ -384,7 +389,8 @@ export const allCliArgsSchema = z.object({
   resourcesToSkip: resourcesToSkip.optional(),
   resources: resources.optional(),
   skipResources: skipResources.optional(),
-  devMode: devMode.optional()
+  devMode: devMode.optional(),
+  useAi: useAi.optional()
 });
 
 // Inferred type from Zod schema

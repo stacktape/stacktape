@@ -45,8 +45,8 @@ export default defineConfig(() => {
   });
 
   const openSearch = new OpenSearchDomain({
-    instanceSize: 't3.small.search',
-    volumeSize: 10
+    clusterConfig: { instanceType: 't3.small.search', instanceCount: 1 },
+    storage: { size: 10 }
   });
 
   const privateService = new PrivateService({
