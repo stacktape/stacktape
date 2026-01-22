@@ -799,10 +799,17 @@ export class PackagingManager {
       }
     }
 
-    // Identify Node.js Lambda functions
-    const nodeLambdas = configManager.allUserCodeLambdas.filter(({ packaging }) => {
+    // Identify Node.js Lambda functions (excluding edge functions which need separate handling)
+    const nodeLambdas = configManager.allUserCodeLambdas.filter(({ packaging, type }) => {
       const ext = getFileExtension((packaging?.properties as { entryfilePath?: string })?.entryfilePath || '');
-      return ['js', 'ts', 'jsx', 'mjs', 'tsx'].includes(ext);
+      // Exclude edge functions from split bundling - they don't support ESM with top-level await
+      return ['js', 'ts', 'jsx', 'mjs', 'tsx'].includes(ext) && type !== 'edge-lambda-function';
+    });
+
+    // Edge Lambda functions - need to be packaged separately with CJS
+    const edgeLambdas = configManager.allUserCodeLambdas.filter(({ packaging, type }) => {
+      const ext = getFileExtension((packaging?.properties as { entryfilePath?: string })?.entryfilePath || '');
+      return ['js', 'ts', 'jsx', 'mjs', 'tsx'].includes(ext) && type === 'edge-lambda-function';
     });
 
     // Non-Node.js lambdas
@@ -864,6 +871,7 @@ export class PackagingManager {
             commandCanUseCache,
             jobName: getJobName({ workloadName: name, workloadType: type }),
             workloadName: name,
+            workloadType: type,
             packaging,
             runtime,
             dockerBuildOutputArchitecture: architecture === 'arm64' ? 'linux/arm64' : 'linux/amd64'
@@ -891,6 +899,26 @@ export class PackagingManager {
               commandCanUseCache,
               jobName: getJobName({ workloadName: name, workloadType: type }),
               workloadName: name,
+              workloadType: type,
+              packaging,
+              runtime,
+              dockerBuildOutputArchitecture: architecture === 'arm64' ? 'linux/arm64' : 'linux/amd64'
+            })
+          )
+        ).then(() => {})
+      );
+    }
+
+    // Edge Lambda functions - packaged separately with CJS (don't support ESM with top-level await)
+    if (edgeLambdas.length > 0) {
+      packagingPromises.push(
+        Promise.all(
+          edgeLambdas.map(({ name, type, packaging, architecture, runtime }) =>
+            this.packageWorkload({
+              commandCanUseCache,
+              jobName: getJobName({ workloadName: name, workloadType: type }),
+              workloadName: name,
+              workloadType: type,
               packaging,
               runtime,
               dockerBuildOutputArchitecture: architecture === 'arm64' ? 'linux/arm64' : 'linux/amd64'
@@ -968,13 +996,14 @@ export class PackagingManager {
     });
 
     await Promise.all([
-      ...[...lambdasToRepackage, ...nextjsLambdasToRepackage].map(({ name, packaging, architecture }) => {
+      ...[...lambdasToRepackage, ...nextjsLambdasToRepackage].map(({ name, type, packaging, architecture }) => {
         const originalJobIndex = this.#packagedJobs.findIndex(({ jobName }) => jobName === name);
         this.#packagedJobs.splice(originalJobIndex, 1);
         return this.packageWorkload({
           commandCanUseCache: false,
           jobName: name,
           workloadName: name,
+          workloadType: type,
           packaging,
           parentEventType: 'REPACKAGE_ARTIFACTS',
           dockerBuildOutputArchitecture: architecture === 'arm64' ? 'linux/arm64' : 'linux/amd64'
@@ -1134,7 +1163,8 @@ export class PackagingManager {
     parentEventType = 'PACKAGE_ARTIFACTS',
     devMode,
     customProgressLogger,
-    useDeployedLayers
+    useDeployedLayers,
+    workloadType
   }: {
     workloadName: string;
     jobName: string;
@@ -1151,6 +1181,8 @@ export class PackagingManager {
     customProgressLogger?: ProgressLogger;
     /** When true, externalize native binary deps assuming they're available from deployed layers */
     useDeployedLayers?: boolean;
+    /** Workload type - used to determine packaging behavior (e.g., edge functions don't support ESM) */
+    workloadType?: string;
   }): Promise<PackagingOutput | undefined> => {
     const shouldUseCache = this.#shouldWorkloadUseCache({ workloadName, commandCanUseCache });
     const existingDigests = shouldUseCache ? deploymentArtifactManager.getExistingDigestsForJob(jobName) : [];
@@ -1211,7 +1243,9 @@ export class PackagingManager {
             packagingType === 'stacktape-image-buildpack'
               ? nodeVersionFromUser || DEFAULT_CONTAINER_NODE_VERSION
               : nodeVersionFromUser || nodeVersionFromRuntime || DEFAULT_LAMBDA_NODE_VERSION;
-          const useEsm = languageSpecificConfig?.outputModuleFormat === 'esm' || nodeVersion >= 24;
+          // Lambda@Edge doesn't support ESM with top-level await, so force CJS for edge functions
+          const isEdgeFunction = workloadType === 'edge-lambda-function';
+          const useEsm = !isEdgeFunction && (languageSpecificConfig?.outputModuleFormat === 'esm' || nodeVersion >= 24);
           const sharedStpBuildpackProps = {
             ...packaging.properties,
             minify: false,

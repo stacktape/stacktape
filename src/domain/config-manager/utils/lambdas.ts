@@ -594,23 +594,36 @@ export const getLambdaHandler = ({ name, packaging }: { packaging: LambdaPackagi
   }
 };
 
+// Max runtime version for edge functions - Node.js 24 has ESM-related issues with CommonJS exports
+const EDGE_FUNCTION_MAX_NODEJS_RUNTIME = 'nodejs22.x';
+
+const capEdgeFunctionRuntime = (runtime: LambdaRuntime): LambdaRuntime => {
+  if (!runtime?.startsWith('nodejs')) return runtime;
+  const version = parseInt(runtime.replace('nodejs', '').replace('.x', ''), 10);
+  if (version > 22) return EDGE_FUNCTION_MAX_NODEJS_RUNTIME;
+  return runtime;
+};
+
 export const getLambdaRuntime = ({
   name,
   packaging,
-  runtime
+  runtime,
+  isEdgeFunction
 }: {
   packaging: LambdaPackaging | HelperLambdaPackaging;
   name: string;
   runtime: LambdaRuntime;
+  isEdgeFunction?: boolean;
 }): LambdaRuntime => {
   if (runtime) {
-    return runtime;
+    return isEdgeFunction ? capEdgeFunctionRuntime(runtime) : runtime;
   }
   if (packaging.type === 'custom-artifact' && !runtime) {
     throw stpErrors.e11({ functionName: name });
   }
   if (packaging.type === 'stacktape-lambda-buildpack') {
-    return getDefaultRuntimeForExtension(getFileExtension(packaging.properties.entryfilePath));
+    const defaultRuntime = getDefaultRuntimeForExtension(getFileExtension(packaging.properties.entryfilePath));
+    return isEdgeFunction ? capEdgeFunctionRuntime(defaultRuntime) : defaultRuntime;
   }
 };
 

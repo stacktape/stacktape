@@ -235,19 +235,129 @@ const formatZodIssue = (issue: ZodIssue, config: unknown, sourceMap: SourceMap |
     if (actualValue === undefined) {
       message = `Required property is missing`;
     } else if ('note' in issue && issue.note === 'No matching discriminator') {
-      // Determine what kind of thing we're validating from the path
-      const section = issue.path[0];
-      const isScript = section === 'scripts';
-      const thingType = isScript ? 'script' : 'resource';
-      const validTypes = isScript ? SCRIPT_TYPES : RESOURCE_TYPES;
+      // Discriminated union error - check if top-level resource/script
+      const isTopLevelResourceType =
+        issue.path[0] === 'resources' && issue.path.length === 3 && issue.path[2] === 'type';
+      const isTopLevelScriptType = issue.path[0] === 'scripts' && issue.path.length === 3 && issue.path[2] === 'type';
 
-      message = `Invalid ${thingType} type ${tuiManager.makeBold(formatActualValue(actualValue))}`;
+      if (isTopLevelResourceType || isTopLevelScriptType) {
+        const thingType = isTopLevelScriptType ? 'script' : 'resource';
+        const validTypes = isTopLevelScriptType ? SCRIPT_TYPES : RESOURCE_TYPES;
 
-      // Try to find a close match for "did you mean?"
-      if (typeof actualValue === 'string') {
-        const suggestion = findClosestMatch(actualValue, validTypes);
-        if (suggestion) {
-          hint = `Did you mean ${tuiManager.makeBold(`"${suggestion}"`)}?`;
+        message = `Invalid ${thingType} type ${tuiManager.makeBold(formatActualValue(actualValue))}`;
+
+        if (typeof actualValue === 'string') {
+          const suggestion = findClosestMatch(actualValue, validTypes);
+          if (suggestion) {
+            hint = `Did you mean ${tuiManager.makeBold(`"${suggestion}"`)}?`;
+          }
+        }
+      } else {
+        message = `Invalid type ${tuiManager.makeBold(formatActualValue(actualValue))}`;
+      }
+    } else if ('errors' in issue && Array.isArray((issue as any).errors)) {
+      // Regular union error - try to find the best matching union member
+      // The matching member is the one that does NOT have a top-level type mismatch error
+      const unionErrors = (issue as any).errors as Array<
+        Array<{ code: string; path: PropertyKey[]; values?: string[] }>
+      >;
+      const configType =
+        typeof actualValue === 'object' && actualValue !== null ? (actualValue as any).type : undefined;
+
+      // Find the union member that doesn't have a type mismatch at root level
+      const matchingMemberErrors = unionErrors.find((memberErrors) => {
+        const hasTopLevelTypeMismatch = memberErrors.some(
+          (err) => err.code === 'invalid_value' && err.path.length === 1 && err.path[0] === 'type'
+        );
+        return !hasTopLevelTypeMismatch;
+      });
+
+      if (matchingMemberErrors && matchingMemberErrors.length > 0) {
+        // Found the matching member - show its specific errors
+        const firstError = matchingMemberErrors[0] as any;
+        if (firstError.code === 'invalid_union' && firstError.path) {
+          // Nested union error (e.g., rules[0] has invalid type)
+          const nestedPath = [...issue.path, ...firstError.path];
+          const nestedValue = get(config, nestedPath.join('.'));
+          const nestedType = typeof nestedValue === 'object' && nestedValue !== null ? nestedValue.type : undefined;
+
+          if (nestedType) {
+            // Extract valid types from the nested union errors
+            const validTypes: string[] = [];
+            if (firstError.errors) {
+              for (const memberErrs of firstError.errors) {
+                const typeErr = memberErrs.find(
+                  (e: any) => e.code === 'invalid_value' && e.path.length === 1 && e.path[0] === 'type'
+                );
+                if (typeErr?.values?.[0]) {
+                  validTypes.push(typeErr.values[0]);
+                }
+              }
+            }
+
+            message = `Invalid type ${tuiManager.makeBold(`"${nestedType}"`)} at ${tuiManager.prettyConfigProperty(formatZodIssuePath(nestedPath))}`;
+            if (validTypes.length > 0) {
+              const suggestion = findClosestMatch(nestedType, validTypes);
+              if (suggestion) {
+                hint = `Did you mean ${tuiManager.makeBold(`"${suggestion}"`)}? Valid types: ${validTypes.join(', ')}`;
+              } else {
+                hint = `Valid types: ${validTypes.join(', ')}`;
+              }
+            }
+          } else {
+            message = `Invalid configuration at ${tuiManager.prettyConfigProperty(formatZodIssuePath(nestedPath))}`;
+          }
+        } else if (firstError.code === 'invalid_value' && firstError.values) {
+          // Invalid enum value error
+          const errorPath = [...issue.path, ...firstError.path];
+          const errorValue = get(config, errorPath.join('.'));
+          const values = firstError.values as string[];
+          message = `Invalid value ${tuiManager.makeBold(formatActualValue(errorValue))} at ${tuiManager.prettyConfigProperty(formatZodIssuePath(errorPath))}`;
+          if (typeof errorValue === 'string') {
+            const suggestion = findClosestMatch(errorValue, values);
+            if (suggestion) {
+              hint = `Did you mean ${tuiManager.makeBold(`"${suggestion}"`)}?`;
+            }
+          }
+        } else if (firstError.code === 'invalid_type') {
+          // Type mismatch or missing required property
+          const errorPath = [...issue.path, ...firstError.path];
+          const errorValue = get(config, errorPath.join('.'));
+          if (errorValue === undefined) {
+            message = `Required property ${tuiManager.prettyConfigProperty(formatZodIssuePath(errorPath))} is missing (expected ${tuiManager.makeBold(firstError.expected)})`;
+          } else {
+            message = `Expected ${tuiManager.makeBold(firstError.expected)}, received ${tuiManager.makeBold(firstError.received || typeof errorValue)} at ${tuiManager.prettyConfigProperty(formatZodIssuePath(errorPath))}`;
+          }
+        } else if (firstError.code === 'unrecognized_keys') {
+          // Unknown property error
+          const unknownKeys = firstError.keys as string[];
+          const errorPath = [...issue.path, ...firstError.path];
+          const formattedKeys = unknownKeys.map((k: string) => tuiManager.prettyConfigProperty(k)).join(', ');
+          message = `Unknown ${unknownKeys.length === 1 ? 'property' : 'properties'} ${formattedKeys} at ${tuiManager.prettyConfigProperty(formatZodIssuePath(errorPath))}`;
+        } else {
+          // Other type of error
+          const errorPath = [...issue.path, ...(firstError.path || [])];
+          message = `Invalid configuration at ${tuiManager.prettyConfigProperty(formatZodIssuePath(errorPath))}`;
+        }
+      } else if (configType && typeof configType === 'string') {
+        // No matching member found - the type itself is invalid
+        const isTopLevelResource = issue.path[0] === 'resources' && issue.path.length === 2;
+        const isTopLevelScript = issue.path[0] === 'scripts' && issue.path.length === 2;
+
+        if (isTopLevelResource) {
+          message = `Invalid resource type ${tuiManager.makeBold(`"${configType}"`)}`;
+          const suggestion = findClosestMatch(configType, RESOURCE_TYPES);
+          if (suggestion) {
+            hint = `Did you mean ${tuiManager.makeBold(`"${suggestion}"`)}?`;
+          }
+        } else if (isTopLevelScript) {
+          message = `Invalid script type ${tuiManager.makeBold(`"${configType}"`)}`;
+          const suggestion = findClosestMatch(configType, SCRIPT_TYPES);
+          if (suggestion) {
+            hint = `Did you mean ${tuiManager.makeBold(`"${suggestion}"`)}?`;
+          }
+        } else {
+          message = `Invalid type ${tuiManager.makeBold(`"${configType}"`)}`;
         }
       }
     }

@@ -6,21 +6,12 @@ import { logInfo, logSuccess } from '@shared/utils/logging';
 
 const OUTPUT_PATH = join(process.cwd(), '@generated/schemas/validate-config-zod.ts');
 
-// Post-process: Convert z.union with type discriminator to z.discriminatedUnion
-const convertUnionsToDiscriminated = (code: string): string => {
-  let modified = code;
-  let replacements = 0;
-
-  // Find z.union([z.object({ "type": and replace with z.discriminatedUnion("type", [z.object({ "type":
-  // This works because if the first element has "type" as first property, it's likely a discriminated union
-  modified = modified.replace(/z\.union\(\[z\.object\(\{ "type": z\.literal\(/g, () => {
-    replacements++;
-    return 'z.discriminatedUnion("type", [z.object({ "type": z.literal(';
-  });
-
-  logInfo(`Converted ${replacements} unions to discriminatedUnion`);
-  return modified;
-};
+// NOTE: We intentionally do NOT convert unions to discriminatedUnion.
+// While discriminatedUnion gives better error messages, it is STRICTER than regular union.
+// With z.union, Zod tries each option and succeeds if any matches.
+// With z.discriminatedUnion, Zod checks the discriminator first and fails immediately if no match.
+// This caused previously valid configs to fail validation (e.g. custom rule types in WAF).
+// The AJV validator was more lenient, so we keep unions to maintain backwards compatibility.
 
 // Post-process: Fix z.record() for Zod 4 (needs two arguments: key schema and value schema)
 const fixRecordSyntax = (code: string): string => {
@@ -235,7 +226,6 @@ export const generateZodSchema = async (jsonSchema: object): Promise<void> => {
   });
 
   logInfo('Post-processing Zod schema...');
-  zodSchemaCode = convertUnionsToDiscriminated(zodSchemaCode);
   zodSchemaCode = fixRecordSyntax(zodSchemaCode);
   zodSchemaCode = fixDefaultValues(zodSchemaCode);
   zodSchemaCode = fixEnumNumericDefaults(zodSchemaCode);

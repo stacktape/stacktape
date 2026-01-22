@@ -35,7 +35,8 @@ export const getEdgeLambdaCustomResource = (lambdaProps: StpEdgeLambdaFunction |
       runtime: getLambdaRuntime({
         name: customResourceProperties.edgeLambda.name,
         packaging: customResourceProperties.edgeLambda.packaging,
-        runtime: customResourceProperties.edgeLambda.runtime as LambdaRuntime
+        runtime: customResourceProperties.edgeLambda.runtime as LambdaRuntime,
+        isEdgeFunction: true
       }) as any
     };
   });
