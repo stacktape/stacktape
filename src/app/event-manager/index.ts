@@ -223,7 +223,8 @@ export class EventManager implements ProgressLogger {
     phase,
     instanceId,
     parentEventType,
-    parentInstanceId
+    parentInstanceId,
+    status
   }: Omit<EventManagerProgressEvent, 'description'> & {
     captureType: EventLogEntryType;
     description?: string;
@@ -276,7 +277,8 @@ export class EventManager implements ProgressLogger {
           finalMessage,
           data,
           parentEventType: resolvedParentEventType,
-          instanceId: resolvedInstanceId
+          instanceId: resolvedInstanceId,
+          status
         });
       }
     } else if (!tuiManager.wasEverStarted) {

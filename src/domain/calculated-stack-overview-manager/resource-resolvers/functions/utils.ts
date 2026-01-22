@@ -210,13 +210,12 @@ export const getLambdaVersionPublisherCustomResource = ({
   const resource = new CustomResource({
     ServiceToken: GetAtt(configManager.stacktapeServiceLambdaProps.cfLogicalName, 'Arn')
   });
-  const additionalProperties: Pick<StpServiceCustomResourceProperties, 'publishLambdaVersion'> & {
-    forceUpdate: number;
-  } = {
+  // Note: codeDigest property is added via templateManager.addFinalTemplateOverrideFn in index.ts
+  // This ensures the custom resource is re-invoked when (and only when) lambda code changes.
+  const additionalProperties: Pick<StpServiceCustomResourceProperties, 'publishLambdaVersion'> = {
     publishLambdaVersion: {
       functionName: Ref(lambdaProps.cfLogicalName)
-    },
-    forceUpdate: Date.now()
+    }
   };
   resource.Properties = { ...resource.Properties, ...additionalProperties };
   // Explicit DependsOn ensures Lambda function code is fully deployed before publishing version.

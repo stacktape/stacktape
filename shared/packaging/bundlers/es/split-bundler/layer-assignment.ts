@@ -12,21 +12,8 @@
  */
 
 import type { ChunkLayerAssignment, ChunkUsageAnalysis, LayerAssignmentResult, LayerConfig } from './types';
-import { DEFAULT_LAYER_CONFIG } from './constants';
+import { DEFAULT_LAYER_CONFIG } from '../config';
 
-/**
- * Assign chunks to Lambda Layers based on usage analysis and configuration.
- *
- * Algorithm:
- * 1. Identify "seed" chunks that meet usage/size thresholds
- * 2. Recursively include all dependencies of seed chunks (dependency promotion)
- * 3. Assign to layers using First Fit Decreasing (FFD) bin-packing
- * 4. Respect layer count and size limits
- *
- * @param chunkAnalysis - Chunk usage analysis (should be sorted by deduplicationValue descending)
- * @param config - Layer configuration options
- * @returns Layer assignment result with chunk distributions
- */
 export const assignChunksToLayers = (
   chunkAnalysis: ChunkUsageAnalysis[],
   config: LayerConfig = DEFAULT_LAYER_CONFIG

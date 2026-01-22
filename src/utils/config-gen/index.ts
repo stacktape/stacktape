@@ -39,15 +39,24 @@ const PHASE_MESSAGES: Record<string, string> = {
 export class ConfigGenManager {
   #sessionId: string | null = null;
   #cancelled = false;
+  #workingDirectory: string = process.cwd();
 
   /**
-   * Generate a Stacktape configuration for the current directory.
+   * Set the working directory for config generation.
+   * If not set, defaults to process.cwd().
+   */
+  setWorkingDirectory(dir: string): void {
+    this.#workingDirectory = dir;
+  }
+
+  /**
+   * Generate a Stacktape configuration for the working directory.
    *
    * @param onProgress - Optional callback for progress updates
    * @returns The generated configuration and metadata
    */
   async generate(onProgress?: ConfigGenProgressCallback): Promise<ConfigGenResult> {
-    const cwd = process.cwd();
+    const cwd = this.#workingDirectory;
     this.#cancelled = false;
 
     // Initialize the API client

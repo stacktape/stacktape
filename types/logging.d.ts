@@ -110,6 +110,7 @@ type EventManagerProgressEvent = {
   additionalMessage?: string;
   description?: string;
   phase?: DeploymentPhase;
+  status?: 'pending' | 'running' | 'success' | 'error' | 'warning';
 } & EventContext;
 
 interface ProgressLogger {

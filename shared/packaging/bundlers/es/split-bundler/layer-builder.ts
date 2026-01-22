@@ -1,16 +1,9 @@
-/**
- * Layer artifact creation and lambda package updating.
- *
- * Creates the physical layer directories with chunks and updates
- * lambda packages to remove layered chunks and rewrite imports.
- */
-
+import type { LambdaSplitOutput, LayerArtifact, LayerAssignmentResult } from './types';
 import { existsSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { copy, ensureDir, outputJSON, readdir, readFile, remove, writeFile } from 'fs-extra';
+import { LAYER_CHUNKS_PATH } from '../config';
 import { rewriteChunkImportsSelective } from './chunk-rewriter';
-import { LAYER_CHUNKS_PATH } from './constants';
-import type { LambdaSplitOutput, LayerArtifact, LayerAssignmentResult } from './types';
 
 /**
  * Create layer artifacts and update lambda packages to use layers.
@@ -19,21 +12,22 @@ import type { LambdaSplitOutput, LayerArtifact, LayerAssignmentResult } from './
  * 1. Creates layer directories with the assigned chunks (nodejs/chunks/ structure)
  * 2. Removes layered chunks from lambda packages
  * 3. Rewrites imports: layered chunks use /opt/nodejs/chunks/, local chunks use ./chunks/
- *
- * @param lambdaOutputs - Lambda outputs from buildSplitBundle
- * @param layerAssignment - Layer assignment from assignChunksToLayers
- * @param layerBasePath - Base path for layer directories (e.g., /build/layers/)
- * @returns Layer artifacts with paths and content hashes
  */
 export const createLayerArtifacts = async ({
   lambdaOutputs,
   layerAssignment,
   layerBasePath
 }: {
+  /** Lambda outputs from buildSplitBundle */
   lambdaOutputs: Map<string, LambdaSplitOutput>;
+  /** Layer assignment from assignChunksToLayers */
   layerAssignment: LayerAssignmentResult;
+  /** Base path for layer directories (e.g., /build/layers/) */
   layerBasePath: string;
-}): Promise<{ layerArtifacts: LayerArtifact[] }> => {
+}): Promise<{
+  /** Layer artifacts with paths and content hashes */
+  layerArtifacts: LayerArtifact[];
+}> => {
   const layeredChunkNames = new Set(layerAssignment.layeredChunks.map((c) => c.chunkName));
 
   // Pre-read all chunk files that will be layered (for parallel processing)

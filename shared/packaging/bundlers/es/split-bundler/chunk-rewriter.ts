@@ -89,6 +89,7 @@ export const findChunkImports = (content: string, allChunkPaths: string[]): stri
   const foundChunks = new Set<string>();
 
   let match;
+  // eslint-disable-next-line no-cond-assign
   while ((match = chunkRegex.exec(content)) !== null) {
     const chunkName = match[1];
     const chunkPath = chunkNameToPath.get(chunkName);

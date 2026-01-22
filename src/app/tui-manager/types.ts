@@ -74,7 +74,7 @@ export type TuiDeploymentHeader = {
   projectName: string;
   stageName: string;
   region: string;
-  action: 'DEPLOYING' | 'DELETING' | 'UPDATING';
+  action: 'DEPLOYING' | 'DELETING' | 'UPDATING' | 'PREVIEWING CHANGES';
 };
 
 export type TuiSelectOption = {

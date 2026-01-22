@@ -348,12 +348,11 @@ export const commandDev = async (): Promise<DevReturnValue> => {
   try {
     await runParallelWorkloads(devCompatibleResources, selectedLocalResourceNames);
   } catch (err) {
-    // When DevTui is running, show error in TUI instead of crashing
+    // When DevTui is running, show error in TUI and then re-throw
     if (devTuiManager.running) {
-      devTuiManager.systemLog(`Error: ${err.message}`, 'error');
-    } else {
-      throw err;
+      devTuiManager.stop();
     }
+    throw err;
   }
 
   // Keep the process running until Ctrl+C

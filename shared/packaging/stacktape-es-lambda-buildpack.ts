@@ -15,7 +15,6 @@ export const buildUsingStacktapeEsLambdaBuildpack = async ({
   dockerBuildOutputArchitecture,
   sharedLayerExternals = [],
   usesSharedLayer = false,
-  dependencyDiscoveryOnly = false,
   distFolderPath,
   ...otherProps
 }: StpBuildpackInput & {
@@ -24,8 +23,6 @@ export const buildUsingStacktapeEsLambdaBuildpack = async ({
   minify: boolean;
   sharedLayerExternals?: string[];
   usesSharedLayer?: boolean;
-  /** When true, only run bundler to discover dependencies - skip zipping and size checks */
-  dependencyDiscoveryOnly?: boolean;
 }): Promise<PackagingOutput> => {
   await emptyDir(distFolderPath);
 
@@ -40,8 +37,7 @@ export const buildUsingStacktapeEsLambdaBuildpack = async ({
     dockerBuildOutputArchitecture,
     isLambda: true,
     externals: sharedLayerExternals,
-    ...(sharedLayerExternals?.length && { dependenciesToExcludeFromDeploymentPackage: sharedLayerExternals }),
-    dependencyDiscoveryOnly
+    ...(sharedLayerExternals?.length && { dependenciesToExcludeFromDeploymentPackage: sharedLayerExternals })
   });
 
   const {
@@ -56,18 +52,6 @@ export const buildUsingStacktapeEsLambdaBuildpack = async ({
   if (outcome === 'skipped') {
     // await remove(distFolderPath);
     return { ...bundlingOutput, size: null, jobName: name, resolvedModules };
-  }
-
-  // For dependency discovery (first-pass), return early with just the resolved modules
-  if (dependencyDiscoveryOnly) {
-    return {
-      digest,
-      outcome,
-      sourceFiles,
-      size: null,
-      jobName: name,
-      resolvedModules
-    };
   }
 
   const unzippedSize = await getFolderSize(bundledDistFolderPath, FILE_SIZE_UNIT, 2);

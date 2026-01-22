@@ -9,13 +9,24 @@ import type {
 } from '../../src/utils/config-gen/types';
 
 /**
+ * Normalizes the endpoint URL to avoid IPv6 resolution issues on Windows.
+ * Replaces 'localhost' with '127.0.0.1' to ensure IPv4 is used.
+ */
+const normalizeEndpointUrl = (url: string): string => {
+  // Replace localhost with 127.0.0.1 to avoid IPv6 resolution issues
+  // This is particularly important on Windows where localhost may resolve to ::1
+  return url.replace(/^(https?:\/\/)localhost(:\d+)?/, '$1127.0.0.1$2');
+};
+
+/**
  * Creates a tRPC client for public endpoints (no authentication required).
  */
 const createPublicTrpcClient = () => {
+  const url = normalizeEndpointUrl(STACKTAPE_TRPC_API_ENDPOINT);
   return createTRPCClient<any>({
     links: [
       httpBatchLink({
-        url: `${STACKTAPE_TRPC_API_ENDPOINT}/public`
+        url
       })
     ]
   });

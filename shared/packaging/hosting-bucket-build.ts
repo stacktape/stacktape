@@ -1,7 +1,7 @@
-import { join, isAbsolute } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { exec } from '@shared/utils/exec';
-import { serialize } from '@shared/utils/misc';
+import { getError, serialize } from '@shared/utils/misc';
 
 /**
  * Strips ANSI escape codes from a string.
@@ -53,7 +53,7 @@ const parseViteOutput = (output: string): BuildOutputInfo | null => {
     let totalKB = 0;
     let totalGzipKB = 0;
     sizeLines.forEach((line) => {
-      const [size, gzip] = line.split('│').map((s) => parseFloat(s.replace(/[^\d.]/g, '')));
+      const [size, gzip] = line.split('│').map((s) => Number.parseFloat(s.replace(/[^\d.]/g, '')));
       if (!Number.isNaN(size)) totalKB += size;
       if (!Number.isNaN(gzip)) totalGzipKB += gzip;
     });
@@ -79,7 +79,7 @@ const parseWebpackOutput = (output: string): BuildOutputInfo | null => {
   // Match build time: "compiled successfully in 2345 ms"
   const timeMatch = output.match(/compiled\s+(?:successfully\s+)?in\s+(\d+)\s*ms/i);
   if (timeMatch) {
-    const ms = parseInt(timeMatch[1], 10);
+    const ms = Number.parseInt(timeMatch[1], 10);
     info.buildTime = ms >= 1000 ? `${(ms / 1000).toFixed(2)}s` : `${ms}ms`;
   }
 
@@ -90,7 +90,7 @@ const parseWebpackOutput = (output: string): BuildOutputInfo | null => {
     assetMatches.forEach((match) => {
       const sizeMatch = match.match(/([\d.]+)\s*(KiB|bytes|MiB)/i);
       if (sizeMatch) {
-        const size = parseFloat(sizeMatch[1]);
+        const size = Number.parseFloat(sizeMatch[1]);
         const unit = sizeMatch[2].toLowerCase();
         if (unit === 'kib') totalBytes += size * 1024;
         else if (unit === 'mib') totalBytes += size * 1024 * 1024;
@@ -132,8 +132,8 @@ const parseAngularOutput = (output: string): BuildOutputInfo | null => {
     chunkMatches.forEach((match) => {
       const sizes = match.match(/[\d.]+/g);
       if (sizes?.length >= 2) {
-        totalKB += parseFloat(sizes[0]);
-        transferKB += parseFloat(sizes[1]);
+        totalKB += Number.parseFloat(sizes[0]);
+        transferKB += Number.parseFloat(sizes[1]);
       }
     });
     info.totalSize = `${totalKB.toFixed(2)} kB`;
@@ -166,8 +166,8 @@ const parseVueOutput = (output: string): BuildOutputInfo | null => {
     sizeMatches.forEach((match) => {
       const nums = match.match(/[\d.]+/g);
       if (nums?.length >= 2) {
-        totalKB += parseFloat(nums[0]);
-        gzipKB += parseFloat(nums[1]);
+        totalKB += Number.parseFloat(nums[0]);
+        gzipKB += Number.parseFloat(nums[1]);
       }
     });
     info.totalSize = `${totalKB.toFixed(2)} kB`;
@@ -200,7 +200,7 @@ const parseCRAOutput = (output: string): BuildOutputInfo | null => {
     sizeMatches.forEach((match) => {
       const sizeMatch = match.match(/([\d.]+)\s*(kB|KB|B)/i);
       if (sizeMatch) {
-        const size = parseFloat(sizeMatch[1]);
+        const size = Number.parseFloat(sizeMatch[1]);
         const unit = sizeMatch[2].toLowerCase();
         if (unit === 'b') totalKB += size / 1024;
         else totalKB += size;
@@ -247,7 +247,7 @@ const parseGenericOutput = (output: string): BuildOutputInfo | null => {
   for (const pattern of timePatterns) {
     const match = output.match(pattern);
     if (match) {
-      const time = parseFloat(match[1]);
+      const time = Number.parseFloat(match[1]);
       const unit = match[2].toLowerCase();
       if (unit.startsWith('ms') || unit.startsWith('milli')) {
         info.buildTime = time >= 1000 ? `${(time / 1000).toFixed(2)}s` : `${time}ms`;
@@ -344,7 +344,7 @@ export const buildHostingBucket = async ({
       cwd: workingDir,
       env: { ...serialize(process.env), FORCE_COLOR: '1' },
       onOutputLine: (line) => {
-        outputBuffer += line + '\n';
+        outputBuffer += `${line}\n`;
       }
     });
 
@@ -363,9 +363,14 @@ export const buildHostingBucket = async ({
 
     await progressLogger.finishEvent({
       eventType: 'BUILD_HOSTING_BUCKET',
-      finalMessage: `Build failed: ${errorMessage.split('\n')[0]}`
+      finalMessage: `Build failed: ${errorMessage.split('\n')[0]}`,
+      status: 'error'
     });
 
-    throw err;
+    throw getError({
+      type: 'PACKAGING',
+      message: `Failed to build hosting bucket "${name}".\n${errorMessage}`,
+      hint: 'Check build command output above for details.'
+    });
   }
 };

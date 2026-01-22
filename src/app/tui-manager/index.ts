@@ -18,7 +18,7 @@ import { INVOKED_FROM_ENV_VAR_NAME, IS_DEV, linksMap } from '@config';
 import { getRelativePath, transformToUnixPath } from '@shared/utils/fs-utils';
 import { logCollectorStream } from '@utils/log-collector';
 import ci from 'ci-info';
-import { render } from 'ink';
+import { render, Box, Text } from 'ink';
 import kleur from 'kleur';
 import React from 'react';
 import terminalLink from 'terminal-link';
@@ -682,6 +682,19 @@ class TuiManager {
       instance.unmount();
     } else {
       this.printAsciiTable(header, rows);
+    }
+  }
+
+  /** Print multiple lines of text. Works in both TTY and non-TTY modes. */
+  printLines(lines: string[]) {
+    if (this.logFormat === 'json') {
+      this.printStacktapeLog({ type: 'TEXT', data: { lines } });
+      return;
+    }
+
+    for (const line of lines) {
+      console.info(line);
+      logCollectorStream.write(line);
     }
   }
 

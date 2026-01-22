@@ -1,23 +1,9 @@
 /**
- * Core split bundling logic using Bun.
- *
  * Bundles multiple Lambda entrypoints together with code splitting enabled,
  * automatically creating shared chunks for code used by multiple functions.
  */
-
 import type { BunPlugin } from 'bun';
 import type { PackageJsonDepsInfo } from '../utils';
-import { existsSync } from 'node:fs';
-import { join, relative, basename } from 'node:path';
-import { SOURCE_MAP_INSTALL_DIST_PATH } from '@shared/naming/project-fs-paths';
-import { dependencyInstaller } from '@shared/utils/dependency-installer';
-import { getFirstExistingPath, isFileAccessible } from '@shared/utils/fs-utils';
-import { builtinModules, filterDuplicates, getError, getTsconfigAliases } from '@shared/utils/misc';
-import { findProjectRoot } from '@shared/utils/monorepo';
-import { copy, ensureDir, outputJSON, readFile, writeFile, writeJSON } from 'fs-extra';
-import { DEPENDENCIES_TO_EXCLUDE_FROM_BUNDLE, IGNORED_MODULES } from '../config';
-import { createModuleResolver, determineIfAlias, getInfoFromPackageJson, getLockFileData } from '../utils';
-import { findChunkImports, rewriteChunkImports } from './chunk-rewriter';
 import type {
   BuildSplitBundleOptions,
   ChunkUsageAnalysis,
@@ -25,48 +11,21 @@ import type {
   ProgressLogger,
   SplitBundleResult
 } from './types';
-
-// ============ DEBUG TIMING FOR BUNDLER ============
-type BundlerTimingPhase = {
-  phase: string;
-  durationMs: number;
-  details?: Record<string, any>;
-};
-
-type LambdaProcessingTiming = {
-  name: string;
-  findChunksMs: number;
-  ensureDirMs: number;
-  rewriteImportsMs: number;
-  writeEntryFileMs: number;
-  ensureChunksDirMs: number;
-  copyChunksMs: number;
-  copySourceMapsMs: number;
-  writePackageJsonMs: number;
-  totalMs: number;
-  chunkCount: number;
-};
-
-export type BundlerDebugTiming = {
-  phases: BundlerTimingPhase[];
-  lambdaProcessing: LambdaProcessingTiming[];
-};
-
-const bundlerTiming: BundlerDebugTiming = {
-  phases: [],
-  lambdaProcessing: []
-};
-
-const timePhase = async <T>(phase: string, fn: () => Promise<T>, details?: Record<string, any>): Promise<T> => {
-  const start = Date.now();
-  const result = await fn();
-  bundlerTiming.phases.push({ phase, durationMs: Date.now() - start, details });
-  return result;
-};
-
-/** Returns the collected bundler timing data for external use */
-export const getBundlerTiming = (): BundlerDebugTiming => bundlerTiming;
-// ============ END DEBUG TIMING ============
+import { existsSync } from 'node:fs';
+import { basename, join, relative } from 'node:path';
+import { dependencyInstaller } from '@shared/utils/dependency-installer';
+import { builtinModules, filterDuplicates, getError, getTsconfigAliases } from '@shared/utils/misc';
+import { findProjectRoot } from '@shared/utils/monorepo';
+import { copy, ensureDir, outputJSON, readFile, writeFile } from 'fs-extra';
+import { DEPENDENCIES_TO_EXCLUDE_FROM_BUNDLE, IGNORED_MODULES } from '../config';
+import {
+  createModuleResolver,
+  determineIfAlias,
+  ensureDefaultExport,
+  ESM_SOURCE_MAP_BANNER,
+  getInfoFromPackageJson
+} from '../utils';
+import { findChunkImports, rewriteChunkImports } from './chunk-rewriter';
 
 /**
  * Bundle multiple Lambda entrypoints together using Bun's code splitting.
@@ -93,83 +52,55 @@ export const buildSplitBundle = async ({
 }: BuildSplitBundleOptions): Promise<SplitBundleResult> => {
   const startTime = Date.now();
 
-  // Reset timing for this run
-  bundlerTiming.phases = [];
-  bundlerTiming.lambdaProcessing = [];
-
   // Install dependencies first
-  await timePhase(
-    'dependency-install',
-    () =>
-      dependencyInstaller.install({
-        rootProjectDirPath: cwd,
-        progressLogger: progressLogger ?? createNoopLogger()
-      }),
-    { cwd }
-  );
+  await dependencyInstaller.install({
+    rootProjectDirPath: cwd,
+    progressLogger: progressLogger ?? createNoopLogger()
+  });
 
   // Setup tsconfig aliases and path resolution
-  const aliases = await timePhase('get-tsconfig-aliases', async () =>
-    tsConfigPath ? await getTsconfigAliases(tsConfigPath) : {}
-  );
-  const tsConfigPathForBuild =
-    tsConfigPath ?? (existsSync(join(cwd, 'tsconfig.json')) ? join(cwd, 'tsconfig.json') : undefined);
+  const aliases = tsConfigPath ? await getTsconfigAliases(tsConfigPath) : {};
 
   // Find monorepo root for resolving workspace packages
-  const monorepoRoot = await timePhase('find-monorepo-root', async () => findProjectRoot(cwd));
+  const monorepoRoot = await findProjectRoot(cwd);
 
   // Track dependencies and source files during bundling
   const tracker = createDependencyTracker();
   const shouldIgnoreAllDeps = dependenciesToExcludeFromBundle.includes('*');
 
   // Build all entrypoints together with code splitting
-  const buildResult = await timePhase(
-    'bun-build',
-    () =>
-      executeBunBuild({
-        entrypoints,
-        sharedOutdir,
-        cwd,
-        monorepoRoot,
-        minify,
-        sourceMaps,
-        sourceMapBannerType,
-        excludeDependencies,
-        dependenciesToExcludeFromBundle,
-        shouldIgnoreAllDeps,
-        aliases,
-        tracker
-      }),
-    { entrypointCount: entrypoints.length }
-  );
+  const buildResult = await executeBunBuild({
+    entrypoints,
+    sharedOutdir,
+    cwd,
+    monorepoRoot,
+    minify,
+    sourceMaps,
+    sourceMapBannerType,
+    excludeDependencies,
+    dependenciesToExcludeFromBundle,
+    shouldIgnoreAllDeps,
+    aliases,
+    tracker
+  });
 
   // Separate entry files from chunk files
   const { entryFiles, chunkFiles } = categorizeOutputFiles(buildResult.outputs);
-  bundlerTiming.phases.push({
-    phase: 'categorize-outputs',
-    durationMs: 0,
-    details: { entryFileCount: entryFiles.length, chunkFileCount: chunkFiles.length }
-  });
 
   // Process each lambda and track chunk usage
-  const { lambdaOutputs, chunkUsageMap, chunkContentCache } = await timePhase(
-    'process-lambda-outputs',
-    () =>
-      processLambdaOutputs({
-        entrypoints,
-        entryFiles,
-        chunkFiles,
-        sharedOutdir,
-        cwd,
-        tracker
-      }),
-    { lambdaCount: entrypoints.length, chunkCount: chunkFiles.length }
-  );
+  // Use monorepo root for path matching since Bun outputs files relative to buildRoot
+  const buildRoot = monorepoRoot || cwd;
+  const { lambdaOutputs, chunkUsageMap, chunkContentCache } = await processLambdaOutputs({
+    entrypoints,
+    entryFiles,
+    chunkFiles,
+    sharedOutdir,
+    buildRoot,
+    tracker
+  });
 
   // Build chunk usage analysis for layer optimization (includes dependency tracking)
-  const chunkAnalysis = await timePhase('build-chunk-analysis', async () =>
-    buildChunkAnalysis(chunkUsageMap, chunkContentCache, chunkFiles)
-  );
+  const chunkAnalysis = buildChunkAnalysis(chunkUsageMap, chunkContentCache, chunkFiles);
 
   return {
     lambdaOutputs,
@@ -461,24 +392,10 @@ const analyzeDependency = async ({
   return { dependenciesToInstallInDocker, allExternalDeps };
 };
 
-/** Cached source map banner content */
-let sourceMapBannerCache: string | undefined;
-
 /** Get the ESM compatibility banner for source maps */
-const getSourceMapBanner = async (
-  bannerType: 'node_modules' | 'pre-compiled' | 'disabled'
-): Promise<string | undefined> => {
+const getSourceMapBanner = (bannerType: 'node_modules' | 'pre-compiled' | 'disabled'): string | undefined => {
   if (bannerType === 'disabled') return undefined;
-
-  if (bannerType === 'pre-compiled') {
-    return `import { createRequire as __stp_createRequire } from "node:module";
-import { fileURLToPath as __stp_fileURLToPath } from "node:url";
-import { dirname as __stp_pathDirname } from "node:path";
-const require = __stp_createRequire(import.meta.url);
-const __stp_filename = __stp_fileURLToPath(import.meta.url);
-const __stp_dirname = __stp_pathDirname(__stp_filename);`;
-  }
-
+  if (bannerType === 'pre-compiled') return ESM_SOURCE_MAP_BANNER;
   return undefined;
 };
 
@@ -505,14 +422,14 @@ const processLambdaOutputs = async ({
   entryFiles,
   chunkFiles,
   sharedOutdir,
-  cwd,
+  buildRoot,
   tracker
 }: {
   entrypoints: BuildSplitBundleOptions['entrypoints'];
   entryFiles: string[];
   chunkFiles: string[];
   sharedOutdir: string;
-  cwd: string;
+  buildRoot: string;
   tracker: DependencyTracker;
 }): Promise<{
   lambdaOutputs: Map<string, LambdaSplitOutput>;
@@ -523,38 +440,23 @@ const processLambdaOutputs = async ({
   const chunkUsageMap = new Map<string, Set<string>>();
 
   // Pre-read all chunk files once (they're shared across lambdas)
-  const readChunksStart = Date.now();
   const chunkContentCache = new Map<string, string>();
-  let totalChunkBytes = 0;
   await Promise.all(
     chunkFiles.map(async (chunkPath) => {
       const content = await readFile(chunkPath, 'utf-8');
       chunkContentCache.set(chunkPath, content);
-      totalChunkBytes += content.length;
     })
   );
-  bundlerTiming.phases.push({
-    phase: 'read-all-chunks',
-    durationMs: Date.now() - readChunksStart,
-    details: { chunkCount: chunkFiles.length, totalChunkBytes }
-  });
 
   // Pre-create all lambda directories BEFORE parallel processing to avoid ensureDir contention
-  const createDirsStart = Date.now();
   await Promise.all(
     entrypoints.map(async (ep) => {
       await ensureDir(ep.distFolderPath);
       await ensureDir(join(ep.distFolderPath, 'chunks'));
     })
   );
-  bundlerTiming.phases.push({
-    phase: 'pre-create-dirs',
-    durationMs: Date.now() - createDirsStart,
-    details: { dirCount: entrypoints.length * 2 }
-  });
 
   // Process all lambdas in parallel
-  const processLambdasStart = Date.now();
   const results = await Promise.all(
     entrypoints.map((entrypoint) =>
       processLambdaEntrypoint({
@@ -562,28 +464,16 @@ const processLambdaOutputs = async ({
         entryFiles,
         chunkFiles,
         sharedOutdir,
-        cwd,
+        buildRoot,
         chunkContentCache
       })
     )
   );
-  bundlerTiming.phases.push({
-    phase: 'process-all-lambdas',
-    durationMs: Date.now() - processLambdasStart,
-    details: { lambdaCount: entrypoints.length }
-  });
 
   // Collect results
   for (let i = 0; i < entrypoints.length; i++) {
     const entrypoint = entrypoints[i];
-    const { allRequiredChunks, timing } = results[i];
-
-    // Add timing for this lambda
-    bundlerTiming.lambdaProcessing.push({
-      name: entrypoint.name,
-      ...timing,
-      chunkCount: allRequiredChunks.size
-    });
+    const { allRequiredChunks } = results[i];
 
     // Track chunk usage
     for (const chunk of allRequiredChunks) {
@@ -614,45 +504,22 @@ const processLambdaEntrypoint = async ({
   entryFiles,
   chunkFiles,
   sharedOutdir,
-  cwd,
+  buildRoot,
   chunkContentCache
 }: {
   entrypoint: BuildSplitBundleOptions['entrypoints'][0];
   entryFiles: string[];
   chunkFiles: string[];
   sharedOutdir: string;
-  cwd: string;
+  buildRoot: string;
   chunkContentCache: Map<string, string>;
 }): Promise<{
   entryFile: string;
   allRequiredChunks: Set<string>;
-  timing: {
-    findChunksMs: number;
-    ensureDirMs: number;
-    rewriteImportsMs: number;
-    writeEntryFileMs: number;
-    ensureChunksDirMs: number;
-    copyChunksMs: number;
-    copySourceMapsMs: number;
-    writePackageJsonMs: number;
-    totalMs: number;
-  };
 }> => {
-  const totalStart = Date.now();
-  const timing = {
-    findChunksMs: 0,
-    ensureDirMs: 0,
-    rewriteImportsMs: 0,
-    writeEntryFileMs: 0,
-    ensureChunksDirMs: 0,
-    copyChunksMs: 0,
-    copySourceMapsMs: 0,
-    writePackageJsonMs: 0,
-    totalMs: 0
-  };
-
   // Find output file matching input entrypoint
-  const inputRelative = relative(cwd, entrypoint.entryfilePath)
+  // Use buildRoot (monorepoRoot or cwd) since Bun outputs files relative to it
+  const inputRelative = relative(buildRoot, entrypoint.entryfilePath)
     .replace(/\.(ts|tsx|jsx|mjs)$/, '.js')
     .replace(/\\/g, '/');
 
@@ -670,35 +537,22 @@ const processLambdaEntrypoint = async ({
   }
 
   // Find all required chunks (direct and transitive) using cached content
-  const findChunksStart = Date.now();
   let entryContent = await readFile(entryFile, 'utf-8');
   const allRequiredChunks = findAllRequiredChunksSync(entryContent, chunkFiles, chunkContentCache);
-  timing.findChunksMs = Date.now() - findChunksStart;
-
-  // Dirs are pre-created, so just record 0ms
-  timing.ensureDirMs = 0;
 
   // Rewrite chunk imports
-  const rewriteStart = Date.now();
   entryContent = rewriteChunkImports(entryContent, './chunks/');
-  timing.rewriteImportsMs = Date.now() - rewriteStart;
 
   // Ensure default export exists - if user exports `handler` but not `default`, re-export it
-  // This handles the common case where users write `export const handler = ...` instead of `export default`
   entryContent = ensureDefaultExport(entryContent);
 
   // Write entry file
-  const writeEntryStart = Date.now();
   const destIndexPath = join(entrypoint.distFolderPath, 'index.js');
   await writeFile(destIndexPath, entryContent);
-  timing.writeEntryFileMs = Date.now() - writeEntryStart;
 
-  // Chunks dir is pre-created
-  timing.ensureChunksDirMs = 0;
   const chunksDestDir = join(entrypoint.distFolderPath, 'chunks');
 
   // Copy chunks to lambda package in parallel
-  const copyChunksStart = Date.now();
   await Promise.all(
     Array.from(allRequiredChunks).map(async (chunk) => {
       const chunkDest = join(chunksDestDir, basename(chunk));
@@ -706,10 +560,8 @@ const processLambdaEntrypoint = async ({
       await writeFile(chunkDest, chunkContent);
     })
   );
-  timing.copyChunksMs = Date.now() - copyChunksStart;
 
   // Copy source maps
-  const copySourceMapsStart = Date.now();
   await Promise.all(
     Array.from(allRequiredChunks).map(async (chunk) => {
       const chunkDest = join(chunksDestDir, basename(chunk));
@@ -723,15 +575,11 @@ const processLambdaEntrypoint = async ({
   if (existsSync(sourceMapPath)) {
     await copy(sourceMapPath, join(entrypoint.distFolderPath, 'index.js.map'));
   }
-  timing.copySourceMapsMs = Date.now() - copySourceMapsStart;
 
   // Create package.json for ESM
-  const writePackageJsonStart = Date.now();
   await outputJSON(join(entrypoint.distFolderPath, 'package.json'), { type: 'module' });
-  timing.writePackageJsonMs = Date.now() - writePackageJsonStart;
 
-  timing.totalMs = Date.now() - totalStart;
-  return { entryFile, allRequiredChunks, timing };
+  return { entryFile, allRequiredChunks };
 };
 
 /** Find all chunks required by entry content (including transitive dependencies) - sync version using cache */
@@ -800,39 +648,4 @@ const buildChunkAnalysis = (
   analysis.sort((a, b) => b.deduplicationValue - a.deduplicationValue);
 
   return analysis;
-};
-
-/**
- * Ensure the entry file has a default export for Lambda runtime compatibility.
- *
- * If the code exports `handler` but not `default`, append a re-export.
- * This handles the common pattern where users write `export const handler = ...`
- * instead of `export default ...`.
- *
- * Bun's ESM output format is: `export { varName as exportName }`
- */
-const ensureDefaultExport = (content: string): string => {
-  // Check if there's already a default export
-  // Bun outputs: `export { something as default }` or `export { something_default as default }`
-  if (/export\s*\{[^}]*\bas\s+default\b[^}]*\}/.test(content)) {
-    return content;
-  }
-
-  // Check if there's a named `handler` export
-  // Bun outputs: `export { handler }` or `export { something as handler }`
-  const handlerExportMatch = content.match(/export\s*\{([^}]*)\}/g);
-  if (!handlerExportMatch) {
-    return content;
-  }
-
-  // Look for `handler` in any export block
-  for (const exportBlock of handlerExportMatch) {
-    // Match: `handler` or `something as handler`
-    if (/\bhandler\b/.test(exportBlock)) {
-      // Append re-export of handler as default
-      return content + '\nexport { handler as default };\n';
-    }
-  }
-
-  return content;
 };

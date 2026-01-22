@@ -344,15 +344,22 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
   // If deployment is configured, alias is already created (with code deploy), so we just add provisioned concurrency to it.
   // If no deployment, we create version + alias specifically for provisioned concurrency.
   if (provisionedConcurrency && !deployment) {
+    const versionPublisherLogicalName = cfLogicalNames.lambdaVersionPublisherCustomResource(name);
     calculatedStackOverviewManager.addCfChildResource({
       nameChain,
-      cfLogicalName: cfLogicalNames.lambdaVersionPublisherCustomResource(name),
+      cfLogicalName: versionPublisherLogicalName,
       resource: getLambdaVersionPublisherCustomResource({ lambdaProps })
     });
     calculatedStackOverviewManager.addCfChildResource({
       nameChain,
       cfLogicalName: cfLogicalNames.lambdaStpAlias(name),
       resource: getLambdaAliasResource({ lambdaProps, provisionedConcurrency })
+    });
+    // Add codeDigest to version publisher custom resource so it's re-invoked when (and only when) code changes.
+    // This replaces the old forceUpdate: Date.now() which caused false positives in preview-changes.
+    templateManager.addFinalTemplateOverrideFn(async (template) => {
+      const { digest } = deploymentArtifactManager.getLambdaS3UploadInfo({ artifactName, packaging });
+      template.Resources[versionPublisherLogicalName].Properties.codeDigest = digest;
     });
   }
   if (
@@ -523,9 +530,10 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
         })
       });
     }
+    const deployVersionPublisherLogicalName = cfLogicalNames.lambdaVersionPublisherCustomResource(name);
     calculatedStackOverviewManager.addCfChildResource({
       nameChain,
-      cfLogicalName: cfLogicalNames.lambdaVersionPublisherCustomResource(name),
+      cfLogicalName: deployVersionPublisherLogicalName,
       resource: getLambdaVersionPublisherCustomResource({ lambdaProps })
     });
     calculatedStackOverviewManager.addCfChildResource({
@@ -537,6 +545,11 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
       nameChain,
       cfLogicalName: cfLogicalNames.lambdaStpAlias(name),
       resource: getLambdaAliasResource({ lambdaProps })
+    });
+    // Add codeDigest to version publisher custom resource so it's re-invoked when (and only when) code changes.
+    templateManager.addFinalTemplateOverrideFn(async (template) => {
+      const { digest } = deploymentArtifactManager.getLambdaS3UploadInfo({ artifactName, packaging });
+      template.Resources[deployVersionPublisherLogicalName].Properties.codeDigest = digest;
     });
   }
   // add monitoring link (use alias when available for deployment or provisioned concurrency)

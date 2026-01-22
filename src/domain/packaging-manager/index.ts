@@ -1,10 +1,5 @@
 import type { NativeBinaryLayerResult } from '@shared/packaging/bundlers/es/copy-docker-installed-modules';
-import type {
-  BundlerDebugTiming,
-  LambdaEntrypoint,
-  LayerAssignmentResult,
-  ModuleInfo
-} from '@shared/packaging/bundlers/es/split-bundler';
+import type { LambdaEntrypoint, LayerAssignmentResult, ModuleInfo } from '@shared/packaging/bundlers/es/split-bundler';
 import { join } from 'node:path';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
@@ -14,7 +9,6 @@ import { configManager } from '@domain-services/config-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
 import { ec2Manager } from '@domain-services/ec2-manager';
-import { isDevCommand } from '../../commands/dev/dev-resource-filter';
 import { fsPaths } from '@shared/naming/fs-paths';
 import { buildLayerS3Key, getJobName } from '@shared/naming/utils';
 import { DEPENDENCIES_WITH_BINARIES } from '@shared/packaging/bundlers/es/config';
@@ -23,13 +17,13 @@ import {
   assignChunksToLayers,
   buildSplitBundle,
   createLayerArtifacts,
-  DEFAULT_LAYER_CONFIG,
-  getBundlerTiming
+  DEFAULT_LAYER_CONFIG
 } from '@shared/packaging/bundlers/es/split-bundler';
 import { getLambdaRuntimeFromNodeTarget, getLockFileData } from '@shared/packaging/bundlers/es/utils';
 import { buildUsingCustomArtifact } from '@shared/packaging/custom-artifact';
 import { buildUsingCustomDockerfile } from '@shared/packaging/custom-dockerfile';
 import { buildUsingExternalBuildpack } from '@shared/packaging/external-buildpack';
+import { buildHostingBucket } from '@shared/packaging/hosting-bucket-build';
 import { createNextjsWebArtifacts } from '@shared/packaging/nextjs-web';
 import { buildUsingNixpacks } from '@shared/packaging/nixpacks';
 import { buildUsingStacktapeEsImageBuildpack } from '@shared/packaging/stacktape-es-image-buildpack';
@@ -48,88 +42,13 @@ import {
 } from '@shared/utils/docker';
 import { getFileExtension, getFileSize, getFolderSize, getHashFromMultipleFiles } from '@shared/utils/fs-utils';
 import { localBuildTsConfigPath } from '@shared/utils/misc';
-import { archiveItem, getAvailableZipTool } from '@shared/utils/zip';
+import { archiveItem } from '@shared/utils/zip';
 import compose from '@utils/basic-compose-shim';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
-import { rename, writeJSON } from 'fs-extra';
+import { rename } from 'fs-extra';
 import objectHash from 'object-hash';
 import { resolveEnvironmentDirectives } from 'src/commands/dev/utils';
-import { buildHostingBucket } from '@shared/packaging/hosting-bucket-build';
-
-// ============ DEBUG TIMING INSTRUMENTATION ============
-type TimingEntry = {
-  phase: string;
-  startMs: number;
-  endMs?: number;
-  durationMs?: number;
-  details?: Record<string, any>;
-};
-
-type LambdaTimingEntry = {
-  name: string;
-  getFolderSizeMs: number;
-  zipMs: number;
-  getZipSizeMs: number;
-  renameMs: number;
-  totalMs: number;
-  unzippedSizeMB: number;
-  zippedSizeMB: number;
-  skipped: boolean;
-};
-
-type DebugTimingData = {
-  timestamp: string;
-  totalDurationMs: number;
-  phases: TimingEntry[];
-  lambdaTimings: LambdaTimingEntry[];
-  bundler?: BundlerDebugTiming;
-  summary: {
-    lambdaCount: number;
-    skippedCount: number;
-    totalZipTimeMs: number;
-    avgZipTimeMs: number;
-    maxZipTimeMs: number;
-    totalGetFolderSizeMs: number;
-    zipTool: string;
-    sourceFileCount: number;
-    sourceHashTimeMs: number;
-    sharedChunkCount: number;
-    layeredChunkCount: number;
-  };
-};
-
-const debugTiming: DebugTimingData = {
-  timestamp: '',
-  totalDurationMs: 0,
-  phases: [],
-  lambdaTimings: [],
-  summary: {
-    lambdaCount: 0,
-    skippedCount: 0,
-    totalZipTimeMs: 0,
-    avgZipTimeMs: 0,
-    maxZipTimeMs: 0,
-    totalGetFolderSizeMs: 0,
-    zipTool: '',
-    sourceFileCount: 0,
-    sourceHashTimeMs: 0,
-    sharedChunkCount: 0,
-    layeredChunkCount: 0
-  }
-};
-
-const startPhase = (phase: string, details?: Record<string, any>): TimingEntry => {
-  const entry: TimingEntry = { phase, startMs: Date.now(), details };
-  debugTiming.phases.push(entry);
-  return entry;
-};
-
-const endPhase = (entry: TimingEntry, additionalDetails?: Record<string, any>) => {
-  entry.durationMs = Date.now() - entry.startMs;
-  if (additionalDetails) {
-    entry.details = { ...(entry.details || {}), ...additionalDetails };
-  }
-};
+import { isDevCommand } from '../../commands/dev/dev-resource-filter';
 
 const formatLambdaSize = ({ sizeMB, sizeKB }: { sizeMB: number; sizeKB: number }) => {
   if (Number.isNaN(sizeMB) || Number.isNaN(sizeKB)) {
@@ -141,34 +60,6 @@ const formatLambdaSize = ({ sizeMB, sizeKB }: { sizeMB: number; sizeKB: number }
   return `${sizeKB}KB`;
 };
 
-const saveDebugTiming = async () => {
-  // Only save debug timing if --logLevel debug is set
-  if (globalStateManager.logLevel !== 'debug') {
-    return;
-  }
-
-  // Compute summary stats
-  const nonSkipped = debugTiming.lambdaTimings.filter((l) => !l.skipped);
-  debugTiming.summary.lambdaCount = debugTiming.lambdaTimings.length;
-  debugTiming.summary.skippedCount = debugTiming.lambdaTimings.filter((l) => l.skipped).length;
-  debugTiming.summary.totalZipTimeMs = nonSkipped.reduce((sum, l) => sum + l.zipMs, 0);
-  debugTiming.summary.avgZipTimeMs = nonSkipped.length > 0 ? debugTiming.summary.totalZipTimeMs / nonSkipped.length : 0;
-  debugTiming.summary.maxZipTimeMs = nonSkipped.length > 0 ? Math.max(...nonSkipped.map((l) => l.zipMs)) : 0;
-  debugTiming.summary.totalGetFolderSizeMs = nonSkipped.reduce((sum, l) => sum + l.getFolderSizeMs, 0);
-
-  // Include bundler timing data
-  debugTiming.bundler = getBundlerTiming();
-
-  // Save to the invocation folder (.stacktape/{invocationId})
-  const debugFilePath = join(
-    fsPaths.absoluteTempFolderPath({ invocationId: globalStateManager.invocationId }),
-    'packaging-debug.json'
-  );
-  await writeJSON(debugFilePath, debugTiming, { spaces: 2 });
-};
-// ============ END DEBUG TIMING ============
-
-/** Minimum number of Node.js lambdas to use split bundling (otherwise bundle individually) */
 const MINIMUM_LAMBDAS_FOR_SPLIT_BUNDLING = 2;
 
 const getCacheRef = (jobName: string) => {
@@ -400,14 +291,7 @@ export class PackagingManager {
   }): Promise<void> => {
     if (nodeLambdas.length === 0) return;
 
-    // DEBUG: Start overall timing
-    const overallStart = Date.now();
-    debugTiming.timestamp = new Date().toISOString();
-    debugTiming.phases = [];
-    debugTiming.lambdaTimings = [];
-
     // Prepare entrypoints for split bundling
-    const prepPhase = startPhase('prepare-entrypoints', { lambdaCount: nodeLambdas.length });
     const entrypoints: LambdaEntrypoint[] = nodeLambdas.map(({ name, type, packaging }) => {
       const jobName = getJobName({ workloadName: name, workloadType: type as any });
       return {
@@ -420,7 +304,6 @@ export class PackagingManager {
         })
       };
     });
-    endPhase(prepPhase);
 
     // Get node version from first lambda (they should all be compatible)
     const firstLambda = nodeLambdas[0];
@@ -456,8 +339,6 @@ export class PackagingManager {
       });
     }
 
-    // DEBUG: Time split bundle (Bun.build)
-    const bundlePhase = startPhase('bun-split-bundle');
     const splitResult = await buildSplitBundle({
       entrypoints,
       sharedOutdir: fsPaths.absoluteSplitBundleOutdir({ invocationId: globalStateManager.invocationId }),
@@ -470,8 +351,6 @@ export class PackagingManager {
       excludeDependencies: languageSpecificConfig?.dependenciesToExcludeFromBundle || [],
       dependenciesToExcludeFromBundle: languageSpecificConfig?.dependenciesToExcludeFromBundle || []
     });
-    endPhase(bundlePhase, { sharedChunkCount: splitResult.sharedChunkCount, bundleTimeMs: splitResult.bundleTimeMs });
-    debugTiming.summary.sharedChunkCount = splitResult.sharedChunkCount;
 
     // Build native binaries (bcrypt, sharp, prisma, etc.) into a shared layer
     // This is more efficient than copying to each lambda - upload once, use everywhere
@@ -480,10 +359,6 @@ export class PackagingManager {
     );
 
     if (lambdasWithNativeDeps.length > 0 && (await isDockerRunning())) {
-      const nativeBinaryPhase = startPhase('build-native-binary-layer', {
-        lambdasWithNativeDeps: lambdasWithNativeDeps.length
-      });
-
       const { packageManager } = await getLockFileData(globalStateManager.workingDir);
       if (!packageManager) {
         throw new Error(
@@ -529,24 +404,12 @@ export class PackagingManager {
           this.#lambdasUsingNativeBinaryLayer.add(lambdaName);
         }
       }
-
-      endPhase(nativeBinaryPhase, {
-        dependencyCount: allNativeDeps.size,
-        layerSizeMB: nativeLayer ? (nativeLayer.sizeBytes / (1024 * 1024)).toFixed(1) : 0
-      });
     }
 
-    // DEBUG: Time layer assignment
-    const layerAssignPhase = startPhase('layer-assignment');
     const skipLayers = globalStateManager.args.disableLayerOptimization;
     const layerAssignment = skipLayers
       ? { layeredChunks: [], unLayeredChunks: [], layers: [], totalBytesSaved: 0 }
       : assignChunksToLayers(splitResult.chunkAnalysis, DEFAULT_LAYER_CONFIG);
-    endPhase(layerAssignPhase, { layeredChunkCount: layerAssignment.layeredChunks.length, skipLayers });
-    debugTiming.summary.layeredChunkCount = layerAssignment.layeredChunks.length;
-
-    // DEBUG: Time layer artifact creation
-    const layerCreatePhase = startPhase('create-layer-artifacts');
     let layerArtifactsWithS3Keys: Array<{
       layerNumber: number;
       layerPath: string;
@@ -569,7 +432,6 @@ export class PackagingManager {
         s3Key: buildLayerS3Key(layer.layerNumber, layer.contentHash, '')
       }));
     }
-    endPhase(layerCreatePhase, { layerCount: layerArtifactsWithS3Keys.length });
 
     // Store layer assignment and artifacts
     this.#layerAssignment = layerAssignment;
@@ -621,39 +483,8 @@ export class PackagingManager {
       await logger.updateEvent({ eventType: 'BUILD_CODE', additionalMessage: bundleInfo });
     }
 
-    // DEBUG: Time source hash computation
-    const sourceHashPhase = startPhase('compute-source-hash');
-    const firstLambdaOutput = splitResult.lambdaOutputs.values().next().value;
-    const sharedSourceFilePaths =
-      firstLambdaOutput?.sourceFiles.map((f: { path: string }) => f.path).filter((p: string) => p && p.length > 0) ||
-      [];
-    debugTiming.summary.sourceFileCount = sharedSourceFilePaths.length;
-    const sharedSourceHashObj = await getHashFromMultipleFiles(sharedSourceFilePaths);
-    const sharedSourceHash = sharedSourceHashObj.digest('hex');
-    endPhase(sourceHashPhase, { sourceFileCount: sharedSourceFilePaths.length });
-    debugTiming.summary.sourceHashTimeMs = sourceHashPhase.durationMs || 0;
-
-    // DEBUG: Get zip tool info
-    debugTiming.summary.zipTool = await getAvailableZipTool();
-
-    // DEBUG: Time all lambda zip operations
-    const zipAllPhase = startPhase('zip-all-lambdas');
-
     // Now zip each lambda and add to packaged jobs
     const zipPromises = nodeLambdas.map(async ({ name, type }) => {
-      const lambdaTiming: LambdaTimingEntry = {
-        name,
-        getFolderSizeMs: 0,
-        zipMs: 0,
-        getZipSizeMs: 0,
-        renameMs: 0,
-        totalMs: 0,
-        unzippedSizeMB: 0,
-        zippedSizeMB: 0,
-        skipped: false
-      };
-      const lambdaStart = Date.now();
-
       const jobName = getJobName({ workloadName: name, workloadType: type as any });
       const lambdaOutput = splitResult.lambdaOutputs.get(name);
       const lambdaLogger = lambdaLoggers.get(name)!;
@@ -667,12 +498,15 @@ export class PackagingManager {
         invocationId: globalStateManager.invocationId
       });
 
-      // Calculate digest for caching
+      // Calculate digest for caching - hash the bundled output file + layer info
       const shouldUseCache = this.#shouldWorkloadUseCache({ workloadName: name, commandCanUseCache });
       const existingDigests = shouldUseCache ? deploymentArtifactManager.getExistingDigestsForJob(jobName) : [];
 
-      // Create digest from shared source hash + lambda name + layer assignment
-      // Layer assignment affects import paths, so changes must trigger rebuild
+      // Hash the bundled output file (like normal bundler does)
+      const bundledIndexPath = join(distFolderPath, 'index.js');
+      const bundleHashObj = await getHashFromMultipleFiles([bundledIndexPath]);
+
+      // Include layer assignment in digest - layer assignment affects import paths
       const layerNumbers = this.#lambdaLayerMap.get(name);
       const layerDigestParts = layerNumbers
         ? Array.from(layerNumbers)
@@ -683,14 +517,11 @@ export class PackagingManager {
             })
             .join(',')
         : 'none';
-      // Combine: shared source hash + lambda name (for uniqueness) + layer info
-      const digest = Bun.hash(`${sharedSourceHash}:${name}:layers:${layerDigestParts}`).toString(16);
+      bundleHashObj.update(layerDigestParts);
+      const digest = bundleHashObj.digest('hex');
 
       // Check if we can skip (artifact already exists with same digest)
       if (existingDigests.includes(digest)) {
-        lambdaTiming.skipped = true;
-        lambdaTiming.totalMs = Date.now() - lambdaStart;
-        debugTiming.lambdaTimings.push(lambdaTiming);
         await lambdaLogger.finishEvent({
           eventType: 'BUILD_CODE',
           finalMessage: 'Skipped (cached)'
@@ -707,12 +538,8 @@ export class PackagingManager {
 
       await lambdaLogger.updateEvent({ eventType: 'BUILD_CODE', additionalMessage: 'Zipping package' });
 
-      // DEBUG: Time getFolderSize
-      const getFolderSizeStart = Date.now();
       const unzippedSizeMB = await getFolderSize(distFolderPath, 'MB', 2);
       const unzippedSizeKB = await getFolderSize(distFolderPath, 'KB', 1);
-      lambdaTiming.getFolderSizeMs = Date.now() - getFolderSizeStart;
-      lambdaTiming.unzippedSizeMB = unzippedSizeMB;
 
       // Check size limits
       const sizeLimit = 250; // MB
@@ -722,35 +549,22 @@ export class PackagingManager {
         throw new Error(`Function ${name} has size ${unzippedSizeMB}MB. Should be less than ${sizeLimit}MB.`);
       }
 
-      // DEBUG: Time zip operation
-      const zipStart = Date.now();
       await archiveItem({
         absoluteSourcePath: distFolderPath,
         format: 'zip',
         useNativeZip: true
       });
-      lambdaTiming.zipMs = Date.now() - zipStart;
 
-      // DEBUG: Time getFileSize
-      const getZipSizeStart = Date.now();
       const originalZipPath = `${distFolderPath}.zip`;
       const zippedSizeMB = await getFileSize(originalZipPath, 'MB', 2);
       const zippedSizeKB = await getFileSize(originalZipPath, 'KB', 1);
-      lambdaTiming.getZipSizeMs = Date.now() - getZipSizeStart;
-      lambdaTiming.zippedSizeMB = zippedSizeMB;
 
       if (zippedSizeMB > zippedSizeLimit) {
         throw new Error(`Function ${name} zipped size ${zippedSizeMB}MB exceeds limit of ${zippedSizeLimit}MB.`);
       }
 
-      // DEBUG: Time rename
-      const renameStart = Date.now();
       const adjustedZipPath = `${distFolderPath}-${digest}.zip`;
       await rename(originalZipPath, adjustedZipPath);
-      lambdaTiming.renameMs = Date.now() - renameStart;
-
-      lambdaTiming.totalMs = Date.now() - lambdaStart;
-      debugTiming.lambdaTimings.push(lambdaTiming);
 
       // Zip message: "120KB (unzipped), 42KB (zipped) + 1 shared layer"
       // Reuse layerNumbers from digest calculation above
@@ -774,11 +588,6 @@ export class PackagingManager {
     });
 
     await Promise.all(zipPromises);
-    endPhase(zipAllPhase);
-
-    // DEBUG: Save timing data
-    debugTiming.totalDurationMs = Date.now() - overallStart;
-    await saveDebugTiming();
   };
 
   packageAllWorkloads = async ({

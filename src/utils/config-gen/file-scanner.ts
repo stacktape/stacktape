@@ -16,6 +16,8 @@ export const DEFAULT_IGNORE_PATTERNS = [
   '**/.venv/**',
   '**/venv/**',
   '**/target/**',
+  '**/__stacktape-dist/**',
+  '**/.stacktape/**',
   '**/*.lock',
   '**/package-lock.json',
   '**/yarn.lock',

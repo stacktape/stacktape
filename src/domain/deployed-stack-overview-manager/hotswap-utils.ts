@@ -117,9 +117,12 @@ export const compareEcsTaskDefinitions = ({
 
 export const analyzeCustomResourceChange = ({ change }: { change: ResourceDifference }) => {
   const updatedProperties = Object.keys(change.propertyUpdates);
+  // Deployment scripts use forceUpdate: Date.now() which changes every deploy - these are hotswappable (can skip).
   const onlyForceUpdateHasChanged = updatedProperties.length === 1 && updatedProperties.includes('forceUpdate');
+  // Lambda version publisher uses codeDigest which only changes when code changes - NOT hotswappable (must run).
+  const codeDigestHasChanged = updatedProperties.includes('codeDigest');
 
   return {
-    isHotswappable: onlyForceUpdateHasChanged
+    isHotswappable: onlyForceUpdateHasChanged && !codeDigestHasChanged
   };
 };

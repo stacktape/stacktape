@@ -104,9 +104,6 @@ type ModuleInfo = {
   note?: string;
 };
 
-type SpecialTreatmentPackage =
-  (typeof import('../shared/packaging/bundlers/es/config').SPECIAL_TREATMENT_PACKAGES)[number];
-
 type SupportedEsPackageManager = 'yarn' | 'npm' | 'pnpm' | 'deno' | 'bun';
 
 type PackageWorkloadInput = {

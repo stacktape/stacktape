@@ -1,6 +1,5 @@
 import type { ResourceDifference, TemplateDiff } from '@aws-cdk/cloudformation-diff';
 import type { CloudformationResourceType } from '@cloudform/resource-types';
-import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { HELPER_LAMBDA_NAMES } from '@config';

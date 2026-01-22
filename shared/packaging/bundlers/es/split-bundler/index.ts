@@ -13,8 +13,11 @@
  * Shared chunks can be extracted into Lambda Layers for deduplication.
  */
 
+// Config
+export { DEFAULT_LAYER_CONFIG } from '../config';
+
 // Core bundling
-export { buildSplitBundle, getBundlerTiming, type BundlerDebugTiming } from './bundler';
+export { buildSplitBundle } from './bundler';
 
 // Layer assignment
 export { assignChunksToLayers } from './layer-assignment';
@@ -22,10 +25,6 @@ export { assignChunksToLayers } from './layer-assignment';
 // Layer building
 export { createLayerArtifacts } from './layer-builder';
 
-// Constants
-export { DEFAULT_LAYER_CONFIG, LAYER_CHUNKS_PATH } from './constants';
-
-// Types
 export type {
   BuildSplitBundleOptions,
   ChunkLayerAssignment,

@@ -1,5 +1,5 @@
 import type { BunPlugin } from 'bun';
-import { basename, extname, join, resolve } from 'node:path';
+import { basename, dirname, extname, join, resolve } from 'node:path';
 import {
   dirExists,
   getBaseName,
@@ -389,7 +389,7 @@ export const resolvePrisma = async ({
   );
 };
 
-export const getModuleNameFromPath = (importPath: string): string => {
+const getModuleNameFromPath = (importPath: string): string => {
   const moduleName = importPath.endsWith('/') ? importPath.slice(0, importPath.length - 1) : importPath;
   const [firstPart, secondPart] = moduleName.split('/');
   return firstPart.startsWith('@') ? [firstPart, secondPart].join('/') : firstPart;
@@ -531,34 +531,6 @@ export const getExternalDeps = (depsInfo: PackageJsonDepsInfo, depsList: Set<str
   return depsList;
 };
 
-export const getFailedImportsFromBundlerError = ({
-  errType,
-  error
-}: {
-  error: any;
-  errType: 'actual-error' | 'dynamic-import-error';
-}): { packageName: string; message: string }[] => {
-  const isFailedImportError = (err) => err.text.startsWith('Could not resolve');
-  const result: { packageName: string; message: string }[] = [];
-  error.errors.forEach((err) => {
-    const text: string = err.text;
-    const isDynamicImportErr = text.includes('or surround it with try/catch');
-    const packageName = text.slice(19, text.lastIndexOf('"'));
-    const message = err.location
-      ? `Can't resolve '${packageName}' (imported from ./${err.location.file}:${err.location.line}:${err.location.column})`
-      : err.text;
-
-    if (isFailedImportError(err) && !result.find((item) => item.packageName === packageName)) {
-      if (isDynamicImportErr && errType === 'dynamic-import-error') {
-        result.push({ packageName, message });
-      } else if (!isDynamicImportErr && errType === 'actual-error') {
-        result.push({ packageName, message });
-      }
-    }
-  });
-  return result;
-};
-
 export const resolveDifferentSourceMapLocation = async ({
   distFolderPath,
   outputSourceMapsTo,
@@ -619,7 +591,6 @@ export const createModuleResolver = ({ cwd, monorepoRoot }: { cwd: string; monor
       return modulePathCache.get(cacheKey)!;
     }
 
-    const { dirname } = require('node:path');
     let currentDir = dirname(importer);
     const rootDir = monorepoRoot || cwd;
 
@@ -639,63 +610,7 @@ export const createModuleResolver = ({ cwd, monorepoRoot }: { cwd: string; monor
     return null;
   };
 
-  // Deep search: recursively search nested node_modules (slower, used as fallback)
-  // Cached to avoid repeated searches for the same module
-  const deepSearchCache = new Map<string, string | null>();
-
-  const findModulePathDeep = (moduleName: string): string | null => {
-    if (deepSearchCache.has(moduleName)) {
-      return deepSearchCache.get(moduleName)!;
-    }
-
-    const { readdirSync, statSync } = require('node:fs');
-    const { existsSync } = require('node:fs');
-
-    const searchNestedNodeModules = (baseDir: string, depth = 0): string | null => {
-      if (depth > 4) return null; // Limit depth to avoid performance issues
-
-      const nodeModulesPath = join(baseDir, 'node_modules');
-      if (!existsSync(nodeModulesPath)) return null;
-
-      // Check if module exists directly here
-      const directPath = join(nodeModulesPath, moduleName);
-      if (isFileAccessible(join(directPath, 'package.json'))) {
-        return directPath;
-      }
-
-      // Search in subdirectories' node_modules
-      try {
-        const entries = readdirSync(nodeModulesPath);
-        for (const entry of entries) {
-          if (entry.startsWith('.') || entry === moduleName) continue;
-          const entryPath = join(nodeModulesPath, entry);
-          try {
-            if (statSync(entryPath).isDirectory()) {
-              const found = searchNestedNodeModules(entryPath, depth + 1);
-              if (found) return found;
-            }
-          } catch {
-            // Skip inaccessible directories
-          }
-        }
-      } catch {
-        // Skip if can't read directory
-      }
-      return null;
-    };
-
-    // Search from cwd first
-    let result = searchNestedNodeModules(cwd);
-    if (!result && monorepoRoot && monorepoRoot !== cwd) {
-      result = searchNestedNodeModules(monorepoRoot);
-    }
-
-    deepSearchCache.set(moduleName, result);
-    return result;
-  };
-
   // Combined resolution: fast path first, then walk-up from importer
-  // Does NOT include deep search for performance - use findModulePathDeep explicitly if needed
   const findModulePath = (moduleName: string, importer?: string): string | null => {
     // Try fast path first (covers 99% of cases)
     const fastResult = findModulePathFast(moduleName);
@@ -719,13 +634,49 @@ export const createModuleResolver = ({ cwd, monorepoRoot }: { cwd: string; monor
 
   return {
     findModulePath,
-    findModulePathFast,
-    findModulePathFromImporter,
-    findModulePathDeep,
-    isNestedLocation,
-    cwd,
-    monorepoRoot
+    isNestedLocation
   };
 };
 
-export type ModuleResolver = ReturnType<typeof createModuleResolver>;
+/**
+ * Ensure the entry file has a default export for Lambda runtime compatibility.
+ *
+ * If the code exports `handler` but not `default`, append a re-export.
+ * This handles the common pattern where users write `export const handler = ...`
+ * instead of `export default ...`.
+ *
+ * Bun's ESM output format is: `export { varName as exportName }`
+ */
+export const ensureDefaultExport = (content: string): string => {
+  // Check if there's already a default export
+  // Bun outputs: `export { something as default }` or `export { something_default as default }`
+  if (/export\s*\{[^}]*\bas\s+default\b[^}]*\}/.test(content)) {
+    return content;
+  }
+
+  // Check if there's a named `handler` export
+  // Bun outputs: `export { handler }` or `export { something as handler }`
+  const handlerExportMatch = content.match(/export\s*\{([^}]*)\}/g);
+  if (!handlerExportMatch) {
+    return content;
+  }
+
+  // Look for `handler` in any export block
+  for (const exportBlock of handlerExportMatch) {
+    // Match: `handler` or `something as handler`
+    if (/\bhandler\b/.test(exportBlock)) {
+      // Append re-export of handler as default
+      return `${content}\nexport { handler as default };\n`;
+    }
+  }
+
+  return content;
+};
+
+/** ESM compatibility banner for source maps */
+export const ESM_SOURCE_MAP_BANNER = `import { createRequire as __stp_createRequire } from "node:module";
+import { fileURLToPath as __stp_fileURLToPath } from "node:url";
+import { dirname as __stp_pathDirname } from "node:path";
+const require = __stp_createRequire(import.meta.url);
+const __stp_filename = __stp_fileURLToPath(import.meta.url);
+const __stp_dirname = __stp_pathDirname(__stp_filename);`;

@@ -15,7 +15,7 @@ import {
 } from '@shared/utils/fs-utils';
 import { builtinModules, filterDuplicates, getError, getTsconfigAliases, raiseError } from '@shared/utils/misc';
 import { findProjectRoot } from '@shared/utils/monorepo';
-import { copy, outputJSON, readFile, writeJson } from 'fs-extra';
+import { copy, lstatSync, outputJSON, readFile, readFileSync, realpathSync, writeJson } from 'fs-extra';
 import uniqWith from 'lodash/uniqWith';
 import objectHash from 'object-hash';
 import {
@@ -23,13 +23,14 @@ import {
   DEPENDENCIES_TO_IGNORE_FROM_DOCKER_INSTALLATION,
   FILES_TO_INCLUDE_IN_DIGEST,
   IGNORED_MODULES,
-  IGNORED_OPTIONAL_PEER_DEPS_FROM_INSTALL_IN_DOCKER,
-  SPECIAL_TREATMENT_PACKAGES
+  IGNORED_OPTIONAL_PEER_DEPS_FROM_INSTALL_IN_DOCKER
 } from './config';
 import { copyDockerInstalledModulesForLambda } from './copy-docker-installed-modules';
 import {
   createModuleResolver,
   determineIfAlias,
+  ensureDefaultExport,
+  ESM_SOURCE_MAP_BANNER,
   getAllJsDependenciesFromMultipleFiles,
   getExternalDeps,
   getInfoFromPackageJson,
@@ -94,7 +95,6 @@ export const buildEsCode = async ({
   isLambda?: boolean;
 }): Promise<{
   dependenciesToInstallInDocker: ModuleInfo[];
-  specialTreatmentPackages: SpecialTreatmentPackage[];
   externalModules: { name: string; note: string }[];
   dynamicallyImportedModules: string[];
   sourceFiles: { path: string }[];
@@ -130,7 +130,6 @@ export const buildEsCode = async ({
   const isWorkspacePackage = (modulePath: string): boolean => {
     if (!unixMonorepoRoot) return false;
     try {
-      const { lstatSync, realpathSync } = require('node:fs');
       const isSymlink = lstatSync(modulePath).isSymbolicLink();
       if (!isSymlink) return false;
       const realPath = transformToUnixPath(realpathSync(modulePath));
@@ -144,7 +143,6 @@ export const buildEsCode = async ({
   const runBuild = async ({ dynamicallyImportedModules = [] }: { dynamicallyImportedModules?: string[] }) => {
     const allDependenciesToInstallInDocker: ModuleInfo[] = [];
     const externalModules: { name: string; note: string }[] = [];
-    const specialTreatmentPackages: SpecialTreatmentPackage[] = [];
     const allModules: string[] = [];
     const sourceFilesSet = new Set<string>();
 
@@ -200,11 +198,11 @@ export const buildEsCode = async ({
             // when it tries to resolve symlinked paths internally
             if (modulePath && isWorkspacePackage(modulePath)) {
               // Let Bun bundle workspace packages - resolve to the real path to avoid Windows symlink issues
-              const { realpathSync } = require('node:fs');
               const realPath = transformToUnixPath(realpathSync(modulePath));
               // Find the entry file in the workspace package
               const packageJsonPath = join(realPath, 'package.json');
               try {
+                // eslint-disable-next-line ts/no-require-imports
                 const pkgJson = require(packageJsonPath);
                 const entryFile = pkgJson.main || pkgJson.module || 'index.js';
                 const resolvedEntry = join(realPath, entryFile.replace(/\.js$/, '.ts'));
@@ -252,16 +250,10 @@ export const buildEsCode = async ({
             }
 
             let external = false;
-            const { dependenciesToInstallInDocker, specialTreatmentPackage, allExternalDeps } = await analyzeDependency(
-              {
-                dependenciesToExcludeFromBundle,
-                dependency: { name: moduleName, path: modulePath }
-              }
-            );
-
-            if (specialTreatmentPackage) {
-              specialTreatmentPackages.push(specialTreatmentPackage);
-            }
+            const { dependenciesToInstallInDocker, allExternalDeps } = await analyzeDependency({
+              dependenciesToExcludeFromBundle,
+              dependency: { name: moduleName, path: modulePath }
+            });
 
             allDependenciesToInstallInDocker.push(...dependenciesToInstallInDocker);
 
@@ -315,7 +307,7 @@ export const buildEsCode = async ({
           // Module is in nested node_modules - resolve entry point manually
           try {
             const pkgJsonPath = join(modulePath, 'package.json');
-            const pkgJson = JSON.parse(require('node:fs').readFileSync(pkgJsonPath, 'utf-8'));
+            const pkgJson = JSON.parse(readFileSync(pkgJsonPath, 'utf-8'));
 
             // Handle subpath imports (e.g., 'lodash/merge')
             const subpath = args.path.slice(moduleName.length);
@@ -506,7 +498,6 @@ export const buildEsCode = async ({
         allDependenciesToInstallInDocker.filter(Boolean),
         (a, b) => a.name === b.name
       ),
-      specialTreatmentPackages,
       externalModules,
       dynamicallyImportedModules,
       sourceFiles,
@@ -587,8 +578,7 @@ export const createEsBundle = async ({
   requiresGlibcBinaries,
   dockerBuildOutputArchitecture,
   outputModuleFormat,
-  skipDigestCalculation,
-  dependencyDiscoveryOnly
+  skipDigestCalculation
 }: StpBuildpackInput &
   EsLanguageSpecificConfig & {
     minify: boolean;
@@ -598,22 +588,16 @@ export const createEsBundle = async ({
     sourceMapBannerType?: 'node_modules' | 'pre-compiled' | 'disabled';
     isLambda?: boolean;
     skipDigestCalculation?: boolean;
-    /** When true, only run bundler to discover dependencies - skip digest, zipping, and dependency resolution */
-    dependencyDiscoveryOnly?: boolean;
   }) => {
   await dependencyInstaller.install({ rootProjectDirPath: cwd, progressLogger });
 
   const distIndexFilePath = join(distFolderPath, 'index.js');
 
-  // For dependency discovery (first-pass), we skip progress events to avoid showing lambdas as "done"
-  // before the shared layer is built and they're re-bundled
-  if (!dependencyDiscoveryOnly) {
-    const hasSharedLayerExternals = externals.length > 0;
-    const buildDescription = hasSharedLayerExternals
-      ? 'Re-building code without dependencies in shared layer'
-      : 'Building code';
-    await progressLogger.startEvent({ eventType: 'BUILD_CODE', description: buildDescription });
-  }
+  const hasSharedLayerExternals = externals.length > 0;
+  const buildDescription = hasSharedLayerExternals
+    ? 'Re-building code without dependencies in shared layer'
+    : 'Building code';
+  await progressLogger.startEvent({ eventType: 'BUILD_CODE', description: buildDescription });
 
   // Look for lockfile in monorepo root first, then cwd
   const monorepoRoot = await findProjectRoot(cwd);
@@ -644,21 +628,6 @@ export const createEsBundle = async ({
       message:
         'Failed to load dependency lockfile. You need to install your dependencies first. Supported package managers are npm and yarn.'
     });
-  }
-
-  // For dependency discovery (first-pass bundling), return early after bundling
-  // We only need the resolved modules list, not the full bundle - no progress events shown
-  if (dependencyDiscoveryOnly) {
-    return {
-      digest: 'discovery-only',
-      outcome: 'bundled' as const,
-      distFolderPath,
-      distIndexFilePath,
-      dynamicallyImportedModules,
-      sourceFiles: sourceFiles.map(({ path }) => ({ path: isAbsolute(path) ? path : join(cwd, path) })),
-      languageSpecificBundleOutput: { es: {} },
-      resolvedModules: allModules
-    };
   }
 
   await progressLogger.finishEvent({ eventType: 'BUILD_CODE' });
@@ -824,13 +793,8 @@ const analyzeDependency = async ({
   dependenciesToExcludeFromBundle: string[];
 }): Promise<{
   dependenciesToInstallInDocker: PackageJsonDepsInfo[];
-  specialTreatmentPackage?: SpecialTreatmentPackage;
   allExternalDeps: string[];
 }> => {
-  const specialTreatmentPackage = SPECIAL_TREATMENT_PACKAGES.includes(dependency.name as SpecialTreatmentPackage)
-    ? (dependency.name as SpecialTreatmentPackage)
-    : null;
-
   const packageInfo = await getInfoFromPackageJson({
     directoryPath: dependency.path,
     parentModule: null,
@@ -862,7 +826,7 @@ const analyzeDependency = async ({
       dependenciesToInstallInDocker.push({ ...dep, note: 'PEER_DEPENDENCY' });
     });
 
-  return { dependenciesToInstallInDocker, specialTreatmentPackage, allExternalDeps };
+  return { dependenciesToInstallInDocker, allExternalDeps };
 };
 
 let sourceMapBannerFromFile: string;
@@ -890,17 +854,8 @@ const getSourceMapBanner = async ({
           });
           return { js: sourceMapBannerFromFile };
         }
-        // For ESM: We inject Node.js compatibility shims for __dirname, __filename, and require()
-        // We use __stp_ prefixed variables that are substituted during build via the 'define' option
         if (outputModuleFormat === 'esm') {
-          return {
-            js: `import { createRequire as __stp_createRequire } from "node:module";
-import { fileURLToPath as __stp_fileURLToPath } from "node:url";
-import { dirname as __stp_pathDirname } from "node:path";
-const require = __stp_createRequire(import.meta.url);
-const __stp_filename = __stp_fileURLToPath(import.meta.url);
-const __stp_dirname = __stp_pathDirname(__stp_filename);`
-          };
+          return { js: ESM_SOURCE_MAP_BANNER };
         }
         return { js: '' };
       }
@@ -918,39 +873,4 @@ const __stp_dirname = __stp_pathDirname(__stp_filename);`
   } catch {
     return { js: '' };
   }
-};
-
-/**
- * Ensure the entry file has a default export for Lambda runtime compatibility.
- *
- * If the code exports `handler` but not `default`, append a re-export.
- * This handles the common pattern where users write `export const handler = ...`
- * instead of `export default ...`.
- *
- * Bun's ESM output format is: `export { varName as exportName }`
- */
-const ensureDefaultExport = (content: string): string => {
-  // Check if there's already a default export
-  // Bun outputs: `export { something as default }` or `export { something_default as default }`
-  if (/export\s*\{[^}]*\bas\s+default\b[^}]*\}/.test(content)) {
-    return content;
-  }
-
-  // Check if there's a named `handler` export
-  // Bun outputs: `export { handler }` or `export { something as handler }`
-  const handlerExportMatch = content.match(/export\s*\{([^}]*)\}/g);
-  if (!handlerExportMatch) {
-    return content;
-  }
-
-  // Look for `handler` in any export block
-  for (const exportBlock of handlerExportMatch) {
-    // Match: `handler` or `something as handler`
-    if (/\bhandler\b/.test(exportBlock)) {
-      // Append re-export of handler as default
-      return content + '\nexport { handler as default };\n';
-    }
-  }
-
-  return content;
 };

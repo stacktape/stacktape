@@ -188,7 +188,7 @@ export class BaseResource {
       // Clone properties without overrides and transforms
       const finalProperties = { ...properties };
 
-      // Handle overrides
+      // Handle overrides from properties (if they weren't extracted by child class)
       if ('overrides' in finalProperties) {
         const propertiesOverrides = finalProperties.overrides;
         delete finalProperties.overrides;
@@ -199,7 +199,7 @@ export class BaseResource {
         }
       }
 
-      // Handle transforms
+      // Handle transforms from properties (if they weren't extracted by child class)
       if ('transforms' in finalProperties) {
         const propertiesTransforms = finalProperties.transforms;
         delete finalProperties.transforms;
@@ -211,6 +211,15 @@ export class BaseResource {
       }
 
       this._properties = finalProperties;
+    }
+
+    // Also transform overrides/transforms that were passed directly via constructor
+    // (when child class extracts them before calling super)
+    if (this._overrides && typeof this._overrides === 'object') {
+      this._overrides = transformOverridesToLogicalNames(this._resourceName!, this._type, this._overrides);
+    }
+    if (this._transforms && typeof this._transforms === 'object') {
+      this._transforms = transformTransformsToLogicalNames(this._resourceName!, this._type, this._transforms);
     }
   }
 
@@ -264,6 +273,31 @@ export class BaseResource {
 }
 
 /**
+ * Flatten nested objects into dot-notation paths.
+ * E.g., { SmsConfiguration: { ExternalId: 'value' } } becomes { 'SmsConfiguration.ExternalId': 'value' }
+ * Preserves arrays and non-plain objects as leaf values.
+ */
+function flattenToDotNotation(obj: any, prefix = ''): Record<string, any> {
+  const result: Record<string, any> = {};
+
+  for (const key in obj) {
+    const value = obj[key];
+    const newKey = prefix ? `${prefix}.${key}` : key;
+
+    // Check if value is a plain object (not array, not null, not special types)
+    if (value !== null && typeof value === 'object' && !Array.isArray(value) && value.constructor === Object) {
+      // Recursively flatten nested objects
+      Object.assign(result, flattenToDotNotation(value, newKey));
+    } else {
+      // Leaf value - keep as is
+      result[newKey] = value;
+    }
+  }
+
+  return result;
+}
+
+/**
  * Transform user-friendly overrides (with property names like 'bucket', 'lambdaLogGroup')
  * to CloudFormation logical names using cfLogicalNames
  */
@@ -312,9 +346,16 @@ Remove the override, run 'stacktape compile:template' command, and find the logi
       if (logicalName.includes('undefined')) {
         throw new Error(errorMessage.replace('{propertyName}', propertyName));
       }
-      transformedOverrides[logicalName] = overrides[propertyName];
+      // When using SDK property names, flatten nested objects to dot-notation
+      // so { SmsConfiguration: { ExternalId: 'x' } } becomes { 'SmsConfiguration.ExternalId': 'x' }
+      const overrideValue = overrides[propertyName];
+      if (!transformedOverrides[logicalName]) {
+        transformedOverrides[logicalName] = {};
+      }
+      Object.assign(transformedOverrides[logicalName], flattenToDotNotation(overrideValue));
     } else {
-      // If not found in map, use property name as-is (shouldn't happen with proper types)
+      // If not found in map, use property name as-is (CF logical name used directly)
+      // Don't flatten - user is using CF logical names and may want full object replacement
       transformedOverrides[propertyName] = overrides[propertyName];
     }
   }

@@ -1,3 +1,5 @@
+import type { LayerConfig } from './split-bundler/types';
+
 export const FILES_TO_INCLUDE_IN_DIGEST = [
   'pnpm-lock.yaml',
   'yarn.lock',
@@ -11,8 +13,6 @@ export const FILES_TO_INCLUDE_IN_DIGEST = [
   'prisma.config.ts',
   'tsconfig.json'
 ];
-
-export const SPECIAL_TREATMENT_PACKAGES = ['@prisma/client', 'chrome-aws-lambda', 'next'] as const;
 
 export const DEPENDENCIES_TO_IGNORE_FROM_DOCKER_INSTALLATION = 'pg';
 
@@ -57,24 +57,14 @@ export const IGNORED_MODULES = [
   'fsevents'
 ];
 
-// @todo use these to filter files from node_modules
-export const IGNORED_EXTENSIONS = [
-  'exe',
-  'md',
-  'ts',
-  'tsx',
-  'jsx',
-  'tsx',
-  'jst',
-  'coffee',
-  'jpg',
-  'png',
-  'markdown',
-  'rb',
-  'test.js',
-  'spec.js',
-  'e2e.js'
-];
+export const LAYER_CHUNKS_PATH = '/opt/nodejs/chunks/';
+
+export const DEFAULT_LAYER_CONFIG: LayerConfig = {
+  minUsageCount: 2, // Chunk must be used by at least 2 lambdas
+  minChunkSize: 1024, // At least 1KB
+  maxLayers: 3, // Use up to 3 layers (leave 2 for user's custom layers)
+  maxLayerSize: 50 * 1024 * 1024 // 50MB per layer (conservative limit)
+};
 
 export const IGNORED_FILES = [
   'query-engine-darwin',
@@ -170,3 +160,5 @@ export const IGNORED_FOLDERS = [
   'coverage',
   '.nyc_output'
 ];
+
+export const IGNORED_EXTENSIONS = ['.md', '.markdown', '.ts', '.map', '.d.ts', '.txt', '.html', '.htm'];

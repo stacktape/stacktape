@@ -40,8 +40,13 @@ export const initializeAllStackServices = async ({
   loadGlobalConfig?: boolean;
   requiresSubscription?: boolean;
 }) => {
+  const getHeaderAction = () => {
+    if (globalStateManager.command === 'delete') return 'DELETING';
+    if (globalStateManager.command === 'preview-changes') return 'PREVIEWING CHANGES';
+    return 'DEPLOYING';
+  };
   tuiManager.setHeader({
-    action: globalStateManager.command === 'delete' ? 'DELETING' : 'DEPLOYING',
+    action: getHeaderAction(),
     projectName: globalStateManager.args.projectName || globalStateManager.targetStack?.projectName || 'project',
     stageName: globalStateManager.stage || 'stage',
     region: globalStateManager.region || 'region'

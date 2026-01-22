@@ -90,24 +90,46 @@ const formatDuration = (ms: number) => {
   return `${days}d`;
 };
 
+const isDockerNotRunningError = (err: Error) => {
+  const message = err.message?.toLowerCase() || '';
+  const patterns = [
+    // Unix/Linux patterns
+    'connect enoent',
+    'cannot connect to the docker daemon',
+    'is the docker daemon running',
+    'failed to dial grpc',
+    // Windows Docker Desktop patterns
+    'dockerdesktoplinuxengine',
+    'the system cannot find the file specified',
+    'error during connect',
+    // Generic patterns
+    'docker daemon is not running',
+    'docker is not running',
+    'unable to connect to docker',
+    'connection refused'
+  ];
+  return patterns.some((pattern) => message.includes(pattern));
+};
+
 const handleDockerError = (err: Error, message?: string) => {
-  if (
-    (err.message.includes('connect ENOENT') && err.message.includes('pipe/docker_engine')) ||
-    err.message.includes('cannot connect to the Docker daemon.') ||
-    err.message.includes('failed to dial gRPC')
-  ) {
+  if (isDockerNotRunningError(err)) {
     throw getError({
       type: 'DOCKER',
-      message: "Can't connect to the docker daemon. Make sure you have Docker running.",
+      message: 'Docker is not running.',
+      hint: [
+        'Make sure Docker Desktop is running.',
+        'On Windows: Start Docker Desktop from the Start menu.',
+        'On Mac: Start Docker Desktop from Applications.',
+        'On Linux: Run "sudo systemctl start docker" or "sudo service docker start".'
+      ].join('\n'),
       stack: err.stack
     });
   }
   if (err.message.includes('docker ENOENT')) {
     throw getError({
       type: 'DOCKER',
-      message: `Can't invoke docker. Make sure you have Docker running. Error: ${
-        typeof err === 'string' ? err : err.message
-      }`,
+      message: 'Docker is not installed or not found in PATH.',
+      hint: 'Install Docker Desktop from https://www.docker.com/products/docker-desktop/',
       stack: err.stack
     });
   }

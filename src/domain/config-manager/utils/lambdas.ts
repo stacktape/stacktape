@@ -599,7 +599,7 @@ const EDGE_FUNCTION_MAX_NODEJS_RUNTIME = 'nodejs22.x';
 
 const capEdgeFunctionRuntime = (runtime: LambdaRuntime): LambdaRuntime => {
   if (!runtime?.startsWith('nodejs')) return runtime;
-  const version = parseInt(runtime.replace('nodejs', '').replace('.x', ''), 10);
+  const version = Number.parseInt(runtime.replace('nodejs', '').replace('.x', ''), 10);
   if (version > 22) return EDGE_FUNCTION_MAX_NODEJS_RUNTIME;
   return runtime;
 };

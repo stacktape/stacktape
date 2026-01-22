@@ -22,3 +22,4 @@
 - Ignore formatting errors (from eslint or prettier) if they are not easy for you to fix.
 - If you need to run `tsc`, don't run it on the whole project. Run it only on the changed files. The repository has
   pre-existing typescript errors.
+- Don't ever use dynamic require

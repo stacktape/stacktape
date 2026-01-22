@@ -204,6 +204,9 @@ export class StackManager {
     if (globalStateManager.command === 'deploy' || globalStateManager.command === 'codebuild:deploy') {
       return this.existingStackDetails && this.existingStackResources.length ? 'update' : 'create';
     }
+    if (globalStateManager.command === 'preview-changes') {
+      return 'update';
+    }
   }
 
   get isAutoRollbackEnabled() {

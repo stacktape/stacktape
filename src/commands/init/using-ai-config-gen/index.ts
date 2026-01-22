@@ -1,7 +1,8 @@
+import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { configGenManager, type ConfigGenPhaseInfo } from '@utils/config-gen';
 import { pathExists } from 'fs-extra';
-import { basename, relative } from 'node:path';
+import { basename, relative, join, isAbsolute } from 'node:path';
 import { render, type Instance } from 'ink';
 import React from 'react';
 import { ConfigGenTui } from './tui';
@@ -28,7 +29,17 @@ type InitUsingAiConfigGenOptions = {
 // ============ Main Function ============
 
 export const initUsingAiConfigGen = async (options: InitUsingAiConfigGenOptions = {}): Promise<void> => {
-  const cwd = process.cwd();
+  // Determine working directory from --projectDirectory arg or use current directory
+  const projectDirectory = globalStateManager.args.projectDirectory;
+  const cwd = projectDirectory
+    ? isAbsolute(projectDirectory)
+      ? projectDirectory
+      : join(process.cwd(), projectDirectory)
+    : process.cwd();
+
+  // Set the working directory for the config generator
+  configGenManager.setWorkingDirectory(cwd);
+
   const projectName = basename(cwd);
 
   tuiManager.info(`Generating Stacktape configuration for ${tuiManager.makeBold(projectName)}...`);

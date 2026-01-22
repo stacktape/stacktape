@@ -2,12 +2,10 @@ import type { z } from 'zod';
 import { tuiManager } from '@application-services/tui-manager';
 import { capitalizeFirstLetter } from '@shared/utils/misc';
 import { getIsDirective } from '@utils/directives';
+import { readFileSync } from 'fs-extra';
 import get from 'lodash/get';
 import yaml from 'yaml';
-import { YAMLMap, YAMLSeq, Scalar } from 'yaml/types';
-import { readFileSync } from 'fs-extra';
-
-// Import the generated Zod schema
+import { Scalar, YAMLMap, YAMLSeq } from 'yaml/types';
 import { stacktapeConfigSchema } from '../../../../@generated/schemas/validate-config-zod';
 
 type FormattedError = {

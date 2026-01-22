@@ -2,7 +2,7 @@ import { join } from 'node:path';
 import { fsPaths } from '@shared/naming/fs-paths';
 import { execDocker } from '@shared/utils/docker';
 import { buildEsBinInstallerDockerfile } from '@shared/utils/dockerfiles';
-import { transformToUnixPath, getFolderSize } from '@shared/utils/fs-utils';
+import { getFolderSize, transformToUnixPath } from '@shared/utils/fs-utils';
 import { copy, ensureDir, outputJSON, writeFile } from 'fs-extra';
 import objectHash from 'object-hash';
 
