@@ -1,4 +1,4 @@
-import type { FunctionConfiguration } from '@aws-sdk/client-lambda';
+import type { FunctionConfiguration, Runtime } from '@aws-sdk/client-lambda';
 import {
   CloudWatchLogs,
   ResourceNotFoundException as LogGroupNotFoundException
@@ -388,7 +388,7 @@ const modifyFunctionConfiguration = async (
     FunctionName: lambdaResourceName,
     Handler: lambdaProps.handler,
     MemorySize: Number(lambdaProps.memory),
-    Runtime: lambdaProps.runtime,
+    Runtime: lambdaProps.runtime as unknown as Runtime,
     Timeout: Number(lambdaProps.timeout)
   });
 };
@@ -418,7 +418,7 @@ const createFunction = async (
     FunctionName: lambdaResourceName,
     Handler: lambdaProps.handler,
     Role: roleArn,
-    Runtime: lambdaProps.runtime,
+    Runtime: lambdaProps.runtime as unknown as Runtime,
     Timeout: Number(lambdaProps.timeout)
   });
 };

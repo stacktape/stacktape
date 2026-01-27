@@ -5,7 +5,7 @@ import { stringifyToYaml } from '@shared/utils/yaml';
 import fsExtra from 'fs-extra';
 import { initializeAllStackServices } from '../_utils/initialization';
 
-export const commandCompileTemplate = async (): Promise<CompileTemplateReturnValue> => {
+export const commandCompileTemplate = async () => {
   await initializeAllStackServices({
     commandModifiesStack: false,
     commandRequiresDeployedStack: false,

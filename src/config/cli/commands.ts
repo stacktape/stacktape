@@ -1,5 +1,7 @@
 import {
   apiKey,
+  agent,
+  agentPort,
   assumeRoleOfResource,
   autoConfirmOperation,
   awsRegion,
@@ -127,7 +129,7 @@ Supports two modes (use \`--devMode\` to select):
 
 #### Common features:
 - Interactive resource picker (or use \`--resources\` to specify).
-- Hot-reload: press number keys to rebuild individual workloads, or \`a\` to rebuild all.
+- Hot-reload: type a number + enter to rebuild a workload, or \`a\` + enter to rebuild all.
 - Automatic file watching with \`--watch\` flag.
 - Injects environment variables, secrets, and AWS credentials into local workloads.
 - Streams logs from all running workloads to the console.`,
@@ -145,7 +147,9 @@ Supports two modes (use \`--devMode\` to select):
       remoteResources: remoteResources.optional(),
       resources: resources.optional(),
       skipResources: skipResources.optional(),
-      devMode: devMode.optional()
+      devMode: devMode.optional(),
+      agent: agent.optional(),
+      agentPort: agentPort.optional()
     },
     requiredArgs: ['region', 'stage'] as const
   },

@@ -135,10 +135,21 @@ export const initializeAllStackServices = async ({
 
   await eventManager.registerHooks(configManager.hooks);
   if (globalStateManager.command !== 'codebuild:deploy') {
-    await dependencyInstaller.install({
-      rootProjectDirPath: globalStateManager.workingDir,
-      progressLogger: eventManager
+    await eventManager.startEvent({
+      eventType: 'INSTALL_DEPENDENCIES',
+      description: 'Installing dependencies',
+      phase: 'INITIALIZE'
     });
+    try {
+      await dependencyInstaller.install({
+        rootProjectDirPath: globalStateManager.workingDir,
+        progressLogger: eventManager
+      });
+      await eventManager.finishEvent({ eventType: 'INSTALL_DEPENDENCIES' });
+    } catch (error) {
+      await eventManager.finishEvent({ eventType: 'INSTALL_DEPENDENCIES', status: 'error' });
+      throw error;
+    }
   }
   await eventManager.processHooks({ captureType: 'START' });
 };

@@ -12,7 +12,9 @@ export const commandCfModuleUpdate = async () => {
   await loadUserCredentials();
   await Promise.all([cloudformationRegistryManager.init()]);
 
-  await cloudformationRegistryManager.loadPrivateTypesAndPackages([moduleType]);
+  await cloudformationRegistryManager.loadPrivateTypesAndPackages([moduleType as StpCfInfrastructureModuleType]);
 
-  await cloudformationRegistryManager.registerNewestAvailablePrivateTypes({ infrastructureModuleType: moduleType });
+  await cloudformationRegistryManager.registerNewestAvailablePrivateTypes({
+    infrastructureModuleType: moduleType as StpCfInfrastructureModuleType
+  });
 };

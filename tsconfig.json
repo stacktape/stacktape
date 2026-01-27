@@ -1,7 +1,6 @@
 {
   "compilerOptions": {
     "target": "ES6",
-    "jsx": "preserve",
     "lib": ["es2021"],
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,

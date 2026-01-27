@@ -1,14 +1,107 @@
-import type { TRPCUntypedClient } from '@trpc/client';
-import { createTRPCUntypedClient, httpBatchLink } from '@trpc/client';
-import type { AnyClientTypes } from '@trpc/server/unstable-core-do-not-import';
+import { createTRPCClient, httpBatchLink } from '@trpc/client';
 import { STACKTAPE_TRPC_API_ENDPOINT } from '../../src/config/random';
-import type {
-  CliConfigGenSession,
-  StartCliConfigGenInput,
-  StartCliConfigGenResponse,
-  SubmitFilesInput,
-  SubmitFilesResponse
-} from '../../src/utils/config-gen/types';
+
+export type CliConfigGenSessionState = 'WAITING_FOR_FILES' | 'ANALYZING' | 'SUCCESS' | 'ERROR' | 'CANCELLED';
+
+export type CliConfigGenPhase =
+  | 'FILE_SELECTION'
+  | 'WAITING_FOR_FILE_CONTENTS'
+  | 'ANALYZING_DEPLOYMENTS'
+  | 'GENERATING_CONFIG'
+  | 'ADJUSTING_ENV_VARS';
+
+export type CliConfigGenNonComputeResource =
+  | 'Postgres'
+  | 'MySQL'
+  | 'SQL-database'
+  | 'Redis'
+  | 'ElasticSearch'
+  | 'DynamoDB';
+
+export type CliConfigGenDeployableUnitType =
+  | 'static-frontend'
+  | 'frontend-requiring-build'
+  | 'web-service'
+  | 'worker-service'
+  | 'lambda-function'
+  | 'next-js-app';
+
+export type CliConfigGenStaticContentType = 'static-website' | 'single-page-app';
+
+export type CliConfigGenDeployableUnit = {
+  name: string;
+  type: CliConfigGenDeployableUnitType;
+  dependencyFilePath: string;
+  dockerfilePath: string | null;
+  entryfilePath: string | null;
+  rootPath: string;
+  distPath: string | null;
+  startCommand: string | null;
+  buildCommand: string | null;
+  reason: string;
+  staticContentType: CliConfigGenStaticContentType | null;
+  packageManager?: 'npm' | 'pnpm' | 'yarn' | 'bun' | 'deno';
+  envVars?: Array<{ name: string; value: string }>;
+  requiredResources?: CliConfigGenNonComputeResource[];
+};
+
+export type CliConfigGenRequiredResource = {
+  type: CliConfigGenNonComputeResource;
+  reason: string;
+  deployableUnitDependencyFilePaths: string[];
+  requiredByDeployableUnits: string[];
+};
+
+export type CliConfigGenSessionData = {
+  config?: StacktapeConfig;
+  deployableUnits?: CliConfigGenDeployableUnit[];
+  requiredResources?: CliConfigGenRequiredResource[];
+  error?: { message: string; stack?: string };
+  filesToRead?: string[];
+  allFiles?: string[];
+  fileTree?: string;
+};
+
+export type CliConfigGenSession = {
+  state: CliConfigGenSessionState;
+  phase: CliConfigGenPhase;
+  data: CliConfigGenSessionData;
+  createdAt: number;
+};
+
+export type StartCliConfigGenInput = {
+  fileTree: string;
+  allFiles: string[];
+};
+
+export type StartCliConfigGenResponse = {
+  sessionId: string;
+  filesToRead: string[];
+};
+
+export type SubmitFilesInput = {
+  sessionId: string;
+  files: Array<{ path: string; content: string }>;
+};
+
+export type SubmitFilesResponse = {
+  success: boolean;
+};
+
+type PublicTrpcClient = {
+  startCliConfigGen: {
+    mutate: (input: StartCliConfigGenInput) => Promise<StartCliConfigGenResponse>;
+  };
+  submitCliConfigGenFiles: {
+    mutate: (input: SubmitFilesInput) => Promise<SubmitFilesResponse>;
+  };
+  getCliConfigGenState: {
+    query: (input: { sessionId: string }) => Promise<CliConfigGenSession>;
+  };
+  cancelCliConfigGen: {
+    mutate: (input: { sessionId: string }) => Promise<{ success: boolean }>;
+  };
+};
 
 const TRPC_REQUEST_TIMEOUT_MS = 30000; // 30 seconds
 
@@ -22,25 +115,25 @@ const fetchWithTimeout = async (url: any, options: any) => {
   }
 };
 
-const createPublicTrpcClient = () => {
-  return createTRPCUntypedClient({
+const createPublicTrpcClient = (): PublicTrpcClient => {
+  return createTRPCClient<any>({
     links: [
       httpBatchLink({
         url: STACKTAPE_TRPC_API_ENDPOINT,
         fetch: fetchWithTimeout as any
       })
     ]
-  });
+  }) as unknown as PublicTrpcClient;
 };
 
 export class PublicApiClient {
-  #client: TRPCUntypedClient<AnyClientTypes> | null = null;
+  #client: ReturnType<typeof createPublicTrpcClient> | null = null;
 
   init(): void {
     this.#client = createPublicTrpcClient();
   }
 
-  #ensureInitialized(): TRPCUntypedClient<AnyClientTypes> {
+  #ensureInitialized(): ReturnType<typeof createPublicTrpcClient> {
     if (!this.#client) {
       this.init();
     }
@@ -48,7 +141,7 @@ export class PublicApiClient {
   }
 
   startCliConfigGen = async (input: StartCliConfigGenInput): Promise<StartCliConfigGenResponse> => {
-    return this.#ensureInitialized().mutation('startCliConfigGen', input) as Promise<StartCliConfigGenResponse>;
+    return this.#ensureInitialized().startCliConfigGen.mutate(input);
   };
 
   /**
@@ -56,7 +149,7 @@ export class PublicApiClient {
    * The server will analyze the files and generate the config.
    */
   submitCliConfigGenFiles = async (input: SubmitFilesInput): Promise<SubmitFilesResponse> => {
-    return this.#ensureInitialized().mutation('submitCliConfigGenFiles', input) as Promise<SubmitFilesResponse>;
+    return this.#ensureInitialized().submitCliConfigGenFiles.mutate(input);
   };
 
   /**
@@ -64,14 +157,14 @@ export class PublicApiClient {
    * Use this to poll for progress and the final result.
    */
   getCliConfigGenState = async (sessionId: string): Promise<CliConfigGenSession> => {
-    return this.#ensureInitialized().query('getCliConfigGenState', { sessionId }) as Promise<CliConfigGenSession>;
+    return this.#ensureInitialized().getCliConfigGenState.query({ sessionId });
   };
 
   /**
    * Cancel a config generation session.
    */
   cancelCliConfigGen = async (sessionId: string): Promise<{ success: boolean }> => {
-    return this.#ensureInitialized().mutation('cancelCliConfigGen', { sessionId }) as Promise<{ success: boolean }>;
+    return this.#ensureInitialized().cancelCliConfigGen.mutate({ sessionId });
   };
 }
 

@@ -3,6 +3,7 @@ import type { FSWatcher } from 'chokidar';
 import type { Stats } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
 import { applicationManager } from '@application-services/application-manager';
+import { devTuiManager } from 'src/app/tui-manager/dev-tui';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
@@ -75,7 +76,14 @@ export class SourceCodeWatcher {
 }
 
 export const hookToRestartStdinInput = (onRestart: AnyFunction) => {
+  if (devTuiManager.running) {
+    return;
+  }
   applicationManager.setUsesStdinWatch();
+  if (process.stdin.isTTY) {
+    process.stdin.setRawMode(true);
+    process.stdin.resume();
+  }
   // process.stdin.pause();
   // process.stdin.resume();
   process.stdin.removeAllListeners();
@@ -85,6 +93,10 @@ export const hookToRestartStdinInput = (onRestart: AnyFunction) => {
     }
     const str = data.toString().trim().toLowerCase();
     const char = data.toString().charCodeAt(0);
+    if (char === 3) {
+      await applicationManager.handleExitSignal('SIGINT');
+      return;
+    }
     if (str === 'rs') {
       await onRestart();
     } else if (char === 12) {

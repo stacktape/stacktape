@@ -8,7 +8,7 @@ import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { buildAndUpdateFunctionCode } from '../_utils/fn-deployment';
 import { initializeStackServicesForHotSwapDeploy } from '../_utils/initialization';
 
-export const commandDeploymentScriptRun = async (): Promise<DeploymentScriptRunReturnValue> => {
+export const commandDeploymentScriptRun = async () => {
   await initializeStackServicesForHotSwapDeploy();
 
   const { resourceName } = globalStateManager.args;

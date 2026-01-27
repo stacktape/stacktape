@@ -12,7 +12,7 @@ import { getCloudformationChildResources } from '@shared/utils/stack-info-map';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { initializeStackServicesForWorkingWithDeployedStack, loadUserCredentials } from '../_utils/initialization';
 
-export const commandBucketSync = async (): Promise<BucketSyncReturnValue> => {
+export const commandBucketSync = async () => {
   validateInputs();
 
   if (!globalStateManager.args.bucketId) {

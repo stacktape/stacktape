@@ -10,6 +10,7 @@ import type {
 } from './types';
 import { applicationManager } from '@application-services/application-manager';
 import { tuiManager } from '@application-services/tui-manager';
+import { box as clackBox } from '@clack/prompts';
 import logUpdate from 'log-update';
 import { setSpinnerDevTuiActive } from '../spinners';
 import { formatDuration, getWorkloadColor, resetWorkloadColors } from './utils';
@@ -440,6 +441,10 @@ class DevTuiManager {
     this.stdinListenerSetup = true;
 
     applicationManager.setUsesStdinWatch();
+    if (process.stdin.isTTY) {
+      process.stdin.setRawMode(true);
+      process.stdin.resume();
+    }
     process.stdin.removeAllListeners('data');
 
     process.stdin.on('data', async (data) => {
@@ -448,31 +453,66 @@ class DevTuiManager {
       // Ignore input during rebuild
       if (this.phase === 'rebuilding') return;
 
-      const input = data.toString().trim().toLowerCase();
-      const state = devTuiState.getState();
-      const workloads = state.workloads.filter((w) => w.status === 'running' || w.status === 'error');
+      const inputChunk = data.toString();
+      for (const char of inputChunk) {
+        const code = char.charCodeAt(0);
 
-      if (input === 'a') {
-        await this.rebuildHandler(null);
-        return;
-      }
+        if (code === 3) {
+          await applicationManager.handleExitSignal('SIGINT');
+          return;
+        }
 
-      const num = parseInt(input, 10);
-      if (num >= 1 && num <= workloads.length) {
-        const workload = workloads[num - 1];
-        await this.rebuildHandler(workload.name);
-        return;
-      }
+        if (code === 12) {
+          console.clear();
+          return;
+        }
 
-      if (input === 'h' || input === '?') {
-        this.printKeyboardHelp();
-        return;
-      }
+        if (code === 13 || code === 10) {
+          process.stdout.write('\n');
+          const buffer = devTuiState.getState().inputBuffer.trim().toLowerCase();
+          devTuiState.clearInputBuffer();
+          await this.handleBufferedCommand(buffer);
+          continue;
+        }
 
-      if (data.toString().charCodeAt(0) === 12) {
-        console.clear();
+        if (code === 8 || code === 127) {
+          const current = devTuiState.getState().inputBuffer;
+          if (current.length > 0) {
+            devTuiState.setInputBuffer(current.slice(0, -1));
+            process.stdout.write('\b \b');
+          }
+          continue;
+        }
+
+        if (char.trim()) {
+          devTuiState.appendToInputBuffer(char);
+          process.stdout.write(char);
+        }
       }
     });
+  }
+
+  private async handleBufferedCommand(buffer: string) {
+    if (!buffer) return;
+
+    const state = devTuiState.getState();
+    const workloads = state.workloads.filter((w) => w.status === 'running' || w.status === 'error');
+
+    if (buffer === 'a') {
+      await this.rebuildHandler?.(null);
+      return;
+    }
+
+    const num = parseInt(buffer, 10);
+    if (num >= 1 && num <= workloads.length) {
+      const workload = workloads[num - 1];
+      await this.rebuildHandler?.(workload.name);
+      return;
+    }
+
+    if (buffer === 'h' || buffer === '?') {
+      this.printKeyboardHelp();
+    }
   }
 
   private printKeyboardHelp() {
@@ -481,9 +521,9 @@ class DevTuiManager {
 
     console.log(`
 ${tuiManager.colorize('cyan', '  Keyboard shortcuts:')}
-${workloads.map((w, idx) => `    ${tuiManager.colorize('white', String(idx + 1))} - rebuild ${tuiManager.colorize(getWorkloadColor(w.name), w.name)}`).join('\n')}
-    ${tuiManager.colorize('white', 'a')} - rebuild all workloads
-    ${tuiManager.colorize('white', 'h')} - show this help
+ ${workloads.map((w, idx) => `    ${tuiManager.colorize('white', String(idx + 1))} + enter - rebuild ${tuiManager.colorize(getWorkloadColor(w.name), w.name)}`).join('\n')}
+    ${tuiManager.colorize('white', 'a')} + enter - rebuild all workloads
+    ${tuiManager.colorize('white', 'h')} + enter - show this help
     ${tuiManager.colorize('gray', 'Ctrl+C')} - stop dev mode
 `);
   }
@@ -492,32 +532,30 @@ ${workloads.map((w, idx) => `    ${tuiManager.colorize('white', String(idx + 1))
     const state = devTuiState.getState();
     const runningWorkloads = state.workloads.filter((w) => w.status === 'running' || w.status === 'error');
 
-    const boxWidth = 78;
-    const title = ' Dev mode ready ';
-    const padLen = Math.floor((boxWidth - title.length) / 2);
-    const topLine = `┌${'─'.repeat(boxWidth)}┐`;
-    const titleLine = `│${' '.repeat(padLen)}${tuiManager.makeBold(title)}${' '.repeat(boxWidth - padLen - title.length)}│`;
-    const bottomLine = `└${'─'.repeat(boxWidth)}┘`;
-
-    const lines = [
-      tuiManager.colorize('cyan', topLine),
-      tuiManager.colorize('cyan', titleLine),
-      tuiManager.colorize('cyan', bottomLine),
-      ...runningWorkloads.map((workload, idx) => {
-        const color = getWorkloadColor(workload.name);
-        const num = tuiManager.colorize('gray', `[${idx + 1}]`);
-        return workload.url
-          ? `  ${num} ${tuiManager.colorize(color, workload.name)}: ${workload.url}`
-          : `  ${num} ${tuiManager.colorize(color, workload.name)}`;
-      }),
-      '',
+    const contentLines: string[] = [];
+    contentLines.push(`${tuiManager.colorize('gray', 'Workloads running:')} ${runningWorkloads.length}`);
+    for (const [index, workload] of runningWorkloads.entries()) {
+      const color = getWorkloadColor(workload.name);
+      const num = tuiManager.colorize('gray', `[${index + 1}]`);
+      const label = tuiManager.colorize(color, workload.name);
+      contentLines.push(workload.url ? `  ${num} ${label}: ${workload.url}` : `  ${num} ${label}`);
+    }
+    contentLines.push('');
+    contentLines.push(
       tuiManager.colorize(
         'gray',
-        `  [1-${runningWorkloads.length}] rebuild workload  [a] rebuild all  [h] help  [Ctrl+C] stop`
-      ),
-      ''
-    ];
-    console.log(lines.join('\n'));
+        `Shortcuts: [1-${runningWorkloads.length}] + enter rebuild  [a] + enter rebuild all  [h] + enter help  [Ctrl+C] stop`
+      )
+    );
+
+    console.info('');
+    clackBox(contentLines.join('\n'), tuiManager.makeBold(' Dev mode ready '), {
+      rounded: true,
+      width: 'auto',
+      titleAlign: 'left',
+      contentAlign: 'left'
+    });
+    console.info('');
   }
 
   // ─── Local Resources ───

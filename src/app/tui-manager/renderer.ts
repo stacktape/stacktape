@@ -1,7 +1,8 @@
 import type { TuiEvent, TuiPhase, TuiState } from './types';
 import { logCollectorStream } from '@utils/log-collector';
+import { box as clackBox, note as clackNote } from '@clack/prompts';
 import logUpdate from 'log-update';
-import { PHASE_NAMES, PHASE_ORDER } from './types';
+import { PHASE_NAMES } from './types';
 import { formatDuration, stripAnsi } from './utils';
 
 const SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
@@ -45,6 +46,13 @@ const parseResourceState = (message?: string): { active: string | null; waiting:
   };
 };
 
+const parseStatusLine = (message?: string): string | null => {
+  const cleaned = stripAnsi(message);
+  if (!cleaned) return null;
+  const match = cleaned.match(/Status:\s*([^.|]+)\./i);
+  return match ? match[1].trim() : null;
+};
+
 const parseSummaryCounts = (message?: string): { created: number; updated: number; deleted: number } => {
   const cleaned = stripAnsi(message);
   if (!cleaned) return { created: 0, updated: 0, deleted: 0 };
@@ -79,18 +87,26 @@ const getActiveDeployEvent = (events: TuiEvent[]): TuiEvent | undefined => {
 };
 
 /**
- * TTY renderer using log-update for dynamic content.
+ * TTY renderer using log-update for ALL content.
  *
- * Phases are rendered dynamically while running, then committed to console when complete.
- * This prevents duplicate output and ensures clean re-rendering.
+ * All output (completed phases + active phases) goes through logUpdate().
+ * When a phase completes, its output is "frozen" into committedLines and rendered
+ * at the top of every frame. This avoids mixing console.info with log-update,
+ * which causes cursor tracking issues.
  */
 export class TtyRenderer {
   private colorize: ColorFn;
   private makeBold: BoldFn;
   private spinnerFrame = 0;
   private interval: ReturnType<typeof setInterval> | null = null;
+  /** Static lines that have been committed (completed phases, header). Always rendered at top. */
+  private committedLines: string[] = [];
+  /** Phase IDs that have been committed (to avoid re-committing) */
   private committedPhaseIds = new Set<string>();
   private phaseStartTimes = new Map<string, number>();
+  /** Lines written to log collector for completed phases */
+  private loggedPhaseIds = new Set<string>();
+  private pausedPhaseIds = new Set<string>();
 
   constructor(colorize: ColorFn, makeBold?: BoldFn) {
     this.colorize = colorize;
@@ -98,38 +114,67 @@ export class TtyRenderer {
   }
 
   start() {
+    this.committedLines = [];
     this.committedPhaseIds.clear();
+    this.loggedPhaseIds.clear();
     this.phaseStartTimes.clear();
     this.spinnerFrame = 0;
+    this.startSpinnerInterval();
+  }
+
+  /** Resume rendering without clearing committed state */
+  resume() {
+    this.startSpinnerInterval();
+  }
+
+  /**
+   * Pause rendering for prompts.
+   * Persists all current content (committed + dynamic) to the terminal,
+   * then resets log-update so prompts render cleanly below.
+   */
+  pause(state: TuiState) {
+    this.stopSpinnerInterval();
+    const runningPhaseIds = state.phases.filter((phase) => phase.status === 'running').map((phase) => phase.id);
+    this.pausedPhaseIds = new Set(runningPhaseIds);
+
+    // Persist the current log-update frame to terminal, then reset tracking.
+    // The running phase stays visible above the prompt as static terminal text.
+    logUpdate.done();
+  }
+
+  /** Stop rendering and persist final output */
+  stop() {
+    this.stopSpinnerInterval();
+    logUpdate.done();
+  }
+
+  private stopSpinnerInterval() {
+    if (this.interval) {
+      clearInterval(this.interval);
+      this.interval = null;
+    }
+  }
+
+  private startSpinnerInterval() {
+    if (this.interval) return;
     this.interval = setInterval(() => {
       this.spinnerFrame = (this.spinnerFrame + 1) % SPINNER_FRAMES.length;
     }, 80);
   }
 
-  stop() {
-    if (this.interval) {
-      clearInterval(this.interval);
-      this.interval = null;
-    }
-    logUpdate.done();
-  }
-
   render(state: TuiState) {
-    // Commit header once
+    // Commit header into committed lines once
     if (state.header && !this.committedPhaseIds.has('header')) {
-      logUpdate.clear();
-      const headerLines = this.buildHeader(state);
-      for (const line of headerLines) {
-        console.info(line);
-        logCollectorStream.write(line);
-      }
       this.committedPhaseIds.add('header');
+      logCollectorStream.write(
+        `[${state.header.action}] ${state.header.projectName} → ${state.header.stageName} (${state.header.region})`
+      );
     }
 
-    // Commit completed phases
+    // Commit completed phases (persists to stdout, resets log-update)
     this.commitCompletedPhases(state);
 
-    // Render active phases dynamically
+    // Render dynamic content (only running, uncommitted phases)
     const dynamicLines = this.buildDynamicContent(state);
     if (dynamicLines.length > 0) {
       logUpdate(dynamicLines.join('\n'));
@@ -146,13 +191,24 @@ export class TtyRenderer {
       const isFinalizingCurrent = state.isFinalizing && phase.id === state.currentPhase && phase.status === 'running';
 
       if (isCompleted || isFinalizingCurrent) {
-        logUpdate.clear();
-        const phaseLines = this.buildCompletedPhaseOutput(phase, state);
-        for (const line of phaseLines) {
-          console.info(line);
-          logCollectorStream.write(line);
-        }
+        const wasPaused = this.pausedPhaseIds.has(phase.id);
+        const phaseLines = wasPaused
+          ? this.buildCompletedPhaseHeaderOnly(phase, state)
+          : this.buildCompletedPhaseOutput(phase, state);
+        this.persistCommittedLines(phaseLines);
         this.committedPhaseIds.add(phase.id);
+
+        if (wasPaused) {
+          this.pausedPhaseIds.delete(phase.id);
+        }
+
+        // Write to log collector once
+        if (!this.loggedPhaseIds.has(phase.id)) {
+          for (const line of phaseLines) {
+            logCollectorStream.write(line);
+          }
+          this.loggedPhaseIds.add(phase.id);
+        }
       }
     }
   }
@@ -160,69 +216,87 @@ export class TtyRenderer {
   private buildDynamicContent(state: TuiState): string[] {
     const lines: string[] = [];
 
-    for (const phase of state.phases) {
-      if (this.committedPhaseIds.has(phase.id)) continue;
-      if (phase.status === 'pending') continue;
+    const currentPhase = state.currentPhase
+      ? state.phases.find((phase) => phase.id === state.currentPhase)
+      : state.phases.find((phase) => phase.status === 'running');
 
-      // Track phase start time for timer
-      if (!this.phaseStartTimes.has(phase.id)) {
-        this.phaseStartTimes.set(phase.id, phase.startTime || Date.now());
+    if (currentPhase && !this.committedPhaseIds.has(currentPhase.id) && currentPhase.status === 'running') {
+      if (!this.phaseStartTimes.has(currentPhase.id)) {
+        this.phaseStartTimes.set(currentPhase.id, currentPhase.startTime || Date.now());
       }
 
-      lines.push(...this.buildActivePhaseOutput(phase, state));
-    }
-
-    // Summary
-    if (state.summary && !this.committedPhaseIds.has('summary')) {
-      lines.push(...this.buildSummary(state));
+      lines.push(...this.buildActivePhaseOutput(currentPhase, state));
     }
 
     return lines;
   }
 
-  private buildHeader(state: TuiState): string[] {
-    if (!state.header) return [];
+  private buildCompletedPhaseHeaderOnly(phase: TuiPhase, state: TuiState): string[] {
+    const phaseNumber = state.phases.findIndex((p) => p.id === phase.id) + 1;
+    const phaseName = state.phases.find((p) => p.id === phase.id)?.name || PHASE_NAMES[phase.id] || phase.id;
+    const isSuccess = phase.status === 'success' || phase.status === 'running';
+    const icon = isSuccess ? this.colorize('green', '✓') : this.colorize('red', '✖');
+    const duration = phase.duration ? ` ${this.colorize('yellow', formatDuration(phase.duration))}` : '';
+    return [`${icon} ${this.makeBold(`PHASE ${phaseNumber}`)} • ${phaseName}${duration}`];
+  }
+
+  private persistCommittedLines(lines: string[]) {
+    if (lines.length === 0) return;
+    // Clear any dynamic content log-update is tracking, then release it.
+    // This prevents logUpdate.done() from flushing a stale running-phase frame.
+    logUpdate('');
+    logUpdate.clear();
+    logUpdate.done();
+    for (const line of lines) {
+      console.info(line);
+    }
+  }
+
+  /**
+   * Commit the header. Called externally before the render loop starts,
+   * because clackBox writes directly to stdout (not through log-update).
+   */
+  commitHeader(state: TuiState, options: { logToCollector?: boolean } = {}) {
+    if (!state.header) return;
     const { header } = state;
-    const lines: string[] = [];
-
-    const actionText = header.action;
-    const detailText = `${header.projectName} → ${header.stageName} (${header.region})`;
-    const innerWidth = Math.max(stripAnsi(actionText).length, stripAnsi(detailText).length) + 2;
-
-    const padRight = (text: string, width: number) => {
-      const visibleLen = stripAnsi(text).length;
-      return text + ' '.repeat(Math.max(0, width - visibleLen));
-    };
-
-    lines.push('');
-    lines.push(this.colorize('white', `╭${'─'.repeat(innerWidth)}╮`));
-    lines.push(
-      this.colorize('white', '│') +
-        ` ${padRight(this.makeBold(actionText), innerWidth - 1)}` +
-        this.colorize('white', '│')
-    );
-    lines.push(this.colorize('white', '│') + ` ${padRight(detailText, innerWidth - 1)}` + this.colorize('white', '│'));
-    lines.push(this.colorize('white', `╰${'─'.repeat(innerWidth)}╯`));
-    lines.push('');
-
-    return lines;
+    const project = this.makeBold(header.projectName);
+    const stage = this.colorize('cyan', header.stageName);
+    const region = this.colorize('gray', header.region);
+    const detailText = `${project} → ${stage} (${region})`;
+    const subtitle = header.subtitle ? `\n${this.colorize('gray', header.subtitle)}` : '';
+    console.info('');
+    clackBox(`${detailText}${subtitle}`, this.makeBold(` ${header.action} `), {
+      rounded: true,
+      width: 'auto',
+      titleAlign: 'left',
+      contentAlign: 'left'
+    });
+    if (options.logToCollector !== false) {
+      logCollectorStream.write(
+        `[${header.action}] ${header.projectName} → ${header.stageName} (${header.region})${
+          header.subtitle ? ` | ${header.subtitle}` : ''
+        }`
+      );
+    }
   }
 
   // ─── Active (running) phase rendering ───
 
   private buildActivePhaseOutput(phase: TuiPhase, state: TuiState): string[] {
     const lines: string[] = [];
-    const phaseNumber = PHASE_ORDER.indexOf(phase.id) + 1;
+    const phaseNumber = state.phases.findIndex((p) => p.id === phase.id) + 1;
     const phaseName = state.phases.find((p) => p.id === phase.id)?.name || PHASE_NAMES[phase.id] || phase.id;
 
-    // Phase header with spinner and timer
-    const spinner = this.colorize('cyan', SPINNER_FRAMES[this.spinnerFrame]);
-    const elapsed = this.getElapsedTime(phase);
-    const timerStr = this.colorize('gray', `(${elapsed})`);
+    if (state.showPhaseHeaders !== false) {
+      // Phase header with spinner and timer
+      const spinner = this.colorize('cyan', SPINNER_FRAMES[this.spinnerFrame]);
+      const elapsed = this.getElapsedTime(phase);
+      const timerStr = this.colorize('gray', elapsed);
 
-    lines.push('');
-    lines.push(`${spinner} ${this.makeBold(`Phase ${phaseNumber}: ${phaseName}`)} ${timerStr}`);
-    lines.push(this.colorize('gray', '─'.repeat(72)));
+      lines.push('');
+      lines.push(`${spinner} ${this.makeBold(`PHASE ${phaseNumber}`)} • ${phaseName} ${timerStr}`);
+      lines.push(this.colorize('gray', '─'.repeat(54)));
+    }
 
     // Special handling for deploy phase
     if (phase.id === 'DEPLOY') {
@@ -249,7 +323,7 @@ export class TtyRenderer {
     return lines;
   }
 
-  private buildDeployPhaseContent(phase: TuiPhase, state: TuiState): string[] {
+  private buildDeployPhaseContent(phase: TuiPhase, _state: TuiState): string[] {
     const lines: string[] = [];
     const deployEvent = getActiveDeployEvent(phase.events);
 
@@ -271,15 +345,44 @@ export class TtyRenderer {
       return lines;
     }
 
-    // CloudFormation deploy/delete - show progress UI
+    const progressLines = this.buildDeployProgressLines(deployEvent, isRunning, isComplete, isDelete);
+    const orderedEvents = [...new Map(phase.events.map((event) => [event.id, event])).values()].sort(
+      (a, b) => (a.startTime ?? 0) - (b.startTime ?? 0) || a.id.localeCompare(b.id)
+    );
+    let progressInserted = false;
+
+    for (const event of orderedEvents) {
+      if (DEPLOY_EVENT_TYPES.includes(event.eventType)) {
+        if (event.id === deployEvent.id && !progressInserted) {
+          lines.push(...progressLines);
+          progressInserted = true;
+          continue;
+        }
+      }
+      lines.push(...this.buildEventOutput(event, 1, true));
+    }
+
+    if (!progressInserted) {
+      lines.push(...progressLines);
+    }
+
+    return lines;
+  }
+
+  private buildDeployProgressLines(
+    deployEvent: TuiEvent,
+    isRunning: boolean,
+    isComplete: boolean,
+    isDelete: boolean
+  ): string[] {
+    const lines: string[] = [];
     const additionalMsg = deployEvent.additionalMessage;
     const estimatePercent = parseEstimatePercent(additionalMsg);
     const progressCounts = parseProgressCounts(additionalMsg);
     const resourceState = parseResourceState(additionalMsg);
     const summaryCounts = parseSummaryCounts(additionalMsg);
-    const detailLists = parseDetailLists(additionalMsg);
+    const statusLine = parseStatusLine(additionalMsg);
 
-    // Calculate progress percentage
     let progressPercent: number | null = null;
     if (isComplete) {
       progressPercent = 100;
@@ -292,7 +395,9 @@ export class TtyRenderer {
     const actionVerb = isDelete ? 'Deleting' : 'Deploying';
 
     if (isRunning) {
-      // Show progress bar if we have progress data
+      if (statusLine) {
+        lines.push(`  ${this.colorize('cyan', SPINNER_FRAMES[this.spinnerFrame])} ${statusLine}`);
+      }
       if (progressPercent !== null) {
         const filledWidth = Math.round((progressPercent / 100) * PROGRESS_BAR_WIDTH);
         const emptyWidth = PROGRESS_BAR_WIDTH - filledWidth;
@@ -304,34 +409,28 @@ export class TtyRenderer {
         lines.push('');
       }
 
-      // Status line
-      const statusParts: string[] = [];
       if (progressCounts.done !== null && progressCounts.total !== null) {
-        statusParts.push(`${this.colorize('green', String(progressCounts.done))}/${progressCounts.total} resources`);
-      }
-      if (statusParts.length > 0) {
-        lines.push(`  ${actionVerb}: ${statusParts.join(' ')}`);
+        lines.push(
+          `  ${this.colorize('gray', 'Done:')} ${this.colorize('green', String(progressCounts.done))}/${progressCounts.total} resources`
+        );
       } else {
         lines.push(
           `  ${this.colorize('cyan', SPINNER_FRAMES[this.spinnerFrame])} ${actionVerb} infrastructure resources...`
         );
       }
 
-      // Currently updating resources
       if (resourceState.active && resourceState.active !== 'none') {
         const resources = resourceState.active
           .split(',')
           .map((r) => r.trim())
           .filter(Boolean);
         if (resources.length > 0) {
-          const label = isDelete ? 'Deleting:' : 'Updating:';
           lines.push(
-            `  ${this.colorize('gray', label)} ${resources.slice(0, 3).join(', ')}${resources.length > 3 ? ', ...' : ''}`
+            `  ${this.colorize('gray', 'In progress:')} ${resources.slice(0, 3).join(', ')}${resources.length > 3 ? ` +${resources.length - 3} more` : ''}`
           );
         }
       }
 
-      // Waiting resources
       if (resourceState.waiting && resourceState.waiting !== 'none') {
         const waiting = resourceState.waiting
           .split(',')
@@ -339,17 +438,15 @@ export class TtyRenderer {
           .filter(Boolean);
         if (waiting.length > 0) {
           lines.push(
-            `  ${this.colorize('gray', 'Waiting:')} ${waiting.slice(0, 3).join(', ')}${waiting.length > 3 ? ', ...' : ''}`
+            `  ${this.colorize('gray', 'Waiting:')} ${waiting.slice(0, 3).join(', ')}${waiting.length > 3 ? ` +${waiting.length - 3} more` : ''}`
           );
         }
       }
     } else if (isComplete) {
-      // Show completion summary
       const icon = deployEvent.status === 'success' ? this.colorize('green', '✓') : this.colorize('red', '✖');
       const duration = deployEvent.duration ? ` ${this.colorize('yellow', formatDuration(deployEvent.duration))}` : '';
       lines.push(`  ${icon} ${actionVerb} complete${duration}`);
 
-      // Resource counts
       if (summaryCounts.created > 0 || summaryCounts.updated > 0 || summaryCounts.deleted > 0) {
         const parts: string[] = [];
         if (summaryCounts.created > 0) {
@@ -365,13 +462,6 @@ export class TtyRenderer {
       }
     }
 
-    // Show non-deploy events (like validation)
-    for (const event of phase.events) {
-      if (!DEPLOY_EVENT_TYPES.includes(event.eventType)) {
-        lines.push(...this.buildEventOutput(event, 1, true));
-      }
-    }
-
     return lines;
   }
 
@@ -379,16 +469,20 @@ export class TtyRenderer {
 
   private buildCompletedPhaseOutput(phase: TuiPhase, state: TuiState): string[] {
     const lines: string[] = [];
-    const phaseNumber = PHASE_ORDER.indexOf(phase.id) + 1;
+    const phaseNumber = state.phases.findIndex((p) => p.id === phase.id) + 1;
     const phaseName = state.phases.find((p) => p.id === phase.id)?.name || PHASE_NAMES[phase.id] || phase.id;
 
-    // Phase header with status icon and duration
-    const icon = phase.status === 'success' ? this.colorize('green', '✓') : this.colorize('red', '✖');
-    const duration = phase.duration ? ` ${this.colorize('yellow', formatDuration(phase.duration))}` : '';
+    if (state.showPhaseHeaders !== false) {
+      // Phase header with status icon and duration
+      // Treat 'running' phases committed during finalization as successful (not errored)
+      const isSuccess = phase.status === 'success' || phase.status === 'running';
+      const icon = isSuccess ? this.colorize('green', '✓') : this.colorize('red', '✖');
+      const duration = phase.duration ? ` ${this.colorize('yellow', formatDuration(phase.duration))}` : '';
 
-    lines.push('');
-    lines.push(`${icon} ${this.makeBold(`Phase ${phaseNumber}: ${phaseName}`)}${duration}`);
-    lines.push(this.colorize('gray', '─'.repeat(72)));
+      lines.push('');
+      lines.push(`${icon} ${this.makeBold(`PHASE ${phaseNumber}`)} • ${phaseName}${duration}`);
+      lines.push(this.colorize('gray', '─'.repeat(54)));
+    }
 
     // Special handling for completed deploy phase
     if (phase.id === 'DEPLOY') {
@@ -434,7 +528,32 @@ export class TtyRenderer {
       return lines;
     }
 
-    // CloudFormation completion summary
+    const completionLines = this.buildDeployCompletionLines(deployEvent, isDelete);
+    const orderedEvents = [...new Map(phase.events.map((event) => [event.id, event])).values()].sort(
+      (a, b) => (a.startTime ?? 0) - (b.startTime ?? 0) || a.id.localeCompare(b.id)
+    );
+    let completionInserted = false;
+
+    for (const event of orderedEvents) {
+      if (DEPLOY_EVENT_TYPES.includes(event.eventType)) {
+        if (event.id === deployEvent.id && !completionInserted) {
+          lines.push(...completionLines);
+          completionInserted = true;
+          continue;
+        }
+      }
+      lines.push(...this.buildEventOutput(event, 1, false));
+    }
+
+    if (!completionInserted) {
+      lines.push(...completionLines);
+    }
+
+    return lines;
+  }
+
+  private buildDeployCompletionLines(deployEvent: TuiEvent, isDelete: boolean): string[] {
+    const lines: string[] = [];
     const summaryCounts = parseSummaryCounts(deployEvent.additionalMessage);
     const detailLists = parseDetailLists(deployEvent.additionalMessage);
     const actionVerb = isDelete ? 'Deleted' : 'Deployed';
@@ -443,54 +562,50 @@ export class TtyRenderer {
     const duration = deployEvent.duration ? ` ${this.colorize('yellow', formatDuration(deployEvent.duration))}` : '';
     lines.push(`  ${icon} ${actionVerb} infrastructure${duration}`);
 
-    // Resource summary
-    if (summaryCounts.created > 0 || summaryCounts.updated > 0 || summaryCounts.deleted > 0) {
-      const parts: string[] = [];
-      if (summaryCounts.created > 0) {
-        parts.push(`${this.colorize('green', `+${summaryCounts.created}`)} created`);
-      }
-      if (summaryCounts.updated > 0) {
-        parts.push(`${this.colorize('yellow', `~${summaryCounts.updated}`)} updated`);
-      }
-      if (summaryCounts.deleted > 0) {
-        parts.push(`${this.colorize('red', `-${summaryCounts.deleted}`)} deleted`);
-      }
-      lines.push(`    ${parts.join('  ')}`);
+    const totalChanges = summaryCounts.created + summaryCounts.updated + summaryCounts.deleted;
+    if (totalChanges > 0) {
+      if (isDelete) {
+        lines.push(`    ${summaryCounts.deleted} resources removed`);
+      } else {
+        const parts: string[] = [];
+        if (summaryCounts.created > 0) {
+          parts.push(`${this.colorize('green', `+${summaryCounts.created}`)} created`);
+        }
+        if (summaryCounts.updated > 0) {
+          parts.push(`${this.colorize('yellow', `~${summaryCounts.updated}`)} updated`);
+        }
+        if (summaryCounts.deleted > 0) {
+          parts.push(`${this.colorize('red', `-${summaryCounts.deleted}`)} deleted`);
+        }
+        lines.push(`    ${parts.join('  ')}`);
 
-      // Detailed resource names
-      if (detailLists.created && detailLists.created !== 'none') {
-        const resources = detailLists.created
-          .split(',')
-          .map((r) => r.trim())
-          .filter(Boolean);
-        if (resources.length > 0) {
-          lines.push(`    ${this.colorize('gray', 'Created:')} ${this.formatResourceList(resources)}`);
+        if (detailLists.created && detailLists.created !== 'none') {
+          const resources = detailLists.created
+            .split(',')
+            .map((r) => r.trim())
+            .filter(Boolean);
+          if (resources.length > 0) {
+            lines.push(`    ${this.colorize('gray', 'Created:')} ${this.formatResourceList(resources)}`);
+          }
         }
-      }
-      if (detailLists.updated && detailLists.updated !== 'none') {
-        const resources = detailLists.updated
-          .split(',')
-          .map((r) => r.trim())
-          .filter(Boolean);
-        if (resources.length > 0) {
-          lines.push(`    ${this.colorize('gray', 'Updated:')} ${this.formatResourceList(resources)}`);
+        if (detailLists.updated && detailLists.updated !== 'none') {
+          const resources = detailLists.updated
+            .split(',')
+            .map((r) => r.trim())
+            .filter(Boolean);
+          if (resources.length > 0) {
+            lines.push(`    ${this.colorize('gray', 'Updated:')} ${this.formatResourceList(resources)}`);
+          }
         }
-      }
-      if (detailLists.deleted && detailLists.deleted !== 'none') {
-        const resources = detailLists.deleted
-          .split(',')
-          .map((r) => r.trim())
-          .filter(Boolean);
-        if (resources.length > 0) {
-          lines.push(`    ${this.colorize('gray', 'Deleted:')} ${this.formatResourceList(resources)}`);
+        if (detailLists.deleted && detailLists.deleted !== 'none') {
+          const resources = detailLists.deleted
+            .split(',')
+            .map((r) => r.trim())
+            .filter(Boolean);
+          if (resources.length > 0) {
+            lines.push(`    ${this.colorize('gray', 'Deleted:')} ${this.formatResourceList(resources)}`);
+          }
         }
-      }
-    }
-
-    // Show non-deploy events
-    for (const event of phase.events) {
-      if (!DEPLOY_EVENT_TYPES.includes(event.eventType)) {
-        lines.push(...this.buildEventOutput(event, 1, false));
       }
     }
 
@@ -555,30 +670,38 @@ export class TtyRenderer {
 
   // ─── Summary rendering ───
 
-  private buildSummary(state: TuiState): string[] {
-    if (!state.summary) return [];
+  commitSummary(state: TuiState) {
+    if (!state.summary) return;
     const { summary } = state;
-    const lines: string[] = [];
 
-    lines.push('');
-    lines.push(this.colorize('gray', '─'.repeat(72)));
+    console.info('');
     const icon = summary.success ? this.colorize('green', '✓') : this.colorize('red', '✖');
-    lines.push(`${icon} ${this.makeBold(summary.message)}`);
+    const message = `${icon} ${this.makeBold(summary.message)}`;
 
+    // Build note content for links
+    const noteLines: string[] = [];
     if (summary.links.length > 0) {
-      lines.push('');
       for (const link of summary.links) {
-        lines.push(`  ${this.colorize('cyan', '→')} ${link.label}`);
-        lines.push(`    ${this.colorize('blue', link.url)}`);
+        noteLines.push(`${this.colorize('cyan', '→')} ${link.label}`);
+        noteLines.push(`  ${this.colorize('blue', link.url)}`);
       }
     }
-
     if (summary.consoleUrl) {
-      lines.push('');
-      lines.push(`  ${this.colorize('gray', 'Stack details:')} ${this.colorize('blue', summary.consoleUrl)}`);
+      if (noteLines.length > 0) noteLines.push('');
+      noteLines.push(`${this.colorize('gray', 'Stack details:')} ${this.colorize('blue', summary.consoleUrl)}`);
     }
 
-    return lines;
+    if (noteLines.length > 0) {
+      clackNote(noteLines.join('\n'), message, { format: (line: string) => line });
+    } else {
+      console.info(message);
+      console.info('');
+    }
+
+    logCollectorStream.write(summary.message);
+    for (const link of summary.links) {
+      logCollectorStream.write(`${link.label}: ${link.url}`);
+    }
   }
 
   // ─── Helpers ───
@@ -623,14 +746,19 @@ export class TtyRenderer {
         return this.colorize('blue', '💡');
       case 'info':
         return this.colorize('cyan', 'ℹ');
+      case 'question':
+        return this.colorize('cyan', '?');
       default:
         return this.colorize('gray', '●');
     }
   }
 
   reset() {
+    this.committedLines = [];
     this.committedPhaseIds.clear();
+    this.loggedPhaseIds.clear();
     this.phaseStartTimes.clear();
+    this.pausedPhaseIds.clear();
   }
 }
 
@@ -685,23 +813,27 @@ export class NonTtyRenderer {
   private printHeader(state: TuiState) {
     if (!state.header) return;
     const { header } = state;
+    const subtitleLine = header.subtitle ? `| ${header.subtitle.padEnd(68)} |` : null;
     this.log('');
     this.log('+----------------------------------------------------------------------+');
     this.log(`| ${header.action.padEnd(68)} |`);
     this.log(`| ${`${header.projectName} -> ${header.stageName} (${header.region})`.padEnd(68)} |`);
+    if (subtitleLine) {
+      this.log(subtitleLine);
+    }
     this.log('+----------------------------------------------------------------------+');
     this.log('');
   }
 
   private renderPhase(phase: TuiPhase, state: TuiState) {
     const phaseKey = `phase-${phase.id}`;
-    const phaseNumber = PHASE_ORDER.indexOf(phase.id) + 1;
-    const phaseName = PHASE_NAMES[phase.id] || phase.name;
+    const phaseNumber = state.phases.findIndex((p) => p.id === phase.id) + 1;
+    const phaseName = state.phases.find((p) => p.id === phase.id)?.name || PHASE_NAMES[phase.id] || phase.name;
 
-    if (phase.status !== 'pending' && !this.printedItems.has(phaseKey)) {
+    if (phase.status !== 'pending' && !this.printedItems.has(phaseKey) && state.showPhaseHeaders !== false) {
       this.log('');
-      this.log(`> Phase ${phaseNumber}: ${phaseName}`);
-      this.log('------------------------------------------------------------------------');
+      this.log(`PHASE ${phaseNumber} • ${phaseName}`);
+      this.log('------------------------------------------------------');
       this.printedItems.add(phaseKey);
     }
 

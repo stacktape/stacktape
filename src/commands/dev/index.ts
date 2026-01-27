@@ -1,13 +1,21 @@
 import { globalStateManager } from '@application-services/global-state-manager';
+import { eventManager } from '@application-services/event-manager';
+import { applicationManager } from '@application-services/application-manager';
 import { tuiManager } from '@application-services/tui-manager';
+import { box as clackBox } from '@clack/prompts';
+import { MultiSpinner } from '@application-services/tui-manager/spinners';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { stackMetadataNames } from '@shared/naming/metadata-names';
 import { getError } from '@shared/utils/misc';
+import { join } from 'node:path';
 import { devTuiManager } from 'src/app/tui-manager/dev-tui';
 import { devTuiState } from 'src/app/tui-manager/dev-tui/state';
+import type { DevTuiState } from 'src/app/tui-manager/dev-tui/types';
 import { initializeStackServicesForDevPhase1, initializeStackServicesForDevPhase2 } from '../_utils/initialization';
+import { agentLog } from './agent-logger';
+import { registerAgentCleanupHook, startAgentServer, updateAgentState } from './agent-server';
 import { getDevModeType, isLegacyDevMode } from './dev-mode-utils';
 import { registerDevServerCleanupHook } from './dev-server';
 import { deployDevStack } from './dev-stack-deployer';
@@ -209,6 +217,27 @@ export const commandDev = async () => {
   // This also prompts for stage if not provided
   await initializeStackServicesForDevPhase1();
 
+  const agentPortArg = globalStateManager.args.agentPort;
+  const agentEnabled = Boolean(globalStateManager.args.agent || agentPortArg !== undefined);
+  const agentPort = agentPortArg ?? (agentEnabled ? 7331 : null);
+
+  if (agentEnabled && agentPort !== null) {
+    registerAgentCleanupHook();
+    await startAgentServer(agentPort, join(globalStateManager.workingDir, '.stacktape', 'dev-agent'));
+  }
+
+  const headerTitle = `RUNNING DEV MODE${isLegacy ? ' (legacy)' : ''}`;
+  const projectNameLabel = tuiManager.makeBold(globalStateManager.targetStack.projectName);
+  const stageNameLabel = tuiManager.colorize('cyan', globalStateManager.targetStack.stage);
+  const regionLabel = tuiManager.colorize('gray', globalStateManager.region);
+  clackBox(`${projectNameLabel} → ${stageNameLabel} (${regionLabel})`, tuiManager.makeBold(` ${headerTitle} `), {
+    rounded: true,
+    width: 'auto',
+    titleAlign: 'left',
+    contentAlign: 'left'
+  });
+  console.info('');
+
   const allWorkloads = getDevCompatibleResources();
   // In legacy mode, we don't offer local database emulation
   const allEmulateableResources = isLegacy ? [] : getLocalEmulateableResources();
@@ -241,9 +270,10 @@ export const commandDev = async () => {
   const emulateableResources = allEmulateableResources.filter((r) => selectedResourceNames.has(r.name));
 
   // Phase 2: Load AWS metadata (stack info, etc.)
-  const spinner = tuiManager.createSpinner({ text: 'Loading metadata from AWS' });
+  const multiSpinner = new MultiSpinner(tuiManager.colorize.bind(tuiManager));
+  const metadataSpinner = multiSpinner.add('dev-metadata', 'Loading metadata from AWS');
   await initializeStackServicesForDevPhase2();
-  spinner.success();
+  metadataSpinner.success();
 
   if (isLegacy) {
     // Legacy mode: require existing deployed stack
@@ -254,24 +284,66 @@ export const commandDev = async () => {
         hint: `Legacy dev mode requires an already deployed stack. Deploy with 'stacktape deploy --stage ${globalStateManager.targetStack.stage}' first, or use '--devMode normal' to create a dev stack.`
       });
     }
-    tuiManager.info(`Using existing stack '${globalStateManager.targetStack.stackName}' (legacy mode)`);
   } else {
     // Normal mode: check for dev stack or deploy one
     if (stackManager.existingStackDetails) {
       const isDevStack = deployedStackOverviewManager.getStackMetadata(stackMetadataNames.isDevStack());
       if (!isDevStack) {
-        throw getError({
-          type: 'CLI',
-          message: `Stack '${globalStateManager.targetStack.stackName}' exists but is not a dev stack.`,
-          hint: `Use a different stage name for dev mode (e.g., --stage dev-${globalStateManager.userData?.name?.split(' ')[0]?.toLowerCase() || 'local'}), or use '--devMode legacy' to run against an existing stack.`
-        });
+        const stackStatus = stackManager.existingStackDetails.StackStatus;
+        const failedStatuses = new Set([
+          'CREATE_FAILED',
+          'ROLLBACK_COMPLETE',
+          'ROLLBACK_FAILED',
+          'UPDATE_ROLLBACK_COMPLETE',
+          'UPDATE_ROLLBACK_FAILED',
+          'UPDATE_FAILED'
+        ]);
+        const inProgressStatuses = new Set([
+          'CREATE_IN_PROGRESS',
+          'ROLLBACK_IN_PROGRESS',
+          'UPDATE_IN_PROGRESS',
+          'UPDATE_COMPLETE_CLEANUP_IN_PROGRESS',
+          'UPDATE_ROLLBACK_IN_PROGRESS'
+        ]);
+        const stageName = globalStateManager.targetStack.stage.toLowerCase();
+        const isProbablyDevStage = stageName.includes('dev') || stageName.includes('local');
+
+        if ((failedStatuses.has(stackStatus) || inProgressStatuses.has(stackStatus)) && isProbablyDevStage) {
+          tuiManager.warn(
+            `Stack '${globalStateManager.targetStack.stackName}' exists but isn't marked as a dev stack and is in ${stackStatus}.`
+          );
+          tuiManager.info('Deleting the failed stack and redeploying a fresh dev stack...');
+          await stackManager.deleteStack();
+          await stackManager.refetchStackDetails(globalStateManager.targetStack.stackName);
+        } else {
+          throw getError({
+            type: 'CLI',
+            message: `Stack '${globalStateManager.targetStack.stackName}' exists but is not a dev stack.`,
+            hint: `Use a different stage name for dev mode (e.g., --stage dev-${globalStateManager.userData?.name?.split(' ')[0]?.toLowerCase() || 'local'}), or use '--devMode legacy' to run against an existing stack.`
+          });
+        }
       }
     }
 
     // Deploy dev stack if it doesn't exist
     if (!stackManager.existingStackDetails) {
-      tuiManager.info(`Dev stack '${globalStateManager.targetStack.stackName}' not found. Deploying...`);
-      await deployDevStack();
+      eventManager.setSilentMode(false);
+      tuiManager.start();
+      tuiManager.setShowPhaseHeaders(false);
+      tuiManager.setHeader({
+        action: 'DEPLOYING DEV STACK',
+        projectName: globalStateManager.targetStack.projectName,
+        stageName: globalStateManager.targetStack.stage,
+        region: globalStateManager.region,
+        subtitle: 'minimal stack for dev mode'
+      });
+      try {
+        await deployDevStack();
+      } finally {
+        await tuiManager.stop();
+        tuiManager.setShowPhaseHeaders(true);
+        eventManager.setSilentMode(true);
+      }
 
       // Refresh stack details after deployment
       await stackManager.refetchStackDetails(globalStateManager.targetStack.stackName);
@@ -292,6 +364,76 @@ export const commandDev = async () => {
     stageName,
     onCommand: handleCommand,
     devMode
+  });
+
+  if (agentEnabled) {
+    let agentLogCursor = 0;
+    const mapLogLevel = (level: 'info' | 'warn' | 'error' | 'debug'): 'info' | 'warn' | 'error' => {
+      if (level === 'error') return 'error';
+      if (level === 'warn') return 'warn';
+      return 'info';
+    };
+
+    const syncAgentState = (state: DevTuiState) => {
+      updateAgentState({
+        phase: state.isQuitting ? 'stopping' : state.phase === 'running' ? 'ready' : 'starting',
+        workloads: state.workloads.map((workload) => ({
+          name: workload.name,
+          type: workload.type,
+          status: workload.status,
+          url: workload.url,
+          port: workload.port,
+          error: workload.error,
+          size: workload.size
+        })),
+        localResources: state.localResources.map((resource) => ({
+          name: resource.name,
+          type: resource.type,
+          status: resource.status,
+          port: resource.port,
+          error: resource.error
+        }))
+      });
+
+      const newLogs = state.logs.filter((log) => log.timestamp > agentLogCursor);
+      for (const log of newLogs) {
+        agentLog(log.source, log.message, mapLogLevel(log.level));
+      }
+      if (newLogs.length > 0) {
+        agentLogCursor = newLogs[newLogs.length - 1].timestamp;
+      }
+    };
+
+    syncAgentState(devTuiState.getState());
+    const unsubscribe = devTuiState.subscribe(syncAgentState);
+    applicationManager.registerCleanUpHook(() => {
+      unsubscribe();
+    });
+  }
+
+  applicationManager.registerCleanUpHook(async () => {
+    const state = devTuiState.getState();
+    const logLine = devTuiManager.running
+      ? devTuiManager.systemLog.bind(devTuiManager)
+      : tuiManager.info.bind(tuiManager);
+    logLine('Stopping dev workloads...');
+
+    const workloads = state.workloads.filter(
+      (w) => w.status === 'running' || w.status === 'error' || w.status === 'starting'
+    );
+    for (const workload of workloads) {
+      logLine(`  ${workload.name}`);
+    }
+
+    const localResources = state.localResources.filter((r) => r.status === 'running' || r.status === 'error');
+    if (localResources.length > 0) {
+      logLine('Stopping local resources...');
+      for (const resource of localResources) {
+        logLine(`  ${resource.name}`);
+      }
+    }
+
+    devTuiManager.stop();
   });
 
   // Set up rebuild handler for keyboard shortcuts
@@ -358,7 +500,7 @@ export const commandDev = async () => {
   // Keep the process running until Ctrl+C
   await new Promise<void>((resolve) => {
     const cleanup = () => {
-      devTuiManager.stop();
+      applicationManager.handleExitSignal('SIGINT');
       resolve();
     };
 

@@ -1,4 +1,3 @@
-import type { CreateTRPCClientOptions } from '@trpc/client';
 import { Buffer } from 'node:buffer';
 import { createTRPCClient, httpBatchLink } from '@trpc/client';
 import { getSignedGetCallerIdentityRequest } from '../aws/identity';
@@ -31,6 +30,18 @@ type DeleteDefaultDomainDnsRecordParams = {
   version: number;
 };
 
+type AwsIdentityTrpcClient = {
+  validateCertificate: {
+    mutate: (args: ValidateCertificateParams) => Promise<void>;
+  };
+  upsertDefaultDomainDnsRecord: {
+    mutate: (args: UpsertDefaultDomainDnsRecordParams) => Promise<void>;
+  };
+  deleteDefaultDomainDnsRecord: {
+    mutate: (args: DeleteDefaultDomainDnsRecordParams) => Promise<void>;
+  };
+};
+
 const TRPC_REQUEST_TIMEOUT_MS = 30000; // 30 seconds
 
 const fetchWithTimeout = async (url: any, options: any) => {
@@ -51,7 +62,7 @@ const createTrpcAwsIdentityProtectedClient = ({
   credentials: AwsCredentials;
   region: string;
   apiUrl: string;
-}) => {
+}): AwsIdentityTrpcClient => {
   return createTRPCClient<any>({
     links: [
       httpBatchLink({
@@ -64,11 +75,11 @@ const createTrpcAwsIdentityProtectedClient = ({
         fetch: fetchWithTimeout as any
       })
     ]
-  } as CreateTRPCClientOptions<any>);
+  }) as unknown as AwsIdentityTrpcClient;
 };
 
 export class AwsIdentityProtectedClient {
-  #client: any;
+  #client: AwsIdentityTrpcClient | null = null;
 
   init = async ({ credentials, region, apiUrl }: { credentials: AwsCredentials; region: string; apiUrl: string }) => {
     this.#client = createTrpcAwsIdentityProtectedClient({ credentials, region, apiUrl });
@@ -76,19 +87,19 @@ export class AwsIdentityProtectedClient {
 
   validateCertificate = {
     mutate: async (args: ValidateCertificateParams): Promise<void> => {
-      return this.#client.validateCertificate.mutate(args);
+      return this.#client!.validateCertificate.mutate(args);
     }
   };
 
   upsertDefaultDomainDnsRecord = {
     mutate: async (args: UpsertDefaultDomainDnsRecordParams): Promise<void> => {
-      return this.#client.upsertDefaultDomainDnsRecord.mutate(args);
+      return this.#client!.upsertDefaultDomainDnsRecord.mutate(args);
     }
   };
 
   deleteDefaultDomainDnsRecord = {
     mutate: async (args: DeleteDefaultDomainDnsRecordParams): Promise<void> => {
-      return this.#client.deleteDefaultDomainDnsRecord.mutate(args);
+      return this.#client!.deleteDefaultDomainDnsRecord.mutate(args);
     }
   };
 }

@@ -39,6 +39,4 @@ const getConfigFn = defineConfig(() => {
   };
 });
 
-
-
 export default getConfigFn;

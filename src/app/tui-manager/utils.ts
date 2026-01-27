@@ -13,7 +13,8 @@ export const formatDuration = (ms: number): string => {
 /**
  * Strip ANSI escape codes for accurate length calculation
  */
-export const stripAnsi = (str: string): string => {
+export const stripAnsi = (str?: string): string => {
+  if (!str) return '';
   // eslint-disable-next-line no-control-regex
   return str.replace(/\x1B\[[0-9;]*m/g, '');
 };

@@ -1,5 +1,8 @@
-import type { InstanceTypeInfo } from '@aws-sdk/client-ec2';
-import type { DescribeInstanceTypeLimitsCommandOutput } from '@aws-sdk/client-opensearch';
+import type { _InstanceType, InstanceTypeInfo } from '@aws-sdk/client-ec2';
+import type {
+  DescribeInstanceTypeLimitsCommandOutput,
+  OpenSearchPartitionInstanceType
+} from '@aws-sdk/client-opensearch';
 import { eventManager } from '@application-services/event-manager';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import compose from '@utils/basic-compose-shim';
@@ -29,7 +32,7 @@ export class EC2Manager {
       const [ec2InstanceTypes] = await Promise.all([
         instanceTypes.length &&
           awsSdkManager.getEc2InstanceTypesInfo({
-            instanceTypes
+            instanceTypes: instanceTypes as _InstanceType[]
           }),
         // awsSdkManager.setAwsAccountEcsSetting('awsvpcTrunking', 'enabled'),
         openSearchInstanceTypes &&
@@ -41,7 +44,7 @@ export class EC2Manager {
               this.openSearchInstanceTypes[version][instanceType] = await awsSdkManager.getOpenSearchInstanceTypeLimits(
                 {
                   openSearchVersion: version,
-                  instanceType
+                  instanceType: instanceType as OpenSearchPartitionInstanceType
                 }
               );
             })
@@ -61,6 +64,20 @@ export class EC2Manager {
   };
 
   checkOpenSearchEbsSupport = ({ instanceTypesUsed, version }: { instanceTypesUsed: string[]; version: string }) => {
+    if (!instanceTypesUsed.length) {
+      return { gp3Supported: true, ebsSupported: true };
+    }
+
+    const versionInfo = this.openSearchInstanceTypes[version];
+    if (!versionInfo) {
+      return { gp3Supported: true, ebsSupported: true };
+    }
+
+    const missingInstanceType = instanceTypesUsed.some((instanceType) => !versionInfo[instanceType]);
+    if (missingInstanceType) {
+      return { gp3Supported: true, ebsSupported: true };
+    }
+
     const instanceStorageLimits = instanceTypesUsed.map(
       (instanceType) => this.openSearchInstanceTypes[version][instanceType].LimitsByRole.data.StorageTypes
     );

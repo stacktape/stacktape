@@ -9,6 +9,7 @@ import { cfEvaluatedLinks } from '@shared/naming/cf-evaluated-links';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import { ExpectedError } from '@utils/errors';
 import { resolveAlarmsForResource } from '../_utils/alarms';
+import { getResourcesNeededForLogForwarding } from '../_utils/log-forwarding';
 import {
   ENGINE_TYPES_REQUIRING_OPTION_GROUP,
   getAuroraDbCluster,

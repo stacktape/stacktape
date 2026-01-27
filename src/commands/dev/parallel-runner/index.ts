@@ -894,6 +894,11 @@ const setupStdinRestart = () => {
     const str = data.toString().trim().toLowerCase();
     const char = data.toString().charCodeAt(0);
 
+    if (char === 3) {
+      await applicationManager.handleExitSignal('SIGINT');
+      return;
+    }
+
     if (char === 12) {
       console.clear();
       return;

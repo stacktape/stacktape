@@ -6,9 +6,9 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import { serialize } from '@shared/utils/misc';
 import { createFrameworkParser, detectFramework, type FrameworkType, stripAnsi } from './framework-parsers';
 import {
-  ensurePortAvailable,
   extractPortFromCommand,
   getDefaultPort,
+  isPortAvailable,
   killProcessOnPort,
   parsePortFromError
 } from './port-utils';
@@ -169,6 +169,19 @@ export const startDevServer = async ({
   const commandPort = extractPortFromCommand(config.command);
   const targetPort = config.port || commandPort || getDefaultPort(framework);
 
+  const ensureTargetPortAvailable = async (): Promise<boolean> => {
+    if (await isPortAvailable(targetPort)) return true;
+
+    await killProcessOnPort(targetPort);
+
+    const startTime = Date.now();
+    while (Date.now() - startTime < 5000) {
+      if (await isPortAvailable(targetPort)) return true;
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+    return false;
+  };
+
   // Build environment with PORT for frameworks that support it
   const env: Record<string, string> = {
     ...serialize(process.env),
@@ -183,6 +196,13 @@ export const startDevServer = async ({
 
   let currentState: DevServerState = { status: 'starting' };
   callbacks?.onStateChange?.(currentState);
+
+  const portReady = await ensureTargetPortAvailable();
+  if (!portReady) {
+    currentState = { status: 'error', error: `Port ${targetPort} is still in use` };
+    callbacks?.onStateChange?.(currentState);
+    return currentState;
+  }
 
   // Track if we've already retried after port conflict
   let portConflictRetried = false;

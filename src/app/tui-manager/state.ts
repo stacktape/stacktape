@@ -49,7 +49,8 @@ class TuiStateManager {
       warnings: [],
       messages: [],
       isComplete: false,
-      startTime: Date.now()
+      startTime: Date.now(),
+      showPhaseHeaders: true
     };
   }
 
@@ -79,6 +80,11 @@ class TuiStateManager {
     this.phaseOrder = PHASE_ORDER;
     this.phaseNames = PHASE_NAMES;
     this.state = this.createInitialState();
+    this.notifyListeners();
+  }
+
+  setShowPhaseHeaders(show: boolean) {
+    this.state = { ...this.state, showPhaseHeaders: show };
     this.notifyListeners();
   }
 
@@ -404,6 +410,20 @@ class TuiStateManager {
   }
 
   setComplete(success: boolean, message: string, links: TuiLink[] = [], consoleUrl?: string) {
+    // Finish the current phase before setting summary
+    if (this.state.currentPhase) {
+      const endTime = Date.now();
+      const finalStatus: TuiEventStatus = success ? 'success' : 'error';
+      this.state = {
+        ...this.state,
+        phases: this.state.phases.map((p) => {
+          if (p.id === this.state.currentPhase && p.status === 'running') {
+            return { ...p, status: finalStatus, endTime, duration: p.startTime ? endTime - p.startTime : 0 };
+          }
+          return p;
+        })
+      };
+    }
     this.setSummary({ success, message, links, consoleUrl });
   }
 

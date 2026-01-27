@@ -18,7 +18,7 @@ import {
 } from '../_utils/initialization';
 import { prepareArtifactsForStackDeployment } from '../deploy';
 
-export const commandStackInfo = async (): Promise<StackInfoReturnValue> => {
+export const commandStackInfo = async () => {
   await initializeStackServicesForWorkingWithDeployedStack({
     commandModifiesStack: false,
     commandRequiresConfig: false

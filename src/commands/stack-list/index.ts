@@ -6,12 +6,12 @@ import { getStacktapeStackInfoFromTemplateDescription, isStacktapeStackDescripti
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { loadUserCredentials } from '../_utils/initialization';
 
-export const commandStackList = async (): Promise<StackListReturnValue> => {
+export const commandStackList = async () => {
   await loadUserCredentials();
 
   const [stacks] = await Promise.all([awsSdkManager.listStacks(), budgetManager.init()]);
   const nonDeletedStacks = stacks.filter(({ StackStatus }) => StackStatus !== StackStatusEnum.DELETE_COMPLETE);
-  const result: StackListReturnValue = nonDeletedStacks.map(
+  const result = nonDeletedStacks.map(
     ({ CreationTime, StackName, StackStatus, StackStatusReason, LastUpdatedTime, TemplateDescription, StackId }) => {
       const spendingInfo = budgetManager.getBudgetInfoForSpecifiedStack({ stackName: StackName });
       return {

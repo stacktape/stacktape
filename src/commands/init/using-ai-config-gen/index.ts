@@ -3,9 +3,6 @@ import { tuiManager } from '@application-services/tui-manager';
 import { configGenManager, type ConfigGenPhaseInfo } from '@utils/config-gen';
 import { pathExists } from 'fs-extra';
 import { basename, relative, join, isAbsolute } from 'node:path';
-import { render, type Instance } from 'ink';
-import React from 'react';
-import { ConfigGenTui } from './tui';
 
 // ============ Types ============
 
@@ -79,22 +76,9 @@ export const initUsingAiConfigGen = async (options: InitUsingAiConfigGenOptions 
     success: false
   };
 
-  let inkInstance: Instance | null = null;
-  let updateTui: ((state: TuiState) => void) | null = null;
-
-  // Check if we're in a TTY environment
   const isTTY = process.stdout.isTTY;
-
-  if (isTTY) {
-    // Start Ink TUI
-    const TuiWrapper = () => {
-      const [state, setState] = React.useState<TuiState>(tuiState);
-      updateTui = setState;
-      return React.createElement(ConfigGenTui, state);
-    };
-
-    inkInstance = render(React.createElement(TuiWrapper), { patchConsole: false });
-  }
+  let lastPhase = tuiState.phase;
+  let lastFilesRead = tuiState.filesRead;
 
   // Progress callback
   const onProgress = (info: ConfigGenPhaseInfo) => {
@@ -108,12 +92,18 @@ export const initUsingAiConfigGen = async (options: InitUsingAiConfigGenOptions 
       filesToRead: info.details?.filesToRead ?? tuiState.filesToRead
     };
 
-    if (updateTui) {
-      updateTui(tuiState);
+    const phaseChanged = tuiState.phase !== lastPhase;
+    const filesChanged = tuiState.filesRead !== lastFilesRead && tuiState.filesToRead > 0;
+
+    if (isTTY && (phaseChanged || filesChanged)) {
+      const detail = filesChanged && tuiState.filesToRead > 0 ? ` (${tuiState.filesRead}/${tuiState.filesToRead})` : '';
+      console.info(`${tuiManager.colorize('cyan', '›')} ${tuiState.phase}: ${tuiState.message}${detail}`);
     } else if (!isTTY) {
-      // Fallback for non-TTY: print progress
-      console.log(`  ${info.message}`);
+      console.info(`  ${info.message}`);
     }
+
+    if (phaseChanged) lastPhase = tuiState.phase;
+    if (filesChanged) lastFilesRead = tuiState.filesRead;
   };
 
   try {
@@ -122,15 +112,8 @@ export const initUsingAiConfigGen = async (options: InitUsingAiConfigGenOptions 
 
     // Update TUI to show completion
     tuiState = { ...tuiState, completed: true, success: true };
-    if (updateTui) {
-      updateTui(tuiState);
-    }
-
-    // Unmount TUI before prompting
-    if (inkInstance) {
-      await new Promise((resolve) => setTimeout(resolve, 100));
-      inkInstance.unmount();
-      inkInstance = null;
+    if (isTTY) {
+      console.info(tuiManager.colorize('green', '✓ Configuration generated'));
     }
 
     // Show what was detected
@@ -199,16 +182,6 @@ export const initUsingAiConfigGen = async (options: InitUsingAiConfigGenOptions 
       success: false,
       error: error instanceof Error ? error.message : String(error)
     };
-    if (updateTui) {
-      updateTui(tuiState);
-    }
-
-    // Unmount TUI
-    if (inkInstance) {
-      await new Promise((resolve) => setTimeout(resolve, 100));
-      inkInstance.unmount();
-    }
-
     tuiManager.info('');
     throw error;
   }

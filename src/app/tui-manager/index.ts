@@ -11,6 +11,12 @@ import { eventManager } from '@application-services/event-manager';
 import { INVOKED_FROM_ENV_VAR_NAME, IS_DEV, linksMap } from '@config';
 import { getRelativePath, transformToUnixPath } from '@shared/utils/fs-utils';
 import { logCollectorStream } from '@utils/log-collector';
+import {
+  box as clackBox,
+  log as clackLog,
+  note as clackNote,
+  updateSettings as clackUpdateSettings
+} from '@clack/prompts';
 import ci from 'ci-info';
 import kleur from 'kleur';
 import terminalLink from 'terminal-link';
@@ -21,6 +27,7 @@ import { createSpinner, createSpinnerProgressLogger, MultiSpinner } from './spin
 import { tuiState } from './state';
 import { formatDuration, stripAnsi } from './utils';
 
+export { UserCancelledError } from './prompts';
 export type { Spinner } from './spinners';
 export { MultiSpinner } from './spinners';
 export { tuiState } from './state';
@@ -73,6 +80,7 @@ class TuiManager {
   private _isEnabled = false;
   private _isPaused = false;
   private _wasEverStarted = false;
+  private _headerCommitted = false;
   private _devTuiActive = false;
   private logFormat: LogFormat = 'fancy';
   private logLevel: LogLevel = 'info';
@@ -104,6 +112,7 @@ class TuiManager {
     this.logLevel = options.logLevel || 'info';
     this.isTTY = process.stdout.isTTY && !ci.isCI && this.logFormat === 'fancy';
     this.promptManager = new PromptManager(this.colorize.bind(this), this.isTTY);
+    clackUpdateSettings({ withGuide: false });
   }
 
   /**
@@ -117,15 +126,23 @@ class TuiManager {
 
     this._isEnabled = true;
     this._wasEverStarted = true;
+    this._headerCommitted = false;
     tuiState.reset();
 
     if (this.isTTY) {
       this.ttyRenderer = new TtyRenderer(this.colorize.bind(this), this.makeBold.bind(this));
       this.ttyRenderer.start();
 
-      // Subscribe to state changes and re-render
+      // Subscribe to state changes and re-render (skip while paused)
       this.unsubscribe = tuiState.subscribe((state) => {
-        this.ttyRenderer?.render(state);
+        if (!this._isPaused && this.ttyRenderer) {
+          // Commit header once (uses clackBox, writes directly to stdout)
+          if (state.header && !this._headerCommitted) {
+            this._headerCommitted = true;
+            this.ttyRenderer.commitHeader(state);
+          }
+          this.ttyRenderer.render(state);
+        }
       });
 
       // Set up render interval for spinner animation
@@ -157,8 +174,15 @@ class TuiManager {
     }
 
     if (this.ttyRenderer) {
+      // Final render to commit completed phases
       this.ttyRenderer.render(tuiState.getState());
+      // Clear dynamic content and stop spinner
       this.ttyRenderer.stop();
+      // Commit summary using clack note
+      const state = tuiState.getState();
+      if (state.summary) {
+        this.ttyRenderer.commitSummary(state);
+      }
       this.ttyRenderer = null;
     }
 
@@ -185,7 +209,7 @@ class TuiManager {
     this._isPaused = true;
 
     if (this.ttyRenderer) {
-      this.ttyRenderer.stop();
+      this.ttyRenderer.pause(tuiState.getState());
     }
   }
 
@@ -197,7 +221,7 @@ class TuiManager {
     this._isPaused = false;
 
     if (this.isTTY && this.ttyRenderer) {
-      this.ttyRenderer.start();
+      this.ttyRenderer.resume();
     }
   }
 
@@ -246,6 +270,10 @@ class TuiManager {
     this.log('hint', message);
   }
 
+  question(message: string) {
+    this.log('question', message);
+  }
+
   announcement(message: string, highlight?: boolean) {
     const formattedMessage = highlight ? `★  ${this.makeBold(message)}` : message;
     this.log('announcement', formattedMessage);
@@ -266,19 +294,50 @@ class TuiManager {
   }
 
   private printToConsole(type: TuiMessageType, message: string) {
-    const symbols: Record<TuiMessageType, { symbol: string; color: string }> = {
-      info: { symbol: 'ℹ', color: 'cyan' },
-      success: { symbol: '✓', color: 'green' },
-      error: { symbol: '✖', color: 'red' },
-      warn: { symbol: '⚠', color: 'yellow' },
-      debug: { symbol: '⚙', color: 'gray' },
-      hint: { symbol: '💡', color: 'blue' },
-      start: { symbol: '▶', color: 'magenta' },
-      announcement: { symbol: '★', color: 'magenta' }
-    };
-    const { symbol, color } = symbols[type];
-    const coloredSymbol = this.colorize(color, symbol);
-    console.info(`${coloredSymbol} ${message}`);
+    if (this.logFormat === 'fancy') {
+      switch (type) {
+        case 'info':
+          clackLog.info(message);
+          break;
+        case 'success':
+          clackLog.success(message);
+          break;
+        case 'error':
+          clackLog.error(message);
+          break;
+        case 'warn':
+          clackLog.warn(message);
+          break;
+        case 'debug':
+          clackLog.step(this.colorize('gray', `⚙ ${message}`));
+          break;
+        case 'hint':
+          clackLog.info(this.colorize('blue', `💡 ${message}`));
+          break;
+        case 'question':
+          clackLog.message(this.colorize('cyan', `? ${message}`));
+          break;
+        case 'start':
+        case 'announcement':
+          clackLog.step(message);
+          break;
+        default:
+          clackLog.message(message);
+      }
+    } else {
+      const symbols: Record<TuiMessageType, string> = {
+        info: '[i]',
+        success: '[+]',
+        error: '[x]',
+        warn: '[!]',
+        debug: '[.]',
+        hint: '[?]',
+        question: '[?]',
+        start: '[>]',
+        announcement: '[*]'
+      };
+      console.info(`${symbols[type] || '[*]'} ${message}`);
+    }
   }
 
   // ─── TUI State Management ───
@@ -293,6 +352,10 @@ class TuiManager {
 
   setStreamingMode(enabled: boolean) {
     tuiState.setStreamingMode(enabled);
+  }
+
+  setShowPhaseHeaders(show: boolean) {
+    tuiState.setShowPhaseHeaders(show);
   }
 
   setHeader(header: TuiDeploymentHeader) {
@@ -381,11 +444,13 @@ class TuiManager {
       }
       const result = await this.promptManager.select(config);
 
-      // Log the selection
-      const selectedOption = config.options.find((o) => o.value === result);
-      console.info(
-        `${this.colorize('cyan', 'ℹ')} ${config.message} ${this.colorize('cyan', selectedOption?.label || result)}`
-      );
+      // Log selection only in non-TTY mode (clack already renders it in TTY)
+      if (!this.isTTY) {
+        const selectedOption = config.options.find((o) => o.value === result);
+        console.info(
+          `${this.colorize('cyan', 'ℹ')} ${config.message} ${this.colorize('cyan', selectedOption?.label || result)}`
+        );
+      }
 
       return result;
     } finally {
@@ -407,10 +472,12 @@ class TuiManager {
       }
       const result = await this.promptManager.multiSelect(config);
 
-      const selectedLabels = result.map((v) => config.options.find((o) => o.value === v)?.label || v).join(', ');
-      console.info(
-        `${this.colorize('cyan', 'ℹ')} ${config.message} ${this.colorize('cyan', selectedLabels || '(none)')}`
-      );
+      if (!this.isTTY) {
+        const selectedLabels = result.map((v) => config.options.find((o) => o.value === v)?.label || v).join(', ');
+        console.info(
+          `${this.colorize('cyan', 'ℹ')} ${config.message} ${this.colorize('cyan', selectedLabels || '(none)')}`
+        );
+      }
 
       return result;
     } finally {
@@ -428,8 +495,10 @@ class TuiManager {
       }
       const result = await this.promptManager.confirm(config);
 
-      const answer = result ? this.colorize('green', 'Yes') : this.colorize('red', 'No');
-      console.info(`${this.colorize('cyan', 'ℹ')} ${config.message} ${answer}`);
+      if (!this.isTTY) {
+        const answer = result ? this.colorize('green', 'Yes') : this.colorize('red', 'No');
+        console.info(`${this.colorize('cyan', 'ℹ')} ${config.message} ${answer}`);
+      }
 
       return result;
     } finally {
@@ -453,8 +522,10 @@ class TuiManager {
       }
       const result = await this.promptManager.text(config);
 
-      const displayValue = config.isPassword ? '*'.repeat(result.length) : result;
-      console.info(`${this.colorize('cyan', 'ℹ')} ${config.message} ${this.colorize('cyan', displayValue)}`);
+      if (!this.isTTY) {
+        const displayValue = config.isPassword ? '*'.repeat(result.length) : result;
+        console.info(`${this.colorize('cyan', 'ℹ')} ${config.message} ${this.colorize('cyan', displayValue)}`);
+      }
 
       return result;
     } finally {
@@ -592,10 +663,89 @@ class TuiManager {
     this._isEnabled = false;
     this._isPaused = false;
 
-    const errorString = renderErrorToString(errorData, this.colorize.bind(this), this.makeBold.bind(this));
-    console.error(errorString);
+    if (this.logFormat === 'fancy') {
+      this.displayErrorWithClack(errorData);
+    } else {
+      const errorString = renderErrorToString(errorData, this.colorize.bind(this), this.makeBold.bind(this));
+      console.error(errorString);
+    }
 
     logCollectorStream.write(`[${errorData.errorType}] ${errorData.message}`);
+  }
+
+  private displayErrorWithClack(errorData: ErrorDisplayData) {
+    const typeLabel = errorData.isExpected === false ? 'Unexpected Error' : this.getErrorLabel(errorData.errorType);
+
+    // Error header box with red border
+    console.error('');
+    clackBox(errorData.message, `✖ ${typeLabel}`, {
+      rounded: false,
+      width: 'auto',
+      titleAlign: 'center',
+      contentAlign: 'left',
+      formatBorder: (text: string) => this.colorize('red', text)
+    });
+
+    // Hints
+    const hints = errorData.hints || [];
+    if (hints.length > 0) {
+      console.error('');
+      console.error(this.makeBold(this.colorize('blue', 'Hints:')));
+      for (const hint of hints) {
+        console.error(`  ${this.colorize('gray', '→')} ${hint}`);
+      }
+    }
+
+    // Stack trace
+    if (errorData.stackTrace) {
+      console.error('');
+      console.error(this.makeBold('Stack trace:'));
+      console.error(this.colorize('gray', errorData.stackTrace));
+    }
+
+    // Error ID
+    if (errorData.sentryEventId) {
+      console.error('');
+      console.error(this.colorize('gray', `Error ID: ${errorData.sentryEventId}`));
+    }
+  }
+
+  private getErrorLabel(errorType: string): string {
+    const labels: Record<string, string> = {
+      API_KEY: 'API Key Error',
+      API_SERVER: 'API Server Error',
+      AWS_ACCOUNT: 'AWS Account Error',
+      BUDGET: 'Budget Error',
+      CLI: 'CLI Error',
+      CODEBUILD: 'CodeBuild Error',
+      CONFIG: 'Configuration Error',
+      CONFIG_GENERATION: 'Config Generation Error',
+      CONFIG_VALIDATION: 'Config Validation Error',
+      CONFIRMATION_REQUIRED: 'Confirmation Required',
+      CONTAINER: 'Container Error',
+      CREDENTIALS: 'Credentials Error',
+      DIRECTIVE: 'Directive Error',
+      DOCKER: 'Docker Error',
+      DOMAIN_MANAGEMENT: 'Domain Management Error',
+      EXISTING_STACK: 'Existing Stack Error',
+      INPUT: 'Input Error',
+      MISSING_OUTPUT: 'Missing Output Error',
+      MISSING_PREREQUISITE: 'Missing Prerequisite',
+      NON_EXISTING_RESOURCE: 'Resource Not Found',
+      NON_EXISTING_STACK: 'Stack Not Found',
+      NOT_YET_IMPLEMENTED: 'Not Yet Implemented',
+      PACKAGING_CONFIG: 'Packaging Config Error',
+      PARAMETER: 'Parameter Error',
+      RUNTIME: 'Runtime Error',
+      SCRIPT: 'Script Error',
+      SOURCE_CODE: 'Source Code Error',
+      STACK: 'Stack Error',
+      STACK_MONITORING: 'Stack Monitoring Error',
+      SUBSCRIPTION_REQUIRED: 'Subscription Required',
+      SYNC_BUCKET: 'Bucket Sync Error',
+      UNSUPPORTED_RESOURCE: 'Unsupported Resource'
+    };
+    return labels[errorType] || `${errorType.replace(/_/g, ' ')} Error`;
   }
 
   // ─── Special Output ───
@@ -718,45 +868,44 @@ class TuiManager {
     if (this._isEnabled && this.isTTY) {
       this.pause();
     }
-    const output = renderNextStepsToString(steps, this.colorize.bind(this), this.makeBold.bind(this));
-    console.info(output);
+
+    if (this.logFormat === 'fancy') {
+      const noteLines: string[] = [];
+      steps.forEach((step, index) => {
+        let stepLine = `${this.colorize('cyan', `${index + 1}.`)} ${step.text}`;
+        if (step.command) stepLine += ` ${step.command}`;
+        noteLines.push(stepLine);
+        step.details?.forEach((detail) => noteLines.push(`   ${this.colorize('gray', '→')} ${detail}`));
+        step.links?.forEach((link) => noteLines.push(`   ${this.colorize('gray', '→')} ${link}`));
+      });
+      clackNote(noteLines.join('\n'), 'Next steps', { format: (line: string) => line });
+    } else {
+      const output = renderNextStepsToString(steps, this.colorize.bind(this), this.makeBold.bind(this));
+      console.info(output);
+    }
   }
 
   printDevContainerReady({ ports, isWatchMode }: { ports: number[]; isWatchMode: boolean }) {
-    const boxWidth = 50;
-    const horizontalLine = '─'.repeat(boxWidth - 2);
-    const topBorder = `┌${horizontalLine}┐`;
-    const bottomBorder = `└${horizontalLine}┘`;
+    const contentLines: string[] = [];
 
-    const padLine = (content: string, rawContent: string) => {
-      const padding = boxWidth - 4 - rawContent.length;
-      return `│ ${content}${' '.repeat(Math.max(0, padding))} │`;
-    };
-
-    const title = `${this.colorize('green', '✓')} Container ready`;
-    const titleRaw = '✓ Container ready';
+    if (ports.length > 0) {
+      contentLines.push('Ports:');
+      for (const port of ports) {
+        contentLines.push(`  ${this.colorize('cyan', `http://localhost:${port}`)}`);
+      }
+    }
 
     const hint = isWatchMode
       ? 'Watching for file changes'
       : `Type '${this.makeBold('rs + enter')}' to rebuild and restart`;
-    const hintRaw = isWatchMode ? 'Watching for file changes' : "Type 'rs + enter' to rebuild and restart";
+    contentLines.push(hint);
 
-    const lines = [topBorder, padLine(title, titleRaw)];
-
-    if (ports.length > 0) {
-      const portsLabel = 'Ports:';
-      lines.push(padLine(portsLabel, portsLabel));
-      for (const port of ports) {
-        const url = `http://localhost:${port}`;
-        const urlColored = this.colorize('cyan', url);
-        lines.push(padLine(`  ${urlColored}`, `  ${url}`));
-      }
-    }
-
-    lines.push(padLine(hint, hintRaw));
-    lines.push(bottomBorder);
-
-    console.info(lines.join('\n'));
+    clackBox(contentLines.join('\n'), `${this.colorize('green', '✓')} Container ready`, {
+      rounded: true,
+      width: 'auto',
+      titleAlign: 'left',
+      contentAlign: 'left'
+    });
   }
 }
 

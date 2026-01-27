@@ -1,6 +1,6 @@
 import type { ExpectedError } from '@utils/errors';
 import { globalStateManager } from '@application-services/global-state-manager';
-import { tuiManager } from '@application-services/tui-manager';
+import { tuiManager, UserCancelledError } from '@application-services/tui-manager';
 import { IS_DEV, IS_TELEMETRY_DISABLED } from '@config';
 import { propertyFromObjectOrNull } from '@shared/utils/misc';
 import { attemptToGetUsefulExpectedError, getErrorDetails, getReturnableError, UnexpectedError } from '@utils/errors';
@@ -70,6 +70,9 @@ export class ApplicationManager {
     if (this.isInterrupted) {
       return;
     }
+    if (err instanceof UserCancelledError) {
+      return this.handleExitSignal('SIGINT');
+    }
     const stacktapeError = getStacktapeError(err);
     tuiManager.stop();
     this.cancelPendingPromises(stacktapeError);
@@ -103,10 +106,18 @@ export class ApplicationManager {
       await this.reportTelemetryEvent({ outcome: 'USER_INTERRUPTION' });
     }
     if (this.usesStdinWatch) {
+      if (process.stdin.isTTY && process.stdin.isRaw) {
+        process.stdin.setRawMode(false);
+      }
       process.stdin.destroy();
     }
     await this.cleanUp({ success: false, interrupted: true });
     process.removeAllListeners();
+    process.exitCode = 0;
+    if (globalStateManager.command === 'dev') {
+      process.exit(0);
+      return;
+    }
     return kill(process.pid, () => {
       process.exit(0);
     });
@@ -166,6 +177,10 @@ export class ApplicationManager {
     type: 'UNCAUGHT EXCEPTION' | 'UNHANDLED PROMISE REJECTION';
   }) => {
     if (this.isErrored || this.isInterrupted) {
+      return;
+    }
+    if (err instanceof UserCancelledError) {
+      this.handleExitSignal('SIGINT');
       return;
     }
     if (IS_DEV) {

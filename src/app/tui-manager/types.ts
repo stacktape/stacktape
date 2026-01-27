@@ -55,7 +55,16 @@ export type TuiSummary = {
   consoleUrl?: string;
 };
 
-export type TuiMessageType = 'info' | 'warn' | 'error' | 'success' | 'debug' | 'hint' | 'start' | 'announcement';
+export type TuiMessageType =
+  | 'info'
+  | 'warn'
+  | 'error'
+  | 'success'
+  | 'debug'
+  | 'hint'
+  | 'question'
+  | 'start'
+  | 'announcement';
 
 export type TuiMessage = {
   id: string;
@@ -74,7 +83,8 @@ export type TuiDeploymentHeader = {
   projectName: string;
   stageName: string;
   region: string;
-  action: 'DEPLOYING' | 'DELETING' | 'UPDATING' | 'PREVIEWING CHANGES';
+  action: 'DEPLOYING' | 'DEPLOYING DEV STACK' | 'DELETING' | 'UPDATING' | 'PREVIEWING CHANGES';
+  subtitle?: string;
 };
 
 export type TuiSelectOption = {
@@ -141,6 +151,8 @@ export type TuiState = {
   activePrompt?: TuiPrompt;
   /** When true, hides dynamic phase rendering to allow console.log streaming */
   streamingMode?: boolean;
+  /** When false, phase headers are hidden in TUI output */
+  showPhaseHeaders?: boolean;
   /** When true, the TUI is about to stop and phases should be finalized */
   isFinalizing?: boolean;
   /** Stored completion info to be committed after hooks finish */

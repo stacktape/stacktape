@@ -665,7 +665,12 @@ export const ensureDefaultExport = (content: string): string => {
   for (const exportBlock of handlerExportMatch) {
     // Match: `handler` or `something as handler`
     if (/\bhandler\b/.test(exportBlock)) {
-      // Append re-export of handler as default
+      const sourceMapMatch = content.match(/\/\/[#@]\s*sourceMappingURL=.*(?:\r?\n)?$/);
+      if (sourceMapMatch) {
+        const sourceMapComment = sourceMapMatch[0];
+        const contentWithoutSourceMap = content.slice(0, -sourceMapComment.length);
+        return `${contentWithoutSourceMap}\nexport { handler as default };\n${sourceMapComment}`;
+      }
       return `${content}\nexport { handler as default };\n`;
     }
   }
