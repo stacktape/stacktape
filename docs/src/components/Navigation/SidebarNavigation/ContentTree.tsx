@@ -1,36 +1,52 @@
 import { useRouter } from 'next/router';
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { ContentTreeGroup } from './ContentTreeGroup';
 import { getNavigationTree } from './navigation-data';
 
-const getInitialExpandedNavItems = (treeData, pathname: string) => {
-  const res = {};
+const getExpandedNavItems = (treeData: any[], pathname: string) => {
+  const res: Record<string, boolean> = {};
+  // Normalize pathname by removing trailing slash
+  const normalizedPath = pathname.replace(/\/$/, '') || '/';
+
   for (const group of treeData) {
+    if (!group.children) continue;
     for (const child of group.children) {
-      res[child.url] =
-        pathname === child.url ||
-        pathname === `${child.url}/` ||
-        child.children.some((nestedChild) => nestedChild.url === pathname || `${nestedChild.url}/` === pathname);
+      const childUrl = child.url;
+      const isMatch =
+        normalizedPath === childUrl ||
+        (child.children && child.children.some((nestedChild: any) => normalizedPath === nestedChild.url));
+      res[childUrl] = isMatch;
     }
   }
   return res;
 };
 
 export function ContentTree({ allDocPages }: { allDocPages: MdxPageDataForNavigation[] }) {
-  const [navigationTree] = useState(() => getNavigationTree(allDocPages || []));
+  // Use useMemo to ensure navigation tree is computed deterministically
+  // and only recomputed when allDocPages changes
+  const navigationTree = useMemo(() => {
+    return getNavigationTree(allDocPages || []);
+  }, [allDocPages]);
+
   const router = useRouter();
-  const [expandedNavItems, setExpandedNavItems] = useState(() =>
-    getInitialExpandedNavItems(navigationTree, router.asPath)
-  );
+
+  // Use empty object for initial render to avoid hydration mismatch
+  // router.asPath can differ between server/client (query params, hash, etc.)
+  const [expandedNavItems, setExpandedNavItems] = useState<Record<string, boolean>>({});
+
+  // Only update expanded items on client after hydration
+  useEffect(() => {
+    setExpandedNavItems(getExpandedNavItems(navigationTree, router.asPath));
+  }, [navigationTree, router.asPath]);
 
   return (
     <div css={{ width: '100%' }}>
-      {(navigationTree as unknown as any[]).map((groupData, idx) => {
+      {navigationTree.map((groupData, idx) => {
         return (
           <ContentTreeGroup
             expandedNavItems={expandedNavItems}
             setExpandedNavItems={setExpandedNavItems}
-            key={idx}
+            key={groupData.id || idx}
             {...groupData}
           />
         );

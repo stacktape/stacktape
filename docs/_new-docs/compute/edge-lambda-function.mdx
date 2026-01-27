@@ -1,0 +1,395 @@
+---
+title: 'Edge Lambda Function'
+order: 8
+---
+
+# Edge Lambda Function
+
+Edge Lambda functions run at CloudFront edge locations worldwide. They intercept and modify requests/responses as they flow through the CDN.
+
+**Type:** `edge-lambda-function`
+
+## When to Use
+
+**Advantages:**
+
+- **Global execution**: Runs at 400+ CloudFront edge locations
+- **Ultra-low latency**: Executes close to users
+- **CDN integration**: Intercept requests before they reach your origin
+- **Immediate responses**: Return responses without hitting origin
+
+**Disadvantages:**
+
+- **Limited runtimes**: Node.js and Python only
+- **Strict limits**: Memory, timeout, and package size constraints
+- **No VPC access**: Cannot connect to databases or VPC resources
+- **No environment variables**: Must hardcode or fetch config at runtime
+
+**Best for:** Authentication, header manipulation, URL rewrites, A/B testing, geo-based routing.
+
+## Basic Example
+
+```yaml
+resources:
+  authFunction:
+    type: edge-lambda-function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/auth.ts
+
+  uploads:
+    type: bucket
+    properties:
+      cdn:
+        enabled: true
+        edgeFunctions:
+          onRequest: authFunction
+```
+
+```typescript
+// src/auth.ts
+export default async (event) => {
+  const { request } = event.Records[0].cf;
+  const authHeader = request.headers.authorization?.[0]?.value;
+
+  if (!authHeader || !isValidToken(authHeader)) {
+    return {
+      status: '401',
+      body: 'Unauthorized'
+    };
+  }
+
+  return request; // Allow request to continue
+};
+```
+
+## Trigger Points
+
+Edge functions hook into four points in the CloudFront request lifecycle:
+
+| Trigger            | Event           | When                                | Use Case              |
+| ------------------ | --------------- | ----------------------------------- | --------------------- |
+| `onRequest`        | viewer-request  | Request received from client        | Auth, URL rewrites    |
+| `onResponse`       | viewer-response | Before response sent to client      | Add headers, cookies  |
+| `onOriginRequest`  | origin-request  | After cache miss, before origin     | Modify origin request |
+| `onOriginResponse` | origin-response | After origin response, before cache | Transform response    |
+
+```yaml
+cdn:
+  enabled: true
+  edgeFunctions:
+    onRequest: authFunction # viewer-request
+    onResponse: cookieFunction # viewer-response
+    onOriginRequest: rewriteFunc # origin-request
+    onOriginResponse: compressFunc # origin-response
+```
+
+### Request Flow
+
+```
+Client → [onRequest] → Cache Check → [onOriginRequest] → Origin
+                                                            ↓
+Client ← [onResponse] ← Cache ← [onOriginResponse] ←───────┘
+```
+
+## Limits by Trigger Type
+
+| Limit             | Viewer Events | Origin Events |
+| ----------------- | ------------- | ------------- |
+| **Memory**        | 128 MB max    | 10,240 MB max |
+| **Timeout**       | 5 seconds     | 30 seconds    |
+| **Package Size**  | 1 MB zipped   | 50 MB zipped  |
+| **Response Size** | 40 KB         | 1 MB          |
+
+Viewer events (`onRequest`, `onResponse`) are more restrictive because they run on every request. Origin events only run on cache misses.
+
+## Packaging
+
+### Stacktape Lambda Buildpack
+
+```yaml
+packaging:
+  type: stacktape-lambda-buildpack
+  properties:
+    entryfilePath: src/edge-handler.ts
+```
+
+### Custom Artifact
+
+```yaml
+packaging:
+  type: custom-artifact
+  properties:
+    artifactPath: ./dist/edge-function.zip
+    runtime: nodejs20.x
+    handler: index.handler
+```
+
+## Supported Runtimes
+
+Node.js:
+
+- `nodejs24.x`
+- `nodejs22.x`
+- `nodejs20.x`
+- `nodejs18.x`
+
+Python:
+
+- `python3.13`
+- `python3.12`
+- `python3.11`
+- `python3.10`
+- `python3.9`
+- `python3.8`
+
+<Warning>Edge Lambda only supports x86_64 architecture. ARM64 is not available.</Warning>
+
+## Resource Configuration
+
+```yaml
+resources:
+  myEdgeFunction:
+    type: edge-lambda-function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/handler.ts
+      memory: 128 # Max 128 for viewer events
+      timeout: 5 # Max 5 seconds for viewer events
+```
+
+## Connecting to Resources
+
+You can grant IAM permissions to other resources:
+
+```yaml
+resources:
+  config:
+    type: bucket
+
+  edgeFunc:
+    type: edge-lambda-function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/handler.ts
+      connectTo:
+        - config
+```
+
+<Warning>
+  While you can grant permissions, accessing resources from edge functions adds latency. The function runs globally but
+  resources are in a specific region. Consider caching or using a different architecture.
+</Warning>
+
+## Common Patterns
+
+### Authentication
+
+```yaml
+resources:
+  authCheck:
+    type: edge-lambda-function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/auth.ts
+
+  website:
+    type: bucket
+    properties:
+      cdn:
+        enabled: true
+        edgeFunctions:
+          onRequest: authCheck
+```
+
+```typescript
+// src/auth.ts
+export default async (event) => {
+  const { request } = event.Records[0].cf;
+  const token = request.headers.authorization?.[0]?.value;
+
+  if (!token || !isValid(token)) {
+    return {
+      status: '302',
+      headers: {
+        location: [{ key: 'Location', value: '/login' }]
+      }
+    };
+  }
+
+  return request;
+};
+```
+
+### Add Security Headers
+
+```typescript
+// src/security-headers.ts
+export default async (event) => {
+  const { response } = event.Records[0].cf;
+
+  response.headers['strict-transport-security'] = [
+    { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubdomains' }
+  ];
+  response.headers['x-content-type-options'] = [{ key: 'X-Content-Type-Options', value: 'nosniff' }];
+  response.headers['x-frame-options'] = [{ key: 'X-Frame-Options', value: 'DENY' }];
+
+  return response;
+};
+```
+
+### URL Rewrite
+
+```typescript
+// src/rewrite.ts
+export default async (event) => {
+  const { request } = event.Records[0].cf;
+
+  // Rewrite /api/* to /v2/api/*
+  if (request.uri.startsWith('/api/')) {
+    request.uri = '/v2' + request.uri;
+  }
+
+  // Add .html to paths without extension
+  if (!request.uri.includes('.') && !request.uri.endsWith('/')) {
+    request.uri = request.uri + '.html';
+  }
+
+  return request;
+};
+```
+
+### A/B Testing
+
+```typescript
+// src/ab-test.ts
+export default async (event) => {
+  const { request } = event.Records[0].cf;
+
+  // Check for existing cookie
+  const cookies = request.headers.cookie?.[0]?.value || '';
+  const variant = cookies.includes('ab-variant=b') ? 'b' : 'a';
+
+  // Route to variant
+  if (variant === 'b' && request.uri === '/') {
+    request.uri = '/variant-b/index.html';
+  }
+
+  return request;
+};
+```
+
+### Set Cookie
+
+```typescript
+// src/set-cookie.ts
+export default async (event) => {
+  const { response } = event.Records[0].cf;
+
+  response.headers['set-cookie'] = [{ key: 'Set-Cookie', value: 'visited=true; Path=/; Max-Age=86400' }];
+
+  return response;
+};
+```
+
+### Geo-Based Routing
+
+```typescript
+// src/geo-route.ts
+export default async (event) => {
+  const { request } = event.Records[0].cf;
+
+  // CloudFront adds geo headers
+  const country = request.headers['cloudfront-viewer-country']?.[0]?.value;
+
+  if (country === 'DE' || country === 'AT' || country === 'CH') {
+    request.uri = '/de' + request.uri;
+  } else if (country === 'FR') {
+    request.uri = '/fr' + request.uri;
+  }
+
+  return request;
+};
+```
+
+## Edge Lambda vs Regular Lambda
+
+| Feature      | Edge Lambda        | Regular Lambda   |
+| ------------ | ------------------ | ---------------- |
+| **Location** | CloudFront edges   | Single region    |
+| **Latency**  | Lower (near users) | Varies by region |
+| **Memory**   | 128 MB - 10 GB     | 128 MB - 10 GB   |
+| **Timeout**  | 5-30 seconds       | Up to 15 minutes |
+| **Package**  | 1-50 MB            | 250 MB           |
+| **VPC**      | No                 | Yes              |
+| **Env vars** | No                 | Yes              |
+| **Runtimes** | Node.js, Python    | All              |
+| **Triggers** | CDN only           | Many             |
+| **Logs**     | Multi-region       | Single region    |
+
+**Use edge lambda when:**
+
+- You need to run code at CloudFront edges
+- Ultra-low latency is critical
+- You're doing auth, redirects, or header manipulation
+
+**Use regular lambda when:**
+
+- You need VPC access
+- Longer execution times required
+- Need environment variables
+- Complex dependencies
+
+## Logging
+
+Logs are written to CloudWatch in the region where the function executed. This means logs may be in multiple regions.
+
+```yaml
+logging:
+  retention: 14 # days
+```
+
+To view logs from all regions:
+
+```bash
+# Logs may be in multiple regions
+stacktape logs --stage dev --resourceName authFunction --region us-east-1
+stacktape logs --stage dev --resourceName authFunction --region eu-west-1
+```
+
+## Limitations Summary
+
+- **No VPC access**: Cannot connect to databases or private resources
+- **No environment variable injection**: Hardcode values or fetch at runtime
+- **Limited runtimes**: Node.js and Python only, x86_64 only
+- **No Lambda layers**: Cannot use shared code layers
+- **No provisioned concurrency**: Cannot pre-warm instances
+- **Multi-region deployment**: Slower deployment than regional Lambda
+- **Response size limits**: 40KB for viewer events, 1MB for origin events
+
+## Pricing
+
+Lambda@Edge pricing (higher than regional Lambda):
+
+- **Requests**: $0.60 per 1 million requests
+- **Duration**: $0.00000625125 per 128MB per 100ms
+
+**Example**: 10 million requests/month, 50ms average:
+
+- Requests: 10M × $0.60/M = $6.00
+- Duration: 10M × 0.5 × $0.00000625125 = $31.26
+- **Total: ~$37/month**
+
+Compare to regional Lambda which would be ~$10/month for the same workload.
+
+## API Reference
+
+<PropertiesTable definitionName="EdgeLambdaFunctionConfig" />

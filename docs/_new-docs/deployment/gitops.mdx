@@ -1,0 +1,141 @@
+---
+title: 'GitOps'
+order: 3
+---
+
+# GitOps
+
+GitOps lets you automatically deploy your infrastructure when you push to specific branches. Connect your GitHub or GitLab repository to Stacktape Console, and deployments happen automatically.
+
+## How It Works
+
+1. Connect your repository in [Stacktape Console](https://console.stacktape.com)
+2. Configure which branches trigger deployments
+3. Push code to trigger automatic deployment
+4. View deployment status and logs in the console
+
+## Setting Up GitOps
+
+### 1. Connect Your Repository
+
+1. Go to [console.stacktape.com](https://console.stacktape.com)
+2. Navigate to your project
+3. Click **Connect Repository**
+4. Authorize Stacktape to access your GitHub or GitLab account
+5. Select the repository
+
+### 2. Configure Branch Deployments
+
+Map branches to stages:
+
+| Branch    | Stage        | Description             |
+| --------- | ------------ | ----------------------- |
+| `main`    | `production` | Production deployments  |
+| `staging` | `staging`    | Pre-production testing  |
+| `develop` | `dev`        | Development environment |
+
+### 3. Push to Deploy
+
+Once configured, pushing to a mapped branch triggers a deployment:
+
+```bash
+git push origin main  # Deploys to production
+```
+
+## PR Preview Environments
+
+Stacktape can automatically create preview environments for pull requests:
+
+1. Enable PR previews in Console
+2. Open a pull request
+3. Stacktape deploys a temporary environment
+4. PR comment shows the preview URL
+5. Environment is deleted when PR is merged/closed
+
+This lets reviewers test changes in isolation before merging.
+
+## Deployment Status
+
+View deployment status:
+
+- **In Console** - Real-time logs and status in Stacktape Console
+- **GitHub/GitLab** - Deployment status checks on commits and PRs
+- **Notifications** - Configure Slack or email notifications
+
+## Configuration
+
+You can customize GitOps behavior in your Stacktape config or Console:
+
+### Custom Stage Names
+
+Use dynamic stage names based on branch:
+
+```
+feature/login → stage: feature-login
+bugfix/header → stage: bugfix-header
+```
+
+### Deployment Triggers
+
+Configure what triggers deployments:
+
+- Push to branch
+- Pull request opened/updated
+- Manual trigger from Console
+
+### Build Settings
+
+Specify build requirements:
+
+- Node.js version
+- Docker availability
+- Environment variables
+- Build commands
+
+## Best Practices
+
+### Branch Strategy
+
+```
+main (production)
+├── staging (pre-production testing)
+└── develop (integration)
+    ├── feature/user-auth
+    ├── feature/payment
+    └── bugfix/header-style
+```
+
+### Protect Production
+
+- Require PR reviews before merging to `main`
+- Use staging branch for pre-production testing
+- Enable deployment approvals for production
+
+### Use Preview Environments
+
+- Enable PR previews for all feature branches
+- Include preview URL in PR template
+- Test in preview before merging
+
+## Comparison with External CI/CD
+
+| Feature            | GitOps (Stacktape Console) | External CI/CD        |
+| ------------------ | -------------------------- | --------------------- |
+| Setup complexity   | Low (click to connect)     | Medium (write YAML)   |
+| Configuration      | Console UI                 | Pipeline files        |
+| Build environment  | Managed by Stacktape       | Your CI provider      |
+| Logs               | Stacktape Console          | CI provider + Console |
+| PR previews        | Built-in                   | Manual setup          |
+| Custom build steps | Limited                    | Full control          |
+
+**Use GitOps when:**
+
+- You want the simplest setup
+- You don't need custom build steps
+- You want built-in PR previews
+
+**Use External CI/CD when:**
+
+- You have existing pipelines
+- You need custom test/build steps
+- You need complex multi-stage pipelines

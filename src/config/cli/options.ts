@@ -134,6 +134,14 @@ Specifies which dev mode to use:
 - \`normal\` (default): Deploys a minimal "dev stack" to AWS (IAM roles, secrets only) and runs workloads locally. Databases (PostgreSQL, MySQL, DynamoDB) and Redis are emulated locally using Docker. Tunnels are automatically created so Lambda functions can reach local databases.
 - \`legacy\`: Requires an already deployed stack. Runs selected workloads locally while connecting to all deployed AWS resources. No local database emulation - uses deployed databases directly. Useful for testing against production-like data.`);
 
+export const agent = z.boolean().describe(`#### Agent Mode
+---
+If \`true\`, runs dev mode with the agent HTTP server for programmatic control and status polling. Use \`--agentPort\` to set the port.`);
+
+export const agentPort = z.number().describe(`#### Agent Port
+---
+The port for the agent HTTP server. Providing this option enables agent mode.`);
+
 export const startTime = z.union([z.number(), z.string()]).describe(`#### Start Time
 ---
 The start time from which to print logs. This can be any format accepted by the JavaScript \`Date\` constructor.`);
@@ -326,6 +334,8 @@ export const argAliases = {
   resources: 'res',
   skipResources: 'sr',
   devMode: 'dm',
+  agent: 'ag',
+  agentPort: 'ap',
   useAi: 'ai'
 } as const;
 
@@ -390,6 +400,8 @@ export const allCliArgsSchema = z.object({
   resources: resources.optional(),
   skipResources: skipResources.optional(),
   devMode: devMode.optional(),
+  agent: agent.optional(),
+  agentPort: agentPort.optional(),
   useAi: useAi.optional()
 });
 

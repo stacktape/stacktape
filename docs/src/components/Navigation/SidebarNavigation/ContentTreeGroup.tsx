@@ -41,7 +41,7 @@ export function ContentTreeGroup({
             gap: '7px'
           }}
         >
-          {icon({ size: 20 })}
+          {icon && icon({ size: 20 })}
           <span>{title}</span>
         </p>
       )}

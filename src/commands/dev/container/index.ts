@@ -29,7 +29,7 @@ import {
   SourceCodeWatcher
 } from '../utils';
 
-export const runDevContainer = async (): Promise<DevReturnValue> => {
+export const runDevContainer = async () => {
   const { resourceName, container, stage, region, disableEmulation, watch } = globalStateManager.args;
   const resource = configManager.allContainerWorkloads.find(
     (r) => r.nameChain[0] === resourceName

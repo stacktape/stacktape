@@ -1,0 +1,49 @@
+---
+title: 'codebuild:deploy'
+order: 3
+---
+
+# codebuild:deploy
+
+Deploys your stack to AWS using AWS CodeBuild.
+
+This command offloads the deployment process to a dedicated environment within your AWS account, which is useful for resource-intensive projects.
+
+Here's how it works:
+1. Your project is zipped and uploaded to an S3 bucket in your account.
+2. A CodeBuild environment (a dedicated VM) is provisioned.
+3. The deployment begins, and logs are streamed to your terminal in real-time.
+
+Like the `deploy` command, this requires a `stacktape.yml` file.
+
+## Usage
+
+```bash
+stacktape codebuild:deploy --stage <stage> --region <region>
+```
+
+## Options
+
+| Option | Required | Type | Description |
+|--------|----------|------|-------------|
+| `--profile` (-p) | No | string |  |
+| `--logFormat` (-lf) | No | string |  |
+| `--logLevel` (-ll) | No | string |  |
+| `--help` (-h) | No | string |  |
+| `--awsAccount` (-aa) | No | string |  |
+| `--stage` (-s) | Yes | string |  |
+| `--region` (-r) | Yes | string |  |
+| `--projectName` (-prj) | No | string |  |
+| `--configPath` (-cp) | No | string |  |
+| `--currentWorkingDirectory` (-cwd) | No | string |  |
+| `--templateId` (-ti) | No | string |  |
+| `--disableDriftDetection` (-ddd) | No | string |  |
+| `--preserveTempFiles` (-ptf) | No | string |  |
+| `--dockerArgs` (-da) | No | string |  |
+| `--noCache` (-nc) | No | string |  |
+| `--disableDockerRemoteCache` (-drc) | No | string |  |
+| `--disableAutoRollback` (-dar) | No | string |  |
+| `--autoConfirmOperation` (-aco) | No | string |  |
+| `--showSensitiveValues` (-ssv) | No | string |  |
+| `--hotSwap` (-hs) | No | string |  |
+| `--disableLayerOptimization` (-dlo) | No | string |  |

@@ -1,0 +1,349 @@
+---
+title: 'Quick Start'
+order: 1
+---
+
+# Quick Start
+
+Get your first app deployed to AWS in under 10 minutes.
+
+## Prerequisites
+
+Before you begin, you'll need:
+
+1. **An AWS account** - [Create one here](https://portal.aws.amazon.com/billing/signup) if you don't have one
+2. **Node.js 18+** - For running Stacktape CLI
+3. **Docker** - Required for container builds and local development
+
+## Step 1: Install Stacktape
+
+```bash
+npm install -g stacktape
+```
+
+Verify the installation:
+
+```bash
+stacktape --version
+```
+
+<Info>
+Alternative installation methods:
+
+```bash
+# macOS
+curl -L https://installs.stacktape.com/macos.sh | sh
+
+# Linux
+curl -L https://installs.stacktape.com/linux.sh | sh
+
+# Windows (PowerShell)
+iwr https://installs.stacktape.com/windows.ps1 -useb | iex
+```
+
+</Info>
+
+## Step 2: Login and Connect AWS
+
+### Login to Stacktape
+
+```bash
+stacktape login
+```
+
+This opens your browser to authenticate. If you don't have a Stacktape account, one will be created.
+
+### Connect Your AWS Account
+
+1. Go to [console.stacktape.com/aws-accounts](https://console.stacktape.com/aws-accounts)
+2. Click **"Connect your AWS account"**
+3. Enter a name for the account and click **"Connect Account in AWS Console"**
+4. In the AWS Console, confirm the CloudFormation stack creation
+5. Wait ~1 minute for the connection to complete
+
+The connection creates an IAM role that allows Stacktape to deploy resources to your AWS account.
+
+### Configure AWS Credentials
+
+For local deployments, configure your AWS credentials:
+
+```bash
+stacktape aws-profile:create
+```
+
+You'll be prompted for:
+
+- **Profile name** (e.g., `default`)
+- **AWS Access Key ID**
+- **AWS Secret Access Key**
+
+<Info>
+  To get AWS credentials: 1. Go to [AWS Console](https://console.aws.amazon.com) → Your username → **Security
+  credentials** 2. Under "Access keys", click **Create access key** 3. Download or copy the credentials
+</Info>
+
+## Step 3: Create Your Project
+
+Create a new directory and initialize your project:
+
+```bash
+mkdir my-api && cd my-api
+npm init -y
+npm install stacktape
+```
+
+Create `stacktape.ts`:
+
+```typescript
+import {
+  defineConfig,
+  LambdaFunction,
+  HttpApiGateway,
+  HttpApiIntegration,
+  StacktapeLambdaBuildpackPackaging
+} from 'stacktape';
+
+export default defineConfig(() => {
+  // API Gateway to handle HTTP requests
+  const api = new HttpApiGateway({
+    cors: { enabled: true }
+  });
+
+  // Lambda function
+  const handler = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({
+      entryfilePath: './src/handler.ts'
+    }),
+    events: [
+      new HttpApiIntegration({
+        httpApiGatewayName: api.resourceName,
+        method: 'GET',
+        path: '/'
+      })
+    ]
+  });
+
+  return {
+    resources: { api, handler }
+  };
+});
+```
+
+Create `src/handler.ts`:
+
+```typescript
+export const handler = async (event: any) => {
+  return {
+    statusCode: 200,
+    body: JSON.stringify({ message: 'Hello from Stacktape!' })
+  };
+};
+```
+
+## Step 4: Deploy
+
+```bash
+stacktape deploy --stage dev --region us-east-1
+```
+
+Stacktape will:
+
+1. Bundle your code
+2. Upload it to AWS
+3. Create the infrastructure via CloudFormation
+4. Output your API URL
+
+```
+✓ Packaging handler...
+✓ Uploading artifacts...
+✓ Deploying stack my-api-dev...
+
+Stack deployed successfully!
+
+Outputs:
+  api.url: https://abc123.execute-api.us-east-1.amazonaws.com
+```
+
+Test your API:
+
+```bash
+curl https://abc123.execute-api.us-east-1.amazonaws.com
+# {"message":"Hello from Stacktape!"}
+```
+
+## Adding a Database
+
+Let's extend the example with a DynamoDB table:
+
+```typescript
+import {
+  defineConfig,
+  LambdaFunction,
+  HttpApiGateway,
+  HttpApiIntegration,
+  DynamoDbTable,
+  StacktapeLambdaBuildpackPackaging
+} from 'stacktape';
+
+export default defineConfig(() => {
+  // DynamoDB table
+  const database = new DynamoDbTable({
+    primaryKey: {
+      partitionKey: { name: 'id', type: 'string' }
+    }
+  });
+
+  const api = new HttpApiGateway({
+    cors: { enabled: true }
+  });
+
+  const handler = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({
+      entryfilePath: './src/handler.ts'
+    }),
+    // Connect to database - this automatically:
+    // 1. Grants IAM permissions
+    // 2. Injects environment variables (STP_DATABASE_TABLE_NAME, etc.)
+    connectTo: [database],
+    events: [
+      new HttpApiIntegration({
+        httpApiGatewayName: api.resourceName,
+        method: '*',
+        path: '/*'
+      })
+    ]
+  });
+
+  return {
+    resources: { api, handler, database }
+  };
+});
+```
+
+Update `src/handler.ts`:
+
+```typescript
+import { DynamoDBClient, PutItemCommand, ScanCommand } from '@aws-sdk/client-dynamodb';
+
+const client = new DynamoDBClient({});
+const tableName = process.env.STP_DATABASE_TABLE_NAME!;
+
+export const handler = async (event: any) => {
+  const { httpMethod, path } = event.requestContext.http;
+
+  if (httpMethod === 'POST' && path === '/items') {
+    const body = JSON.parse(event.body || '{}');
+    await client.send(
+      new PutItemCommand({
+        TableName: tableName,
+        Item: {
+          id: { S: crypto.randomUUID() },
+          name: { S: body.name }
+        }
+      })
+    );
+    return { statusCode: 201, body: JSON.stringify({ success: true }) };
+  }
+
+  if (httpMethod === 'GET' && path === '/items') {
+    const result = await client.send(new ScanCommand({ TableName: tableName }));
+    return { statusCode: 200, body: JSON.stringify(result.Items) };
+  }
+
+  return { statusCode: 404, body: 'Not found' };
+};
+```
+
+Deploy the update:
+
+```bash
+stacktape deploy --stage dev --region us-east-1
+```
+
+## Development Workflow
+
+### Local Development
+
+Run your app locally while connected to cloud resources:
+
+```bash
+stacktape dev --stage dev --region us-east-1
+```
+
+This:
+
+- Deploys minimal infrastructure (IAM roles, secrets)
+- Runs your Lambda functions locally with hot-reload
+- Emulates DynamoDB locally using Docker
+- Tunnels API Gateway requests to your local machine
+
+### Fast Deploys
+
+For code-only changes, use hot-swap for ~5 second deploys:
+
+```bash
+stacktape deploy --stage dev --region us-east-1 --hotSwap
+```
+
+### View Logs
+
+```bash
+stacktape logs --stage dev --region us-east-1 --resourceName handler
+```
+
+### Delete Stack
+
+When you're done, clean up:
+
+```bash
+stacktape delete --stage dev --region us-east-1
+```
+
+## Set Defaults
+
+Avoid typing `--stage` and `--region` every time:
+
+```bash
+stacktape defaults:configure
+```
+
+Then just run:
+
+```bash
+stacktape deploy
+stacktape dev
+stacktape logs --resourceName handler
+```
+
+## What's Next
+
+<NavBoxGrid columns={2}>
+  <NavBox
+    url="/getting-started/configuration"
+    text="Configuration"
+    description="TypeScript config, directives, connectTo"
+  />
+  <NavBox url="/getting-started/dev-mode" text="Development Mode" description="Local development with hot-reload" />
+  <NavBox url="/compute/lambda-functions" text="Lambda Functions" description="Serverless compute in depth" />
+  <NavBox url="/databases/relational-database" text="PostgreSQL & MySQL" description="Relational databases" />
+</NavBoxGrid>
+
+## Common Issues
+
+### "No AWS credentials found"
+
+Run `stacktape aws-profile:create` to configure your credentials, or set the `AWS_PROFILE` environment variable.
+
+### "Stack is in ROLLBACK state"
+
+The previous deployment failed. Run:
+
+```bash
+stacktape delete --stage dev --region us-east-1
+```
+
+Then deploy again.
+
+### "Permission denied" errors
+
+Ensure your AWS IAM user has `AdministratorAccess` or equivalent permissions for the resources you're deploying.

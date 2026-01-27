@@ -1,7 +1,7 @@
 import type { BunPlugin } from 'bun';
 import type { PackageJsonDepsInfo } from './utils';
 import { existsSync } from 'node:fs';
-import { dirname, isAbsolute, join, resolve } from 'node:path';
+import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 import { NODE_RUNTIME_VERSIONS_WITH_SKIPPED_SDK_V3_PACKAGING } from '@config';
 import { SOURCE_MAP_INSTALL_DIST_PATH } from '@shared/naming/project-fs-paths';
 import { dependencyInstaller } from '@shared/utils/dependency-installer';
@@ -460,6 +460,26 @@ export const buildEsCode = async ({
       if (outputPath !== distPath) {
         const fs = await import('fs-extra');
         await fs.move(outputPath, distPath, { overwrite: true });
+
+        // Move source map file alongside the renamed JS file
+        const sourceMapPath = `${outputPath}.map`;
+        if (existsSync(sourceMapPath)) {
+          await fs.move(sourceMapPath, `${distPath}.map`, { overwrite: true });
+        }
+
+        // Fix sourceMappingURL comment inside the JS to point to the renamed map file
+        const oldMapName = `${basename(outputPath)}.map`;
+        const newMapName = `${basename(distPath)}.map`;
+        if (oldMapName !== newMapName) {
+          const jsContent = await readFile(distPath, 'utf-8');
+          const fixedContent = jsContent.replace(
+            `//# sourceMappingURL=${oldMapName}`,
+            `//# sourceMappingURL=${newMapName}`
+          );
+          if (fixedContent !== jsContent) {
+            await Bun.write(distPath, fixedContent);
+          }
+        }
       }
     }
 

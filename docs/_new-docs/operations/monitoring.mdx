@@ -1,0 +1,329 @@
+---
+title: 'Monitoring'
+order: 3
+---
+
+# Monitoring
+
+Monitor your infrastructure with alarms and receive notifications when issues occur.
+
+## Alarms
+
+Alarms monitor specific metrics and trigger notifications when thresholds are exceeded. Under the hood, Stacktape uses CloudWatch Alarms.
+
+### Creating Alarms
+
+There are two ways to create alarms:
+
+1. **Global alarms** - Created in Stacktape Console, apply to all matching resources
+2. **In-config alarms** - Defined in your configuration file
+
+## Global Alarms
+
+Global alarms are templates created in the Console that automatically apply to all matching stacks.
+
+### Setting Up Global Alarms
+
+1. Go to [console.stacktape.com/alarms](https://console.stacktape.com/alarms)
+2. Click **Create new alarm**
+3. Select resource type and metric
+4. Configure threshold and notifications
+5. Specify which stacks it applies to (by service name and stage)
+6. Deploy your stacks to apply the alarm
+
+<Warning>
+
+Global alarms only apply after you deploy. Run `stacktape deploy` to create alarms for existing stacks.
+
+</Warning>
+
+## In-Config Alarms
+
+Define alarms directly in your configuration:
+
+
+```ts
+import { defineConfig } from 'stacktape';
+
+export default defineConfig({
+  resources: {
+    api: {
+      type: 'function',
+      properties: {
+        packaging: {
+          type: 'stacktape-lambda-buildpack',
+          properties: {
+            entryfilePath: 'src/handler.ts'
+          }
+        },
+        alarms: [
+          {
+            trigger: {
+              type: 'lambda-error-rate',
+              properties: {
+                thresholdPercent: 5
+              }
+            },
+            notificationTargets: [
+              {
+                type: 'email',
+                properties: {
+                  sender: 'alerts@mycompany.com',
+                  recipient: 'oncall@mycompany.com'
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+});
+```
+
+
+### Alarm Components
+
+Each alarm has three parts:
+
+1. **Trigger** - The metric and threshold to monitor
+2. **Notifications** - Where to send alerts (optional)
+3. **Evaluation** - How the metric is evaluated (optional)
+
+## Notification Targets
+
+### Slack
+
+
+```ts
+{
+  alarms: [
+    {
+      trigger: {
+        type: 'lambda-error-rate',
+        properties: { thresholdPercent: 5 }
+      },
+      notificationTargets: [
+        {
+          type: 'slack',
+          properties: {
+            conversationId: 'C038XXXXXX',
+            accessToken: '$Secret(\'slack-access-token\')'
+          }
+        }
+      ]
+    }
+  ]
+}
+```
+
+
+### Microsoft Teams
+
+
+```ts
+{
+  notificationTargets: [
+    {
+      type: 'ms-teams',
+      properties: {
+        webhookUrl: '$Secret(\'teams-webhook-url\')'
+      }
+    }
+  ]
+}
+```
+
+
+### Email
+
+
+```ts
+{
+  notificationTargets: [
+    {
+      type: 'email',
+      properties: {
+        sender: 'alerts@mycompany.com',
+        recipient: 'oncall@mycompany.com'
+      }
+    }
+  ]
+}
+```
+
+
+## Available Alarm Types
+
+### Lambda Function Alarms
+
+| Trigger Type        | Description                           | Threshold Unit |
+| ------------------- | ------------------------------------- | -------------- |
+| `lambda-error-rate` | Percentage of invocations with errors | Percent        |
+| `lambda-duration`   | Execution time                        | Milliseconds   |
+
+### Database Alarms
+
+| Trigger Type                | Description             | Threshold Unit |
+| --------------------------- | ----------------------- | -------------- |
+| `database-read-latency`     | Read operation latency  | Milliseconds   |
+| `database-write-latency`    | Write operation latency | Milliseconds   |
+| `database-cpu-utilization`  | CPU usage               | Percent        |
+| `database-free-storage`     | Available storage       | Bytes          |
+| `database-free-memory`      | Available memory        | Bytes          |
+| `database-connection-count` | Number of connections   | Count          |
+
+### HTTP API Gateway Alarms
+
+| Trigger Type                  | Description                     | Threshold Unit |
+| ----------------------------- | ------------------------------- | -------------- |
+| `http-api-gateway-error-rate` | Percentage of 4xx/5xx responses | Percent        |
+| `http-api-gateway-latency`    | Response time                   | Milliseconds   |
+
+### Load Balancer Alarms
+
+| Trigger Type     | Description               | Threshold Unit |
+| ---------------- | ------------------------- | -------------- |
+| `alb-error-rate` | Percentage of 5xx errors  | Percent        |
+| `alb-custom`     | Any ALB CloudWatch metric | Varies         |
+
+### SQS Queue Alarms
+
+| Trigger Type                  | Description        | Threshold Unit |
+| ----------------------------- | ------------------ | -------------- |
+| `sqs-received-messages-count` | Messages received  | Count          |
+| `sqs-queue-not-empty`         | Queue has messages | N/A            |
+
+## Evaluation Settings
+
+Configure how metrics are evaluated:
+
+
+```ts
+{
+  alarms: [
+    {
+      trigger: {
+        type: 'lambda-error-rate',
+        properties: { thresholdPercent: 5 }
+      },
+      evaluation: {
+        period: 300,           // Evaluation period in seconds
+        evaluationPeriods: 3,  // Number of periods before triggering
+        statistic: 'Average'   // How to aggregate data
+      }
+    }
+  ]
+}
+```
+
+
+## Triggering Lambda on Alarm
+
+You can invoke a Lambda function when an alarm fires:
+
+
+```ts
+{
+  api: {
+    type: 'function',
+    properties: {
+      packaging: {
+        type: 'stacktape-lambda-buildpack',
+        properties: { entryfilePath: 'src/handler.ts' }
+      },
+      alarms: [
+        {
+          trigger: {
+            type: 'lambda-error-rate',
+            properties: { thresholdPercent: 5 }
+          }
+        }
+      ]
+    }
+  },
+
+alarmHandler: {
+type: 'function',
+properties: {
+packaging: {
+type: 'stacktape-lambda-buildpack',
+properties: { entryfilePath: 'src/alarm-handler.ts' }
+},
+events: [
+{
+type: 'alarm',
+properties: {
+alarmName: '$ResourceParam(\'api\', \'alarmArns\')[0]'
+}
+}
+]
+}
+}
+}
+
+```
+
+
+## CloudWatch Metrics
+
+All AWS resources automatically emit metrics to CloudWatch. You can view these in:
+
+- **Stacktape Console** - Dashboard for your stacks
+- **AWS CloudWatch Console** - Full metrics access
+
+Common metrics by resource type:
+
+| Resource          | Key Metrics                                |
+| ----------------- | ------------------------------------------ |
+| Lambda            | Invocations, Errors, Duration, Throttles   |
+| Web Service       | CPU, Memory, Request Count, Response Time  |
+| Database          | CPU, Connections, Read/Write Latency       |
+| API Gateway       | Request Count, Latency, 4xx/5xx Errors     |
+| SQS Queue         | Messages Sent/Received, Queue Depth        |
+
+## Best Practices
+
+### Start Simple
+
+Begin with essential alarms:
+
+1. Error rates for all compute resources
+2. Database CPU and connection count
+3. API latency
+
+### Use Appropriate Thresholds
+
+- Don't set thresholds too low (alert fatigue)
+- Don't set them too high (miss real issues)
+- Adjust based on baseline metrics
+
+### Layer Notifications
+
+```
+
+Low severity (warning): → Slack channel
+Medium severity: → Email + Slack
+High severity: → PagerDuty/OpsGenie + Email + Slack
+
+```
+
+### Test Your Alarms
+
+Periodically verify alarms work:
+
+1. Intentionally trigger an alarm condition
+2. Confirm notification arrives
+3. Check alarm clears when condition resolves
+
+## Pricing
+
+CloudWatch Alarms pricing:
+
+- **Standard resolution (60s)**: $0.10/alarm/month
+- **High resolution (10s)**: $0.30/alarm/month
+
+First 10 alarms are free.
+
+See [CloudWatch Pricing](https://aws.amazon.com/cloudwatch/pricing/) for details.
+```

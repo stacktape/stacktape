@@ -1,0 +1,191 @@
+---
+title: 'Logs'
+order: 2
+---
+
+# Logs
+
+View logs from your deployed resources using the CLI or Stacktape Console.
+
+## CLI Usage
+
+### Basic Command
+
+```bash
+stacktape logs --stage production --region eu-west-1 --resourceName myFunction
+```
+
+Required parameters:
+
+- `--stage` (`-s`) - Environment name
+- `--region` (`-r`) - AWS region
+- `--resourceName` (`-rn`) - Name of the resource to view logs from
+
+### Filtering Logs
+
+Filter logs by pattern:
+
+```bash
+stacktape logs --stage production --region eu-west-1 --resourceName api --filter "ERROR"
+```
+
+Filter patterns support CloudWatch Logs syntax. Examples:
+
+```bash
+# Find errors
+--filter "ERROR"
+
+# Find specific user
+--filter "{ $.userId = \"user123\" }"
+
+# Find HTTP 500 errors
+--filter "{ $.statusCode = 500 }"
+
+# Multiple conditions
+--filter "{ $.statusCode >= 400 && $.duration > 1000 }"
+```
+
+See [AWS Filter Pattern Syntax](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/FilterAndPatternSyntax.html) for more details.
+
+### Time Range
+
+View logs from a specific time:
+
+```bash
+# Logs from the last hour
+stacktape logs --resourceName api --startTime "1 hour ago"
+
+# Logs from a specific date
+stacktape logs --resourceName api --startTime "2024-01-15T10:00:00"
+
+# Logs from a timestamp
+stacktape logs --resourceName api --startTime 1705312800000
+```
+
+### Output Formats
+
+```bash
+# Pretty-printed (default)
+stacktape logs --resourceName api
+
+# Raw JSON
+stacktape logs --resourceName api --raw
+
+# JSON output format
+stacktape logs --resourceName api --logFormat json
+```
+
+## Resources That Support Logs
+
+| Resource Type              | Log Content                   |
+| -------------------------- | ----------------------------- |
+| `function`                 | Lambda execution logs         |
+| `web-service`              | Container stdout/stderr       |
+| `worker-service`           | Container stdout/stderr       |
+| `multi-container-workload` | Container stdout/stderr       |
+| `batch-job`                | Job execution logs            |
+| `http-api-gateway`         | API request logs (if enabled) |
+
+## Viewing Logs in Console
+
+The [Stacktape Console](https://console.stacktape.com) provides a web interface for viewing logs:
+
+1. Navigate to your stack
+2. Select the resource
+3. Click the **Logs** tab
+
+Features:
+
+- Real-time log streaming
+- Search and filter
+- Time range selection
+- Download logs
+
+## CloudWatch Logs
+
+Under the hood, all logs are stored in CloudWatch Logs. You can also access them directly:
+
+1. Go to [AWS CloudWatch Console](https://console.aws.amazon.com/cloudwatch)
+2. Navigate to **Logs** → **Log groups**
+3. Find the log group for your resource
+
+Log group naming convention:
+
+```
+/aws/lambda/{stack-name}-{resource-name}
+/ecs/{stack-name}/{resource-name}
+```
+
+## Structured Logging
+
+For better log analysis, use structured (JSON) logging in your code:
+
+```ts
+// Instead of:
+console.log('User logged in: ' + userId);
+
+// Use:
+console.log(
+  JSON.stringify({
+    event: 'user_login',
+    userId,
+    timestamp: new Date().toISOString()
+  })
+);
+```
+
+Benefits:
+
+- Easier filtering with CloudWatch Insights
+- Better integration with log analysis tools
+- Consistent log format
+
+## Log Retention
+
+By default, CloudWatch logs are retained indefinitely. You can configure retention in your resource settings or directly in CloudWatch.
+
+Common retention periods:
+
+| Environment | Retention   |
+| ----------- | ----------- |
+| Development | 7 days      |
+| Staging     | 30 days     |
+| Production  | 90-365 days |
+
+## Common Options
+
+| Option           | Alias | Description                                |
+| ---------------- | ----- | ------------------------------------------ |
+| `--stage`        | `-s`  | Stage name (required)                      |
+| `--region`       | `-r`  | AWS region (required)                      |
+| `--resourceName` | `-rn` | Resource to get logs from (required)       |
+| `--filter`       | `-f`  | CloudWatch filter pattern                  |
+| `--startTime`    | `-st` | Start time for logs                        |
+| `--raw`          | `-rw` | Output raw JSON                            |
+| `--profile`      | `-p`  | AWS profile to use                         |
+| `--logFormat`    | `-lf` | Output format (fancy, normal, basic, json) |
+
+## Troubleshooting
+
+### No Logs Appearing
+
+1. **Resource not invoked** - Ensure the resource has been called
+2. **Wrong resource name** - Check the exact name from your config
+3. **Wrong stage/region** - Verify you're checking the correct environment
+4. **Time range** - Logs may be outside the default time range
+
+### Logs Are Delayed
+
+CloudWatch logs can have a few seconds of delay. Wait and retry, or use the `--startTime` option to look at recent logs.
+
+### Too Many Logs
+
+Use filters to narrow down:
+
+```bash
+# Only errors
+stacktape logs --resourceName api --filter "ERROR"
+
+# Specific time window
+stacktape logs --resourceName api --startTime "5 minutes ago"
+```

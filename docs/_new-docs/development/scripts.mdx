@@ -1,0 +1,381 @@
+---
+title: 'Scripts'
+order: 4
+---
+
+# Scripts
+
+Scripts let you run commands as part of your development and deployment workflow. Use them for database migrations, data seeding, builds, notifications, and more.
+
+## Script Types
+
+| Type                                  | Runs Where               | Use Case                        |
+| ------------------------------------- | ------------------------ | ------------------------------- |
+| `local-script`                        | Your local machine       | Migrations, builds, deployments |
+| `bastion-script`                      | Bastion host in AWS      | Commands needing VPC access     |
+| `local-script-with-bastion-tunneling` | Local machine via tunnel | Local tools + private database  |
+
+## Local Scripts
+
+Run commands on your local machine with automatic access to stack resources.
+
+### Basic Example
+
+```yaml
+scripts:
+  migrate:
+    type: local-script
+    properties:
+      executeCommand: npx prisma migrate deploy
+      connectTo:
+        - database
+```
+
+Run the script:
+
+```bash
+stacktape script:run --scriptName migrate --stage dev --region us-east-1
+```
+
+### Multiple Commands
+
+Run multiple commands in sequence:
+
+```yaml
+scripts:
+  setup:
+    type: local-script
+    properties:
+      executeCommands:
+        - npm install
+        - npm run build
+        - npx prisma generate
+```
+
+### Script Files
+
+Run a script file instead of inline commands:
+
+```yaml
+scripts:
+  deploy:
+    type: local-script
+    properties:
+      executeScript: ./scripts/deploy.ts
+      connectTo:
+        - database
+        - cache
+```
+
+Your script file has access to all connected resources via environment variables:
+
+```typescript
+// scripts/deploy.ts
+import { Client } from 'pg';
+
+const client = new Client({
+  connectionString: process.env.STP_DATABASE_CONNECTION_STRING
+});
+
+await client.connect();
+await client.query('SELECT NOW()');
+console.log('Database connected!');
+await client.end();
+```
+
+### Environment Variables
+
+Add custom environment variables:
+
+```yaml
+scripts:
+  deploy:
+    type: local-script
+    properties:
+      executeCommand: ./scripts/deploy.sh
+      environment:
+        - name: DEPLOY_ENV
+          value: production
+        - name: API_KEY
+          value: $Secret('deploy-api-key')
+```
+
+## Bastion Scripts
+
+Run commands on a bastion host inside your VPC. Use this when you need to run commands that require direct network access to private resources.
+
+### Prerequisites
+
+Add a bastion resource to your stack:
+
+```yaml
+resources:
+  bastion:
+    type: bastion
+
+  database:
+    type: relational-database
+    properties:
+      accessibility:
+        accessibilityMode: vpc # Private database
+```
+
+### Running Bastion Scripts
+
+```yaml
+scripts:
+  dbShell:
+    type: bastion-script
+    properties:
+      executeCommand: psql -h $STP_DATABASE_HOST -U postgres -d myapp
+      connectTo:
+        - database
+```
+
+```bash
+stacktape script:run --scriptName dbShell --stage production --region us-east-1
+```
+
+The command runs on the bastion host with direct access to the private database.
+
+## Local Script with Bastion Tunneling
+
+Run commands on your local machine while tunneling through a bastion to access private resources. This is the best of both worlds: local tools + VPC access.
+
+```yaml
+resources:
+  bastion:
+    type: bastion
+
+  database:
+    type: relational-database
+    properties:
+      accessibility:
+        accessibilityMode: vpc
+
+scripts:
+  migrate:
+    type: local-script-with-bastion-tunneling
+    properties:
+      executeCommand: npx prisma migrate deploy
+      connectTo:
+        - database
+      bastionResourceName: bastion
+```
+
+When you run this script:
+
+1. Stacktape creates an SSH tunnel through the bastion
+2. Local `DATABASE_HOST` points to `localhost` via the tunnel
+3. Your local `prisma` command connects through the tunnel
+4. The tunnel is closed when the script completes
+
+This lets you use your local development tools (like Prisma, pgAdmin, or custom scripts) with private databases.
+
+## Connecting to Resources
+
+Use `connectTo` to automatically get credentials and permissions:
+
+```yaml
+scripts:
+  processData:
+    type: local-script
+    properties:
+      executeCommand: node ./scripts/process.js
+      connectTo:
+        - database
+        - uploads
+        - queue
+```
+
+Your script receives:
+
+```
+STP_DATABASE_CONNECTION_STRING=...
+STP_UPLOADS_BUCKET_NAME=...
+STP_QUEUE_QUEUE_URL=...
+```
+
+### Assuming Resource Roles
+
+If you need specific IAM permissions, use `assumeRoleOfResource`:
+
+```yaml
+scripts:
+  processS3:
+    type: local-script
+    properties:
+      executeCommand: node ./scripts/process-s3.js
+      assumeRoleOfResource: handler # Use the Lambda's IAM role
+```
+
+This gives your script the same AWS permissions as the referenced resource.
+
+## Hooks
+
+Execute scripts automatically during deployment:
+
+```yaml
+scripts:
+  build:
+    type: local-script
+    properties:
+      executeCommand: npm run build
+
+  migrate:
+    type: local-script
+    properties:
+      executeCommand: npx prisma migrate deploy
+      connectTo:
+        - database
+
+  notify:
+    type: local-script
+    properties:
+      executeCommand: curl -X POST $SLACK_WEBHOOK -d '{"text":"Deployed!"}'
+      environment:
+        - name: SLACK_WEBHOOK
+          value: $Secret('slack-webhook')
+
+hooks:
+  beforeDeploy:
+    - scriptName: build
+  afterDeploy:
+    - scriptName: migrate
+    - scriptName: notify
+```
+
+### Available Hooks
+
+| Hook           | When It Runs                |
+| -------------- | --------------------------- |
+| `beforeDeploy` | Before deployment starts    |
+| `afterDeploy`  | After successful deployment |
+| `beforeDelete` | Before stack deletion       |
+| `afterDelete`  | After stack deletion        |
+
+### Hook Environment Variables
+
+Scripts in hooks receive additional context:
+
+```
+STP_HOOK_TYPE=afterDeploy
+STP_COMMAND=deploy
+```
+
+## Common Use Cases
+
+### Database Migrations
+
+```yaml
+scripts:
+  migrate:
+    type: local-script
+    properties:
+      executeCommand: npx prisma migrate deploy
+      connectTo:
+        - database
+
+hooks:
+  afterDeploy:
+    - scriptName: migrate
+```
+
+### Data Seeding
+
+```yaml
+scripts:
+  seed:
+    type: local-script
+    properties:
+      executeScript: ./scripts/seed.ts
+      connectTo:
+        - database
+```
+
+### Build Before Deploy
+
+```yaml
+scripts:
+  build:
+    type: local-script
+    properties:
+      executeCommands:
+        - npm install
+        - npm run build
+        - npm run test
+
+hooks:
+  beforeDeploy:
+    - scriptName: build
+```
+
+### Slack Notification
+
+```yaml
+scripts:
+  notifySlack:
+    type: local-script
+    properties:
+      executeCommand: |
+        curl -X POST $SLACK_WEBHOOK \
+          -H "Content-Type: application/json" \
+          -d "{\"text\": \"Deployed $STP_STAGE to $STP_REGION\"}"
+      environment:
+        - name: SLACK_WEBHOOK
+          value: $Secret('slack-webhook')
+        - name: STP_STAGE
+          value: $Stage()
+        - name: STP_REGION
+          value: $Region()
+
+hooks:
+  afterDeploy:
+    - scriptName: notifySlack
+```
+
+### Database Backup
+
+```yaml
+scripts:
+  backup:
+    type: local-script-with-bastion-tunneling
+    properties:
+      executeCommand: pg_dump $DATABASE_URL > backup-$(date +%Y%m%d).sql
+      connectTo:
+        - database
+      bastionResourceName: bastion
+      environment:
+        - name: DATABASE_URL
+          value: $ResourceParam('database', 'connectionString')
+```
+
+### Running Tests
+
+```yaml
+scripts:
+  integrationTests:
+    type: local-script
+    properties:
+      executeCommand: npm run test:integration
+      connectTo:
+        - database
+        - api
+      environment:
+        - name: API_URL
+          value: $ResourceParam('api', 'url')
+```
+
+## Script Output
+
+Scripts output to your terminal in real-time. Exit codes are respected:
+
+- Exit code `0`: Success
+- Non-zero exit code: Failure (hooks will stop, deployment may rollback)
+
+## Next Steps
+
+<NavBoxGrid columns={2}>
+  <NavBox url="/development/debugging" text="Debugging" description="Logs and troubleshooting" />
+  <NavBox url="/security/bastions" text="Bastions" description="Learn more about bastion hosts" />
+</NavBoxGrid>

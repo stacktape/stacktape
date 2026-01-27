@@ -1,54 +1,138 @@
 import { createTRPCClient, httpBatchLink } from '@trpc/client';
 import { STACKTAPE_TRPC_API_ENDPOINT } from '../../src/config/random';
-import type {
-  CliConfigGenSession,
-  StartCliConfigGenInput,
-  StartCliConfigGenResponse,
-  SubmitFilesInput,
-  SubmitFilesResponse
-} from '../../src/utils/config-gen/types';
 
-/**
- * Normalizes the endpoint URL to avoid IPv6 resolution issues on Windows.
- * Replaces 'localhost' with '127.0.0.1' to ensure IPv4 is used.
- */
-const normalizeEndpointUrl = (url: string): string => {
-  // Replace localhost with 127.0.0.1 to avoid IPv6 resolution issues
-  // This is particularly important on Windows where localhost may resolve to ::1
-  return url.replace(/^(https?:\/\/)localhost(:\d+)?/, '$1127.0.0.1$2');
+export type CliConfigGenSessionState = 'WAITING_FOR_FILES' | 'ANALYZING' | 'SUCCESS' | 'ERROR' | 'CANCELLED';
+
+export type CliConfigGenPhase =
+  | 'FILE_SELECTION'
+  | 'WAITING_FOR_FILE_CONTENTS'
+  | 'ANALYZING_DEPLOYMENTS'
+  | 'GENERATING_CONFIG'
+  | 'ADJUSTING_ENV_VARS';
+
+export type CliConfigGenNonComputeResource =
+  | 'Postgres'
+  | 'MySQL'
+  | 'SQL-database'
+  | 'Redis'
+  | 'ElasticSearch'
+  | 'DynamoDB';
+
+export type CliConfigGenDeployableUnitType =
+  | 'static-frontend'
+  | 'frontend-requiring-build'
+  | 'web-service'
+  | 'worker-service'
+  | 'lambda-function'
+  | 'next-js-app';
+
+export type CliConfigGenStaticContentType = 'static-website' | 'single-page-app';
+
+export type CliConfigGenDeployableUnit = {
+  name: string;
+  type: CliConfigGenDeployableUnitType;
+  dependencyFilePath: string;
+  dockerfilePath: string | null;
+  entryfilePath: string | null;
+  rootPath: string;
+  distPath: string | null;
+  startCommand: string | null;
+  buildCommand: string | null;
+  reason: string;
+  staticContentType: CliConfigGenStaticContentType | null;
+  packageManager?: 'npm' | 'pnpm' | 'yarn' | 'bun' | 'deno';
+  envVars?: Array<{ name: string; value: string }>;
+  requiredResources?: CliConfigGenNonComputeResource[];
 };
 
-/**
- * Creates a tRPC client for public endpoints (no authentication required).
- */
-const createPublicTrpcClient = () => {
-  const url = normalizeEndpointUrl(STACKTAPE_TRPC_API_ENDPOINT);
+export type CliConfigGenRequiredResource = {
+  type: CliConfigGenNonComputeResource;
+  reason: string;
+  deployableUnitDependencyFilePaths: string[];
+  requiredByDeployableUnits: string[];
+};
+
+export type CliConfigGenSessionData = {
+  config?: StacktapeConfig;
+  deployableUnits?: CliConfigGenDeployableUnit[];
+  requiredResources?: CliConfigGenRequiredResource[];
+  error?: { message: string; stack?: string };
+  filesToRead?: string[];
+  allFiles?: string[];
+  fileTree?: string;
+};
+
+export type CliConfigGenSession = {
+  state: CliConfigGenSessionState;
+  phase: CliConfigGenPhase;
+  data: CliConfigGenSessionData;
+  createdAt: number;
+};
+
+export type StartCliConfigGenInput = {
+  fileTree: string;
+  allFiles: string[];
+};
+
+export type StartCliConfigGenResponse = {
+  sessionId: string;
+  filesToRead: string[];
+};
+
+export type SubmitFilesInput = {
+  sessionId: string;
+  files: Array<{ path: string; content: string }>;
+};
+
+export type SubmitFilesResponse = {
+  success: boolean;
+};
+
+type PublicTrpcClient = {
+  startCliConfigGen: {
+    mutate: (input: StartCliConfigGenInput) => Promise<StartCliConfigGenResponse>;
+  };
+  submitCliConfigGenFiles: {
+    mutate: (input: SubmitFilesInput) => Promise<SubmitFilesResponse>;
+  };
+  getCliConfigGenState: {
+    query: (input: { sessionId: string }) => Promise<CliConfigGenSession>;
+  };
+  cancelCliConfigGen: {
+    mutate: (input: { sessionId: string }) => Promise<{ success: boolean }>;
+  };
+};
+
+const TRPC_REQUEST_TIMEOUT_MS = 30000; // 30 seconds
+
+const fetchWithTimeout = async (url: any, options: any) => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), TRPC_REQUEST_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+};
+
+const createPublicTrpcClient = (): PublicTrpcClient => {
   return createTRPCClient<any>({
     links: [
       httpBatchLink({
-        url
+        url: STACKTAPE_TRPC_API_ENDPOINT,
+        fetch: fetchWithTimeout as any
       })
     ]
-  });
+  }) as unknown as PublicTrpcClient;
 };
 
-/**
- * Public API client for endpoints that don't require authentication.
- * Currently used for CLI config generation.
- */
 export class PublicApiClient {
   #client: ReturnType<typeof createPublicTrpcClient> | null = null;
 
-  /**
-   * Initialize the client. Must be called before using other methods.
-   */
   init(): void {
     this.#client = createPublicTrpcClient();
   }
 
-  /**
-   * Ensures the client is initialized.
-   */
   #ensureInitialized(): ReturnType<typeof createPublicTrpcClient> {
     if (!this.#client) {
       this.init();
@@ -56,15 +140,8 @@ export class PublicApiClient {
     return this.#client!;
   }
 
-  // ============ Config Generation Methods ============
-
-  /**
-   * Start a config generation session.
-   * Sends the file tree and gets back the session ID and files to read.
-   */
   startCliConfigGen = async (input: StartCliConfigGenInput): Promise<StartCliConfigGenResponse> => {
-    const client = this.#ensureInitialized();
-    return client.startCliConfigGen.mutate(input);
+    return this.#ensureInitialized().startCliConfigGen.mutate(input);
   };
 
   /**
@@ -72,8 +149,7 @@ export class PublicApiClient {
    * The server will analyze the files and generate the config.
    */
   submitCliConfigGenFiles = async (input: SubmitFilesInput): Promise<SubmitFilesResponse> => {
-    const client = this.#ensureInitialized();
-    return client.submitCliConfigGenFiles.mutate(input);
+    return this.#ensureInitialized().submitCliConfigGenFiles.mutate(input);
   };
 
   /**
@@ -81,20 +157,15 @@ export class PublicApiClient {
    * Use this to poll for progress and the final result.
    */
   getCliConfigGenState = async (sessionId: string): Promise<CliConfigGenSession> => {
-    const client = this.#ensureInitialized();
-    return client.getCliConfigGenState.query({ sessionId });
+    return this.#ensureInitialized().getCliConfigGenState.query({ sessionId });
   };
 
   /**
    * Cancel a config generation session.
    */
   cancelCliConfigGen = async (sessionId: string): Promise<{ success: boolean }> => {
-    const client = this.#ensureInitialized();
-    return client.cancelCliConfigGen.mutate({ sessionId });
+    return this.#ensureInitialized().cancelCliConfigGen.mutate({ sessionId });
   };
 }
 
-/**
- * Singleton instance of the public API client.
- */
 export const publicApiClient = new PublicApiClient();

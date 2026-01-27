@@ -1,0 +1,225 @@
+---
+title: 'Application Load Balancer'
+order: 3
+---
+
+# Application Load Balancer
+
+Layer 7 load balancer for HTTP/HTTPS traffic with advanced routing, WebSocket support, and deployment strategies.
+
+**Type:** `application-load-balancer`
+
+## When to Use
+
+**Advantages:**
+
+- **Advanced routing**: Path, header, query string routing
+- **WebSocket support**: Persistent connections
+- **Deployment strategies**: Blue/green, canary deployments
+- **WAF integration**: Web Application Firewall support
+
+**Disadvantages:**
+
+- **Fixed cost**: ~$16/month minimum
+- **Not serverless**: Runs 24/7
+
+**Best for:** Container services, WebSocket apps, complex routing requirements.
+
+## Basic Example
+
+```yaml
+resources:
+  alb:
+    type: application-load-balancer
+
+  api:
+    type: web-service
+    properties:
+      packaging:
+        type: stacktape-image-buildpack
+        properties:
+          entryfilePath: src/index.ts
+      resources:
+        cpu: 0.25
+        memory: 512
+      loadBalancing:
+        type: application-load-balancer
+        properties:
+          loadBalancerName: alb
+```
+
+## Custom Domains
+
+```yaml
+resources:
+  alb:
+    type: application-load-balancer
+    properties:
+      customDomains:
+        - domainName: api.myapp.com
+```
+
+## Interface
+
+```yaml
+resources:
+  alb:
+    type: application-load-balancer
+    properties:
+      interface: internet # or 'internal' for VPC-only
+```
+
+## Custom Listeners
+
+```yaml
+resources:
+  alb:
+    type: application-load-balancer
+    properties:
+      listeners:
+        - port: 443
+          protocol: HTTPS
+        - port: 8080
+          protocol: HTTP
+          whitelistIps:
+            - 10.0.0.0/8
+```
+
+## With CDN
+
+```yaml
+resources:
+  alb:
+    type: application-load-balancer
+    properties:
+      cdn:
+        enabled: true
+        customDomains:
+          - domainName: app.myapp.com
+```
+
+## Web Application Firewall
+
+```yaml
+resources:
+  waf:
+    type: web-app-firewall
+
+  alb:
+    type: application-load-balancer
+    properties:
+      useFirewall: waf
+```
+
+## Routing Multiple Services
+
+```yaml
+resources:
+  alb:
+    type: application-load-balancer
+
+  frontend:
+    type: web-service
+    properties:
+      packaging:
+        type: stacktape-image-buildpack
+        properties:
+          entryfilePath: src/frontend/index.ts
+      resources:
+        cpu: 0.25
+        memory: 512
+      loadBalancing:
+        type: application-load-balancer
+        properties:
+          loadBalancerName: alb
+          priority: 1
+          paths:
+            - /*
+
+  api:
+    type: web-service
+    properties:
+      packaging:
+        type: stacktape-image-buildpack
+        properties:
+          entryfilePath: src/api/index.ts
+      resources:
+        cpu: 0.5
+        memory: 1024
+      loadBalancing:
+        type: application-load-balancer
+        properties:
+          loadBalancerName: alb
+          priority: 2
+          paths:
+            - /api/*
+```
+
+## Deployment Strategies
+
+Enable canary or blue/green deployments:
+
+```yaml
+resources:
+  alb:
+    type: application-load-balancer
+
+  api:
+    type: web-service
+    properties:
+      packaging:
+        type: stacktape-image-buildpack
+        properties:
+          entryfilePath: src/index.ts
+      resources:
+        cpu: 0.5
+        memory: 1024
+      loadBalancing:
+        type: application-load-balancer
+        properties:
+          loadBalancerName: alb
+      deployment:
+        type: Canary10Percent5Minutes
+```
+
+## Lambda Integration
+
+```yaml
+resources:
+  alb:
+    type: application-load-balancer
+
+  handler:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/handler.ts
+      events:
+        - type: load-balancer-integration
+          properties:
+            loadBalancerName: alb
+            priority: 1
+            paths:
+              - /api/*
+```
+
+## Pricing
+
+- **Base**: ~$16/month
+- **LCU-hour**: ~$0.008
+- **Data transfer**: Standard AWS rates
+
+## Referenceable Parameters
+
+| Parameter      | Description             |
+| -------------- | ----------------------- |
+| `url`          | Load balancer URL       |
+| `arn`          | Load balancer ARN       |
+| `dnsName`      | DNS name                |
+| `hostedZoneId` | Route 53 hosted zone ID |
+
+## API Reference
+
+<PropertiesTable definitionName="ApplicationLoadBalancerConfig" />

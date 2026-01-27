@@ -1,0 +1,227 @@
+---
+title: 'HTTP API Gateway'
+order: 2
+---
+
+# HTTP API Gateway
+
+Serverless HTTP routing for Lambda functions and container services. Pay only for requests processed.
+
+**Type:** `http-api-gateway`
+
+## When to Use
+
+**Advantages:**
+
+- **Serverless**: No infrastructure to manage
+- **Pay-per-request**: ~$1 per million requests
+- **Auto-scaling**: Handles any traffic level
+- **Low latency**: Optimized for HTTP APIs
+
+**Disadvantages:**
+
+- **Path-based routing only**: No header/query routing
+- **No WebSocket**: Use ALB for WebSockets
+- **29-second timeout**: Max request duration
+
+**Best for:** REST APIs, serverless backends, microservices.
+
+## Basic Example
+
+```yaml
+resources:
+  api:
+    type: http-api-gateway
+
+  handler:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/handler.ts
+      events:
+        - type: http-api-integration
+          properties:
+            httpApiGatewayName: api
+            method: '*'
+            path: /*
+```
+
+## Multiple Routes
+
+```yaml
+resources:
+  api:
+    type: http-api-gateway
+
+  getUsers:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/users/get.ts
+      events:
+        - type: http-api-integration
+          properties:
+            httpApiGatewayName: api
+            method: GET
+            path: /users
+
+  createUser:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/users/create.ts
+      events:
+        - type: http-api-integration
+          properties:
+            httpApiGatewayName: api
+            method: POST
+            path: /users
+
+  getUser:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/users/getOne.ts
+      events:
+        - type: http-api-integration
+          properties:
+            httpApiGatewayName: api
+            method: GET
+            path: /users/{id}
+```
+
+## CORS Configuration
+
+```yaml
+resources:
+  api:
+    type: http-api-gateway
+    properties:
+      cors:
+        enabled: true
+        allowedOrigins:
+          - https://myapp.com
+          - https://www.myapp.com
+        allowedMethods:
+          - GET
+          - POST
+          - PUT
+          - DELETE
+        allowedHeaders:
+          - Content-Type
+          - Authorization
+        maxAge: 86400
+        allowCredentials: true
+```
+
+## Custom Domains
+
+```yaml
+resources:
+  api:
+    type: http-api-gateway
+    properties:
+      customDomains:
+        - domainName: api.myapp.com
+```
+
+## With CDN
+
+Add CloudFront for caching and global distribution:
+
+```yaml
+resources:
+  api:
+    type: http-api-gateway
+    properties:
+      cdn:
+        enabled: true
+        customDomains:
+          - domainName: api.myapp.com
+```
+
+## Payload Format
+
+Control the event shape delivered to Lambda:
+
+```yaml
+resources:
+  api:
+    type: http-api-gateway
+    properties:
+      payloadFormat: '2.0' # or '1.0'
+```
+
+**Format 2.0** (default):
+
+```json
+{
+  "version": "2.0",
+  "routeKey": "GET /users",
+  "rawPath": "/users",
+  "requestContext": { ... },
+  "body": "...",
+  "isBase64Encoded": false
+}
+```
+
+## Access Logging
+
+```yaml
+resources:
+  api:
+    type: http-api-gateway
+    properties:
+      logging:
+        format: '$requestId $httpMethod $path $status'
+        retentionDays: 14
+```
+
+## Connecting Container Services
+
+```yaml
+resources:
+  api:
+    type: http-api-gateway
+
+  webService:
+    type: web-service
+    properties:
+      packaging:
+        type: stacktape-image-buildpack
+        properties:
+          entryfilePath: src/index.ts
+      resources:
+        cpu: 0.25
+        memory: 512
+      loadBalancing:
+        type: http-api-gateway
+        properties:
+          httpApiGatewayName: api
+```
+
+## Pricing
+
+- **Requests**: $1.00 per million requests
+- **Data transfer**: Standard AWS rates
+
+**Example**: 10 million requests/month = $10
+
+## Referenceable Parameters
+
+| Parameter | Description     |
+| --------- | --------------- |
+| `url`     | API Gateway URL |
+| `id`      | API Gateway ID  |
+
+## API Reference
+
+<PropertiesTable definitionName="HttpApiGatewayConfig" />

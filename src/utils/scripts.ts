@@ -66,7 +66,7 @@ export const executeCommandHook = ({
   pipeStdio: boolean;
   onOutputLine?: (line: string) => void;
 }) => {
-  // When using onOutputLine callback, don't use prefix transformer - Ink handles formatting
+  // When using onOutputLine callback, don't use prefix transformer
   // When piping directly to stdout (no callback), use prefix for visual hierarchy
   const usePrefix = pipeStdio && !onOutputLine;
   return exec(command, [], {
@@ -100,7 +100,7 @@ export const executeScriptHook = ({
   pipeStdio: boolean;
   onOutputLine?: (line: string) => void;
 }) => {
-  // When using onOutputLine callback, don't use prefix transformer - Ink handles formatting
+  // When using onOutputLine callback, don't use prefix transformer
   const usePrefix = pipeStdio && !onOutputLine;
   return execScriptInNewProcess({
     absoluteScriptPath: join(globalStateManager.workingDir, filePath),

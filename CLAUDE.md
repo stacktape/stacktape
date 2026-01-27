@@ -1,25 +1,185 @@
-# Writing rules
+# AGENTS.md - AI Coding Agent Guidelines
 
-- Be concise. Sacrifice grammar for the sake of concision.
+This document provides guidelines for AI coding agents working in the Stacktape codebase.
 
-# Code rules
+## Useful commands
 
-- To interact with file system, always use `fs-extra` package
-- To import packages, always use import only part of the package, e.g. `import { readFile } from 'fs-extra'`
-- Prefer using inline types to type functions, e.g. `const myFunc = ({ property }:{ property: string }) => { ... }`
-- To write helper functions, prefer arrow functions, e.g. `const myFunc = () => {}`
-- Only use classes when necessary. Prefer writhing procedural/functional code. E.g. just write 3 arrow functions, instead of a class with 3 methods.
-- Prefer typescript types over interfaces.
-- When using any function that writes to the console, use a single "write". E.g. don't write multiple console.log beneath each other.
+**Runtime:** Bun (v1.2.23). Always use `bun`.
 
-# Terminal rules
+```bash
+# Lint (with auto-fix)
+bunx eslint ./src ./shared ./scripts ./helper-lambdas --fix
 
-- Always use `bun` to run scripts. Not `node`, not `npm`, not `yarn`.
+# Type check
+bun run tsc
 
-# Code style
+# Generates types and build the npm package to ./__release-npm/*
+# Use when you need to test the generated Stacktape config.
+bun run build:npm --version 3.4.0
 
-- Don't add unnecessary comments to the code
-- Ignore formatting errors (from eslint or prettier) if they are not easy for you to fix.
-- If you need to run `tsc`, don't run it on the whole project. Run it only on the changed files. The repository has
-  pre-existing typescript errors.
-- Don't ever use dynamic require
+# Development mode
+bun dev {command} ..options..
+
+# Deploy stack
+# Use meaningful, but unique name for stage. Must by at most 10 characters
+bun dev deploy --projectName ai-tests --stage {stage} --region eu-west-1 --configPath {configPath}
+
+# Delete stack
+bun dev delete --projectName ai-tests --stage {stage} --region eu-west-1 --configPath {configPath}
+
+# Generates JSON schema from Stacktape config types in ./types/stacktape-config and Zod schema for validation
+bun run gen:schema
+```
+
+## Project Structure
+
+```
+src/                    # Main source code
+  commands/             # CLI commands (deploy, delete, dev, etc.)
+  domain/               # Domain services (managers)
+  app/                  # Application services (global-state, tui, events)
+  config/               # Configuration constants
+  utils/                # Utility functions
+shared/                 # Shared utilities (AWS SDK, naming, packaging)
+scripts/                # Build and dev scripts
+helper-lambdas/         # AWS Lambda helper functions
+types/                  # Global TypeScript type definitions
+@generated/             # Auto-generated files - DO NOT EDIT
+```
+
+## Path Aliases
+
+```typescript
+import { ... } from '@utils/...';              // ./src/utils/*
+import { ... } from '@domain-services/...';    // ./src/domain/*
+import { ... } from '@application-services/...'; // ./src/app/*
+import { ... } from '@shared/...';             // ./shared/*
+import { ... } from '@cloudform/...';          // ./@generated/cloudform/*
+import { ... } from '@schemas/...';            // ./@generated/schemas/*
+import { ... } from '@config';                 // ./src/config/random.ts
+import { ... } from '@cli-config';             // ./src/config/cli.ts
+import { ... } from '@errors';                 // ./src/config/error-messages.ts
+```
+
+## Code Style Guidelines
+
+### General Rules
+
+- DON'T FORGET! Don't add unnecessary comments and "sectionize" code using comments, e.g. `// ─── UI State ───`
+- Be concise. Sacrifice grammar for concision.
+- Ignore formatting errors if not easy to fix
+- **Never use barrel exports**
+- **Never use dynamic require**
+- Use single console write (no multiple console.log in sequence)
+
+### Imports
+
+- Import only needed parts: `import { readFile } from 'fs-extra'`
+- Use `fs-extra` for all filesystem operations
+- Use path aliases when available
+
+```typescript
+// Good
+import { readFile, writeFile } from "fs-extra";
+import { join } from "node:path";
+import { globalStateManager } from "@application-services/global-state-manager";
+
+// Bad
+import fs from "fs-extra";
+import * as path from "path";
+```
+
+### Functions
+
+- Prefer arrow functions for helpers
+- Use inline types for function parameters
+- Prefer procedural/functional code over classes
+
+```typescript
+// Good - arrow function with inline types
+export const loadConfig = async ({ filePath, workingDir }: { filePath: string; workingDir: string }) => {
+  const content = await readFile(join(workingDir, filePath), 'utf-8');
+  return JSON.parse(content);
+};
+
+// Avoid - class when not needed
+class ConfigLoader {
+  load() { ... }
+}
+```
+
+### Types
+
+- Prefer `type` over `interface`
+- Use inline types for simple function params
+
+```typescript
+// Good
+type ConfigOptions = {
+  filePath: string;
+  validate?: boolean;
+};
+
+// Avoid
+interface ConfigOptions {
+  filePath: string;
+  validate?: boolean;
+}
+```
+
+### Naming Conventions
+
+- **Files:** kebab-case (`global-state-manager.ts`)
+- **Functions:** camelCase (`getConfigPath`)
+- **Classes:** PascalCase (`GlobalStateManager`)
+- **Types:** PascalCase (`StacktapeConfig`)
+- **Constants:** SCREAMING_SNAKE_CASE or camelCase
+
+### Error Handling
+
+Use the centralized error system:
+
+```typescript
+import { stpErrors } from "@errors";
+import { ExpectedError, UnexpectedError } from "@utils/errors";
+
+// Using predefined errors (preferred)
+throw stpErrors.e14({ configPath: absoluteConfigPath });
+
+// Old way of specifying erros. When you see this anywhere, put it to predefined errors
+throw new ExpectedError("CONFIG", "Invalid configuration format", "Check the config file syntax");
+
+// Unexpected errors
+throw new UnexpectedError({ error: originalError, customMessage: "Failed to load" });
+```
+
+Error types: `CONFIG`, `STACK`, `SOURCE_CODE`, `NON_EXISTING_RESOURCE`, `BUDGET`, `NOT_YET_IMPLEMENTED`
+
+## Generated Files
+
+**Never edit files in `@generated/` directory.** These are auto-generated by:
+
+- `bun run gen:schema` - JSON schemas
+- `bun run gen:cloudform` - CloudFormation types and classes (used within codebase)
+- `bun run gen:cf:types` - CF type definitions (used in npm export)
+
+## Common Patterns
+
+### TUI Manager for Output
+
+```typescript
+import { tuiManager } from "@application-services/tui-manager";
+
+tuiManager.info("Information message");
+tuiManager.warn("Warning message");
+tuiManager.colorize("yellow", "colored text");
+tuiManager.prettyResourceName(resourceName);
+```
+
+### Global State
+
+```typescript
+import { globalStateManager } from "@application-services/global-state-manager";
+
+const { region, stage, stackName } = globalStateManager;
+```

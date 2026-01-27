@@ -1,0 +1,43 @@
+---
+title: 'stack:info'
+order: 31
+---
+
+# stack:info
+
+Prints information about a specified stack.
+
+You can get information in two formats:
+- **Simple (default):** Prints helpful links and parameters for the deployed stack to the terminal.
+- **Detailed (`--detailed` flag):** Saves detailed information about the stack to a file (default: `stack-info.yaml`). You can customize the output file and format with the `--outFile` and `--outFormat` options.
+
+In **detailed** mode:
+- If the stack is deployed, you'll get an overview of the deployed resources.
+- If you also provide a configuration file, the output will show a diff between the deployed resources and the configuration, indicating which resources will be created, updated, or deleted on the next deployment.
+- If the stack is not deployed, it will show an overview of the resources that will be created.
+
+By default, sensitive values are omitted. To include them, use the `--showSensitiveValues` flag.
+
+## Usage
+
+```bash
+stacktape stack:info --region <region>
+```
+
+## Options
+
+| Option | Required | Type | Description |
+|--------|----------|------|-------------|
+| `--profile` (-p) | No | string |  |
+| `--logFormat` (-lf) | No | string |  |
+| `--logLevel` (-ll) | No | string |  |
+| `--help` (-h) | No | string |  |
+| `--awsAccount` (-aa) | No | string |  |
+| `--stage` (-s) | No | string |  |
+| `--region` (-r) | Yes | string |  |
+| `--projectName` (-prj) | No | string |  |
+| `--configPath` (-cp) | No | string |  |
+| `--detailed` (-d) | No | string |  |
+| `--outFile` (-out) | No | string |  |
+| `--outFormat` (-of) | No | string |  |
+| `--showSensitiveValues` (-ssv) | No | string |  |

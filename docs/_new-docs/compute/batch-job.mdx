@@ -1,0 +1,574 @@
+---
+title: 'Batch Job'
+order: 6
+---
+
+# Batch Job
+
+Batch jobs run containers that execute a task and terminate. Unlike always-running services, you only pay for the compute time used. Ideal for data processing, ML training, and scheduled tasks.
+
+**Type:** `batch-job`
+
+## When to Use
+
+**Advantages:**
+
+- **No idle costs**: Pay only when running
+- **Unlimited runtime**: No 15-minute limit like Lambda
+- **GPU support**: Run ML training and inference
+- **Spot instances**: Up to 90% cost savings
+- **Flexible resources**: Configure CPU, memory, and GPU independently
+
+**Disadvantages:**
+
+- **Startup latency**: Takes seconds to minutes to provision
+- **No persistent connections**: Container terminates after completion
+- **Complex architecture**: Uses AWS Batch + Step Functions under the hood
+
+**Best for:** Data processing pipelines, ETL jobs, ML training/inference, report generation, scheduled maintenance tasks.
+
+## Basic Example
+
+```yaml
+resources:
+  processor:
+    type: batch-job
+    properties:
+      container:
+        packaging:
+          type: stacktape-image-buildpack
+          properties:
+            entryfilePath: src/process.ts
+      resources:
+        cpu: 2
+        memory: 4096
+      events:
+        - type: schedule
+          properties:
+            scheduleRate: cron(0 9 * * ? *) # Daily at 9 AM UTC
+```
+
+```typescript
+// src/process.ts
+async function main() {
+  const eventData = JSON.parse(process.env.STP_TRIGGER_EVENT_DATA || '{}');
+  console.log('Processing:', eventData);
+
+  // Your processing logic here
+
+  console.log('Done');
+  process.exit(0); // Exit successfully
+}
+
+main().catch((err) => {
+  console.error(err);
+  process.exit(1); // Exit with error
+});
+```
+
+## Packaging
+
+### Stacktape Image Buildpack
+
+```yaml
+container:
+  packaging:
+    type: stacktape-image-buildpack
+    properties:
+      entryfilePath: src/process.ts
+```
+
+### Custom Dockerfile
+
+```yaml
+container:
+  packaging:
+    type: custom-dockerfile
+    properties:
+      buildContextPath: ./
+      dockerfilePath: ./Dockerfile
+```
+
+### Prebuilt Image
+
+```yaml
+container:
+  packaging:
+    type: prebuilt-image
+    properties:
+      image: myorg/processor:v1.2.3
+```
+
+## Resource Configuration
+
+### CPU and Memory
+
+Configure resources independently (unlike Fargate's fixed combinations):
+
+```yaml
+resources:
+  cpu: 4
+  memory: 8192 # 8 GB
+```
+
+<Info>
+  For memory, use values slightly below powers of 2 (e.g., 7680 instead of 8192) to fit into available instance types
+  more efficiently.
+</Info>
+
+### GPU Support
+
+For ML workloads requiring GPU acceleration:
+
+```yaml
+resources:
+  cpu: 4
+  memory: 16384
+  gpu: 1
+```
+
+AWS Batch provisions appropriate GPU instances (p3, g4, etc.) automatically.
+
+## Spot Instances
+
+Use spot instances for up to 90% cost savings:
+
+```yaml
+useSpotInstances: true
+```
+
+<Warning>
+  Spot instances can be interrupted by AWS with 2 minutes notice. Use for fault-tolerant workloads or implement
+  checkpointing.
+</Warning>
+
+## Event Triggers
+
+### Schedule (Cron/Rate)
+
+```yaml
+events:
+  # Daily at 9 AM UTC
+  - type: schedule
+    properties:
+      scheduleRate: cron(0 9 * * ? *)
+
+  # Every 6 hours
+  - type: schedule
+    properties:
+      scheduleRate: rate(6 hours)
+
+  # Every Monday at midnight
+  - type: schedule
+    properties:
+      scheduleRate: cron(0 0 ? * MON *)
+```
+
+### HTTP On-Demand
+
+Trigger jobs via HTTP request:
+
+```yaml
+resources:
+  api:
+    type: http-api-gateway
+
+  processor:
+    type: batch-job
+    properties:
+      container:
+        packaging:
+          type: stacktape-image-buildpack
+          properties:
+            entryfilePath: src/process.ts
+      resources:
+        cpu: 2
+        memory: 4096
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /process
+            method: POST
+```
+
+Then trigger with:
+
+```bash
+curl -X POST https://your-api-url/process \
+  -H "Content-Type: application/json" \
+  -d '{"data": "to-process"}'
+```
+
+### S3 Object Events
+
+Process files when uploaded to S3:
+
+```yaml
+resources:
+  uploads:
+    type: bucket
+
+  processor:
+    type: batch-job
+    properties:
+      container:
+        packaging:
+          type: stacktape-image-buildpack
+          properties:
+            entryfilePath: src/process.ts
+      resources:
+        cpu: 2
+        memory: 4096
+      connectTo:
+        - uploads
+      events:
+        - type: s3
+          properties:
+            bucketArn: $ResourceParam('uploads', 'arn')
+            s3EventType: 's3:ObjectCreated:*'
+            filterRule:
+              prefix: incoming/
+              suffix: .csv
+```
+
+### SQS Queue
+
+Process messages from a queue:
+
+```yaml
+resources:
+  queue:
+    type: sqs-queue
+
+  processor:
+    type: batch-job
+    properties:
+      container:
+        packaging:
+          type: stacktape-image-buildpack
+          properties:
+            entryfilePath: src/process.ts
+      resources:
+        cpu: 2
+        memory: 4096
+      connectTo:
+        - queue
+      events:
+        - type: sqs
+          properties:
+            sqsQueueName: queue
+```
+
+### SNS Topic
+
+```yaml
+events:
+  - type: sns
+    properties:
+      snsTopicName: notifications
+```
+
+### EventBridge
+
+```yaml
+events:
+  - type: event-bus
+    properties:
+      eventBusName: events
+      eventPattern:
+        source:
+          - my-application
+        detail-type:
+          - order-placed
+```
+
+### DynamoDB Stream
+
+```yaml
+events:
+  - type: dynamo-db
+    properties:
+      streamArn: $ResourceParam('table', 'streamArn')
+      startingPosition: LATEST
+      batchSize: 100
+```
+
+### Kinesis Stream
+
+```yaml
+events:
+  - type: kinesis
+    properties:
+      streamArn: arn:aws:kinesis:us-east-1:123456789:stream/data-stream
+      startingPosition: LATEST
+```
+
+## Timeout
+
+Set maximum execution time:
+
+```yaml
+timeout: 3600 # 1 hour in seconds
+```
+
+If the job exceeds this limit, it's terminated and marked as failed.
+
+## Retry Configuration
+
+```yaml
+retryConfig:
+  maxRetryAttempts: 3
+  intervalSeconds: 60
+  backoffMultiplier: 2 # 60s, 120s, 240s between retries
+```
+
+Access retry information in your code:
+
+```typescript
+const maxAttempts = process.env.STP_MAXIMUM_ATTEMPTS;
+const currentAttempt = process.env.STP_CURRENT_ATTEMPT;
+
+if (currentAttempt === maxAttempts) {
+  // Last attempt - maybe send an alert
+}
+```
+
+## Environment Variables
+
+```yaml
+container:
+  environment:
+    - name: NODE_ENV
+      value: production
+    - name: API_KEY
+      value: $Secret('api-key')
+    - name: BUCKET_NAME
+      value: $ResourceParam('uploads', 'bucketName')
+```
+
+### Pre-set Variables
+
+| Variable                 | Description                      |
+| ------------------------ | -------------------------------- |
+| `STP_TRIGGER_EVENT_DATA` | JSON-stringified event payload   |
+| `STP_MAXIMUM_ATTEMPTS`   | Total retry attempts configured  |
+| `STP_CURRENT_ATTEMPT`    | Current attempt number (1-based) |
+
+```typescript
+// Access event data
+const eventData = JSON.parse(process.env.STP_TRIGGER_EVENT_DATA || '{}');
+
+// For S3 trigger
+console.log(eventData.Records[0].s3.bucket.name);
+console.log(eventData.Records[0].s3.object.key);
+
+// For HTTP trigger
+console.log(eventData.body);
+```
+
+## Connecting to Resources
+
+```yaml
+resources:
+  database:
+    type: relational-database
+    properties:
+      engine:
+        type: postgres
+
+  storage:
+    type: bucket
+
+  processor:
+    type: batch-job
+    properties:
+      connectTo:
+        - database
+        - storage
+```
+
+## Logging
+
+Logs are sent to CloudWatch:
+
+```bash
+stacktape logs --stage dev --resourceName processor
+```
+
+Configure retention:
+
+```yaml
+logging:
+  retention: 30 # days
+```
+
+## Common Patterns
+
+### Data ETL Pipeline
+
+```yaml
+resources:
+  rawData:
+    type: bucket
+
+  processedData:
+    type: bucket
+
+  etlJob:
+    type: batch-job
+    properties:
+      container:
+        packaging:
+          type: stacktape-image-buildpack
+          properties:
+            entryfilePath: src/etl.ts
+        environment:
+          - name: OUTPUT_BUCKET
+            value: $ResourceParam('processedData', 'bucketName')
+      resources:
+        cpu: 4
+        memory: 8192
+      connectTo:
+        - rawData
+        - processedData
+      events:
+        - type: s3
+          properties:
+            bucketArn: $ResourceParam('rawData', 'arn')
+            s3EventType: 's3:ObjectCreated:*'
+```
+
+### ML Training with GPU
+
+```yaml
+resources:
+  trainingData:
+    type: bucket
+
+  models:
+    type: bucket
+
+  trainer:
+    type: batch-job
+    properties:
+      container:
+        packaging:
+          type: custom-dockerfile
+          properties:
+            dockerfilePath: ./training.Dockerfile
+      resources:
+        cpu: 8
+        memory: 32768
+        gpu: 1
+      useSpotInstances: true
+      timeout: 14400 # 4 hours
+      connectTo:
+        - trainingData
+        - models
+      events:
+        - type: schedule
+          properties:
+            scheduleRate: cron(0 0 ? * SUN *) # Weekly on Sunday midnight
+```
+
+### Report Generation
+
+```yaml
+resources:
+  api:
+    type: http-api-gateway
+
+  database:
+    type: relational-database
+    properties:
+      engine:
+        type: postgres
+
+  reports:
+    type: bucket
+
+  reportGenerator:
+    type: batch-job
+    properties:
+      container:
+        packaging:
+          type: stacktape-image-buildpack
+          properties:
+            entryfilePath: src/generate-report.ts
+      resources:
+        cpu: 2
+        memory: 4096
+      connectTo:
+        - database
+        - reports
+      events:
+        # Daily scheduled generation
+        - type: schedule
+          properties:
+            scheduleRate: cron(0 6 * * ? *) # 6 AM UTC daily
+        # On-demand via HTTP
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            path: /reports/generate
+            method: POST
+```
+
+## Batch Job vs Lambda vs Worker
+
+| Aspect             | Batch Job       | Lambda       | Worker Service         |
+| ------------------ | --------------- | ------------ | ---------------------- |
+| **Startup**        | Seconds-minutes | Milliseconds | None (always on)       |
+| **Max runtime**    | Unlimited       | 15 minutes   | Unlimited              |
+| **Min cost**       | $0 when idle    | $0 when idle | ~$8/month              |
+| **GPU support**    | Yes             | No           | Via EC2 instance types |
+| **Spot instances** | Yes             | No           | No                     |
+
+**Use batch job when:**
+
+- Processing takes longer than 15 minutes
+- You need GPUs
+- Cost optimization via spot instances
+- Variable workload (don't want to pay when idle)
+
+**Use Lambda when:**
+
+- Processing under 15 minutes
+- Need instant response
+- High concurrency requirements
+
+**Use worker service when:**
+
+- Need always-on processing
+- Real-time queue consumption
+- Predictable, sustained workload
+
+## Pricing
+
+**On-Demand EC2 pricing** (varies by instance type) plus AWS Step Functions costs.
+
+Example: 2 vCPU, 4 GB memory, running for 1 hour daily:
+
+- Compute: ~$0.10/hour × 30 hours/month = **$3/month**
+- Step Functions: ~$0.025 per 1000 state transitions
+
+With spot instances, compute costs can be 60-90% lower.
+
+## Referenceable Parameters
+
+| Parameter          | Description                      |
+| ------------------ | -------------------------------- |
+| `jobDefinitionArn` | AWS Batch job definition ARN     |
+| `stateMachineArn`  | Step Functions state machine ARN |
+| `logGroupArn`      | CloudWatch log group ARN         |
+
+```yaml
+environment:
+  - name: JOB_ARN
+    value: $ResourceParam('processor', 'jobDefinitionArn')
+```
+
+## API Reference
+
+<PropertiesTable definitionName="BatchJobConfig" />

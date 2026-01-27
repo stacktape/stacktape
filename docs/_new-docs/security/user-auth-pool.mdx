@@ -1,0 +1,394 @@
+---
+title: 'User Auth Pool'
+order: 3
+---
+
+# User Auth Pool
+
+`type: user-auth-pool`
+
+User auth pools provide a secure identity store for your users, handling sign-up, sign-in, and access control. They support OAuth 2.0, SAML 2.0, and OpenID Connect, and integrate with HTTP API Gateways to protect your endpoints.
+
+User auth pools use [Amazon Cognito](https://aws.amazon.com/cognito/) under the hood.
+
+## When to Use
+
+**Advantages:**
+
+- **Free tier**: First 10,000 monthly active users (MAUs) free
+- **Serverless**: Scales automatically
+- **Standards-based**: OAuth 2.0, SAML, OpenID Connect
+- **Compliant**: HIPAA, PCI DSS, SOC, ISO/IEC 27001
+- **Built-in features**: MFA, email verification, password policies
+
+**Disadvantages:**
+
+- Can become expensive at scale with SAML/OIDC federation
+- OAuth flows can be complex to implement correctly
+- Some customization limitations compared to self-hosted solutions
+
+**Use cases:**
+
+- Web and mobile app authentication
+- API authorization
+- Social login (Google, Facebook, Apple)
+- Enterprise SSO (SAML, OIDC)
+
+## Basic Example
+
+A function protected by Cognito authentication:
+
+
+```ts
+import { defineConfig } from 'stacktape';
+
+export default defineConfig({
+  resources: {
+    userPool: {
+      type: 'user-auth-pool',
+      properties: {
+        userVerificationType: 'email-code'
+      }
+    },
+
+    api: {
+      type: 'http-api-gateway',
+      properties: {
+        routes: [
+          {
+            path: '/protected',
+            method: 'GET',
+            integration: { functionName: 'protectedFunction' },
+            authorizer: {
+              type: 'cognito',
+              properties: {
+                userPoolName: 'userPool'
+              }
+            }
+          }
+        ]
+      }
+    },
+
+    protectedFunction: {
+      type: 'function',
+      properties: {
+        packaging: {
+          type: 'stacktape-lambda-buildpack',
+          properties: {
+            entryfilePath: 'src/protected.ts'
+          }
+        }
+      }
+    }
+
+}
+});
+
+```
+
+
+## User Verification
+
+Control how users verify their identity during sign-up:
+
+
+```ts
+{
+  userPool: {
+    type: 'user-auth-pool',
+    properties: {
+      // Options: 'email-code', 'email-link', 'sms', 'none'
+      userVerificationType: 'email-code',
+
+      // Custom verification messages
+      userVerificationMessageConfig: {
+        emailSubjectUsingCode: 'Your verification code',
+        emailMessageUsingCode: 'Your code is {####}'
+      }
+    }
+  }
+}
+```
+
+
+
+| Type         | Description                      |
+| ------------ | -------------------------------- |
+| `email-code` | Send verification code via email |
+| `email-link` | Send clickable verification link |
+| `sms`        | Send verification code via SMS   |
+| `none`       | No verification required         |
+
+## Password Policy
+
+Enforce password requirements:
+
+
+```ts
+{
+  userPool: {
+    type: 'user-auth-pool',
+    properties: {
+      passwordPolicy: {
+        minimumLength: 12,
+        requireLowercase: true,
+        requireUppercase: true,
+        requireNumbers: true,
+        requireSymbols: true,
+        temporaryPasswordValidityDays: 7
+      }
+    }
+  }
+}
+```
+
+
+## Multi-Factor Authentication
+
+Add an extra layer of security:
+
+
+```ts
+{
+  userPool: {
+    type: 'user-auth-pool',
+    properties: {
+      mfaConfiguration: {
+        // 'ON' = required, 'OPTIONAL' = user choice, 'OFF' = disabled
+        status: 'OPTIONAL',
+        // Available types: 'SMS', 'SOFTWARE_TOKEN', 'EMAIL_OTP'
+        enabledTypes: ['SOFTWARE_TOKEN', 'SMS']
+      }
+    }
+  }
+}
+```
+
+
+## External Identity Providers
+
+Allow sign-in with social providers:
+
+
+```ts
+{
+  userPool: {
+    type: 'user-auth-pool',
+    properties: {
+      enableHostedUi: true,
+      hostedUiDomainPrefix: 'myapp-auth',
+      callbackURLs: ['https://myapp.com/callback'],
+      logoutURLs: ['https://myapp.com/logout'],
+      allowedOAuthFlows: ['code'],
+      allowedOAuthScopes: ['email', 'openid', 'profile'],
+
+      identityProviders: [
+        {
+          type: 'Google',
+          clientId: '$Secret(\'google-client-id\')',
+          clientSecret: '$Secret(\'google-client-secret\')',
+          authorizeScopes: ['email', 'profile', 'openid'],
+          attributeMapping: {
+            email: 'email',
+            name: 'name'
+          }
+        }
+      ]
+    }
+
+}
+}
+
+```
+
+
+Supported providers: `Google`, `Facebook`, `LoginWithAmazon`, `SignInWithApple`, `OIDC`, `SAML`.
+
+## Lambda Hooks
+
+Customize authentication behavior with Lambda triggers:
+
+
+```ts
+{
+  userPool: {
+    type: 'user-auth-pool',
+    properties: {
+      hooks: {
+        preSignUp: '$ResourceParam(\'validateSignupFunction\', \'arn\')',
+        postConfirmation: '$ResourceParam(\'createUserRecordFunction\', \'arn\')',
+        preTokenGeneration: '$ResourceParam(\'addCustomClaimsFunction\', \'arn\')'
+      }
+    }
+  },
+
+  validateSignupFunction: {
+    type: 'function',
+    properties: {
+      packaging: {
+        type: 'stacktape-lambda-buildpack',
+        properties: { entryfilePath: 'src/validate-signup.ts' }
+      }
+    }
+  }
+}
+```
+
+
+
+Available hooks:
+
+| Hook                          | Trigger Point                           |
+| ----------------------------- | --------------------------------------- |
+| `preSignUp`                   | Before user is created                  |
+| `postConfirmation`            | After user confirms account             |
+| `preAuthentication`           | Before credentials are validated        |
+| `postAuthentication`          | After successful authentication         |
+| `preTokenGeneration`          | Before tokens are issued                |
+| `customMessage`               | Before sending email/SMS                |
+| `userMigration`               | For migrating users from another system |
+| `defineAuthChallenge`         | Custom auth flow - define challenge     |
+| `createAuthChallenge`         | Custom auth flow - create challenge     |
+| `verifyAuthChallengeResponse` | Custom auth flow - verify response      |
+
+## Custom Email Configuration
+
+Use your own SES identity for sending emails:
+
+
+```ts
+{
+  userPool: {
+    type: 'user-auth-pool',
+    properties: {
+      emailConfiguration: {
+        sesAddressArn: 'arn:aws:ses:eu-west-1:123456789:identity/noreply@myapp.com',
+        from: 'noreply@myapp.com',
+        replyToEmailAddress: 'support@myapp.com'
+      }
+    }
+  }
+}
+```
+
+
+## Protecting with a Firewall
+
+Add WAF protection to your user pool:
+
+
+```ts
+{
+  firewall: {
+    type: 'web-app-firewall',
+    properties: {
+      scope: 'regional'
+    }
+  },
+
+userPool: {
+type: 'user-auth-pool',
+properties: {
+useFirewall: 'firewall'
+}
+}
+}
+
+```
+
+
+## Custom Attributes
+
+Define additional user attributes:
+
+
+```ts
+{
+  userPool: {
+    type: 'user-auth-pool',
+    properties: {
+      schema: [
+        {
+          name: 'tenantId',
+          attributeDataType: 'String',
+          required: true,
+          mutable: false
+        },
+        {
+          name: 'plan',
+          attributeDataType: 'String',
+          mutable: true
+        }
+      ]
+    }
+  }
+}
+```
+
+
+
+## Accessing from Code
+
+```ts
+import {
+  CognitoIdentityProviderClient,
+  SignUpCommand,
+  InitiateAuthCommand
+} from '@aws-sdk/client-cognito-identity-provider';
+
+const client = new CognitoIdentityProviderClient({});
+
+// Sign up a new user
+await client.send(
+  new SignUpCommand({
+    ClientId: process.env.USER_POOL_CLIENT_ID,
+    Username: 'user@example.com',
+    Password: 'SecurePassword123!',
+    UserAttributes: [{ Name: 'email', Value: 'user@example.com' }]
+  })
+);
+
+// Sign in
+const authResult = await client.send(
+  new InitiateAuthCommand({
+    AuthFlow: 'USER_PASSWORD_AUTH',
+    ClientId: process.env.USER_POOL_CLIENT_ID,
+    AuthParameters: {
+      USERNAME: 'user@example.com',
+      PASSWORD: 'SecurePassword123!'
+    }
+  })
+);
+
+// Use authResult.AuthenticationResult.AccessToken for API calls
+```
+
+## Pricing
+
+Amazon Cognito has a free tier:
+
+- **10,000 MAUs free** for direct sign-in and social providers
+- **50 MAUs free** for SAML/OIDC federation
+
+Beyond free tier (Lite tier):
+
+| MAUs             | Price per MAU |
+| ---------------- | ------------- |
+| 10,001 - 100,000 | $0.0055       |
+| 100,001 - 1M     | $0.0046       |
+| Over 1M          | $0.00325      |
+
+SAML/OIDC federation: $0.015 per MAU beyond free tier.
+
+Additional charges for SMS (MFA) and advanced security features.
+
+For latest pricing, see [Amazon Cognito Pricing](https://aws.amazon.com/cognito/pricing/).
+
+## Referenceable Parameters
+
+<ReferenceableParams resource="user-auth-pool" />
+
+## API Reference
+
+<PropertiesTable definitionName="UserAuthPool" />

@@ -344,15 +344,15 @@ export class DeploymentArtifactManager {
 
         const wasSameNameItemUploadedDuringCurrentDeployment = Boolean(
           (previousItem.tag && this.successfullyUploadedImages.find((img) => img.name === previousItem.name)) ||
-            (previousItem.s3Key && this.successfullyCreatedObjects.find((obj) => obj.name === previousItem.name))
+          (previousItem.s3Key && this.successfullyCreatedObjects.find((obj) => obj.name === previousItem.name))
         );
         const isItemUsedInCurrentDeployment = Boolean(
           (previousItem.tag &&
             (this.previouslyUploadedImageTagsUsedInDeployment.includes(previousItem.tag) ||
               this.successfullyUploadedImages.find(({ tag }) => tag === previousItem.tag))) ||
-            (previousItem.s3Key &&
-              (this.previouslyUploadedLambdaS3KeysUsedInDeployment.includes(previousItem.s3Key) ||
-                this.successfullyCreatedObjects.find(({ s3Key }) => s3Key === previousItem.s3Key)))
+          (previousItem.s3Key &&
+            (this.previouslyUploadedLambdaS3KeysUsedInDeployment.includes(previousItem.s3Key) ||
+              this.successfullyCreatedObjects.find(({ s3Key }) => s3Key === previousItem.s3Key)))
         );
 
         const versionsToKeep = sortedVersions.slice(
@@ -629,14 +629,30 @@ export class DeploymentArtifactManager {
     contentType: string;
     metadata?: { [key: string]: string };
   }) => {
-    await awsSdkManager.uploadToBucket({
-      s3Key,
-      filePath: artifactPath,
-      bucketName: this.deploymentBucketName,
-      contentType,
-      useS3Acceleration: configManager.deploymentConfig.disableS3TransferAcceleration !== true,
-      metadata
-    });
+    const upload = async (useS3Acceleration?: boolean) => {
+      await awsSdkManager.uploadToBucket({
+        s3Key,
+        filePath: artifactPath,
+        bucketName: this.deploymentBucketName,
+        contentType,
+        useS3Acceleration: useS3Acceleration ?? configManager.deploymentConfig.disableS3TransferAcceleration !== true,
+        metadata
+      });
+    };
+
+    try {
+      await upload();
+    } catch (err) {
+      const errMessage = err instanceof Error ? err.message : String(err);
+      if (errMessage.includes('NoSuchBucket')) {
+        await awsSdkManager.waitForBucketExists({ bucketName: this.deploymentBucketName, maxTime: 60 });
+        await upload();
+      } else if (errMessage.includes('PermanentRedirect')) {
+        await upload(false);
+      } else {
+        throw err;
+      }
+    }
     this.successfullyCreatedObjects.push({ s3Key, name: artifactName });
     return { s3Key };
   };

@@ -4,7 +4,7 @@
     "playwright": {
       "type": "local",
       "command": ["npx", "-y", "@executeautomation/playwright-mcp-server"],
-      "enabled": true
+      "enabled": false
     }
   }
 }

@@ -1,0 +1,231 @@
+---
+title: 'SNS Topic'
+order: 3
+---
+
+# SNS Topic
+
+Fully managed pub/sub messaging for fan-out and push notifications.
+
+**Type:** `sns-topic`
+
+## When to Use
+
+**Advantages:**
+
+- **Fan-out**: One message to many subscribers
+- **Push delivery**: No polling required
+- **Multiple protocols**: Lambda, SQS, HTTP, email, SMS
+- **Message filtering**: Route based on attributes
+
+**Disadvantages:**
+
+- **No persistence**: Messages not stored
+- **At-least-once**: May deliver duplicates
+- **Max message size**: 256 KB
+
+**Best for:** Notifications, event fan-out, alerting, cross-service communication.
+
+## Basic Example
+
+```yaml
+resources:
+  notifications:
+    type: sns-topic
+
+  handler:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/handler.ts
+      events:
+        - type: sns-integration
+          properties:
+            snsTopicName: notifications
+```
+
+## Publishing Messages
+
+```typescript
+import { SNSClient, PublishCommand } from '@aws-sdk/client-sns';
+
+const sns = new SNSClient({});
+const topicArn = process.env.STP_NOTIFICATIONS_TOPIC_ARN;
+
+await sns.send(
+  new PublishCommand({
+    TopicArn: topicArn,
+    Message: JSON.stringify({
+      type: 'order-placed',
+      orderId: '123',
+      customerId: 'cust-456'
+    }),
+    MessageAttributes: {
+      eventType: {
+        DataType: 'String',
+        StringValue: 'order-placed'
+      }
+    }
+  })
+);
+```
+
+## Multiple Subscribers
+
+```yaml
+resources:
+  orderEvents:
+    type: sns-topic
+
+  emailHandler:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/email.ts
+      events:
+        - type: sns-integration
+          properties:
+            snsTopicName: orderEvents
+
+  analyticsHandler:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/analytics.ts
+      events:
+        - type: sns-integration
+          properties:
+            snsTopicName: orderEvents
+
+  inventoryQueue:
+    type: sqs-queue
+    properties:
+      subscriptions:
+        - snsTopicName: orderEvents
+```
+
+## Message Filtering
+
+Subscribe only to specific messages:
+
+```yaml
+events:
+  - type: sns-integration
+    properties:
+      snsTopicName: orderEvents
+      filterPolicy:
+        eventType:
+          - order-placed
+          - order-cancelled
+        priority:
+          - high
+```
+
+## Fan-Out to SQS
+
+Reliable fan-out pattern:
+
+```yaml
+resources:
+  events:
+    type: sns-topic
+
+  emailQueue:
+    type: sqs-queue
+    properties:
+      subscriptions:
+        - snsTopicName: events
+          filterPolicy:
+            type:
+              - email
+
+  smsQueue:
+    type: sqs-queue
+    properties:
+      subscriptions:
+        - snsTopicName: events
+          filterPolicy:
+            type:
+              - sms
+```
+
+## FIFO Topic
+
+Ordered delivery with deduplication:
+
+```yaml
+resources:
+  orders:
+    type: sns-topic
+    properties:
+      fifo: true
+      contentBasedDeduplication: true
+```
+
+## Processing SNS Messages
+
+```typescript
+export const handler = async (event) => {
+  for (const record of event.Records) {
+    const message = JSON.parse(record.Sns.Message);
+    const attributes = record.Sns.MessageAttributes;
+
+    console.log('Received:', message);
+    console.log('Attributes:', attributes);
+
+    await processNotification(message);
+  }
+};
+```
+
+## Cross-Stack Communication
+
+Publish from one stack, subscribe in another:
+
+**Producer stack:**
+
+```yaml
+resources:
+  events:
+    type: sns-topic
+```
+
+**Consumer stack:**
+
+```yaml
+resources:
+  handler:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/handler.ts
+      events:
+        - type: sns-integration
+          properties:
+            topicArn: arn:aws:sns:us-east-1:123456789:events-topic
+```
+
+## Pricing
+
+- **Publishes**: $0.50 per million
+- **Deliveries**: $0.60 per million (Lambda), $0.00 (SQS)
+- **Free tier**: 1 million publishes/month
+
+## Referenceable Parameters
+
+| Parameter   | Description |
+| ----------- | ----------- |
+| `topicArn`  | Topic ARN   |
+| `topicName` | Topic name  |
+
+## API Reference
+
+<PropertiesTable definitionName="SnsTopicConfig" />

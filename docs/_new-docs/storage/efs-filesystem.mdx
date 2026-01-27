@@ -1,0 +1,243 @@
+---
+title: 'EFS Filesystem'
+order: 4
+---
+
+# EFS Filesystem
+
+Elastic file system providing shared storage across multiple containers or Lambda functions.
+
+**Type:** `efs-filesystem`
+
+## When to Use
+
+**Advantages:**
+
+- **Shared storage**: Multiple containers access same files
+- **Persistent**: Data survives container restarts
+- **Auto-scaling**: Grows and shrinks automatically
+- **POSIX-compliant**: Standard filesystem interface
+
+**Disadvantages:**
+
+- **VPC only**: Requires VPC connectivity
+- **Latency**: Higher than local storage
+- **Cost**: More expensive than S3
+
+**Best for:** Shared config files, CMS uploads, ML model storage, legacy apps requiring filesystem.
+
+## Basic Example
+
+```yaml
+resources:
+  storage:
+    type: efs-filesystem
+
+  api:
+    type: web-service
+    properties:
+      packaging:
+        type: stacktape-image-buildpack
+        properties:
+          entryfilePath: src/index.ts
+      resources:
+        cpu: 0.25
+        memory: 512
+      connectTo:
+        - storage
+      volumeMounts:
+        - efsStorageName: storage
+          containerPath: /data
+```
+
+## Multiple Containers Sharing Storage
+
+```yaml
+resources:
+  storage:
+    type: efs-filesystem
+
+  writer:
+    type: web-service
+    properties:
+      packaging:
+        type: stacktape-image-buildpack
+        properties:
+          entryfilePath: src/writer.ts
+      resources:
+        cpu: 0.25
+        memory: 512
+      connectTo:
+        - storage
+      volumeMounts:
+        - efsStorageName: storage
+          containerPath: /shared
+
+  reader:
+    type: worker-service
+    properties:
+      packaging:
+        type: stacktape-image-buildpack
+        properties:
+          entryfilePath: src/reader.ts
+      resources:
+        cpu: 0.25
+        memory: 512
+      connectTo:
+        - storage
+      volumeMounts:
+        - efsStorageName: storage
+          containerPath: /shared
+          readOnly: true
+```
+
+## Lambda with EFS
+
+```yaml
+resources:
+  storage:
+    type: efs-filesystem
+
+  processor:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/handler.ts
+      joinDefaultVpc: true
+      efsAccessPoint:
+        efsStorageName: storage
+        localMountPath: /mnt/data
+```
+
+```typescript
+import { readFileSync, writeFileSync } from 'fs';
+
+export const handler = async () => {
+  // Read from EFS
+  const data = readFileSync('/mnt/data/config.json', 'utf-8');
+
+  // Write to EFS
+  writeFileSync('/mnt/data/output.json', JSON.stringify({ processed: true }));
+};
+```
+
+## Access Points
+
+Create isolated access points with specific paths and permissions:
+
+```yaml
+resources:
+  storage:
+    type: efs-filesystem
+    properties:
+      accessPoints:
+        - name: app-data
+          path: /app
+          posixUser:
+            uid: 1000
+            gid: 1000
+        - name: logs
+          path: /logs
+          posixUser:
+            uid: 1000
+            gid: 1000
+```
+
+## Performance Mode
+
+```yaml
+resources:
+  storage:
+    type: efs-filesystem
+    properties:
+      performanceMode: maxIO # or 'generalPurpose' (default)
+```
+
+- `generalPurpose`: Lower latency, most workloads
+- `maxIO`: Higher throughput, parallel workloads
+
+## Throughput Mode
+
+```yaml
+resources:
+  storage:
+    type: efs-filesystem
+    properties:
+      throughputMode: provisioned
+      provisionedThroughputInMibps: 100
+```
+
+- `bursting`: Scales with storage size
+- `elastic`: Pay per use, auto-scales
+- `provisioned`: Fixed throughput
+
+## Encryption
+
+EFS is encrypted at rest by default using AWS-managed keys.
+
+## Use Cases
+
+### CMS Media Storage
+
+```yaml
+resources:
+  media:
+    type: efs-filesystem
+
+  cms:
+    type: web-service
+    properties:
+      packaging:
+        type: prebuilt-image
+        properties:
+          image: wordpress:latest
+      resources:
+        cpu: 0.5
+        memory: 1024
+      connectTo:
+        - media
+      volumeMounts:
+        - efsStorageName: media
+          containerPath: /var/www/html/wp-content/uploads
+```
+
+### ML Model Storage
+
+```yaml
+resources:
+  models:
+    type: efs-filesystem
+
+  inference:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/inference.ts
+      memory: 3008
+      timeout: 60
+      joinDefaultVpc: true
+      efsAccessPoint:
+        efsStorageName: models
+        localMountPath: /mnt/models
+```
+
+## Pricing
+
+- **Storage**: $0.30/GB/month (Standard)
+- **Infrequent Access**: $0.016/GB/month + $0.01/GB transferred
+- **Throughput**: Included with bursting, charged for provisioned
+
+## Referenceable Parameters
+
+| Parameter | Description    |
+| --------- | -------------- |
+| `arn`     | Filesystem ARN |
+| `id`      | Filesystem ID  |
+
+## API Reference
+
+<PropertiesTable definitionName="EfsFilesystemConfig" />

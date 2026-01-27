@@ -2,7 +2,7 @@ import { tuiManager } from '@application-services/tui-manager';
 import { getAvailableAwsProfiles, upsertAwsProfile } from '@utils/aws-config';
 import { ExpectedError } from '@utils/errors';
 
-export const commandAwsProfileUpdate = async (): Promise<AwsProfileUpdateReturnValue> => {
+export const commandAwsProfileUpdate = async () => {
   const availableProfiles = await getAvailableAwsProfiles();
 
   if (!availableProfiles.length) {

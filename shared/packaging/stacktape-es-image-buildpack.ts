@@ -2,7 +2,7 @@ import { join } from 'node:path';
 import { DEFAULT_CONTAINER_NODE_VERSION } from '@config';
 import { buildDockerImage, checkDockerImageExists, getDockerImageDetails } from '@shared/utils/docker';
 import { buildEsDevDockerfile, buildEsDockerfile } from '@shared/utils/dockerfiles';
-import { getFolder } from '@shared/utils/fs-utils';
+import { getFolder, getFolderSize } from '@shared/utils/fs-utils';
 import { outputFile } from 'fs-extra';
 import objectHash from 'object-hash';
 import { createEsBundle } from './bundlers/es';
@@ -73,9 +73,21 @@ export const buildUsingStacktapeEsImageBuildpack = async ({
       // Ignore errors getting image size
     }
 
+    // Get mounted code size for display
+    let mountedCodeSize: string | null = null;
+    try {
+      if (distFolderPath) {
+        const size = await getFolderSize(distFolderPath, 'MB', 2);
+        mountedCodeSize = `${size} MB`;
+      }
+    } catch {
+      // Ignore errors getting folder size
+    }
+
     // Set final message for dev mode (include image size if available)
     const baseMessage = devBaseImageBuilt ? 'Built new base dev image' : 'Using cached base dev image';
-    const devFinalMessage = imageSize ? `${baseMessage} (${imageSize})` : baseMessage;
+    const codeMessage = mountedCodeSize ? ` + mounted bundled code (${mountedCodeSize})` : '';
+    const devFinalMessage = imageSize ? `${baseMessage} (${imageSize})${codeMessage}` : `${baseMessage}${codeMessage}`;
     await progressLogger.finishEvent({ eventType: 'BUILD_IMAGE', finalMessage: devFinalMessage });
 
     return {

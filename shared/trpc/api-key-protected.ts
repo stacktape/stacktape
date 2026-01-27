@@ -46,7 +46,7 @@ type GlobalConfigResponse = {
   deploymentNotifications: DeploymentNotificationDefinition[];
 };
 
-type CurrentUserAndOrgDataResponse = {
+export type CurrentUserAndOrgDataResponse = {
   user: {
     id: string;
     [key: string]: any;
@@ -143,59 +143,102 @@ type DeleteUndeployedStageResponse = {
   [key: string]: any;
 };
 
-const createTrpcApiKeyProtectedClient = ({ apiKey }: { apiKey: string }) => {
+type ApiKeyTrpcClient = {
+  recordStackOperation: {
+    mutate: (args: RecordStackOperationParams) => Promise<void>;
+  };
+  globalConfig: {
+    query: (args?: GlobalConfigParams) => Promise<GlobalConfigResponse>;
+  };
+  currentUserAndOrgData: {
+    query: () => Promise<CurrentUserAndOrgDataResponse>;
+  };
+  awsAccountCredentials: {
+    query: (args: AwsAccountCredentialsParams) => Promise<AwsAccountCredentialsResponse>;
+  };
+  template: {
+    query: (args: TemplateParams) => Promise<TemplateResponse>;
+  };
+  canDeploy: {
+    query: () => Promise<CanDeployResponse>;
+  };
+  defaultDomainsInfo: {
+    query: (args: DefaultDomainsInfoParams) => Promise<DefaultDomainsInfoResponse>;
+  };
+  createProjectFromCli: {
+    mutate: (args: CreateProjectParams) => Promise<CreateProjectResponse>;
+  };
+  deleteUndeployedStageFromCli: {
+    mutate: (args: DeleteUndeployedStageParams) => Promise<DeleteUndeployedStageResponse>;
+  };
+};
+
+const TRPC_REQUEST_TIMEOUT_MS = 30000; // 30 seconds
+
+const fetchWithTimeout = async (url: any, options: any) => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), TRPC_REQUEST_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+};
+
+const createTrpcApiKeyProtectedClient = ({ apiKey }: { apiKey: string }): ApiKeyTrpcClient => {
   return createTRPCClient<any>({
     links: [
       httpBatchLink({
         url: STACKTAPE_TRPC_API_ENDPOINT,
         headers: {
           stp_api_key: apiKey
-        }
+        },
+        fetch: fetchWithTimeout as any
       })
     ]
-  });
+  }) as unknown as ApiKeyTrpcClient;
 };
 
 export class ApiKeyProtectedClient {
-  #client: any;
+  #client: ApiKeyTrpcClient | null = null;
 
   init = async ({ apiKey }: { apiKey: string }) => {
     this.#client = createTrpcApiKeyProtectedClient({ apiKey });
   };
 
   recordStackOperation = async (args: RecordStackOperationParams): Promise<void> => {
-    return this.#client.recordStackOperation.mutate(args);
+    return this.#client!.recordStackOperation.mutate(args);
   };
 
   globalConfig = async (args?: GlobalConfigParams): Promise<GlobalConfigResponse> => {
-    return this.#client.globalConfig.query(args);
+    return this.#client!.globalConfig.query(args);
   };
 
   currentUserAndOrgData = async (): Promise<CurrentUserAndOrgDataResponse> => {
-    return this.#client.currentUserAndOrgData.query();
+    return this.#client!.currentUserAndOrgData.query();
   };
 
   awsAccountCredentials = async (args: AwsAccountCredentialsParams): Promise<AwsAccountCredentialsResponse> => {
-    return this.#client.awsAccountCredentials.query(args);
+    return this.#client!.awsAccountCredentials.query(args);
   };
 
   template = async (args: TemplateParams): Promise<TemplateResponse> => {
-    return this.#client.template.query(args);
+    return this.#client!.template.query(args);
   };
 
   canDeploy = async (): Promise<CanDeployResponse> => {
-    return this.#client.canDeploy.query();
+    return this.#client!.canDeploy.query();
   };
 
   defaultDomainsInfo = async (args: DefaultDomainsInfoParams): Promise<DefaultDomainsInfoResponse> => {
-    return this.#client.defaultDomainsInfo.query(args);
+    return this.#client!.defaultDomainsInfo.query(args);
   };
 
   createProject = async (args: CreateProjectParams): Promise<CreateProjectResponse> => {
-    return this.#client.createProjectFromCli.mutate(args);
+    return this.#client!.createProjectFromCli.mutate(args);
   };
 
   deleteUndeployedStage = async (args: DeleteUndeployedStageParams): Promise<DeleteUndeployedStageResponse> => {
-    return this.#client.deleteUndeployedStageFromCli.mutate(args);
+    return this.#client!.deleteUndeployedStageFromCli.mutate(args);
   };
 }

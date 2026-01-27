@@ -28,30 +28,15 @@ const getConfigFn = defineConfig(() => {
       mySnsTopic: {
         Type: 'AWS::SNS::Topic',
         Properties: {
-          TopicName: 'my-test-topic',
           DisplayName: 'My Test Topic'
         }
       }
     },
     finalTransform: (template) => {
       // Example: Add a global tag to all Lambda functions
-      console.log(template);
       return template;
     }
   };
 });
-
-console.dir(
-  getConfigFn({
-    stage: 'dev',
-    projectName: 'test',
-    region: 'us-east-1',
-    cliArgs: {},
-    command: 'deploy',
-    awsProfile: 'default',
-    user: { id: '123', name: 'John Doe', email: 'john.doe@example.com' }
-  }),
-  { depth: null }
-);
 
 export default getConfigFn;

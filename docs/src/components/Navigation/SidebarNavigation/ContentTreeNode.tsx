@@ -181,13 +181,15 @@ export function ContentTreeNode({
   isNested: boolean;
 }) {
   const router = useRouter();
-  const hasChildren = children.length > 0;
-  const isActive =
-    router.asPath === url ||
-    router.asPath === `${url}/` ||
-    router.asPath === config.metadata.pathPrefix + url ||
-    (title === 'Introduction' && router.asPath === '/');
-  const isExpanded = expandedNavItems[url];
+  const hasChildren = children?.length > 0;
+
+  // Normalize paths for comparison - remove trailing slashes and query params
+  const normalizedPath = (router.asPath || '/').split('?')[0].replace(/\/$/, '') || '/';
+  const normalizedUrl = (url || '/').replace(/\/$/, '') || '/';
+
+  const isActive = normalizedPath === normalizedUrl || normalizedPath === config.metadata.pathPrefix + normalizedUrl;
+
+  const isExpanded = expandedNavItems[url] ?? false;
   const toggle = () => {
     setExpandedNavItems({ ...expandedNavItems, [url]: !isExpanded });
   };

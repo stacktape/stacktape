@@ -1,0 +1,647 @@
+---
+title: 'Web Service'
+order: 3
+---
+
+# Web Service
+
+Web services are container-based workloads with a public HTTP endpoint. Your code runs in Docker containers on AWS ECS, with automatic load balancing and scaling.
+
+**Type:** `web-service`
+
+## When to Use
+
+**Advantages:**
+
+- **No execution time limits**: Run long-lived processes, WebSocket connections
+- **Predictable performance**: No cold starts after initial deployment
+- **Full container control**: Install any dependencies, use any runtime
+- **WebSocket support**: With Application Load Balancer
+- **Deployment strategies**: Canary, blue/green deployments (with ALB)
+
+**Disadvantages:**
+
+- **Always-on costs**: Minimum ~$8/month (0.25 vCPU Fargate)
+- **Slower scaling**: Auto-scaling takes seconds to minutes
+- **More configuration**: Requires understanding of containers
+
+**Best for:** REST APIs, GraphQL servers, WebSocket servers, traditional web frameworks (Express, NestJS, Django, Rails).
+
+## Basic Example
+
+```yaml
+resources:
+  api:
+    type: web-service
+    properties:
+      packaging:
+        type: stacktape-image-buildpack
+        properties:
+          entryfilePath: src/index.ts
+      resources:
+        cpu: 0.25
+        memory: 512
+```
+
+```typescript
+// src/index.ts
+import express from 'express';
+
+const app = express();
+const port = process.env.PORT; // Stacktape injects this
+
+app.get('/', (req, res) => {
+  res.json({ message: 'Hello World' });
+});
+
+app.listen(port, () => {
+  console.log(`Server running on port ${port}`);
+});
+```
+
+<Warning>
+  Your application must listen on the port provided via the `PORT` environment variable. Stacktape automatically injects
+  this variable.
+</Warning>
+
+## Packaging
+
+### Stacktape Image Buildpack (Recommended)
+
+Zero-config packaging that builds an optimized Docker image from your source code.
+
+```yaml
+packaging:
+  type: stacktape-image-buildpack
+  properties:
+    entryfilePath: src/index.ts
+```
+
+Supports Node.js, Python, Go, Java, and Ruby. Stacktape automatically:
+
+- Detects your language and framework
+- Installs dependencies
+- Bundles your application
+- Creates an optimized production image
+
+#### TypeScript/JavaScript
+
+```yaml
+packaging:
+  type: stacktape-image-buildpack
+  properties:
+    entryfilePath: src/index.ts
+```
+
+Uses esbuild for bundling. For native dependencies (like `sharp`, `bcrypt`):
+
+```yaml
+packaging:
+  type: stacktape-image-buildpack
+  properties:
+    entryfilePath: src/index.ts
+    installCommandOverride: npm ci --platform=linux --arch=x64
+```
+
+#### Python
+
+```yaml
+packaging:
+  type: stacktape-image-buildpack
+  properties:
+    entryfilePath: src/main.py
+```
+
+Supports pip, pipenv, and poetry.
+
+### Custom Dockerfile
+
+Full control over your container image:
+
+```yaml
+packaging:
+  type: custom-dockerfile
+  properties:
+    buildContextPath: ./
+    dockerfilePath: ./Dockerfile
+```
+
+```dockerfile
+FROM node:20-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --only=production
+COPY . .
+EXPOSE 3000
+CMD ["node", "dist/index.js"]
+```
+
+### Prebuilt Image
+
+Use an existing image from Docker Hub or any registry:
+
+```yaml
+packaging:
+  type: prebuilt-image
+  properties:
+    image: myorg/myapp:v1.2.3
+```
+
+For private registries:
+
+```yaml
+packaging:
+  type: prebuilt-image
+  properties:
+    image: 123456789.dkr.ecr.us-east-1.amazonaws.com/myapp:latest
+    registry:
+      credentials:
+        username: $Secret('docker-username')
+        password: $Secret('docker-password')
+```
+
+## Resource Configuration
+
+### CPU and Memory
+
+Stacktape runs your containers on AWS Fargate (serverless) by default:
+
+| CPU (vCPU) | Memory Options              |
+| ---------- | --------------------------- |
+| 0.25       | 512 MB, 1 GB, 2 GB          |
+| 0.5        | 1-4 GB (1 GB increments)    |
+| 1          | 2-8 GB (1 GB increments)    |
+| 2          | 4-16 GB (1 GB increments)   |
+| 4          | 8-30 GB (1 GB increments)   |
+| 8          | 16-60 GB (4 GB increments)  |
+| 16         | 32-120 GB (8 GB increments) |
+
+```yaml
+resources:
+  api:
+    type: web-service
+    properties:
+      resources:
+        cpu: 1
+        memory: 2048 # 2 GB
+```
+
+### EC2 Instances (Cost Optimization)
+
+For predictable workloads, EC2 instances can be cheaper:
+
+```yaml
+resources:
+  api:
+    type: web-service
+    properties:
+      resources:
+        cpu: 2
+        memory: 4096
+        instanceTypes:
+          - t3.medium
+          - t3a.medium
+```
+
+Stacktape creates an Auto Scaling Group and distributes containers across instances.
+
+### ARM Architecture
+
+Use Graviton processors for ~20% cost savings:
+
+```yaml
+resources:
+  api:
+    type: web-service
+    properties:
+      resources:
+        cpu: 1
+        memory: 2048
+        architecture: arm64 # Fargate only
+```
+
+## Scaling
+
+### Basic Scaling
+
+```yaml
+scaling:
+  minInstances: 1
+  maxInstances: 10
+```
+
+### Auto-Scaling Policies
+
+Scale based on CPU or memory utilization:
+
+```yaml
+scaling:
+  minInstances: 1
+  maxInstances: 10
+  scalingPolicy:
+    keepAvgCpuUtilizationUnder: 70
+    keepAvgMemoryUtilizationUnder: 80
+```
+
+Or scale based on request count per instance:
+
+```yaml
+scaling:
+  minInstances: 1
+  maxInstances: 10
+  scalingPolicy:
+    keepAvgRequestsPerInstanceUnder: 1000
+```
+
+### Scheduled Scaling
+
+Pre-scale for expected traffic patterns:
+
+```yaml
+scaling:
+  minInstances: 2
+  maxInstances: 20
+  scheduledScaling:
+    - minInstances: 10
+      maxInstances: 50
+      schedule: cron(0 9 * * *) # 9 AM UTC
+    - minInstances: 2
+      maxInstances: 10
+      schedule: cron(0 18 * * *) # 6 PM UTC
+```
+
+## Load Balancing
+
+### HTTP API Gateway (Default)
+
+Best for most APIs. Low cost, high performance:
+
+```yaml
+resources:
+  api:
+    type: web-service
+    properties:
+      loadBalancing:
+        type: http-api-gateway
+```
+
+Supports CORS configuration:
+
+```yaml
+cors:
+  enabled: true
+  allowedOrigins:
+    - https://myapp.com
+  allowedMethods:
+    - GET
+    - POST
+  allowedHeaders:
+    - Content-Type
+    - Authorization
+  maxAge: 86400
+```
+
+### Application Load Balancer
+
+Use ALB for WebSocket support, deployment strategies, or WAF:
+
+```yaml
+resources:
+  api:
+    type: web-service
+    properties:
+      loadBalancing:
+        type: application-load-balancer
+```
+
+ALB enables:
+
+- **WebSocket connections**
+- **Blue/green and canary deployments**
+- **Web Application Firewall (WAF)**
+- **Sticky sessions**
+
+### Network Load Balancer
+
+For TCP/TLS traffic or extreme performance:
+
+```yaml
+resources:
+  api:
+    type: web-service
+    properties:
+      loadBalancing:
+        type: network-load-balancer
+        properties:
+          port: 8080
+          protocol: TCP
+```
+
+## Custom Domains
+
+```yaml
+customDomains:
+  - domainName: api.mydomain.com
+```
+
+Stacktape automatically:
+
+1. Creates/validates an SSL certificate
+2. Configures DNS records (if domain is in Route 53)
+3. Sets up HTTPS
+
+For domains not in Route 53:
+
+```yaml
+customDomains:
+  - domainName: api.mydomain.com
+    disableDnsRecordCreation: true
+    customCertificateArn: arn:aws:acm:us-east-1:123456789:certificate/xxx
+```
+
+Then point your DNS to the load balancer address.
+
+## CDN (CloudFront)
+
+Add global edge caching:
+
+```yaml
+cdn:
+  enabled: true
+  cacheInvalidations:
+    - /*
+```
+
+Configure caching behavior:
+
+```yaml
+cdn:
+  enabled: true
+  customCachePolicyProps:
+    defaultTtl: 86400 # 1 day
+    maxTtl: 604800 # 1 week
+  customRequestPolicyProps:
+    headerBehavior:
+      behavior: whitelist
+      headers:
+        - Authorization
+```
+
+## Deployment Strategies
+
+Requires Application Load Balancer.
+
+### Canary Deployment
+
+Route a percentage of traffic to the new version:
+
+```yaml
+resources:
+  api:
+    type: web-service
+    properties:
+      loadBalancing:
+        type: application-load-balancer
+      deployment:
+        type: Canary10Percent5Minutes
+```
+
+Available strategies:
+
+- `Canary10Percent5Minutes`: 10% for 5 min, then full rollout
+- `Canary10Percent10Minutes`: 10% for 10 min
+- `Canary10Percent15Minutes`: 10% for 15 min
+- `Linear10PercentEvery1Minute`: 10% every minute
+- `Linear10PercentEvery3Minutes`: 10% every 3 minutes
+- `AllAtOnce`: Immediate full deployment (default)
+
+### Rollback
+
+If health checks fail during deployment, the service automatically rolls back.
+
+## Environment Variables
+
+```yaml
+environment:
+  - name: NODE_ENV
+    value: production
+  - name: API_KEY
+    value: $Secret('api-key')
+  - name: DATABASE_URL
+    value: $ResourceParam('database', 'connectionString')
+```
+
+Or use `connectTo` for automatic injection:
+
+```yaml
+connectTo:
+  - database
+  - cache
+  - uploads
+```
+
+## Connecting to Resources
+
+```yaml
+resources:
+  database:
+    type: relational-database
+    properties:
+      engine:
+        type: postgres
+
+  uploads:
+    type: bucket
+
+  api:
+    type: web-service
+    properties:
+      connectTo:
+        - database
+        - uploads
+```
+
+Your service receives:
+
+```typescript
+// Available environment variables
+process.env.STP_DATABASE_CONNECTION_STRING;
+process.env.STP_DATABASE_HOST;
+process.env.STP_UPLOADS_BUCKET_NAME;
+```
+
+## Health Checks
+
+Configure how AWS determines if your container is healthy:
+
+```yaml
+internalHealthCheck:
+  protocol: HTTP
+  path: /health
+  port: 3000
+  interval: 30
+  timeout: 5
+  healthyThreshold: 2
+  unhealthyThreshold: 3
+  startupTime: 60
+```
+
+## Side Containers
+
+Run helper containers alongside your main application:
+
+### Init Container
+
+Runs once before main container starts:
+
+```yaml
+sideContainers:
+  - name: migrations
+    mode: run-on-init
+    packaging:
+      type: custom-dockerfile
+      properties:
+        dockerfilePath: ./migration.Dockerfile
+```
+
+### Always-Running Sidecar
+
+For log processors, metrics agents, or proxies:
+
+```yaml
+sideContainers:
+  - name: otel-collector
+    mode: always-running
+    packaging:
+      type: prebuilt-image
+      properties:
+        image: otel/opentelemetry-collector:latest
+    resources:
+      cpu: 0.125
+      memory: 256
+```
+
+## EFS Volume Mounts
+
+Attach persistent storage:
+
+```yaml
+resources:
+  storage:
+    type: efs-storage
+
+  api:
+    type: web-service
+    properties:
+      connectTo:
+        - storage
+      volumeMounts:
+        - efsStorageName: storage
+          containerPath: /data
+```
+
+## Web Application Firewall
+
+Protect against common attacks. Requires ALB:
+
+```yaml
+resources:
+  waf:
+    type: web-app-firewall
+
+  api:
+    type: web-service
+    properties:
+      loadBalancing:
+        type: application-load-balancer
+      useFirewall: waf
+```
+
+## Remote Sessions
+
+Connect to running containers for debugging:
+
+```yaml
+resources:
+  api:
+    type: web-service
+    properties:
+      enableRemoteSessions: true
+```
+
+Then:
+
+```bash
+stacktape container:session --stage dev --resourceName api
+```
+
+## Logging
+
+Logs are automatically sent to CloudWatch:
+
+```bash
+stacktape logs --stage dev --resourceName api
+```
+
+Configure retention:
+
+```yaml
+logging:
+  retention: 14 # days (1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, etc.)
+```
+
+## Graceful Shutdown
+
+Configure how long containers have to shut down gracefully:
+
+```yaml
+stopTimeout: 30 # seconds (2-120, default: 30)
+```
+
+Your application should handle SIGTERM:
+
+```typescript
+process.on('SIGTERM', async () => {
+  console.log('Shutting down gracefully...');
+  await server.close();
+  await database.disconnect();
+  process.exit(0);
+});
+```
+
+## Pricing
+
+**Fargate pricing (us-east-1):**
+
+- vCPU: ~$0.04048/hour
+- Memory: ~$0.004445/GB/hour
+
+**Example: 0.25 vCPU + 512MB running 24/7:**
+
+- CPU: 0.25 × $0.04048 × 730 hours = $7.39/month
+- Memory: 0.5 × $0.004445 × 730 hours = $1.62/month
+- **Total: ~$9/month** per instance
+
+Add load balancer costs:
+
+- HTTP API Gateway: $1/million requests + $0.90/million minutes connection time
+- ALB: ~$16/month base + $0.008/LCU-hour
+
+## Referenceable Parameters
+
+| Parameter | Description                    |
+| --------- | ------------------------------ |
+| `url`     | Public URL of the service      |
+| `arn`     | ECS service ARN                |
+| `host`    | Load balancer/API Gateway host |
+| `port`    | Port the service listens on    |
+
+```yaml
+environment:
+  - name: SERVICE_URL
+    value: $ResourceParam('api', 'url')
+```
+
+## API Reference
+
+<PropertiesTable definitionName="WebServiceConfig" />

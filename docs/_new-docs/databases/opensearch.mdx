@@ -1,0 +1,293 @@
+---
+title: 'OpenSearch'
+order: 7
+---
+
+# OpenSearch Domain
+
+Fully managed OpenSearch (formerly Elasticsearch) cluster for full-text search and log analytics.
+
+**Type:** `open-search-domain`
+
+## When to Use
+
+**Advantages:**
+
+- **Full-text search**: Powerful search across documents
+- **Log analytics**: Real-time log analysis and visualization
+- **Scalable**: Handle petabytes of data
+- **OpenSearch Dashboards**: Built-in visualization
+
+**Disadvantages:**
+
+- **Complex**: Requires understanding of indexing and queries
+- **Cost**: Running clusters 24/7 can be expensive
+- **Management**: Needs capacity planning
+
+**Best for:** Search functionality, log analytics, SIEM, application monitoring.
+
+## Basic Example
+
+```yaml
+resources:
+  search:
+    type: open-search-domain
+    properties:
+      version: '2.11'
+      clusterConfig:
+        instanceType: t3.small.search
+        instanceCount: 1
+      storage:
+        volumeSize: 20
+```
+
+## Cluster Configuration
+
+### Development
+
+```yaml
+clusterConfig:
+  instanceType: t3.small.search
+  instanceCount: 1
+```
+
+### Production with Dedicated Masters
+
+```yaml
+clusterConfig:
+  instanceType: r6g.large.search
+  instanceCount: 3
+  dedicatedMasterType: r6g.large.search
+  dedicatedMasterCount: 3
+```
+
+### High Availability
+
+```yaml
+clusterConfig:
+  instanceType: r6g.large.search
+  instanceCount: 2
+  zoneAwarenessEnabled: true
+  availabilityZoneCount: 2
+  dedicatedMasterType: r6g.large.search
+  dedicatedMasterCount: 3
+```
+
+## Storage
+
+```yaml
+storage:
+  volumeSize: 100 # GB
+  volumeType: gp3
+  iops: 3000
+  throughput: 125
+```
+
+## Accessibility
+
+### Internet Accessible
+
+```yaml
+accessibility:
+  accessibilityMode: internet
+```
+
+### VPC Only
+
+```yaml
+accessibility:
+  accessibilityMode: vpc
+```
+
+## Connecting from Compute
+
+```yaml
+resources:
+  search:
+    type: open-search-domain
+    properties:
+      version: '2.11'
+      clusterConfig:
+        instanceType: t3.small.search
+        instanceCount: 1
+      storage:
+        volumeSize: 20
+
+  api:
+    type: web-service
+    properties:
+      packaging:
+        type: stacktape-image-buildpack
+        properties:
+          entryfilePath: src/index.ts
+      resources:
+        cpu: 0.25
+        memory: 512
+      connectTo:
+        - search
+```
+
+```typescript
+import { Client } from '@opensearch-project/opensearch';
+
+const client = new Client({
+  node: process.env.STP_SEARCH_ENDPOINT,
+  auth: {
+    username: process.env.STP_SEARCH_MASTER_USER,
+    password: process.env.STP_SEARCH_MASTER_PASSWORD
+  }
+});
+
+// Index a document
+await client.index({
+  index: 'products',
+  body: {
+    name: 'Laptop',
+    description: 'Powerful laptop for developers',
+    price: 1299
+  }
+});
+
+// Search
+const { body } = await client.search({
+  index: 'products',
+  body: {
+    query: {
+      match: { description: 'developers' }
+    }
+  }
+});
+```
+
+## Common Patterns
+
+### Full-Text Search
+
+```typescript
+// Search with highlighting
+const { body } = await client.search({
+  index: 'articles',
+  body: {
+    query: {
+      multi_match: {
+        query: 'serverless deployment',
+        fields: ['title^2', 'content'] // Title weighted 2x
+      }
+    },
+    highlight: {
+      fields: {
+        title: {},
+        content: {}
+      }
+    }
+  }
+});
+```
+
+### Log Analytics
+
+```typescript
+// Index logs
+await client.index({
+  index: `logs-${new Date().toISOString().split('T')[0]}`,
+  body: {
+    timestamp: new Date().toISOString(),
+    level: 'ERROR',
+    message: 'Connection timeout',
+    service: 'api',
+    traceId: 'abc-123'
+  }
+});
+
+// Aggregate errors by service
+const { body } = await client.search({
+  index: 'logs-*',
+  body: {
+    query: {
+      range: {
+        timestamp: { gte: 'now-1h' }
+      }
+    },
+    aggs: {
+      by_service: {
+        terms: { field: 'service.keyword' }
+      }
+    }
+  }
+});
+```
+
+### Autocomplete
+
+```typescript
+// Create index with autocomplete analyzer
+await client.indices.create({
+  index: 'products',
+  body: {
+    mappings: {
+      properties: {
+        name: {
+          type: 'text',
+          fields: {
+            autocomplete: {
+              type: 'text',
+              analyzer: 'autocomplete'
+            }
+          }
+        }
+      }
+    },
+    settings: {
+      analysis: {
+        analyzer: {
+          autocomplete: {
+            type: 'custom',
+            tokenizer: 'standard',
+            filter: ['lowercase', 'autocomplete_filter']
+          }
+        },
+        filter: {
+          autocomplete_filter: {
+            type: 'edge_ngram',
+            min_gram: 1,
+            max_gram: 20
+          }
+        }
+      }
+    }
+  }
+});
+```
+
+## Logging
+
+```yaml
+logging:
+  errorLogsEnabled: true
+  searchSlowLogsEnabled: true
+  indexingSlowLogsEnabled: true
+```
+
+## Pricing
+
+| Instance          | vCPU | RAM   | Cost/month |
+| ----------------- | ---- | ----- | ---------- |
+| t3.small.search   | 2    | 2 GB  | ~$25       |
+| t3.medium.search  | 2    | 4 GB  | ~$50       |
+| r6g.large.search  | 2    | 16 GB | ~$130      |
+| r6g.xlarge.search | 4    | 32 GB | ~$260      |
+
+Plus storage: ~$0.135/GB/month (gp3)
+
+## Referenceable Parameters
+
+| Parameter        | Description             |
+| ---------------- | ----------------------- |
+| `endpoint`       | OpenSearch endpoint URL |
+| `domainArn`      | Domain ARN              |
+| `masterUser`     | Master username         |
+| `masterPassword` | Master password         |
+
+## API Reference
+
+<PropertiesTable definitionName="OpenSearchDomainConfig" />

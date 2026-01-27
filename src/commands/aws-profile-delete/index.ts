@@ -5,7 +5,7 @@ import { deleteAwsProfile } from '@utils/aws-config';
 import { ExpectedError } from '@utils/errors';
 import uniq from 'lodash/uniq';
 
-export const commandAwsProfileDelete = async (): Promise<AwsProfileDeleteReturnValue> => {
+export const commandAwsProfileDelete = async () => {
   const [credsFileContent, configFileContent] = await Promise.all([
     getIniFileContent(fsPaths.awsCredentialsFilePath()),
     getIniFileContent(fsPaths.awsConfigFilePath())

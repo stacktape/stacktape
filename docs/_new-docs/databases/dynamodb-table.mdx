@@ -1,0 +1,299 @@
+---
+title: 'DynamoDB Table'
+order: 3
+---
+
+# DynamoDB Table
+
+Serverless NoSQL key-value and document database with single-digit millisecond performance at any scale.
+
+**Type:** `dynamo-db-table`
+
+## When to Use
+
+**Advantages:**
+
+- **Serverless**: No capacity planning, pay-per-request
+- **Unlimited scale**: Handles any traffic level
+- **Single-digit millisecond latency**: Consistent performance
+- **Streams**: Built-in change data capture
+
+**Disadvantages:**
+
+- **Limited query patterns**: Must design for access patterns upfront
+- **No JOINs**: Denormalization required
+- **Eventually consistent**: Strong consistency costs 2x
+
+**Best for:** High-scale applications, serverless backends, gaming leaderboards, session stores, IoT data.
+
+## Basic Example
+
+```yaml
+resources:
+  users:
+    type: dynamo-db-table
+    properties:
+      primaryKey:
+        partitionKey:
+          name: userId
+          type: S
+```
+
+```typescript
+import { DynamoDBClient, PutItemCommand, GetItemCommand } from '@aws-sdk/client-dynamodb';
+
+const client = new DynamoDBClient({});
+const tableName = process.env.STP_USERS_TABLE_NAME;
+
+// Write
+await client.send(
+  new PutItemCommand({
+    TableName: tableName,
+    Item: {
+      userId: { S: 'user-123' },
+      email: { S: 'user@example.com' },
+      name: { S: 'John Doe' }
+    }
+  })
+);
+
+// Read
+const { Item } = await client.send(
+  new GetItemCommand({
+    TableName: tableName,
+    Key: { userId: { S: 'user-123' } }
+  })
+);
+```
+
+## Primary Key
+
+### Partition Key Only
+
+For unique item lookups:
+
+```yaml
+primaryKey:
+  partitionKey:
+    name: userId
+    type: S # String
+```
+
+### Partition + Sort Key
+
+For querying ranges within a partition:
+
+```yaml
+primaryKey:
+  partitionKey:
+    name: userId
+    type: S
+  sortKey:
+    name: createdAt
+    type: N # Number
+```
+
+Key types: `S` (String), `N` (Number), `B` (Binary)
+
+## Capacity Modes
+
+### On-Demand (Default)
+
+Pay per request, no capacity planning:
+
+```yaml
+resources:
+  orders:
+    type: dynamo-db-table
+    properties:
+      primaryKey:
+        partitionKey:
+          name: orderId
+          type: S
+      # No provisionedThroughput = on-demand
+```
+
+### Provisioned
+
+Fixed capacity with optional auto-scaling:
+
+```yaml
+provisionedThroughput:
+  readCapacityUnits: 5
+  writeCapacityUnits: 5
+  scaling:
+    minReadCapacity: 5
+    maxReadCapacity: 100
+    minWriteCapacity: 5
+    maxWriteCapacity: 100
+    targetUtilization: 70
+```
+
+## Secondary Indexes
+
+Query data by different attributes:
+
+```yaml
+resources:
+  orders:
+    type: dynamo-db-table
+    properties:
+      primaryKey:
+        partitionKey:
+          name: orderId
+          type: S
+      secondaryIndexes:
+        - name: byCustomer
+          partitionKey:
+            name: customerId
+            type: S
+          sortKey:
+            name: orderDate
+            type: S
+          projectionType: ALL
+```
+
+## DynamoDB Streams
+
+Capture changes for event-driven processing:
+
+```yaml
+resources:
+  users:
+    type: dynamo-db-table
+    properties:
+      primaryKey:
+        partitionKey:
+          name: userId
+          type: S
+      streamType: NEW_AND_OLD_IMAGES
+
+  processor:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/stream-handler.ts
+      events:
+        - type: dynamo-db-integration
+          properties:
+            dynamoDbTableName: users
+            startingPosition: LATEST
+            batchSize: 100
+```
+
+Stream types:
+
+- `KEYS_ONLY` - Only key attributes
+- `NEW_IMAGE` - New item state
+- `OLD_IMAGE` - Old item state
+- `NEW_AND_OLD_IMAGES` - Both states
+
+## Point-in-Time Recovery
+
+Continuous backups for the last 35 days:
+
+```yaml
+enablePointInTimeRecovery: true
+```
+
+## Connecting from Compute
+
+```yaml
+resources:
+  products:
+    type: dynamo-db-table
+    properties:
+      primaryKey:
+        partitionKey:
+          name: productId
+          type: S
+
+  api:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/handler.ts
+      connectTo:
+        - products
+```
+
+Environment variables:
+
+```typescript
+process.env.STP_PRODUCTS_TABLE_NAME;
+process.env.STP_PRODUCTS_TABLE_ARN;
+```
+
+## Common Patterns
+
+### Single-Table Design
+
+```yaml
+resources:
+  app:
+    type: dynamo-db-table
+    properties:
+      primaryKey:
+        partitionKey:
+          name: PK
+          type: S
+        sortKey:
+          name: SK
+          type: S
+      secondaryIndexes:
+        - name: GSI1
+          partitionKey:
+            name: GSI1PK
+            type: S
+          sortKey:
+            name: GSI1SK
+            type: S
+          projectionType: ALL
+```
+
+### Time-Series Data
+
+```yaml
+resources:
+  events:
+    type: dynamo-db-table
+    properties:
+      primaryKey:
+        partitionKey:
+          name: deviceId
+          type: S
+        sortKey:
+          name: timestamp
+          type: N
+```
+
+## Pricing
+
+**On-Demand:**
+
+- Write: $1.25 per million requests
+- Read: $0.25 per million requests
+- Storage: $0.25 per GB/month
+
+**Provisioned:**
+
+- Write: $0.00065 per WCU/hour
+- Read: $0.00013 per RCU/hour
+
+**Example**: 1 million reads + 100K writes/month = ~$0.375
+
+## Referenceable Parameters
+
+| Parameter   | Description             |
+| ----------- | ----------------------- |
+| `tableName` | Table name              |
+| `tableArn`  | Table ARN               |
+| `streamArn` | Stream ARN (if enabled) |
+
+## API Reference
+
+<PropertiesTable definitionName="DynamoDbTableConfig" />

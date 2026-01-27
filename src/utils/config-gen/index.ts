@@ -3,12 +3,8 @@ import { convertYamlToTypescript } from '@shared/utils/config-converter';
 import { stringifyToYaml } from '@shared/utils/yaml';
 import { writeFile, pathExists } from 'fs-extra';
 import { join } from 'node:path';
-import type {
-  CliConfigGenSession,
-  ConfigGenProgressCallback,
-  ConfigGenResult,
-  ConfigGenPhaseInfo
-} from './types';
+import type { CliConfigGenSession } from '@shared/trpc/public';
+import type { ConfigGenProgressCallback, ConfigGenResult, ConfigGenPhaseInfo } from './types';
 import {
   listAllFilesInDirectory,
   getPrettyPrintedFiles,

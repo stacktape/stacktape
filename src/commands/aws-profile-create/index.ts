@@ -4,7 +4,7 @@ import { getIniFileContent } from '@shared/utils/fs-utils';
 import { upsertAwsProfile } from '@utils/aws-config';
 import { ExpectedError } from '@utils/errors';
 
-export const commandAwsProfileCreate = async (): Promise<AwsProfileCreateReturnValue> => {
+export const commandAwsProfileCreate = async () => {
   const profileInput = await tuiManager.promptText({
     message: 'Choose an arbitrary profile name:',
     description: '("default" will be used as default profile value in every command. Leave blank for "default")'

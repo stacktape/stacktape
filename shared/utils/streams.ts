@@ -59,25 +59,3 @@ export class StreamTransformer extends Transform {
     cb();
   }
 }
-
-const isJsonDockerErrorString = (line: string) => {
-  return line.includes('{"errorType"');
-};
-
-const removeDockerDaemonErrors = (line: string) => {
-  if (line.startsWith('docker: Error response from daemon:')) {
-    return IGNORE_LINE_MARK + line;
-  }
-  return line;
-};
-
-const removeErrorLines = (line: string) => {
-  if (isJsonDockerErrorString(line)) {
-    return IGNORE_LINE_MARK + line;
-  }
-  return line;
-};
-
-const removeAllLines = (line: string) => {
-  return IGNORE_LINE_MARK + line;
-};

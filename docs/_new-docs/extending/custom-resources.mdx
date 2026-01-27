@@ -1,0 +1,400 @@
+---
+title: 'Custom Resources'
+order: 4
+---
+
+# Custom Resources
+
+Custom resources let you create resources with custom provisioning logic. This enables you to provision any type of resource—including non-AWS resources—that isn't natively supported by Stacktape or CloudFormation.
+
+## When to Use
+
+- Provisioning third-party services (Auth0, Stripe, Algolia)
+- Complex setup logic that can't be expressed declaratively
+- Resources that need custom create/update/delete behavior
+- Seeding databases with initial data
+
+<Info>
+
+If you just need to run code during deployment (migrations, tests), use [Deployment Scripts](/extending/deployment-scripts) instead.
+
+</Info>
+
+## How It Works
+
+A custom resource has two parts:
+
+1. **Definition** - A Lambda function with create/update/delete logic
+2. **Instance** - An instantiation that triggers the definition
+
+When you deploy, CloudFormation calls your Lambda with the appropriate action (Create, Update, or Delete).
+
+## Basic Example
+
+Seed a MongoDB database when the stack is created:
+
+### 1. Create the Definition
+
+```ts
+// custom-resources/seed-mongo.ts
+import { MongoClient } from 'mongodb';
+
+export const handler = async (event: any) => {
+  const { RequestType, ResourceProperties } = event;
+  const { connectionString, seedData } = ResourceProperties;
+
+  const client = new MongoClient(connectionString);
+
+  try {
+    await client.connect();
+    const db = client.db('myapp');
+
+    if (RequestType === 'Create') {
+      // Seed initial data
+      await db.collection('users').insertMany(seedData.users);
+      await db.collection('settings').insertOne(seedData.defaultSettings);
+    }
+
+    if (RequestType === 'Delete') {
+      // Optional: cleanup on stack deletion
+      // await db.dropDatabase();
+    }
+
+    // Return success
+    return {
+      Status: 'SUCCESS',
+      PhysicalResourceId: 'mongo-seed-' + Date.now()
+    };
+  } catch (error) {
+    return {
+      Status: 'FAILED',
+      Reason: error.message
+    };
+  } finally {
+    await client.close();
+  }
+};
+```
+
+### 2. Configure in Stacktape
+
+
+```ts
+import { defineConfig } from 'stacktape';
+
+export default defineConfig({
+  resources: {
+    mongo: {
+      type: 'mongo-db-atlas-cluster',
+      properties: {
+        clusterTier: 'M10'
+      }
+    },
+
+    // Custom resource definition
+    seedMongoDefinition: {
+      type: 'custom-resource-definition',
+      properties: {
+        packaging: {
+          type: 'stacktape-lambda-buildpack',
+          properties: {
+            entryfilePath: 'custom-resources/seed-mongo.ts'
+          }
+        },
+        connectTo: ['mongo']
+      }
+    },
+
+    // Custom resource instance
+    seedMongo: {
+      type: 'custom-resource-instance',
+      properties: {
+        definitionName: 'seedMongoDefinition',
+        properties: {
+          seedData: {
+            users: [
+              { email: 'admin@example.com', role: 'admin' }
+            ],
+            defaultSettings: {
+              theme: 'dark',
+              notifications: true
+            }
+          }
+        }
+      }
+    }
+
+}
+});
+
+```
+
+
+## Custom Resource Definition
+
+The definition specifies the Lambda function that handles resource lifecycle events.
+
+
+```ts
+{
+  myCustomResourceDef: {
+    type: 'custom-resource-definition',
+    properties: {
+      // Required: code packaging
+      packaging: {
+        type: 'stacktape-lambda-buildpack',
+        properties: {
+          entryfilePath: 'src/custom-resource.ts'
+        }
+      },
+
+      // Optional: access to other resources
+      connectTo: ['database', 'bucket'],
+
+      // Optional: environment variables
+      environment: [
+        {
+          name: 'API_KEY',
+          value: '$Secret(\'third-party-api-key\')'
+        }
+      ],
+
+      // Optional: custom IAM permissions
+      iamRoleStatements: [
+        {
+          Effect: 'Allow',
+          Action: ['s3:*'],
+          Resource: '*'
+        }
+      ],
+
+      // Optional: Lambda configuration
+      timeout: 300,
+      memorySize: 512
+    }
+  }
+}
+```
+
+
+
+## Custom Resource Instance
+
+The instance creates a specific instantiation of the definition:
+
+
+```ts
+{
+  myResourceInstance: {
+    type: 'custom-resource-instance',
+    properties: {
+      // Required: which definition to use
+      definitionName: 'myCustomResourceDef',
+
+      // Optional: properties passed to the Lambda
+      properties: {
+        setting1: 'value1',
+        setting2: 'value2'
+      }
+    }
+
+}
+}
+
+```
+
+
+## Lambda Handler Structure
+
+Your handler receives events from CloudFormation:
+
+```ts
+interface CloudFormationEvent {
+  RequestType: 'Create' | 'Update' | 'Delete';
+  ResourceProperties: {
+    // Your custom properties
+    [key: string]: any;
+  };
+  OldResourceProperties?: {
+    // Previous properties (on Update)
+    [key: string]: any;
+  };
+  PhysicalResourceId?: string;  // Set on Update/Delete
+}
+
+interface CloudFormationResponse {
+  Status: 'SUCCESS' | 'FAILED';
+  PhysicalResourceId: string;
+  Reason?: string;
+  Data?: {
+    // Output values accessible via $CfResourceParam
+    [key: string]: string;
+  };
+}
+```
+
+### Example Handler
+
+```ts
+export const handler = async (event: CloudFormationEvent): Promise<CloudFormationResponse> => {
+  const { RequestType, ResourceProperties, PhysicalResourceId } = event;
+
+  try {
+    let resourceId = PhysicalResourceId || `resource-${Date.now()}`;
+    let outputData = {};
+
+    switch (RequestType) {
+      case 'Create':
+        // Create the resource
+        const result = await createResource(ResourceProperties);
+        resourceId = result.id;
+        outputData = { ResourceId: result.id, Endpoint: result.endpoint };
+        break;
+
+      case 'Update':
+        // Update the resource
+        await updateResource(PhysicalResourceId, ResourceProperties);
+        break;
+
+      case 'Delete':
+        // Delete the resource
+        await deleteResource(PhysicalResourceId);
+        break;
+    }
+
+    return {
+      Status: 'SUCCESS',
+      PhysicalResourceId: resourceId,
+      Data: outputData
+    };
+  } catch (error) {
+    return {
+      Status: 'FAILED',
+      PhysicalResourceId: PhysicalResourceId || 'unknown',
+      Reason: error.message
+    };
+  }
+};
+```
+
+## Accessing Output Values
+
+Return data from your custom resource and access it elsewhere:
+
+```ts
+// In your handler
+return {
+  Status: 'SUCCESS',
+  PhysicalResourceId: 'my-resource-123',
+  Data: {
+    Endpoint: 'https://api.example.com',
+    ApiKey: 'abc123'
+  }
+};
+```
+
+```ts
+// In your Stacktape config
+{
+  myFunction: {
+    type: 'function',
+    properties: {
+      environment: [
+        {
+          name: 'EXTERNAL_ENDPOINT',
+          value: '$CfResourceParam(\'myResourceInstance\', \'Endpoint\')'
+        }
+      ]
+    }
+  }
+}
+```
+
+## Common Use Cases
+
+### Provisioning Auth0 Tenant
+
+```ts
+export const handler = async (event) => {
+  const { RequestType, ResourceProperties } = event;
+  const { domain, clientName } = ResourceProperties;
+
+  const auth0 = new ManagementClient({
+    domain,
+    clientId: process.env.AUTH0_CLIENT_ID,
+    clientSecret: process.env.AUTH0_CLIENT_SECRET
+  });
+
+  if (RequestType === 'Create') {
+    const client = await auth0.createClient({ name: clientName });
+    return {
+      Status: 'SUCCESS',
+      PhysicalResourceId: client.client_id,
+      Data: {
+        ClientId: client.client_id,
+        ClientSecret: client.client_secret
+      }
+    };
+  }
+
+  if (RequestType === 'Delete') {
+    await auth0.deleteClient({ client_id: event.PhysicalResourceId });
+  }
+
+  return { Status: 'SUCCESS', PhysicalResourceId: event.PhysicalResourceId };
+};
+```
+
+### Creating Stripe Product
+
+```ts
+import Stripe from 'stripe';
+
+export const handler = async (event) => {
+  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+  const { RequestType, ResourceProperties, PhysicalResourceId } = event;
+
+  if (RequestType === 'Create') {
+    const product = await stripe.products.create({
+      name: ResourceProperties.productName,
+      description: ResourceProperties.description
+    });
+
+    const price = await stripe.prices.create({
+      product: product.id,
+      unit_amount: ResourceProperties.priceInCents,
+      currency: 'usd'
+    });
+
+    return {
+      Status: 'SUCCESS',
+      PhysicalResourceId: product.id,
+      Data: {
+        ProductId: product.id,
+        PriceId: price.id
+      }
+    };
+  }
+
+  if (RequestType === 'Delete') {
+    await stripe.products.update(PhysicalResourceId, { active: false });
+  }
+
+  return { Status: 'SUCCESS', PhysicalResourceId };
+};
+```
+
+## Best Practices
+
+1. **Make operations idempotent** - Handle retries gracefully
+2. **Handle all request types** - Create, Update, and Delete
+3. **Return meaningful physical resource IDs** - Used for tracking
+4. **Set appropriate timeouts** - Default Lambda timeout may be too short
+5. **Log extensively** - Debugging CloudFormation custom resources is hard
+6. **Test locally first** - Simulate the CloudFormation event structure
+
+## API Reference
+
+<PropertiesTable definitionName="CustomResourceDefinition" />
+
+<PropertiesTable definitionName="CustomResourceInstance" />

@@ -1,0 +1,413 @@
+---
+title: 'Next.js Website'
+order: 7
+---
+
+# Next.js Website
+
+Deploy Next.js applications with native support for SSR, SSG, ISR, and image optimization. Your app runs on AWS Lambda with global distribution via CloudFront.
+
+**Type:** `nextjs-web`
+
+## When to Use
+
+**Advantages:**
+
+- **Zero config**: Works with standard Next.js projects
+- **Pay-per-use**: No costs when idle
+- **Global CDN**: CloudFront distribution included
+- **Native ISR**: Incremental Static Regeneration works out of the box
+- **Image optimization**: Built-in Lambda function for `<Image>` component
+- **Edge deployment**: Optional Lambda@Edge for ultra-low latency
+
+**Disadvantages:**
+
+- **Cold starts**: Lambda startup latency (mitigated with warm instances)
+- **30-second timeout**: Lambda limit for server-side rendering
+- **6MB response limit**: 20MB with streaming enabled
+- **Next.js only**: Use `web-service` for other frameworks
+
+**Best for:** Marketing sites, e-commerce, blogs, dashboards—any Next.js application.
+
+## Basic Example
+
+```yaml
+resources:
+  website:
+    type: nextjs-web
+    properties:
+      appDirectory: ./
+```
+
+That's it. Stacktape handles:
+
+- Building your Next.js app
+- Creating Lambda functions for SSR
+- Setting up CloudFront CDN
+- Configuring S3 for static assets
+- Setting up ISR with SQS and DynamoDB
+
+## Project Structure
+
+Standard Next.js project structure:
+
+<ProjectStructure
+  files={[
+    {
+      name: 'my-app',
+      type: 'folder',
+      children: [
+        {
+          name: 'app',
+          type: 'folder',
+          description: 'App Router pages',
+          children: [{ name: 'page.tsx' }, { name: 'api', type: 'folder', children: [{ name: 'route.ts' }] }]
+        },
+        { name: 'public', type: 'folder', description: 'Static files' },
+        { name: 'next.config.js' },
+        { name: 'package.json' },
+        { name: 'stacktape.yml' }
+      ]
+    }
+  ]}
+/>
+
+## Configuration
+
+### App Directory
+
+Point to your Next.js project root:
+
+```yaml
+appDirectory: ./ # Contains next.config.js
+```
+
+For monorepos:
+
+```yaml
+appDirectory: ./apps/web
+```
+
+### Custom Build Command
+
+```yaml
+buildCommand: npm run build
+```
+
+### Server Lambda Settings
+
+Customize the server-side rendering function:
+
+```yaml
+serverLambda:
+  memory: 2048 # MB (default: 1024)
+  timeout: 30 # seconds (max: 30)
+  logging:
+    retention: 14 # days
+```
+
+### VPC Access
+
+Access databases in your VPC:
+
+```yaml
+serverLambda:
+  joinDefaultVpc: true
+```
+
+<Warning>
+  Joining the VPC removes direct internet access from Lambda. Stacktape auto-creates S3 and DynamoDB endpoints. For
+  other AWS services or external APIs, you'll need a NAT Gateway.
+</Warning>
+
+## Edge Deployment
+
+Deploy server functions to Lambda@Edge for global low latency:
+
+```yaml
+resources:
+  website:
+    type: nextjs-web
+    properties:
+      appDirectory: ./
+      useEdgeLambda: true
+```
+
+<Info>
+  Lambda@Edge doesn't support warm instances or streaming. Use regional Lambda (default) if you need those features.
+</Info>
+
+## Warm Instances
+
+Reduce cold starts by keeping Lambda instances warm:
+
+```yaml
+warmServerInstances: 3 # Keep 3 instances ready
+```
+
+This creates a scheduled function that periodically invokes your server Lambda.
+
+## Response Streaming
+
+Enable streaming for improved Time To First Byte and larger responses (up to 20MB):
+
+```yaml
+streamingEnabled: true
+```
+
+<Warning>Streaming is experimental and not compatible with Lambda@Edge.</Warning>
+
+## Environment Variables
+
+Available at both build time and runtime:
+
+```yaml
+environment:
+  - name: NEXT_PUBLIC_API_URL
+    value: https://api.example.com
+  - name: DATABASE_URL
+    value: $ResourceParam('database', 'connectionString')
+  - name: API_KEY
+    value: $Secret('api-key')
+```
+
+## Custom Domains
+
+```yaml
+customDomains:
+  - domainName: mysite.com
+  - domainName: www.mysite.com
+```
+
+Stacktape automatically:
+
+1. Creates SSL certificates
+2. Configures DNS (if domain is in Route 53)
+3. Sets up CloudFront distribution
+
+For domains not in Route 53:
+
+```yaml
+customDomains:
+  - domainName: mysite.com
+    disableDnsRecordCreation: true
+    customCertificateArn: arn:aws:acm:us-east-1:123456789:certificate/xxx
+```
+
+## Connecting to Resources
+
+```yaml
+resources:
+  database:
+    type: relational-database
+    properties:
+      engine:
+        type: postgres
+
+  uploads:
+    type: bucket
+
+  website:
+    type: nextjs-web
+    properties:
+      appDirectory: ./
+      connectTo:
+        - database
+        - uploads
+      serverLambda:
+        joinDefaultVpc: true # Required for database access
+```
+
+Access in your code:
+
+```typescript
+// In API routes or getServerSideProps
+const dbUrl = process.env.STP_DATABASE_CONNECTION_STRING;
+const bucketName = process.env.STP_UPLOADS_BUCKET_NAME;
+```
+
+## Web Application Firewall
+
+Protect against common attacks:
+
+```yaml
+resources:
+  firewall:
+    type: web-app-firewall
+
+  website:
+    type: nextjs-web
+    properties:
+      appDirectory: ./
+      useFirewall: firewall
+```
+
+## Static File Headers
+
+Configure caching headers for static assets:
+
+```yaml
+fileOptions:
+  - directoryGlob: 'public/assets/**'
+    cacheControl: 'public, max-age=31536000, immutable'
+```
+
+## Development Mode
+
+```bash
+stacktape dev --stage dev
+```
+
+Customize the dev command:
+
+```yaml
+dev:
+  command: npm run dev -- --port 3001
+```
+
+## Architecture
+
+Stacktape uses [OpenNext](https://open-next.js.org) to package your Next.js app for AWS Lambda.
+
+**AWS Resources Created:**
+
+| Resource              | Purpose                               |
+| --------------------- | ------------------------------------- |
+| Lambda (Server)       | SSR, API routes                       |
+| Lambda (Image)        | Image optimization                    |
+| Lambda (Revalidation) | ISR background revalidation           |
+| CloudFront            | CDN, caching, routing                 |
+| S3                    | Static assets, cache                  |
+| SQS                   | Revalidation queue                    |
+| DynamoDB              | Cache tags for on-demand revalidation |
+
+## ISR (Incremental Static Regeneration)
+
+ISR works automatically. Pages with `revalidate` are regenerated in the background:
+
+```typescript
+// app/products/[id]/page.tsx
+export const revalidate = 60; // Revalidate every 60 seconds
+
+export default async function ProductPage({ params }) {
+  const product = await getProduct(params.id);
+  return <Product data={product} />;
+}
+```
+
+### On-Demand Revalidation
+
+Use `revalidateTag()` in API routes:
+
+```typescript
+// app/api/revalidate/route.ts
+import { revalidateTag } from 'next/cache';
+
+export async function POST(request: Request) {
+  const { tag } = await request.json();
+  revalidateTag(tag);
+  return Response.json({ revalidated: true });
+}
+```
+
+## Image Optimization
+
+The `<Image>` component works out of the box:
+
+```tsx
+import Image from 'next/image';
+
+export default function Page() {
+  return <Image src="/hero.jpg" width={1200} height={600} alt="Hero" />;
+}
+```
+
+A dedicated Lambda function handles image resizing and format conversion.
+
+## Limitations
+
+- **Timeout**: 30 seconds max for SSR
+- **Response size**: 6MB (20MB with streaming)
+- **Lambda@Edge**: No warm instances, no streaming
+- **VPC**: Joining VPC requires NAT Gateway for external APIs
+
+### Bundle Size Issues
+
+If deployments fail due to bundle size, add to `next.config.js`:
+
+```javascript
+module.exports = {
+  outputFileTracingExcludes: {
+    '*': [
+      'node_modules/@swc/core-linux-x64-gnu',
+      'node_modules/@swc/core-linux-x64-musl',
+      'node_modules/@esbuild/*',
+      'node_modules/esbuild/*'
+    ]
+  }
+};
+```
+
+## Next.js vs web-service
+
+| Aspect                 | nextjs-web          | web-service      |
+| ---------------------- | ------------------- | ---------------- |
+| **Framework**          | Next.js only        | Any framework    |
+| **Compute**            | Lambda (serverless) | ECS (containers) |
+| **Min cost**           | $0                  | ~$8/month        |
+| **Cold starts**        | Yes                 | No               |
+| **Scaling**            | Instant             | Seconds-minutes  |
+| **Timeout**            | 30 seconds          | Unlimited        |
+| **ISR**                | Built-in            | Manual           |
+| **Image optimization** | Built-in            | Manual           |
+
+**Use `nextjs-web` when:**
+
+- You have a Next.js project
+- Traffic is variable (pay-per-use is beneficial)
+- You want ISR and image optimization out of the box
+
+**Use `web-service` when:**
+
+- You need other frameworks
+- Long-running requests (>30 seconds)
+- Need to avoid cold starts
+- Predictable high traffic (containers may be cheaper)
+
+## Pricing
+
+**Pay-per-use model:**
+
+| Service    | Cost                                   |
+| ---------- | -------------------------------------- |
+| CloudFront | ~$0.085/GB, $0.0085/10K requests       |
+| Lambda     | ~$0.20/million requests + compute time |
+| S3         | ~$0.023/GB storage                     |
+| DynamoDB   | ~$0.25/million reads                   |
+
+**Example: 300K visitors/month, 3 pages each:**
+
+- Assuming 50% CloudFront cache hit rate
+- ~450K Lambda invocations
+- Estimated: **$5-10/month**
+
+Compare to web-service minimum of ~$8/month regardless of traffic.
+
+## Referenceable Parameters
+
+| Parameter        | Description                 |
+| ---------------- | --------------------------- |
+| `url`            | CloudFront distribution URL |
+| `distributionId` | CloudFront distribution ID  |
+| `bucketName`     | S3 bucket name              |
+| `bucketArn`      | S3 bucket ARN               |
+
+```yaml
+environment:
+  - name: SITE_URL
+    value: $ResourceParam('website', 'url')
+```
+
+## API Reference
+
+<PropertiesTable definitionName="NextjsWebConfig" />

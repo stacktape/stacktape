@@ -345,7 +345,6 @@ async function downloadAndExtractSchemas(tempDir: string): Promise<void> {
   }
 
   await new Promise<void>((resolve, reject) => {
-    // @ts-expect-error - Readable.fromWeb exists in Node 18+ but types may not include it
     const nodeStream = Readable.fromWeb(zipStream);
     const writePromises: Promise<void>[] = [];
 

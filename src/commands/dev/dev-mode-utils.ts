@@ -6,7 +6,8 @@ export type DevModeType = 'normal' | 'legacy';
 export const LOCAL_EMULATED_RESOURCE_TYPES: StpResourceType[] = [
   'relational-database',
   'redis-cluster',
-  'dynamo-db-table'
+  'dynamo-db-table',
+  'open-search-domain'
 ];
 
 /** Resource types that run locally (containers, frontends) - entirely skipped in dev stack */

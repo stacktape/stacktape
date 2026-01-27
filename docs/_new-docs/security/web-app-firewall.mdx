@@ -1,0 +1,447 @@
+---
+title: 'Web App Firewall'
+order: 4
+---
+
+# Web App Firewall
+
+`type: web-app-firewall`
+
+A web application firewall (WAF) protects your applications from common web exploits like SQL injection, cross-site scripting (XSS), and DDoS attacks. It filters and monitors HTTP traffic based on configurable rules.
+
+Web app firewalls use [AWS WAF](https://aws.amazon.com/waf/) under the hood.
+
+## When to Use
+
+**Advantages:**
+
+- Protection against OWASP Top 10 vulnerabilities
+- Managed rule sets maintained by security experts
+- Rate limiting to prevent abuse
+- Real-time visibility into traffic patterns
+
+**Disadvantages:**
+
+- Adds cost (~$7/month minimum + per-request charges)
+- Can block legitimate traffic if misconfigured
+- Rules require tuning for your specific application
+
+**Use cases:**
+
+- Public-facing APIs and websites
+- Applications handling sensitive data
+- Compliance requirements (PCI DSS, etc.)
+- DDoS protection
+
+## Compatible Resources
+
+WAFs can protect:
+
+- [Application Load Balancers](/networking/application-load-balancer)
+- [Web Services](/compute/web-service) (when using ALB)
+- [User Auth Pools](/security/user-auth-pool)
+- [CDNs](/networking/cdn)
+
+## Basic Example
+
+
+```ts
+import { defineConfig } from 'stacktape';
+
+export default defineConfig({
+  resources: {
+    firewall: {
+      type: 'web-app-firewall',
+      properties: {
+        scope: 'regional'
+      }
+    },
+
+    api: {
+      type: 'web-service',
+      properties: {
+        resources: {
+          cpu: 0.25,
+          memory: 512
+        },
+        container: {
+          packaging: {
+            type: 'stacktape-image-buildpack',
+            properties: {
+              entryfilePath: 'src/server.ts'
+            }
+          }
+        },
+        loadBalancing: {
+          type: 'application-load-balancer',
+          properties: {
+            useFirewall: 'firewall'
+          }
+        }
+      }
+    }
+
+}
+});
+
+```
+
+
+## Scope
+
+The scope determines whether the WAF is used with regional resources or CDN:
+
+
+```ts
+{
+  // For regional resources (ALB, User Pool, etc.)
+  regionalFirewall: {
+    type: 'web-app-firewall',
+    properties: {
+      scope: 'regional'
+    }
+  },
+
+  // For CDN-enabled resources
+  cdnFirewall: {
+    type: 'web-app-firewall',
+    properties: {
+      scope: 'cdn'
+    }
+  }
+}
+```
+
+
+
+<Warning>
+
+The scope cannot be changed after creation. Delete and recreate the firewall to change scope.
+
+</Warning>
+
+## Default Rules
+
+If you don't specify rules, Stacktape applies these AWS managed rule sets:
+
+- **AWSManagedRulesCommonRuleSet** - Protects against common vulnerabilities
+- **AWSManagedRulesKnownBadInputsRuleSet** - Blocks known malicious request patterns
+
+These cover most OWASP Top 10 threats including SQL injection and XSS.
+
+## Custom Rules
+
+### Managed Rule Groups
+
+Use pre-built rule sets from AWS or third-party vendors:
+
+
+```ts
+{
+  firewall: {
+    type: 'web-app-firewall',
+    properties: {
+      scope: 'regional',
+      rules: [
+        {
+          type: 'managed-rule-group',
+          properties: {
+            name: 'AWSManagedRulesCommonRuleSet',
+            vendorName: 'AWS',
+            priority: 1
+          }
+        },
+        {
+          type: 'managed-rule-group',
+          properties: {
+            name: 'AWSManagedRulesSQLiRuleSet',
+            vendorName: 'AWS',
+            priority: 2
+          }
+        },
+        {
+          type: 'managed-rule-group',
+          properties: {
+            name: 'AWSManagedRulesKnownBadInputsRuleSet',
+            vendorName: 'AWS',
+            priority: 3
+          }
+        }
+      ]
+    }
+  }
+}
+```
+
+
+Popular AWS managed rule groups:
+
+| Rule Group                              | Protection                 |
+| --------------------------------------- | -------------------------- |
+| `AWSManagedRulesCommonRuleSet`          | Common web vulnerabilities |
+| `AWSManagedRulesSQLiRuleSet`            | SQL injection              |
+| `AWSManagedRulesKnownBadInputsRuleSet`  | Known malicious patterns   |
+| `AWSManagedRulesLinuxRuleSet`           | Linux-specific exploits    |
+| `AWSManagedRulesAmazonIpReputationList` | Known bad IP addresses     |
+| `AWSManagedRulesBotControlRuleSet`      | Bot detection              |
+
+### Rate-Based Rules
+
+Limit requests per IP to prevent abuse:
+
+
+```ts
+{
+  firewall: {
+    type: 'web-app-firewall',
+    properties: {
+      scope: 'regional',
+      rules: [
+        {
+          type: 'rate-based-rule',
+          properties: {
+            name: 'rate-limit',
+            priority: 1,
+            limit: 2000,  // Max requests per 5-minute window per IP
+            action: 'Block'
+          }
+        },
+        {
+          type: 'managed-rule-group',
+          properties: {
+            name: 'AWSManagedRulesCommonRuleSet',
+            vendorName: 'AWS',
+            priority: 2
+          }
+        }
+      ]
+    }
+  }
+}
+```
+
+
+Rate limit must be between 100 and 20,000,000 requests per 5-minute period.
+
+### Forwarded IP Configuration
+
+For traffic behind a proxy or load balancer:
+
+
+```ts
+{
+  type: 'rate-based-rule',
+  properties: {
+    name: 'rate-limit-forwarded',
+    priority: 1,
+    limit: 2000,
+    aggregateBasedOn: 'FORWARDED_IP',
+    forwardedIPConfig: {
+      headerName: 'X-Forwarded-For',
+      fallbackBehavior: 'NO_MATCH'
+    },
+    action: 'Block'
+  }
+}
+```
+
+
+### Custom Rule Groups
+
+Reference your own rule groups created in AWS WAF:
+
+
+```ts
+{
+  type: 'custom-rule-group',
+  properties: {
+    name: 'my-custom-rules',
+    priority: 1,
+    arn: 'arn:aws:wafv2:us-east-1:123456789:regional/rulegroup/my-rules/abc123'
+  }
+}
+```
+
+
+## Default Action
+
+Control what happens when no rules match:
+
+
+```ts
+{
+  firewall: {
+    type: 'web-app-firewall',
+    properties: {
+      scope: 'regional',
+      // 'Allow' - allow unless blocked by rules (default)
+      // 'Block' - block unless allowed by rules
+      defaultAction: 'Allow'
+    }
+  }
+}
+```
+
+
+## Excluding Rules
+
+Disable specific rules within a managed rule group:
+
+
+```ts
+{
+  type: 'managed-rule-group',
+  properties: {
+    name: 'AWSManagedRulesCommonRuleSet',
+    vendorName: 'AWS',
+    priority: 1,
+    excludedRules: ['SizeRestrictions_BODY', 'CrossSiteScripting_BODY']
+  }
+}
+```
+
+
+Use this when a rule causes false positives for your application.
+
+## Custom Response Bodies
+
+Return custom responses when blocking requests:
+
+
+```ts
+{
+  firewall: {
+    type: 'web-app-firewall',
+    properties: {
+      scope: 'regional',
+      customResponseBodies: {
+        blocked: {
+          contentType: 'application/json',
+          content: '{"error": "Request blocked by firewall"}'
+        }
+      }
+    }
+  }
+}
+```
+
+
+## Monitoring
+
+WAF metrics are available in CloudWatch. Enable detailed monitoring:
+
+
+```ts
+{
+  firewall: {
+    type: 'web-app-firewall',
+    properties: {
+      scope: 'regional',
+      disableMetrics: false,       // Enable CloudWatch metrics (default)
+      sampledRequestsEnabled: true // Save sample of matched requests
+    }
+  }
+}
+```
+
+
+View sampled requests in the AWS WAF console to debug rule behavior.
+
+## Usage Examples
+
+### With Application Load Balancer
+
+
+```ts
+{
+  firewall: {
+    type: 'web-app-firewall',
+    properties: {
+      scope: 'regional'
+    }
+  },
+
+loadBalancer: {
+type: 'application-load-balancer',
+properties: {
+useFirewall: 'firewall'
+}
+}
+}
+
+```
+
+
+### With User Auth Pool
+
+
+```ts
+{
+  firewall: {
+    type: 'web-app-firewall',
+    properties: {
+      scope: 'regional'
+    }
+  },
+
+  userPool: {
+    type: 'user-auth-pool',
+    properties: {
+      useFirewall: 'firewall'
+    }
+  }
+}
+```
+
+
+
+### With CDN
+
+
+```ts
+{
+  firewall: {
+    type: 'web-app-firewall',
+    properties: {
+      scope: 'cdn'  // Must be 'cdn' for CloudFront
+    }
+  },
+
+cdn: {
+type: 'cdn',
+properties: {
+useFirewall: 'firewall',
+origins: [
+{
+domainName: '$ResourceParam(\'api\', \'url\')'
+}
+]
+}
+}
+}
+
+```
+
+
+## Pricing
+
+| Component       | Cost                      |
+| --------------- | ------------------------- |
+| WebACL          | $5.00/month               |
+| Rule            | $1.00/month per rule      |
+| Requests        | $0.60 per million         |
+
+Example: Firewall with default rules (2 rule groups) = $7.00/month + request charges.
+
+Third-party managed rule groups may have additional costs.
+
+For latest pricing, see [AWS WAF Pricing](https://aws.amazon.com/waf/pricing/).
+
+## Referenceable Parameters
+
+<ReferenceableParams resource="web-app-firewall" />
+
+## API Reference
+
+<PropertiesTable definitionName="WebAppFirewall" />
+```

@@ -1,0 +1,202 @@
+---
+title: 'Bucket'
+order: 2
+---
+
+# Bucket
+
+S3 object storage for storing and retrieving any amount of data.
+
+**Type:** `bucket`
+
+## When to Use
+
+**Advantages:**
+
+- **Unlimited storage**: Store any amount of data
+- **Durability**: 99.999999999% (11 9s) durability
+- **Versioning**: Keep history of object changes
+- **Event triggers**: Trigger Lambda on uploads
+
+**Disadvantages:**
+
+- **Not a filesystem**: Object storage, not block storage
+- **Eventual consistency**: Writes may take time to propagate
+
+**Best for:** File uploads, backups, data lakes, static assets.
+
+## Basic Example
+
+```yaml
+resources:
+  uploads:
+    type: bucket
+```
+
+## Connecting from Compute
+
+```yaml
+resources:
+  uploads:
+    type: bucket
+
+  api:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/handler.ts
+      connectTo:
+        - uploads
+```
+
+```typescript
+import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+
+const s3 = new S3Client({});
+const bucketName = process.env.STP_UPLOADS_BUCKET_NAME;
+
+// Upload
+await s3.send(
+  new PutObjectCommand({
+    Bucket: bucketName,
+    Key: 'files/document.pdf',
+    Body: fileBuffer,
+    ContentType: 'application/pdf'
+  })
+);
+
+// Download
+const { Body } = await s3.send(
+  new GetObjectCommand({
+    Bucket: bucketName,
+    Key: 'files/document.pdf'
+  })
+);
+```
+
+## Versioning
+
+Keep history of all object versions:
+
+```yaml
+resources:
+  documents:
+    type: bucket
+    properties:
+      versioning: true
+```
+
+## Lifecycle Rules
+
+Automatically transition or delete objects:
+
+```yaml
+resources:
+  logs:
+    type: bucket
+    properties:
+      lifecycleRules:
+        - prefix: logs/
+          expirationDays: 90
+        - prefix: archive/
+          transitions:
+            - storageClass: GLACIER
+              days: 30
+```
+
+## CORS Configuration
+
+Enable cross-origin access:
+
+```yaml
+resources:
+  uploads:
+    type: bucket
+    properties:
+      corsConfiguration:
+        - allowedOrigins:
+            - https://myapp.com
+          allowedMethods:
+            - GET
+            - PUT
+          allowedHeaders:
+            - '*'
+          maxAge: 3600
+```
+
+## With CDN
+
+Add CloudFront for global distribution:
+
+```yaml
+resources:
+  assets:
+    type: bucket
+    properties:
+      cdn:
+        enabled: true
+        customDomains:
+          - domainName: assets.myapp.com
+```
+
+## Trigger Lambda on Upload
+
+```yaml
+resources:
+  uploads:
+    type: bucket
+
+  processor:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/process.ts
+      events:
+        - type: s3-integration
+          properties:
+            bucketArn: $ResourceParam('uploads', 'arn')
+            s3EventType: 's3:ObjectCreated:*'
+            filterRule:
+              prefix: images/
+              suffix: .jpg
+```
+
+## Pre-signed URLs
+
+Generate temporary URLs for direct uploads/downloads:
+
+```typescript
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { PutObjectCommand } from '@aws-sdk/client-s3';
+
+const uploadUrl = await getSignedUrl(
+  s3,
+  new PutObjectCommand({
+    Bucket: bucketName,
+    Key: 'uploads/file.pdf'
+  }),
+  { expiresIn: 3600 }
+);
+```
+
+## Pricing
+
+- **Storage**: $0.023/GB/month (Standard)
+- **Requests**: $0.0004/1K PUT, $0.0004/1K GET
+- **Data transfer**: $0.09/GB (to internet)
+
+## Referenceable Parameters
+
+| Parameter    | Description        |
+| ------------ | ------------------ |
+| `bucketName` | Bucket name        |
+| `arn`        | Bucket ARN         |
+| `domainName` | Bucket domain name |
+
+## API Reference
+
+<PropertiesTable definitionName="BucketConfig" />

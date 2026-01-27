@@ -710,7 +710,7 @@ export class StackManager {
             ? `Removing ${inProgressAmount} old resource${inProgressAmount === 1 ? '' : 's'}`
             : 'Finishing cleanup';
         const cleanupFinished = completedAmount > 0 ? `Removed: ${completedAmount}` : '';
-        const progressMessage = `Deployment complete. Cleaning up. ${cleanupInProgress}.${cleanupFinished ? ` ${cleanupFinished}.` : ''} Estimate: ~100%`;
+        const progressMessage = `Status: Cleaning up. ${cleanupInProgress}.${cleanupFinished ? ` ${cleanupFinished}.` : ''} Estimate: ~100%`;
         // Include summary/details even during cleanup so TUI can show accurate counts
         const summaryPart = `Summary: created=${changeSummary.counts.created} updated=${changeSummary.counts.updated} deleted=${changeSummary.counts.deleted}`;
         const detailsPart = `Details: created=${changeSummary.lists.created.join(', ') || 'none'}; updated=${changeSummary.lists.updated.join(', ') || 'none'}; deleted=${changeSummary.lists.deleted.join(', ') || 'none'}.`;
@@ -718,49 +718,36 @@ export class StackManager {
         return;
       }
 
-      const inProgressPart =
-        inProgressAmount === 0 && completedAmount === 0
-          ? `Performing ${cfStackAction}`
-          : `In progress: ${inProgressAmount}`;
-      const finishedPart =
-        cfStackAction === 'create'
-          ? `Finished: ${completedAmount}/${isResourceToHandleCountPossiblyInaccurate ? '~' : ''}${resourcesToHandleCount}`
-          : `Finished: ${completedAmount}`;
       const remainingPercent = getEstimatedRemainingPercent({
         totalSeconds,
         startTime: lastStackActionTimestamp,
         now: new Date()
       });
-      const estimatePart =
-        remainingPercent === null ? '' : ` Estimate: ~${remainingPercent === 100 ? '<1' : 100 - remainingPercent}%`;
       const plannedResources =
         updatedResourceLogicalNames && updatedResourceLogicalNames.length > 0
           ? new Set(updatedResourceLogicalNames)
           : undefined;
-      const completedPlanned = plannedResources
-        ? Array.from(completeResources).filter((name) => plannedResources.has(name)).length
+      const plannedFromDiff =
+        changeSummary.counts.created + changeSummary.counts.updated + changeSummary.counts.deleted > 0
+          ? new Set([...changeSummary.lists.created, ...changeSummary.lists.updated, ...changeSummary.lists.deleted])
+          : undefined;
+      const plannedSet = plannedResources || plannedFromDiff;
+      const completedCount = plannedSet
+        ? Array.from(completeResources).filter((name) => plannedSet.has(name)).length
         : completeResources.size;
-      const inProgressPlanned = plannedResources
-        ? Array.from(inProgressResources).filter((name) => plannedResources.has(name)).length
+      const inProgressCount = plannedSet
+        ? Array.from(inProgressResources).filter((name) => plannedSet.has(name)).length
         : inProgressResources.size;
-      const totalPlannedBase = plannedResources ? plannedResources.size : resourcesToHandleCount;
       const totalSeen = seenResources.size;
-      const totalPlanned = Math.max(totalPlannedBase, totalSeen);
-      const waitingPlanned = Math.max(0, totalPlanned - completedPlanned - inProgressPlanned);
-      const activeList = formatResourceList(Array.from(inProgressResources), 3);
-      const waitingList =
-        waitingPlanned > 0
-          ? formatResourceList(
-              plannedResources
-                ? Array.from(plannedResources).filter(
-                    (name) => !inProgressResources.has(name) && !completeResources.has(name)
-                  )
-                : Array.from(seenResources).filter(
-                    (name) => !inProgressResources.has(name) && !completeResources.has(name)
-                  ),
-              3
-            )
-          : 'none';
+      const totalPlannedBase =
+        cfStackAction === 'update' ? Math.max(totalSeen, plannedSet?.size || 0) : resourcesToHandleCount;
+      const totalPlanned = Math.max(totalPlannedBase, completedCount + inProgressCount);
+      const activeResources = plannedSet
+        ? Array.from(inProgressResources).filter((name) => plannedSet.has(name))
+        : Array.from(inProgressResources);
+      const waitingCandidates = plannedSet
+        ? Array.from(plannedSet).filter((name) => !inProgressResources.has(name) && !completeResources.has(name))
+        : [];
       // Build changes part - only show non-zero counts with resource names if available
       const changesParts: string[] = [];
       if (changeSummary.counts.created > 0) {
@@ -778,14 +765,36 @@ export class StackManager {
           changeSummary.lists.deleted.length > 0 ? ` (${formatResourceList(changeSummary.lists.deleted, 3)})` : '';
         changesParts.push(`Deleting: ${changeSummary.counts.deleted}${resources}`);
       }
-      const changesPart = changesParts.length > 0 ? `${changesParts.join('. ')}.` : '';
+      const changesPart = cfStackAction === 'update' && changesParts.length > 0 ? `${changesParts.join('. ')}.` : '';
       // Add machine-readable summary and details for TUI parsing
       const summaryPart = `Summary: created=${changeSummary.counts.created} updated=${changeSummary.counts.updated} deleted=${changeSummary.counts.deleted}`;
       const detailsPart = `Details: created=${changeSummary.lists.created.join(', ') || 'none'}; updated=${changeSummary.lists.updated.join(', ') || 'none'}; deleted=${changeSummary.lists.deleted.join(', ') || 'none'}.`;
-      const progressMessage = `${inProgressPart}. ${finishedPart}.${estimatePart}`.trim();
-      onProgress(
-        `${progressMessage} Progress: ${completedPlanned}/${totalPlanned}. Currently updating: ${activeList}. Waiting: ${waitingList}.${changesPart ? ` ${changesPart}` : ''} ${summaryPart} ${detailsPart}`
-      );
+      const statusText =
+        inProgressAmount > 0
+          ? cfStackAction === 'delete'
+            ? 'Deleting resources'
+            : cfStackAction === 'create'
+              ? 'Creating resources'
+              : 'Updating resources'
+          : completedAmount > 0
+            ? 'Finalizing stack operation'
+            : `Starting ${cfStackAction}`;
+      const progressParts: string[] = [`Status: ${statusText}`];
+      if (totalPlanned > 0) {
+        progressParts.push(`Progress: ${completedCount}/${totalPlanned}`);
+      }
+      if (activeResources.length > 0) {
+        progressParts.push(`Currently updating: ${formatResourceList(activeResources, 3)}`);
+      }
+      if (waitingCandidates.length > 0) {
+        const waitingList = formatResourceList(waitingCandidates, 3);
+        progressParts.push(`Waiting: ${waitingList}`);
+      }
+      if (remainingPercent !== null) {
+        progressParts.push(`Estimate: ~${remainingPercent === 100 ? '<1' : 100 - remainingPercent}%`);
+      }
+      const progressMessage = progressParts.join('. ');
+      onProgress(`${progressMessage}.${changesPart ? ` ${changesPart}` : ''} ${summaryPart} ${detailsPart}`.trim());
     };
 
     const { warningMessages }: { warningMessages?: string[] } = await new Promise((resolve, reject) => {
@@ -1152,6 +1161,14 @@ export class StackManager {
           const ecsService = await awsSdkManager.getEcsService({
             serviceArn: resource.PhysicalResourceId
           });
+          if (!ecsService) {
+            return {
+              ...resource,
+              ecsService: undefined,
+              ecsServiceTaskDefinition: {},
+              ecsServiceTaskDefinitionTags: []
+            };
+          }
           const taskDefinitionInUse =
             // rolling deployments
             ecsService.deployments?.find(

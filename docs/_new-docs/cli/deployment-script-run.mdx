@@ -1,0 +1,33 @@
+---
+title: 'deployment-script:run'
+order: 5
+---
+
+# deployment-script:run
+
+Runs a deployment script defined in your configuration.
+
+This command only updates the script's source code. To update environment variables or other configurations, use the `deploy` command.
+
+## Usage
+
+```bash
+stacktape deployment-script:run --stage <stage> --region <region>
+```
+
+## Options
+
+| Option | Required | Type | Description |
+|--------|----------|------|-------------|
+| `--profile` (-p) | No | string |  |
+| `--logFormat` (-lf) | No | string |  |
+| `--logLevel` (-ll) | No | string |  |
+| `--help` (-h) | No | string |  |
+| `--awsAccount` (-aa) | No | string |  |
+| `--stage` (-s) | Yes | string |  |
+| `--region` (-r) | Yes | string |  |
+| `--projectName` (-prj) | No | string |  |
+| `--configPath` (-cp) | No | string |  |
+| `--currentWorkingDirectory` (-cwd) | No | string |  |
+| `--templateId` (-ti) | No | string |  |
+| `--resourceName` (-rn) | Yes | string |  |

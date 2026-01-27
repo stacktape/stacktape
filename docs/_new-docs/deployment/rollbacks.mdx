@@ -1,0 +1,200 @@
+---
+title: 'Rollbacks'
+order: 5
+---
+
+# Rollbacks
+
+When deployments fail, Stacktape provides mechanisms to recover your infrastructure to a working state.
+
+## Automatic Rollback
+
+By default, if a deployment fails, CloudFormation automatically rolls back to the last known good state. This ensures your production environment stays functional even when deployments fail.
+
+```bash
+# Deployment fails → automatic rollback to previous state
+stacktape deploy --stage production --region eu-west-1
+```
+
+## Disabling Auto-Rollback
+
+For debugging, you can disable auto-rollback to inspect the failed state:
+
+```bash
+stacktape deploy --stage production --region eu-west-1 --disableAutoRollback
+```
+
+When auto-rollback is disabled:
+
+- The stack remains in `UPDATE_FAILED` state
+- You can investigate what went wrong
+- You must manually fix the issue and redeploy, or manually rollback
+
+## Manual Rollback
+
+If you disabled auto-rollback, use the `rollback` command to recover:
+
+```bash
+stacktape rollback --stage production --region eu-west-1
+```
+
+This rolls the stack back to the last successful deployment.
+
+## Rollback Scenarios
+
+### Deployment Failure
+
+```
+Deploy starts
+├── Packaging succeeds
+├── Upload succeeds
+├── CloudFormation update starts
+├── Resource creation fails ← Failure point
+└── Auto-rollback to previous state
+```
+
+**With auto-rollback enabled (default):**
+
+- Stack automatically returns to working state
+- No manual intervention needed
+- Previous configuration is restored
+
+**With auto-rollback disabled:**
+
+- Stack stays in `UPDATE_FAILED` state
+- Must run `stacktape rollback` or fix and redeploy
+
+### Bad Code Deployment
+
+If you deploy code that passes but causes runtime issues:
+
+1. **Redeploy previous version:**
+
+   ```bash
+   git checkout previous-commit
+   stacktape deploy --stage production --region eu-west-1
+   ```
+
+2. **Or use git revert:**
+
+   ```bash
+   git revert HEAD
+   git push origin main  # Triggers CI/CD redeploy
+   ```
+
+### Infrastructure Drift
+
+If someone manually changed resources in AWS Console:
+
+```bash
+# By default, Stacktape blocks updates to drifted stacks
+stacktape deploy --stage production --region eu-west-1
+# Error: Stack has drifted
+
+# To override and force deployment:
+stacktape deploy --stage production --region eu-west-1 --disableDriftDetection
+```
+
+## Rollback Options
+
+| Option         | Alias | Description                 |
+| -------------- | ----- | --------------------------- |
+| `--stage`      | `-s`  | Stage name (required)       |
+| `--region`     | `-r`  | AWS region (required)       |
+| `--profile`    | `-p`  | AWS profile to use          |
+| `--awsAccount` | `-aa` | Connected AWS account name  |
+| `--configPath` | `-cp` | Path to config file         |
+| `--logLevel`   | `-ll` | `info`, `error`, or `debug` |
+
+## Best Practices
+
+### Always Test in Staging
+
+```bash
+# Deploy to staging first
+stacktape deploy --stage staging --region eu-west-1
+
+# Run tests, verify functionality
+
+# Then deploy to production
+stacktape deploy --stage production --region eu-west-1
+```
+
+### Use Preview Environments
+
+For pull requests, deploy to isolated preview environments:
+
+```bash
+# PR #123 gets its own environment
+stacktape deploy --stage pr-123 --region eu-west-1
+
+# Test the PR
+# Merge when verified
+# Delete preview environment
+stacktape delete --stage pr-123 --region eu-west-1
+```
+
+### Monitor Deployments
+
+Watch deployment progress and catch issues early:
+
+```bash
+# Use debug logging
+stacktape deploy --stage production --region eu-west-1 --logLevel debug
+```
+
+### Keep Deployments Small
+
+- Deploy frequently with small changes
+- Easier to identify what caused failures
+- Faster rollbacks since less has changed
+
+### Version Control Everything
+
+- All infrastructure changes should go through Git
+- Use PR reviews for production changes
+- Tag releases for easy rollback points
+
+```bash
+# Tag before production deploy
+git tag -a v1.2.3 -m "Release 1.2.3"
+git push origin v1.2.3
+
+# If needed, rollback to tagged version
+git checkout v1.2.2
+stacktape deploy --stage production --region eu-west-1
+```
+
+## Common Issues
+
+### Stack Stuck in UPDATE_IN_PROGRESS
+
+If a deployment hangs:
+
+1. Check CloudFormation console for details
+2. Wait for timeout (can take up to an hour)
+3. If stuck, contact AWS support
+
+### Rollback Itself Fails
+
+Rare, but can happen if:
+
+- Resources were manually deleted
+- IAM permissions changed
+- AWS service issues
+
+Resolution:
+
+1. Check CloudFormation events for specific error
+2. Fix the underlying issue manually if needed
+3. Run `stacktape delete` and redeploy fresh if necessary
+
+### Cannot Rollback to Deleted Resources
+
+CloudFormation rollback restores the configuration, but:
+
+- Data in databases won't be restored
+- S3 objects won't be recovered
+- DynamoDB items won't come back
+
+**Always backup critical data before deployments.**

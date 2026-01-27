@@ -1,33 +1,33 @@
 import type { ExpectedError, UnexpectedError } from '@utils/errors';
-import type { Instance } from 'ink';
-import type { ErrorDisplayData, NextStep } from './components';
 import type {
   TuiCancelDeployment,
   TuiDeploymentHeader,
   TuiEventStatus,
   TuiLink,
   TuiMessageType,
-  TuiPromptConfirm,
-  TuiPromptMultiSelect,
-  TuiPromptSelect,
-  TuiPromptText,
   TuiSelectOption
 } from './types';
 import { eventManager } from '@application-services/event-manager';
 import { INVOKED_FROM_ENV_VAR_NAME, IS_DEV, linksMap } from '@config';
 import { getRelativePath, transformToUnixPath } from '@shared/utils/fs-utils';
 import { logCollectorStream } from '@utils/log-collector';
+import {
+  box as clackBox,
+  log as clackLog,
+  note as clackNote,
+  updateSettings as clackUpdateSettings
+} from '@clack/prompts';
 import ci from 'ci-info';
-import { render, Box, Text } from 'ink';
 import kleur from 'kleur';
-import React from 'react';
 import terminalLink from 'terminal-link';
-import { renderErrorToString, renderNextStepsToString, renderStackErrorsToString, Table, TuiApp } from './components';
-import { nonTTYRenderer } from './non-tty-renderer';
+import { renderErrorToString, renderNextStepsToString, renderStackErrorsToString } from './non-tty-renderer';
+import { PromptManager } from './prompts';
+import { NonTtyRenderer, TtyRenderer } from './renderer';
 import { createSpinner, createSpinnerProgressLogger, MultiSpinner } from './spinners';
 import { tuiState } from './state';
 import { formatDuration, stripAnsi } from './utils';
 
+export { UserCancelledError } from './prompts';
 export type { Spinner } from './spinners';
 export { MultiSpinner } from './spinners';
 export { tuiState } from './state';
@@ -43,29 +43,47 @@ export type {
   TuiWarning
 } from './types';
 
+export type NextStep = {
+  text: string;
+  command?: string;
+  details?: string[];
+  links?: string[];
+};
+
+export type ErrorDisplayData = {
+  errorType: string;
+  message: string;
+  hints?: string[];
+  stackTrace?: string;
+  sentryEventId?: string;
+  isExpected?: boolean;
+};
+
 /**
  * TuiManager handles all terminal output for Stacktape CLI.
  *
- * It operates in two modes:
- * 1. **TUI mode** (deploy/delete): Full Ink-based UI with phases, events, and progress
- * 2. **Standalone mode** (dev): Simple spinners and console output without Ink
+ * Architecture:
+ * - TTY mode: Uses log-update for dynamic content that updates in place
+ * - Non-TTY mode: Uses plain console.info for append-only output
+ * - Prompts: Uses @clack/prompts for interactive input
  *
- * Use `tuiManager.start()` to enable TUI mode (for deploy/delete commands).
- * For dev mode, use spinners directly without starting the TUI.
+ * No React/Ink dependencies - simple and reliable.
  */
 class TuiManager {
-  private inkInstance: Instance | null = null;
+  private ttyRenderer: TtyRenderer | null = null;
+  private nonTtyRenderer: NonTtyRenderer | null = null;
+  private promptManager: PromptManager | null = null;
+  private renderInterval: ReturnType<typeof setInterval> | null = null;
+  private unsubscribe: (() => void) | null = null;
+
   private isTTY: boolean;
-  private _isEnabled: boolean = false;
-  private _isPaused: boolean = false;
+  private _isEnabled = false;
+  private _isPaused = false;
+  private _wasEverStarted = false;
+  private _headerCommitted = false;
+  private _devTuiActive = false;
   private logFormat: LogFormat = 'fancy';
   private logLevel: LogLevel = 'info';
-  private nonTTYUnsubscribe: (() => void) | null = null;
-  /**
-   * Tracks whether TUI was ever started this session.
-   * Used to prevent printProgress() fallback after TUI stops, since events were already displayed.
-   */
-  private _wasEverStarted: boolean = false;
 
   constructor() {
     this.isTTY = process.stdout.isTTY && !ci.isCI;
@@ -75,7 +93,6 @@ class TuiManager {
     return this._isEnabled;
   }
 
-  /** Returns true if TUI was started at some point (even if now stopped). */
   get wasEverStarted(): boolean {
     return this._wasEverStarted;
   }
@@ -84,17 +101,24 @@ class TuiManager {
     return this._isPaused;
   }
 
-  // ============================================================
-  // Lifecycle
-  // ============================================================
+  get devTuiActive(): boolean {
+    return this._devTuiActive;
+  }
+
+  // ─── Lifecycle ───
 
   init(options: { logFormat?: LogFormat; logLevel?: LogLevel } = {}) {
     this.logFormat = options.logFormat || 'fancy';
     this.logLevel = options.logLevel || 'info';
     this.isTTY = process.stdout.isTTY && !ci.isCI && this.logFormat === 'fancy';
+    this.promptManager = new PromptManager(this.colorize.bind(this), this.isTTY);
+    clackUpdateSettings({ withGuide: false });
   }
 
-  /** Start the TUI (Ink-based UI). Call this for deploy/delete commands. */
+  /**
+   * Start the TUI for deploy/delete commands.
+   * Uses log-update for TTY, plain console for non-TTY.
+   */
   start() {
     if (this.logFormat === 'json' || this.logFormat === 'basic') {
       return;
@@ -102,99 +126,119 @@ class TuiManager {
 
     this._isEnabled = true;
     this._wasEverStarted = true;
+    this._headerCommitted = false;
     tuiState.reset();
 
     if (this.isTTY) {
-      console.info('');
-      this.inkInstance = render(React.createElement(TuiApp, { isTTY: true }), {
-        patchConsole: false
+      this.ttyRenderer = new TtyRenderer(this.colorize.bind(this), this.makeBold.bind(this));
+      this.ttyRenderer.start();
+
+      // Subscribe to state changes and re-render (skip while paused)
+      this.unsubscribe = tuiState.subscribe((state) => {
+        if (!this._isPaused && this.ttyRenderer) {
+          // Commit header once (uses clackBox, writes directly to stdout)
+          if (state.header && !this._headerCommitted) {
+            this._headerCommitted = true;
+            this.ttyRenderer.commitHeader(state);
+          }
+          this.ttyRenderer.render(state);
+        }
       });
+
+      // Set up render interval for spinner animation
+      this.renderInterval = setInterval(() => {
+        if (this.ttyRenderer && !this._isPaused) {
+          this.ttyRenderer.render(tuiState.getState());
+        }
+      }, 100);
     } else {
-      this.nonTTYUnsubscribe = tuiState.subscribe((state) => {
-        nonTTYRenderer.render(state);
+      this.nonTtyRenderer = new NonTtyRenderer();
+      this.unsubscribe = tuiState.subscribe((state) => {
+        this.nonTtyRenderer?.render(state);
       });
     }
   }
 
-  /** Stop the TUI and clean up. */
+  /**
+   * Stop the TUI and clean up.
+   */
   async stop() {
     tuiState.setFinalizing();
 
-    const instance = this.inkInstance;
-    if (instance) {
-      await new Promise((resolve) => setTimeout(resolve, 150));
-      instance.unmount();
-      this.inkInstance = null;
+    // Give time for final render
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    if (this.renderInterval) {
+      clearInterval(this.renderInterval);
+      this.renderInterval = null;
     }
-    if (this.nonTTYUnsubscribe) {
-      nonTTYRenderer.render(tuiState.getState());
-      this.nonTTYUnsubscribe();
-      this.nonTTYUnsubscribe = null;
+
+    if (this.ttyRenderer) {
+      // Final render to commit completed phases
+      this.ttyRenderer.render(tuiState.getState());
+      // Clear dynamic content and stop spinner
+      this.ttyRenderer.stop();
+      // Commit summary using clack note
+      const state = tuiState.getState();
+      if (state.summary) {
+        this.ttyRenderer.commitSummary(state);
+      }
+      this.ttyRenderer = null;
     }
+
+    if (this.nonTtyRenderer) {
+      this.nonTtyRenderer.render(tuiState.getState());
+      this.nonTtyRenderer.reset();
+      this.nonTtyRenderer = null;
+    }
+
+    if (this.unsubscribe) {
+      this.unsubscribe();
+      this.unsubscribe = null;
+    }
+
     this._isEnabled = false;
     this._isPaused = false;
-    nonTTYRenderer.reset();
   }
 
-  /** Temporarily pause the TUI (e.g., for external prompts). */
+  /**
+   * Pause the TUI (for external prompts).
+   */
   pause() {
     if (!this._isEnabled || this._isPaused) return;
     this._isPaused = true;
 
-    if (this.inkInstance) {
-      this.inkInstance.unmount();
-      this.inkInstance = null;
+    if (this.ttyRenderer) {
+      this.ttyRenderer.pause(tuiState.getState());
     }
   }
 
-  /** Resume the TUI after pausing. */
+  /**
+   * Resume the TUI after pausing.
+   */
   resume() {
     if (!this._isEnabled || !this._isPaused) return;
     this._isPaused = false;
 
-    if (this.isTTY) {
-      this.inkInstance = render(React.createElement(TuiApp, { isTTY: true }), {
-        patchConsole: false
-      });
+    if (this.isTTY && this.ttyRenderer) {
+      this.ttyRenderer.resume();
     }
   }
 
-  // ============================================================
-  // Spinners (for dev mode / standalone operations)
-  // ============================================================
+  setDevTuiActive(active: boolean) {
+    this._devTuiActive = active;
+  }
 
-  /**
-   * Create a single spinner for tracking one async operation.
-   * Use this in dev mode or for standalone progress indication.
-   *
-   * @example
-   * const spinner = tuiManager.spinner('Loading data');
-   * spinner.update('50% complete');
-   * spinner.success({ details: 'Loaded 100 items' });
-   */
+  // ─── Spinners ───
+
   createSpinner({ text }: { text: string }) {
     return createSpinner(text, this.colorize.bind(this));
   }
 
-  /**
-   * Create a multi-spinner for tracking multiple parallel operations.
-   * Each spinner renders on its own line without cursor conflicts.
-   *
-   * @example
-   * const multi = tuiManager.multiSpinner();
-   * const s1 = multi.add('task1', 'Loading config');
-   * const s2 = multi.add('task2', 'Fetching data');
-   * s1.success();
-   * s2.success({ details: 'Done' });
-   */
   createMultiSpinner() {
     return new MultiSpinner(this.colorize.bind(this));
   }
 
-  /**
-   * Create a ProgressLogger that forwards events to a spinner.
-   * Use this to adapt packaging operations to use spinners.
-   */
   createSpinnerProgressLogger(
     spinner: ReturnType<typeof createSpinner>,
     instanceId: string,
@@ -203,9 +247,7 @@ class TuiManager {
     return createSpinnerProgressLogger(spinner, instanceId, parentEventType);
   }
 
-  // ============================================================
-  // Simple Logging (works in both TUI and standalone mode)
-  // ============================================================
+  // ─── Logging ───
 
   info(message: string) {
     this.log('info', message);
@@ -228,53 +270,77 @@ class TuiManager {
     this.log('hint', message);
   }
 
+  question(message: string) {
+    this.log('question', message);
+  }
+
   announcement(message: string, highlight?: boolean) {
     const formattedMessage = highlight ? `★  ${this.makeBold(message)}` : message;
     this.log('announcement', formattedMessage);
   }
 
   private log(type: TuiMessageType, message: string) {
-    if (this._isPaused || !this.isTTY || !this._isEnabled) {
-      // Skip console output if DevTui is running (it has its own rendering)
-      if (!this._devTuiActive) {
-        this.printToConsole(type, message);
-      }
-      logCollectorStream.write(message);
+    // If TUI is running in TTY mode, add to state (will be rendered)
+    if (this._isEnabled && this.isTTY && !this._isPaused) {
+      tuiState.addMessage(type, type, message);
       return;
     }
-    tuiState.addMessage(type, type, message);
-  }
 
-  // Track if DevTui is active to suppress console output
-  private _devTuiActive = false;
-
-  setDevTuiActive(active: boolean) {
-    this._devTuiActive = active;
-  }
-
-  get devTuiActive(): boolean {
-    return this._devTuiActive;
+    // Otherwise print to console directly (unless DevTui is handling output)
+    if (!this._devTuiActive) {
+      this.printToConsole(type, message);
+    }
+    logCollectorStream.write(message);
   }
 
   private printToConsole(type: TuiMessageType, message: string) {
-    const symbols: Record<TuiMessageType, { symbol: string; color: string }> = {
-      info: { symbol: 'i', color: 'cyan' },
-      success: { symbol: '✓', color: 'green' },
-      error: { symbol: '✖', color: 'red' },
-      warn: { symbol: '⚠', color: 'yellow' },
-      debug: { symbol: '⚙', color: 'gray' },
-      hint: { symbol: '💡', color: 'blue' },
-      start: { symbol: '▶', color: 'magenta' },
-      announcement: { symbol: '★', color: 'magenta' }
-    };
-    const { symbol, color } = symbols[type];
-    const coloredSymbol = this.colorize(color, symbol);
-    console.info(`${coloredSymbol} ${message}`);
+    if (this.logFormat === 'fancy') {
+      switch (type) {
+        case 'info':
+          clackLog.info(message);
+          break;
+        case 'success':
+          clackLog.success(message);
+          break;
+        case 'error':
+          clackLog.error(message);
+          break;
+        case 'warn':
+          clackLog.warn(message);
+          break;
+        case 'debug':
+          clackLog.step(this.colorize('gray', `⚙ ${message}`));
+          break;
+        case 'hint':
+          clackLog.info(this.colorize('blue', `💡 ${message}`));
+          break;
+        case 'question':
+          clackLog.message(this.colorize('cyan', `? ${message}`));
+          break;
+        case 'start':
+        case 'announcement':
+          clackLog.step(message);
+          break;
+        default:
+          clackLog.message(message);
+      }
+    } else {
+      const symbols: Record<TuiMessageType, string> = {
+        info: '[i]',
+        success: '[+]',
+        error: '[x]',
+        warn: '[!]',
+        debug: '[.]',
+        hint: '[?]',
+        question: '[?]',
+        start: '[>]',
+        announcement: '[*]'
+      };
+      console.info(`${symbols[type] || '[*]'} ${message}`);
+    }
   }
 
-  // ============================================================
-  // TUI State Management (for deploy/delete commands)
-  // ============================================================
+  // ─── TUI State Management ───
 
   configureForDelete() {
     tuiState.configureForDelete();
@@ -286,6 +352,10 @@ class TuiManager {
 
   setStreamingMode(enabled: boolean) {
     tuiState.setStreamingMode(enabled);
+  }
+
+  setShowPhaseHeaders(show: boolean) {
+    tuiState.setShowPhaseHeaders(show);
   }
 
   setHeader(header: TuiDeploymentHeader) {
@@ -347,66 +417,45 @@ class TuiManager {
     tuiState.commitPendingCompletion();
   }
 
-  // ============================================================
-  // Cancel Deployment Banner
-  // ============================================================
+  // ─── Cancel Deployment ───
 
-  /**
-   * Show a cancel deployment banner that the user can trigger with 'c' key.
-   * Used when a deployment failure is detected (e.g., ECS task failed to start).
-   */
   setCancelDeployment(cancelDeployment: TuiCancelDeployment) {
     tuiState.setCancelDeployment(cancelDeployment);
   }
 
-  /**
-   * Update the cancel deployment state (e.g., to show cancelling in progress).
-   */
   updateCancelDeployment(updates: Partial<TuiCancelDeployment>) {
     tuiState.updateCancelDeployment(updates);
   }
 
-  /**
-   * Clear the cancel deployment banner.
-   */
   clearCancelDeployment() {
     tuiState.clearCancelDeployment();
   }
 
-  // ============================================================
-  // Prompts (interactive input)
-  // ============================================================
+  // ─── Prompts ───
 
   async promptSelect(config: { message: string; options: TuiSelectOption[]; defaultValue?: string }): Promise<string> {
-    if (!this.isTTY || this.logFormat !== 'fancy' || !this._isEnabled) {
-      if (config.defaultValue !== undefined) {
-        const selectedOption = config.options.find((o) => o.value === config.defaultValue);
-        this.info(`${config.message} ${this.colorize('cyan', selectedOption?.label || config.defaultValue)} (default)`);
-        return config.defaultValue;
+    // Pause TUI while prompting
+    const wasRunning = this._isEnabled && this.isTTY;
+    if (wasRunning) this.pause();
+
+    try {
+      if (!this.promptManager) {
+        this.promptManager = new PromptManager(this.colorize.bind(this), this.isTTY);
       }
-      throw new Error(
-        `Interactive prompt "${config.message}" is not supported in non-interactive mode. Please provide the value via command-line arguments.`
-      );
+      const result = await this.promptManager.select(config);
+
+      // Log selection only in non-TTY mode (clack already renders it in TTY)
+      if (!this.isTTY) {
+        const selectedOption = config.options.find((o) => o.value === result);
+        console.info(
+          `${this.colorize('cyan', 'ℹ')} ${config.message} ${this.colorize('cyan', selectedOption?.label || result)}`
+        );
+      }
+
+      return result;
+    } finally {
+      if (wasRunning) this.resume();
     }
-
-    const result = await new Promise<string>((resolve) => {
-      const resolveAndClear = (value: string) => {
-        tuiState.clearActivePrompt();
-        setTimeout(() => resolve(value), 0);
-      };
-      const prompt: TuiPromptSelect = {
-        type: 'select',
-        message: config.message,
-        options: config.options,
-        resolve: resolveAndClear
-      };
-      tuiState.setActivePrompt(prompt);
-    });
-
-    const selectedOption = config.options.find((o) => o.value === result);
-    this.info(`${config.message} ${this.colorize('cyan', selectedOption?.label || result)}`);
-
-    return result;
   }
 
   async promptMultiSelect(config: {
@@ -414,75 +463,47 @@ class TuiManager {
     options: TuiSelectOption[];
     defaultValues?: string[];
   }): Promise<string[]> {
-    if (!this.isTTY || this.logFormat !== 'fancy' || !this._isEnabled) {
-      if (config.defaultValues !== undefined) {
-        const selectedLabels = config.defaultValues
-          .map((v) => config.options.find((o) => o.value === v)?.label || v)
-          .join(', ');
-        this.info(`${config.message} ${this.colorize('cyan', selectedLabels)} (default)`);
-        return config.defaultValues;
+    const wasRunning = this._isEnabled && this.isTTY;
+    if (wasRunning) this.pause();
+
+    try {
+      if (!this.promptManager) {
+        this.promptManager = new PromptManager(this.colorize.bind(this), this.isTTY);
       }
-      throw new Error(
-        `Interactive prompt "${config.message}" is not supported in non-interactive mode. Please provide the value via command-line arguments.`
-      );
+      const result = await this.promptManager.multiSelect(config);
+
+      if (!this.isTTY) {
+        const selectedLabels = result.map((v) => config.options.find((o) => o.value === v)?.label || v).join(', ');
+        console.info(
+          `${this.colorize('cyan', 'ℹ')} ${config.message} ${this.colorize('cyan', selectedLabels || '(none)')}`
+        );
+      }
+
+      return result;
+    } finally {
+      if (wasRunning) this.resume();
     }
-
-    const result = await new Promise<string[]>((resolve) => {
-      const resolveAndClear = (values: string[]) => {
-        tuiState.clearActivePrompt();
-        setTimeout(() => resolve(values), 0);
-      };
-      const prompt: TuiPromptMultiSelect = {
-        type: 'multiSelect',
-        message: config.message,
-        options: config.options,
-        defaultValues: config.defaultValues,
-        resolve: resolveAndClear
-      };
-      tuiState.setActivePrompt(prompt);
-    });
-
-    const selectedLabels = result.map((v) => config.options.find((o) => o.value === v)?.label || v).join(', ');
-    this.info(`${config.message} ${this.colorize('cyan', selectedLabels || '(none)')}`);
-
-    return result;
   }
 
   async promptConfirm(config: { message: string; defaultValue?: boolean }): Promise<boolean> {
-    if (!this.isTTY || this.logFormat !== 'fancy' || !this._isEnabled) {
-      if (config.defaultValue !== undefined) {
-        const answer = config.defaultValue ? this.colorize('green', 'Yes') : this.colorize('red', 'No');
-        this.info(`${config.message} ${answer} (default)`);
-        return config.defaultValue;
+    const wasRunning = this._isEnabled && this.isTTY;
+    if (wasRunning) this.pause();
+
+    try {
+      if (!this.promptManager) {
+        this.promptManager = new PromptManager(this.colorize.bind(this), this.isTTY);
       }
-      throw new Error(
-        `Interactive prompt "${config.message}" is not supported in non-interactive mode. Please provide the value via command-line arguments.`
-      );
+      const result = await this.promptManager.confirm(config);
+
+      if (!this.isTTY) {
+        const answer = result ? this.colorize('green', 'Yes') : this.colorize('red', 'No');
+        console.info(`${this.colorize('cyan', 'ℹ')} ${config.message} ${answer}`);
+      }
+
+      return result;
+    } finally {
+      if (wasRunning) this.resume();
     }
-
-    const result = await new Promise<boolean>((resolve) => {
-      let settled = false;
-
-      const resolveOnce = (value: boolean) => {
-        if (settled) return;
-        settled = true;
-        tuiState.clearActivePrompt();
-        setTimeout(() => resolve(value), 0);
-      };
-
-      const prompt: TuiPromptConfirm = {
-        type: 'confirm',
-        message: config.message,
-        defaultValue: config.defaultValue,
-        resolve: resolveOnce
-      };
-      tuiState.setActivePrompt(prompt);
-    });
-
-    const answer = result ? this.colorize('green', 'Yes') : this.colorize('red', 'No');
-    this.info(`${config.message} ${answer}`);
-
-    return result;
   }
 
   async promptText(config: {
@@ -492,43 +513,27 @@ class TuiManager {
     description?: string;
     defaultValue?: string;
   }): Promise<string> {
-    if (!this.isTTY || this.logFormat !== 'fancy' || !this._isEnabled) {
-      if (config.defaultValue !== undefined) {
-        const displayValue = config.isPassword ? '*'.repeat(config.defaultValue.length) : config.defaultValue;
-        this.info(`${config.message} ${this.colorize('cyan', displayValue)} (default)`);
-        return config.defaultValue;
+    const wasRunning = this._isEnabled && this.isTTY;
+    if (wasRunning) this.pause();
+
+    try {
+      if (!this.promptManager) {
+        this.promptManager = new PromptManager(this.colorize.bind(this), this.isTTY);
       }
-      throw new Error(
-        `Interactive prompt "${config.message}" is not supported in non-interactive mode. Please provide the value via command-line arguments.`
-      );
+      const result = await this.promptManager.text(config);
+
+      if (!this.isTTY) {
+        const displayValue = config.isPassword ? '*'.repeat(result.length) : result;
+        console.info(`${this.colorize('cyan', 'ℹ')} ${config.message} ${this.colorize('cyan', displayValue)}`);
+      }
+
+      return result;
+    } finally {
+      if (wasRunning) this.resume();
     }
-
-    const result = await new Promise<string>((resolve) => {
-      const resolveAndClear = (value: string) => {
-        tuiState.clearActivePrompt();
-        setTimeout(() => resolve(value), 0);
-      };
-      const prompt: TuiPromptText = {
-        type: 'text',
-        message: config.message,
-        placeholder: config.placeholder,
-        isPassword: config.isPassword,
-        description: config.description,
-        defaultValue: config.defaultValue,
-        resolve: resolveAndClear
-      };
-      tuiState.setActivePrompt(prompt);
-    });
-
-    const displayValue = config.isPassword ? '*'.repeat(result.length) : result;
-    this.info(`${config.message} ${this.colorize('cyan', displayValue)}`);
-
-    return result;
   }
 
-  // ============================================================
-  // Formatting Helpers
-  // ============================================================
+  // ─── Formatting Helpers ───
 
   colorize(color: string, text: string): string {
     if (this.logFormat !== 'fancy') return text;
@@ -598,9 +603,7 @@ class TuiManager {
     return rendered;
   }
 
-  // ============================================================
-  // Error Display
-  // ============================================================
+  // ─── Error Display ───
 
   error(error: UnexpectedError | ExpectedError) {
     const { hint } = error as ExpectedError;
@@ -642,22 +645,110 @@ class TuiManager {
   displayError(errorData: ErrorDisplayData) {
     tuiState.markAllRunningAsErrored();
 
-    if (this.inkInstance) {
-      this.inkInstance.unmount();
-      this.inkInstance = null;
+    // Final render to commit errored phases before stopping
+    if (this.ttyRenderer) {
+      this.ttyRenderer.render(tuiState.getState());
+      this.ttyRenderer.stop();
+      this.ttyRenderer = null;
     }
+    if (this.renderInterval) {
+      clearInterval(this.renderInterval);
+      this.renderInterval = null;
+    }
+    if (this.unsubscribe) {
+      this.unsubscribe();
+      this.unsubscribe = null;
+    }
+
     this._isEnabled = false;
     this._isPaused = false;
 
-    const errorString = renderErrorToString(errorData, this.colorize.bind(this), this.makeBold.bind(this));
-    console.error(errorString);
+    if (this.logFormat === 'fancy') {
+      this.displayErrorWithClack(errorData);
+    } else {
+      const errorString = renderErrorToString(errorData, this.colorize.bind(this), this.makeBold.bind(this));
+      console.error(errorString);
+    }
 
     logCollectorStream.write(`[${errorData.errorType}] ${errorData.message}`);
   }
 
-  // ============================================================
-  // Special Output (tables, next steps, etc.)
-  // ============================================================
+  private displayErrorWithClack(errorData: ErrorDisplayData) {
+    const typeLabel = errorData.isExpected === false ? 'Unexpected Error' : this.getErrorLabel(errorData.errorType);
+
+    // Error header box with red border
+    console.error('');
+    clackBox(errorData.message, `✖ ${typeLabel}`, {
+      rounded: false,
+      width: 'auto',
+      titleAlign: 'center',
+      contentAlign: 'left',
+      formatBorder: (text: string) => this.colorize('red', text)
+    });
+
+    // Hints
+    const hints = errorData.hints || [];
+    if (hints.length > 0) {
+      console.error('');
+      console.error(this.makeBold(this.colorize('blue', 'Hints:')));
+      for (const hint of hints) {
+        console.error(`  ${this.colorize('gray', '→')} ${hint}`);
+      }
+    }
+
+    // Stack trace
+    if (errorData.stackTrace) {
+      console.error('');
+      console.error(this.makeBold('Stack trace:'));
+      console.error(this.colorize('gray', errorData.stackTrace));
+    }
+
+    // Error ID
+    if (errorData.sentryEventId) {
+      console.error('');
+      console.error(this.colorize('gray', `Error ID: ${errorData.sentryEventId}`));
+    }
+  }
+
+  private getErrorLabel(errorType: string): string {
+    const labels: Record<string, string> = {
+      API_KEY: 'API Key Error',
+      API_SERVER: 'API Server Error',
+      AWS_ACCOUNT: 'AWS Account Error',
+      BUDGET: 'Budget Error',
+      CLI: 'CLI Error',
+      CODEBUILD: 'CodeBuild Error',
+      CONFIG: 'Configuration Error',
+      CONFIG_GENERATION: 'Config Generation Error',
+      CONFIG_VALIDATION: 'Config Validation Error',
+      CONFIRMATION_REQUIRED: 'Confirmation Required',
+      CONTAINER: 'Container Error',
+      CREDENTIALS: 'Credentials Error',
+      DIRECTIVE: 'Directive Error',
+      DOCKER: 'Docker Error',
+      DOMAIN_MANAGEMENT: 'Domain Management Error',
+      EXISTING_STACK: 'Existing Stack Error',
+      INPUT: 'Input Error',
+      MISSING_OUTPUT: 'Missing Output Error',
+      MISSING_PREREQUISITE: 'Missing Prerequisite',
+      NON_EXISTING_RESOURCE: 'Resource Not Found',
+      NON_EXISTING_STACK: 'Stack Not Found',
+      NOT_YET_IMPLEMENTED: 'Not Yet Implemented',
+      PACKAGING_CONFIG: 'Packaging Config Error',
+      PARAMETER: 'Parameter Error',
+      RUNTIME: 'Runtime Error',
+      SCRIPT: 'Script Error',
+      SOURCE_CODE: 'Source Code Error',
+      STACK: 'Stack Error',
+      STACK_MONITORING: 'Stack Monitoring Error',
+      SUBSCRIPTION_REQUIRED: 'Subscription Required',
+      SYNC_BUCKET: 'Bucket Sync Error',
+      UNSUPPORTED_RESOURCE: 'Unsupported Resource'
+    };
+    return labels[errorType] || `${errorType.replace(/_/g, ' ')} Error`;
+  }
+
+  // ─── Special Output ───
 
   printStacktapeLog(stacktapeLog: { type: string; data: Record<string, any> }) {
     const message = { ...stacktapeLog, timestamp: Date.now() };
@@ -676,16 +767,9 @@ class TuiManager {
       this.printStacktapeLog({ type: 'TABLE', data: { header, rows } });
       return;
     }
-
-    if (this.isTTY && this.logFormat === 'fancy') {
-      const instance = render(React.createElement(Table, { header, rows }), { patchConsole: false });
-      instance.unmount();
-    } else {
-      this.printAsciiTable(header, rows);
-    }
+    this.printAsciiTable(header, rows);
   }
 
-  /** Print multiple lines of text. Works in both TTY and non-TTY modes. */
   printLines(lines: string[]) {
     if (this.logFormat === 'json') {
       this.printStacktapeLog({ type: 'TEXT', data: { lines } });
@@ -736,7 +820,7 @@ class TuiManager {
     logCollectorStream.write(horizontalLine);
   }
 
-  printListStack(listStacksResult) {
+  printListStack(listStacksResult: any[]) {
     const header = [
       'Stack name',
       'Stage',
@@ -784,45 +868,44 @@ class TuiManager {
     if (this._isEnabled && this.isTTY) {
       this.pause();
     }
-    const output = renderNextStepsToString(steps, this.colorize.bind(this), this.makeBold.bind(this));
-    console.info(output);
+
+    if (this.logFormat === 'fancy') {
+      const noteLines: string[] = [];
+      steps.forEach((step, index) => {
+        let stepLine = `${this.colorize('cyan', `${index + 1}.`)} ${step.text}`;
+        if (step.command) stepLine += ` ${step.command}`;
+        noteLines.push(stepLine);
+        step.details?.forEach((detail) => noteLines.push(`   ${this.colorize('gray', '→')} ${detail}`));
+        step.links?.forEach((link) => noteLines.push(`   ${this.colorize('gray', '→')} ${link}`));
+      });
+      clackNote(noteLines.join('\n'), 'Next steps', { format: (line: string) => line });
+    } else {
+      const output = renderNextStepsToString(steps, this.colorize.bind(this), this.makeBold.bind(this));
+      console.info(output);
+    }
   }
 
   printDevContainerReady({ ports, isWatchMode }: { ports: number[]; isWatchMode: boolean }) {
-    const boxWidth = 50;
-    const horizontalLine = '─'.repeat(boxWidth - 2);
-    const topBorder = `┌${horizontalLine}┐`;
-    const bottomBorder = `└${horizontalLine}┘`;
+    const contentLines: string[] = [];
 
-    const padLine = (content: string, rawContent: string) => {
-      const padding = boxWidth - 4 - rawContent.length;
-      return `│ ${content}${' '.repeat(Math.max(0, padding))} │`;
-    };
-
-    const title = `${this.colorize('green', '✓')} Container ready`;
-    const titleRaw = '✓ Container ready';
+    if (ports.length > 0) {
+      contentLines.push('Ports:');
+      for (const port of ports) {
+        contentLines.push(`  ${this.colorize('cyan', `http://localhost:${port}`)}`);
+      }
+    }
 
     const hint = isWatchMode
       ? 'Watching for file changes'
       : `Type '${this.makeBold('rs + enter')}' to rebuild and restart`;
-    const hintRaw = isWatchMode ? 'Watching for file changes' : "Type 'rs + enter' to rebuild and restart";
+    contentLines.push(hint);
 
-    const lines = [topBorder, padLine(title, titleRaw)];
-
-    if (ports.length > 0) {
-      const portsLabel = 'Ports:';
-      lines.push(padLine(portsLabel, portsLabel));
-      for (const port of ports) {
-        const url = `http://localhost:${port}`;
-        const urlColored = this.colorize('cyan', url);
-        lines.push(padLine(`  ${urlColored}`, `  ${url}`));
-      }
-    }
-
-    lines.push(padLine(hint, hintRaw));
-    lines.push(bottomBorder);
-
-    console.info(lines.join('\n'));
+    clackBox(contentLines.join('\n'), `${this.colorize('green', '✓')} Container ready`, {
+      rounded: true,
+      width: 'auto',
+      titleAlign: 'left',
+      contentAlign: 'left'
+    });
   }
 }
 

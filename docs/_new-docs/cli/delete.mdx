@@ -1,0 +1,33 @@
+---
+title: 'delete'
+order: 6
+---
+
+# delete
+
+Deletes your stack from AWS.
+
+This action is irreversible and will permanently remove all resources in the stack. Be sure to back up any data you want to keep. If you don't provide a configuration file, `beforeDelete` hooks will not be executed.
+
+## Usage
+
+```bash
+stacktape delete --region <region>
+```
+
+## Options
+
+| Option | Required | Type | Description |
+|--------|----------|------|-------------|
+| `--profile` (-p) | No | string |  |
+| `--logFormat` (-lf) | No | string |  |
+| `--logLevel` (-ll) | No | string |  |
+| `--help` (-h) | No | string |  |
+| `--awsAccount` (-aa) | No | string |  |
+| `--stage` (-s) | No | string |  |
+| `--region` (-r) | Yes | string |  |
+| `--projectName` (-prj) | No | string |  |
+| `--configPath` (-cp) | No | string |  |
+| `--currentWorkingDirectory` (-cwd) | No | string |  |
+| `--templateId` (-ti) | No | string |  |
+| `--autoConfirmOperation` (-aco) | No | string |  |

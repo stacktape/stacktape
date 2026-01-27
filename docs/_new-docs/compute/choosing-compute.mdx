@@ -1,0 +1,76 @@
+---
+title: 'Choosing Compute'
+order: 1
+---
+
+# Choosing Compute Resources
+
+Stacktape supports multiple compute options, from serverless functions to containers. Choose based on your workload characteristics.
+
+## Comparison
+
+| Resource            | Best For                          | Scaling         | Min Cost         | Cold Start |
+| ------------------- | --------------------------------- | --------------- | ---------------- | ---------- |
+| **Lambda Function** | APIs, event handlers, short tasks | Instant (1000s) | $0 (pay-per-use) | Yes        |
+| **Edge Lambda**     | CDN customization, low latency    | Instant         | $0 (pay-per-use) | Yes        |
+| **Web Service**     | APIs, websites, long-running      | Minutes (auto)  | ~$8/month        | No         |
+| **Private Service** | Internal APIs, microservices      | Minutes (auto)  | ~$8/month        | No         |
+| **Worker Service**  | Background processing             | Minutes (auto)  | ~$8/month        | No         |
+| **Multi-Container** | Complex workloads, sidecars       | Minutes (auto)  | ~$8/month        | No         |
+| **Batch Job**       | Data processing, ML training      | Minutes         | $0 (pay-per-use) | Yes        |
+| **Next.js Web**     | Next.js applications              | Instant         | ~$5/month        | Minimal    |
+
+## Decision Guide
+
+<DecisionTree
+  nodes={[
+    {
+      question: 'Need to respond to HTTP requests?',
+      children: [
+        { answer: '< 15 minutes execution time?', result: 'Lambda Function' },
+        { answer: 'Long-running or WebSockets?', result: 'Web Service' },
+        { answer: 'Internal only (no public access)?', result: 'Private Service' }
+      ]
+    },
+    {
+      question: 'Need background processing?',
+      children: [
+        {
+          answer: 'Triggered by events (SQS, S3, etc.)?',
+          children: [
+            { answer: '< 15 minutes per task?', result: 'Lambda Function' },
+            { answer: 'Longer tasks?', result: 'Batch Job' }
+          ]
+        },
+        { answer: 'Continuously running?', result: 'Worker Service' }
+      ]
+    },
+    {
+      question: 'Deploying Next.js?',
+      result: 'Next.js Web'
+    }
+  ]}
+/>
+
+## Packaging Options
+
+Each compute resource needs packaging—how your code gets bundled and deployed.
+
+### Lambda Functions
+
+| Packaging Type               | Description                                      |
+| ---------------------------- | ------------------------------------------------ |
+| `stacktape-lambda-buildpack` | Zero-config bundling for JS/TS, Python, Java, Go |
+| `custom-artifact`            | Your own pre-built deployment package            |
+
+### Container Services
+
+| Packaging Type              | Description                              |
+| --------------------------- | ---------------------------------------- |
+| `stacktape-image-buildpack` | Zero-config Docker image builder         |
+| `external-buildpack`        | Cloud Native Buildpacks (Paketo, Heroku) |
+| `nixpacks`                  | Nixpacks-based builds                    |
+| `custom-dockerfile`         | Your own Dockerfile                      |
+| `prebuilt-image`            | Existing Docker image                    |
+
+See each resource's documentation for detailed packaging options.

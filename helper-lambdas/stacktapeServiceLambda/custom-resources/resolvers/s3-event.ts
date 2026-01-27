@@ -1,4 +1,4 @@
-import type { LambdaFunctionConfiguration, NotificationConfiguration } from '@aws-sdk/client-s3';
+import type { FilterRuleName, LambdaFunctionConfiguration, NotificationConfiguration } from '@aws-sdk/client-s3';
 import { createHash } from 'node:crypto';
 import { Lambda, ResourceNotFoundException } from '@aws-sdk/client-lambda';
 import { NoSuchBucket, S3 } from '@aws-sdk/client-s3';
@@ -216,10 +216,10 @@ const createBucketNotificationConfigurationObject = (
             // }))
             FilterRules: [
               ...(notificationConf.eventConf.filterRule.prefix
-                ? [{ Name: 'prefix', Value: notificationConf.eventConf.filterRule.prefix }]
+                ? [{ Name: 'prefix' as FilterRuleName, Value: notificationConf.eventConf.filterRule.prefix }]
                 : []),
               ...(notificationConf.eventConf.filterRule.suffix
-                ? [{ Name: 'suffix', Value: notificationConf.eventConf.filterRule.suffix }]
+                ? [{ Name: 'suffix' as FilterRuleName, Value: notificationConf.eventConf.filterRule.suffix }]
                 : [])
             ]
           }

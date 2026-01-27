@@ -1,0 +1,269 @@
+---
+title: 'Event Bus'
+order: 4
+---
+
+# Event Bus
+
+EventBridge event bus for routing events between services with pattern-based filtering.
+
+**Type:** `event-bus`
+
+## When to Use
+
+**Advantages:**
+
+- **Pattern matching**: Route by event structure
+- **Schema registry**: Document and validate events
+- **Archive/replay**: Store and replay historical events
+- **Cross-account**: Route events between AWS accounts
+
+**Disadvantages:**
+
+- **Eventual delivery**: Not real-time
+- **Max payload**: 256 KB
+- **Learning curve**: Pattern syntax
+
+**Best for:** Microservices events, event sourcing, integration between systems.
+
+## Basic Example
+
+```yaml
+resources:
+  events:
+    type: event-bus
+
+  handler:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/handler.ts
+      events:
+        - type: event-bus-integration
+          properties:
+            eventBusName: events
+            eventPattern:
+              source:
+                - my-app
+              detail-type:
+                - order-placed
+```
+
+## Publishing Events
+
+```typescript
+import { EventBridgeClient, PutEventsCommand } from '@aws-sdk/client-eventbridge';
+
+const client = new EventBridgeClient({});
+const eventBusName = process.env.STP_EVENTS_EVENT_BUS_NAME;
+
+await client.send(
+  new PutEventsCommand({
+    Entries: [
+      {
+        EventBusName: eventBusName,
+        Source: 'my-app',
+        DetailType: 'order-placed',
+        Detail: JSON.stringify({
+          orderId: '123',
+          customerId: 'cust-456',
+          total: 99.99
+        })
+      }
+    ]
+  })
+);
+```
+
+## Event Patterns
+
+### Match by Source
+
+```yaml
+eventPattern:
+  source:
+    - my-app
+    - partner-app
+```
+
+### Match by Detail Type
+
+```yaml
+eventPattern:
+  source:
+    - my-app
+  detail-type:
+    - order-placed
+    - order-cancelled
+```
+
+### Match by Content
+
+```yaml
+eventPattern:
+  source:
+    - my-app
+  detail:
+    status:
+      - completed
+      - failed
+    total:
+      - numeric:
+          - '>='
+          - 100
+```
+
+### Prefix Matching
+
+```yaml
+eventPattern:
+  source:
+    - prefix: my-app.
+```
+
+## Multiple Handlers
+
+```yaml
+resources:
+  events:
+    type: event-bus
+
+  orderProcessor:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/orders.ts
+      events:
+        - type: event-bus-integration
+          properties:
+            eventBusName: events
+            eventPattern:
+              detail-type:
+                - order-placed
+
+  emailSender:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/email.ts
+      events:
+        - type: event-bus-integration
+          properties:
+            eventBusName: events
+            eventPattern:
+              detail-type:
+                - order-placed
+                - order-shipped
+
+  analyticsRecorder:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/analytics.ts
+      events:
+        - type: event-bus-integration
+          properties:
+            eventBusName: events
+            eventPattern:
+              source:
+                - prefix: '' # Match all events
+```
+
+## Processing Events
+
+```typescript
+export const handler = async (event) => {
+  const { source, 'detail-type': detailType, detail } = event;
+
+  console.log(`Event from ${source}: ${detailType}`);
+  console.log('Detail:', detail);
+
+  switch (detailType) {
+    case 'order-placed':
+      await processOrder(detail);
+      break;
+    case 'order-cancelled':
+      await cancelOrder(detail);
+      break;
+  }
+};
+```
+
+## Send to SQS
+
+Route events to a queue:
+
+```yaml
+resources:
+  events:
+    type: event-bus
+
+  orderQueue:
+    type: sqs-queue
+
+  # Use a function to bridge EventBridge to SQS
+  # Or use EventBridge rules (coming soon)
+```
+
+## Scheduled Events
+
+Trigger functions on a schedule:
+
+```yaml
+resources:
+  cleanup:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/cleanup.ts
+      events:
+        - type: schedule-integration
+          properties:
+            scheduleRate: rate(1 hour)
+        - type: schedule-integration
+          properties:
+            scheduleRate: cron(0 9 * * ? *)
+```
+
+## Event Schema
+
+Document your events:
+
+```typescript
+interface OrderPlacedEvent {
+  source: 'my-app';
+  'detail-type': 'order-placed';
+  detail: {
+    orderId: string;
+    customerId: string;
+    items: Array<{ productId: string; quantity: number }>;
+    total: number;
+  };
+}
+```
+
+## Pricing
+
+- **Events published**: $1.00 per million events
+- **Free tier**: None
+
+## Referenceable Parameters
+
+| Parameter      | Description    |
+| -------------- | -------------- |
+| `eventBusName` | Event bus name |
+| `eventBusArn`  | Event bus ARN  |
+
+## API Reference
+
+<PropertiesTable definitionName="EventBusConfig" />

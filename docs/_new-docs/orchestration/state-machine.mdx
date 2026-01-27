@@ -1,0 +1,442 @@
+---
+title: 'State Machine'
+order: 2
+---
+
+# State Machine
+
+`type: state-machine`
+
+State machines let you design and automate workflows by composing compute resources (Lambda functions, batch jobs) and AWS services into coordinated processes. They manage failures, retries, parallelization, and observability automatically.
+
+State machines use [AWS Step Functions](https://aws.amazon.com/step-functions/) under the hood.
+
+## When to Use
+
+**Advantages:**
+
+- Built-in retry logic and error handling
+- Visual workflow monitoring in AWS console
+- Supports parallel execution and branching
+- Automatic state persistence (survives failures)
+- Native integration with AWS services
+
+**Disadvantages:**
+
+- State transitions have a cost (~$0.025 per 1,000 transitions)
+- Requires learning Amazon States Language
+- Overkill for simple sequential operations
+
+**Use cases:**
+
+- **ETL pipelines** - Multi-step data processing with error recovery
+- **Order processing** - Coordinate inventory, payment, and shipping
+- **Report generation** - Long-running jobs with upload steps
+- **Microservice orchestration** - Coordinate multiple services reliably
+
+## Basic Example
+
+A simple e-commerce order flow that coordinates three Lambda functions:
+
+
+```ts
+import { defineConfig } from 'stacktape';
+
+export default defineConfig({
+  resources: {
+    checkAndHoldProduct: {
+      type: 'function',
+      properties: {
+        packaging: {
+          type: 'stacktape-lambda-buildpack',
+          properties: {
+            entryfilePath: 'check-and-hold-product.ts'
+          }
+        }
+      }
+    },
+
+    billCustomer: {
+      type: 'function',
+      properties: {
+        packaging: {
+          type: 'stacktape-lambda-buildpack',
+          properties: {
+            entryfilePath: 'bill-customer.ts'
+          }
+        }
+      }
+    },
+
+    shipmentNotification: {
+      type: 'function',
+      properties: {
+        packaging: {
+          type: 'stacktape-lambda-buildpack',
+          properties: {
+            entryfilePath: 'shipment-notification.ts'
+          }
+        }
+      }
+    },
+
+    orderStateMachine: {
+      type: 'state-machine',
+      properties: {
+        definition: {
+          StartAt: 'checkAndHold',
+          States: {
+            checkAndHold: {
+              Type: 'Task',
+              Resource: '$ResourceParam(\'checkAndHoldProduct\', \'arn\')',
+              Next: 'bill'
+            },
+            bill: {
+              Type: 'Task',
+              Resource: '$ResourceParam(\'billCustomer\', \'arn\')',
+              Next: 'notify'
+            },
+            notify: {
+              Type: 'Task',
+              Resource: '$ResourceParam(\'shipmentNotification\', \'arn\')',
+              Next: 'succeed'
+            },
+            succeed: {
+              Type: 'Succeed'
+            }
+          }
+        }
+      }
+    }
+
+}
+});
+
+```
+
+
+## State Types
+
+State machines use [Amazon States Language](https://docs.aws.amazon.com/step-functions/latest/dg/concepts-amazon-states-language.html). The main state types are:
+
+| State Type  | Purpose                                  |
+| ----------- | ---------------------------------------- |
+| **Task**    | Execute a Lambda function, batch job, or AWS service |
+| **Choice**  | Branch based on conditions               |
+| **Parallel**| Execute branches concurrently            |
+| **Map**     | Iterate over an array                    |
+| **Wait**    | Delay execution                          |
+| **Pass**    | Pass input to output (useful for transforms) |
+| **Succeed** | Mark successful completion               |
+| **Fail**    | Mark failure with error info             |
+
+## Common Patterns
+
+### Retry on Failure
+
+Configure automatic retries for transient failures:
+
+
+```ts
+import { defineConfig } from 'stacktape';
+
+export default defineConfig({
+  resources: {
+    uploadReport: {
+      type: 'function',
+      properties: {
+        packaging: {
+          type: 'stacktape-lambda-buildpack',
+          properties: {
+            entryfilePath: 'upload-report.ts'
+          }
+        }
+      }
+    },
+
+    generateReport: {
+      type: 'batch-job',
+      properties: {
+        container: {
+          packaging: {
+            type: 'stacktape-image-buildpack',
+            properties: {
+              entryfilePath: 'generate-report.ts'
+            }
+          }
+        },
+        resources: {
+          cpu: 2,
+          memory: 7800
+        }
+      }
+    },
+
+    reportStateMachine: {
+      type: 'state-machine',
+      properties: {
+        definition: {
+          StartAt: 'generate',
+          States: {
+            generate: {
+              Type: 'Task',
+              Resource: 'arn:aws:states:::batch:submitJob.sync',
+              Parameters: {
+                JobDefinition: '$ResourceParam(\'generateReport\', \'jobDefinitionArn\')',
+                JobName: 'report-job',
+                JobQueue: '$Param(\'SHARED_GLOBAL\', \'BatchOnDemandJobQueue::Arn\')'
+              },
+              Next: 'upload'
+            },
+            upload: {
+              Type: 'Task',
+              Resource: '$Param(\'uploadReport\', \'LambdaFunction::Arn\')',
+              Next: 'succeed',
+              Retry: [
+                {
+                  ErrorEquals: ['States.ALL'],
+                  IntervalSeconds: 10,
+                  MaxAttempts: 3,
+                  BackoffRate: 2.0
+                }
+              ]
+            },
+            succeed: {
+              Type: 'Succeed'
+            }
+          }
+        }
+      }
+    }
+  }
+});
+```
+
+
+
+### Branching with Choice
+
+Route execution based on conditions:
+
+
+```ts
+import { defineConfig } from 'stacktape';
+
+export default defineConfig({
+  resources: {
+    processOrder: {
+      type: 'function',
+      properties: {
+        packaging: {
+          type: 'stacktape-lambda-buildpack',
+          properties: { entryfilePath: 'process-order.ts' }
+        }
+      }
+    },
+
+    handleRefund: {
+      type: 'function',
+      properties: {
+        packaging: {
+          type: 'stacktape-lambda-buildpack',
+          properties: { entryfilePath: 'handle-refund.ts' }
+        }
+      }
+    },
+
+    orderWorkflow: {
+      type: 'state-machine',
+      properties: {
+        definition: {
+          StartAt: 'checkOrderType',
+          States: {
+            checkOrderType: {
+              Type: 'Choice',
+              Choices: [
+                {
+                  Variable: '$.orderType',
+                  StringEquals: 'refund',
+                  Next: 'processRefund'
+                }
+              ],
+              Default: 'processNewOrder'
+            },
+            processNewOrder: {
+              Type: 'Task',
+              Resource: '$ResourceParam(\'processOrder\', \'arn\')',
+              End: true
+            },
+            processRefund: {
+              Type: 'Task',
+              Resource: '$ResourceParam(\'handleRefund\', \'arn\')',
+              End: true
+            }
+          }
+        }
+      }
+    }
+
+}
+});
+
+```
+
+
+### Parallel Execution
+
+Run multiple branches concurrently:
+
+
+```ts
+import { defineConfig } from 'stacktape';
+
+export default defineConfig({
+  resources: {
+    validatePayment: {
+      type: 'function',
+      properties: {
+        packaging: {
+          type: 'stacktape-lambda-buildpack',
+          properties: { entryfilePath: 'validate-payment.ts' }
+        }
+      }
+    },
+
+    checkInventory: {
+      type: 'function',
+      properties: {
+        packaging: {
+          type: 'stacktape-lambda-buildpack',
+          properties: { entryfilePath: 'check-inventory.ts' }
+        }
+      }
+    },
+
+    orderWorkflow: {
+      type: 'state-machine',
+      properties: {
+        definition: {
+          StartAt: 'parallelChecks',
+          States: {
+            parallelChecks: {
+              Type: 'Parallel',
+              Branches: [
+                {
+                  StartAt: 'payment',
+                  States: {
+                    payment: {
+                      Type: 'Task',
+                      Resource: '$ResourceParam(\'validatePayment\', \'arn\')',
+                      End: true
+                    }
+                  }
+                },
+                {
+                  StartAt: 'inventory',
+                  States: {
+                    inventory: {
+                      Type: 'Task',
+                      Resource: '$ResourceParam(\'checkInventory\', \'arn\')',
+                      End: true
+                    }
+                  }
+                }
+              ],
+              Next: 'done'
+            },
+            done: {
+              Type: 'Succeed'
+            }
+          }
+        }
+      }
+    }
+  }
+});
+```
+
+
+
+### Error Handling with Catch
+
+Handle errors gracefully with fallback states:
+
+
+```ts
+// Inside state machine definition
+{
+  processPayment: {
+    Type: 'Task',
+    Resource: '$ResourceParam(\'chargeCard\', \'arn\')',
+    Next: 'success',
+    Catch: [
+      {
+        ErrorEquals: ['PaymentDeclined'],
+        Next: 'handleDeclined'
+      },
+      {
+        ErrorEquals: ['States.ALL'],
+        Next: 'handleError'
+      }
+    ]
+  },
+  handleDeclined: {
+    Type: 'Task',
+    Resource: '$ResourceParam(\'notifyCustomer\', \'arn\')',
+    End: true
+  },
+  handleError: {
+    Type: 'Fail',
+    Error: 'PaymentFailed',
+    Cause: 'An unexpected error occurred'
+  },
+  success: {
+    Type: 'Succeed'
+  }
+}
+```
+
+
+## Invoking State Machines
+
+### From Lambda Functions
+
+```ts
+import { SFNClient, StartExecutionCommand } from '@aws-sdk/client-sfn';
+
+const client = new SFNClient({});
+
+export const handler = async (event: any) => {
+  const result = await client.send(
+    new StartExecutionCommand({
+      stateMachineArn: process.env.STATE_MACHINE_ARN,
+      input: JSON.stringify({ orderId: '12345', amount: 99.99 })
+    })
+  );
+
+  return { executionArn: result.executionArn };
+};
+```
+
+### From API Gateway
+
+You can trigger state machines directly from HTTP API Gateway using AWS service integrations.
+
+## Pricing
+
+Step Functions pricing is based on state transitions:
+
+- **Standard workflows**: ~$0.025 per 1,000 state transitions
+- **Express workflows**: ~$1.00 per million requests + duration charges
+
+Express workflows are better for high-volume, short-duration workflows (up to 5 minutes).
+
+For the latest pricing, see [AWS Step Functions Pricing](https://aws.amazon.com/step-functions/pricing/).
+
+## Referenceable Parameters
+
+<ReferenceableParams resource="state-machine" />
+
+## API Reference
+
+<PropertiesTable definitionName="StateMachine" />

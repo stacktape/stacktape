@@ -1,5 +1,5 @@
+import { spinner as clackSpinner } from '@clack/prompts';
 import logUpdate from 'log-update';
-import yoctoSpinner from 'yocto-spinner';
 import { formatDuration } from './utils';
 
 export type Spinner = {
@@ -21,61 +21,42 @@ export const setSpinnerDevTuiActive = (active: boolean) => {
 export const isSpinnerDevTuiActive = () => _devTuiActive;
 
 /**
- * Creates a single spinner for standalone operations.
- * Use this when you have ONE async operation to track.
+ * Creates a single spinner for standalone operations using @clack/prompts spinner.
+ * Uses timer indicator to show elapsed time.
  * When DevTui is active, spinners are suppressed (no-op).
- *
- * @example
- * const spinner = createSpinner('Loading data', colorize);
- * spinner.update('50% complete');
- * spinner.success({ details: 'Loaded 100 items' });
  */
 export const createSpinner = (text: string, colorize: (color: string, text: string) => string): Spinner => {
-  // When DevTui is active, return a no-op spinner
   if (_devTuiActive) {
-    return {
-      update: () => {},
-      success: () => {},
-      error: () => {}
-    };
+    return { update: () => {}, success: () => {}, error: () => {} };
   }
 
-  const startTime = Date.now();
   const baseText = text;
-  const spinner = yoctoSpinner({ text }).start();
+  const spin = clackSpinner({ indicator: 'timer' });
+  spin.start(baseText);
 
   return {
     update: (newText: string) => {
-      // Check again at runtime in case DevTui was activated after spinner creation
       if (_devTuiActive) {
-        spinner.stop();
+        spin.clear();
         return;
       }
-      spinner.text = `${baseText} ${colorize('gray', newText)}`;
+      spin.message(`${baseText} ${colorize('gray', newText)}`);
     },
     success: (options?: { text?: string; details?: string }) => {
-      // Check again at runtime in case DevTui was activated after spinner creation
       if (_devTuiActive) {
-        spinner.stop();
+        spin.clear();
         return;
       }
-      spinner.stop();
-      const duration = Date.now() - startTime;
-      const durationStr = colorize('yellow', formatDuration(duration));
       const finalText = options?.text || baseText;
       const details = options?.details ? ` ${colorize('gray', options.details)}` : '';
-      console.info(`${colorize('green', '✓')} ${finalText}${details} ${durationStr}`);
+      spin.stop(`${finalText}${details}`);
     },
     error: (errorText?: string) => {
-      // Check again at runtime in case DevTui was activated after spinner creation
       if (_devTuiActive) {
-        spinner.stop();
+        spin.clear();
         return;
       }
-      spinner.stop();
-      const duration = Date.now() - startTime;
-      const durationStr = colorize('yellow', formatDuration(duration));
-      console.info(`${colorize('red', '✗')} ${errorText || `${baseText} failed`} ${durationStr}`);
+      spin.error(errorText || `${baseText} failed`);
     }
   };
 };

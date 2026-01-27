@@ -546,6 +546,9 @@ const processLambdaEntrypoint = async ({
   // Ensure default export exists - if user exports `handler` but not `default`, re-export it
   entryContent = ensureDefaultExport(entryContent);
 
+  // Fix sourceMappingURL to point to index.js.map (Bun uses original entry name)
+  entryContent = entryContent.replace(/\/\/# sourceMappingURL=.+\.js\.map/, '//# sourceMappingURL=index.js.map');
+
   // Write entry file
   const destIndexPath = join(entrypoint.distFolderPath, 'index.js');
   await writeFile(destIndexPath, entryContent);

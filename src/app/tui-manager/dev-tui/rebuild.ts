@@ -7,7 +7,7 @@
 
 import { tuiManager } from '@application-services/tui-manager';
 import logUpdate from 'log-update';
-import { formatDuration, getWorkloadColor } from './components/utils';
+import { formatDuration, getWorkloadColor } from './utils';
 import type { WorkloadType } from './types';
 
 // Rebuild step types differ by workload type

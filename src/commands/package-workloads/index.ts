@@ -4,7 +4,7 @@ import { configManager } from '@domain-services/config-manager';
 import { packagingManager } from '@domain-services/packaging-manager';
 import { loadUserCredentials } from '../_utils/initialization';
 
-export const commandPackageWorkloads = async (): Promise<PackageWorkloadsReturnValue> => {
+export const commandPackageWorkloads = async () => {
   await loadUserCredentials();
   await globalStateManager.loadTargetStackInfo();
   await configManager.init({ configRequired: true });

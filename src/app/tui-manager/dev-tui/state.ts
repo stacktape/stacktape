@@ -47,7 +47,7 @@ class DevTuiStateManager {
   }
 
   private notify() {
-    // Debounce notifications to prevent rapid re-renders that can cause Ink rendering issues
+    // Debounce notifications to prevent rapid re-renders
     if (this.notifyScheduled) return;
     this.notifyScheduled = true;
 

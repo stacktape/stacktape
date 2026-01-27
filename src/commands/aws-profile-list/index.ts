@@ -2,7 +2,7 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { listAwsProfiles } from '@utils/aws-config';
 
-export const commandAwsProfileList = async (): Promise<AwsProfileListReturnValue> => {
+export const commandAwsProfileList = async () => {
   const availableAwsProfiles = await listAwsProfiles();
 
   const header = ['Profile', 'AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY'];

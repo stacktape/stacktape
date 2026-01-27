@@ -85,12 +85,11 @@ export class MultipartETag extends Transform {
   _flush(callback: TransformCallback): void {
     for (let i = 0; i < this.sums.length; i += 1) {
       const sumObj = this.sums[i];
-      let digest = sumObj.hash.digest();
+      const digest = sumObj.hash.digest();
       sumObj.digests.push(digest);
       const finalHash = crypto.createHash('md5');
       for (let partIndex = 0; partIndex < sumObj.digests.length; partIndex += 1) {
-        digest = sumObj.digests[partIndex];
-        finalHash.update(digest);
+        finalHash.update(sumObj.digests[partIndex]);
       }
       sumObj.eTag = `${finalHash.digest('hex')}-${sumObj.digests.length}`;
       if (i === 0 && sumObj.digests.length === 1) {

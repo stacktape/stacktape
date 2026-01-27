@@ -1,0 +1,177 @@
+---
+title: 'MongoDB Atlas'
+order: 5
+---
+
+# MongoDB Atlas Cluster
+
+Fully managed MongoDB database automatically deployed to your AWS account via MongoDB Atlas.
+
+**Type:** `mongo-db-atlas-cluster`
+
+## When to Use
+
+**Advantages:**
+
+- **Flexible schema**: Store documents without predefined structure
+- **Rich queries**: Full query language with aggregation pipeline
+- **MongoDB ecosystem**: Atlas Search, Charts, BI Connector
+- **Horizontal scaling**: Built-in sharding
+
+**Disadvantages:**
+
+- **Third-party**: Managed by MongoDB, not AWS directly
+- **Cost**: Premium pricing for managed service
+- **Setup**: Requires MongoDB Atlas API key
+
+**Best for:** Applications with evolving schemas, document-oriented data, MongoDB expertise.
+
+## Prerequisites
+
+1. Create a MongoDB Atlas account
+2. Generate an API key with Organization Owner role
+3. Store the API key in Stacktape secrets
+
+```bash
+stacktape secret:set --name mongo-public-key --value your-public-key
+stacktape secret:set --name mongo-private-key --value your-private-key
+```
+
+## Basic Example
+
+```yaml
+resources:
+  database:
+    type: mongo-db-atlas-cluster
+    properties:
+      clusterTier: M10
+      adminUserCredentials:
+        masterUserName: admin
+        masterUserPassword: $Secret('mongo-password')
+```
+
+## Cluster Tiers
+
+| Tier | RAM    | Storage | Use Case           |
+| ---- | ------ | ------- | ------------------ |
+| M2   | Shared | 2 GB    | Development        |
+| M5   | Shared | 5 GB    | Small apps         |
+| M10  | 2 GB   | 10 GB   | Production starter |
+| M20  | 4 GB   | 20 GB   | Small production   |
+| M30  | 8 GB   | 40 GB   | Medium production  |
+| M40+ | 16+ GB | 80+ GB  | Large production   |
+
+```yaml
+clusterTier: M30
+diskSizeGB: 100
+```
+
+## MongoDB Version
+
+```yaml
+version: '7.0' # or '6.0', '5.0'
+```
+
+## Connecting from Compute
+
+```yaml
+resources:
+  database:
+    type: mongo-db-atlas-cluster
+    properties:
+      clusterTier: M10
+      adminUserCredentials:
+        masterUserName: admin
+        masterUserPassword: $Secret('mongo-password')
+
+  api:
+    type: web-service
+    properties:
+      packaging:
+        type: stacktape-image-buildpack
+        properties:
+          entryfilePath: src/index.ts
+      resources:
+        cpu: 0.25
+        memory: 512
+      connectTo:
+        - database
+```
+
+```typescript
+import { MongoClient } from 'mongodb';
+
+const client = new MongoClient(process.env.STP_DATABASE_CONNECTION_STRING);
+await client.connect();
+
+const db = client.db('myapp');
+const users = db.collection('users');
+
+// Insert
+await users.insertOne({ name: 'John', email: 'john@example.com' });
+
+// Find
+const user = await users.findOne({ email: 'john@example.com' });
+
+// Update
+await users.updateOne({ email: 'john@example.com' }, { $set: { name: 'John Doe' } });
+```
+
+## Replication
+
+```yaml
+replication:
+  numElectableNodes: 3 # 3, 5, or 7
+  numReadOnlyNodes: 2
+```
+
+## Sharding
+
+For horizontal scaling (M30+ required):
+
+```yaml
+clusterTier: M30
+numShards: 2
+```
+
+## Auto-Scaling
+
+```yaml
+autoScaling:
+  enableTierScaling: true
+  minTier: M10
+  maxTier: M40
+  enableDiskScaling: true
+```
+
+## Backups
+
+```yaml
+enableBackups: true
+enablePointInTimeRecovery: true
+```
+
+## Pricing
+
+MongoDB Atlas pricing (approximate):
+
+| Tier | Cost/month |
+| ---- | ---------- |
+| M2   | ~$9        |
+| M5   | ~$25       |
+| M10  | ~$60       |
+| M20  | ~$140      |
+| M30  | ~$280      |
+
+Plus data transfer and backup storage costs.
+
+## Referenceable Parameters
+
+| Parameter          | Description            |
+| ------------------ | ---------------------- |
+| `connectionString` | MongoDB connection URL |
+| `host`             | Cluster hostname       |
+
+## API Reference
+
+<PropertiesTable definitionName="MongoDbAtlasClusterConfig" />

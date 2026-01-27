@@ -49,18 +49,20 @@ export const potentiallyPromptBeforeOperation = async ({
     const stackName = stackManager.existingStackDetails.StackName;
     const created = stackManager.existingStackDetails.CreationTime?.toLocaleString();
     const updated = stackManager.existingStackDetails.LastUpdatedTime?.toLocaleString();
-    tuiManager.info(
+    tuiManager.warn(
       [
         `About to ${stackManager.stackActionType} stack:`,
-        `  ${tuiManager.colorize('yellow', 'Stack name')}: ${tuiManager.prettyStackName(stackName)}`,
-        created && `  ${tuiManager.colorize('yellow', 'Creation time')}: ${created}`,
-        updated && `  ${tuiManager.colorize('yellow', 'Last updated time')}: ${updated}`,
-        `  ${tuiManager.colorize('yellow', 'Number of resources')}: ${stackManager.existingStackResources.length}`
+        `    ${tuiManager.colorize('yellow', 'Stack name')}: ${tuiManager.prettyStackName(stackName)}`,
+        created && `    ${tuiManager.colorize('yellow', 'Creation time')}: ${created}`,
+        updated && `    ${tuiManager.colorize('yellow', 'Last updated time')}: ${updated}`,
+        `    ${tuiManager.colorize('yellow', 'Number of resources')}: ${stackManager.existingStackResources.length}`,
+        ''
       ]
         .filter(Boolean)
         .join('\n')
     );
     const possiblyImpactedResourcesPart =
+      stackManager.stackActionType !== 'delete' &&
       possiblyImpactedResources?.length &&
       `These resources may be deleted during this operation. This can cause data loss.\n${possiblyImpactedResources
         .map(

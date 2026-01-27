@@ -3,7 +3,7 @@ import { deploymentArtifactManager } from '@domain-services/deployment-artifact-
 
 import { initializeStackServicesForWorkingWithDeployedStack } from '../_utils/initialization';
 
-export const commandRollback = async (): Promise<RollbackReturnValue> => {
+export const commandRollback = async () => {
   await initializeStackServicesForWorkingWithDeployedStack({
     commandModifiesStack: true,
     commandRequiresConfig: false

@@ -1,0 +1,525 @@
+---
+title: 'Worker Service'
+order: 4
+---
+
+# Worker Service
+
+Worker services are container-based workloads without a public endpoint. They run continuously in the background, typically consuming messages from queues or performing background processing.
+
+**Type:** `worker-service`
+
+## When to Use
+
+**Advantages:**
+
+- **No execution time limits**: Run indefinitely
+- **Queue processing**: Poll SQS, process events from SNS/EventBridge
+- **Full container control**: Install any dependencies, use any runtime
+- **Auto-healing**: Automatically replaces failed containers
+- **Predictable costs**: No per-request billing
+
+**Disadvantages:**
+
+- **Always-on costs**: Minimum ~$8/month (0.25 vCPU Fargate)
+- **Cannot scale to zero**: Always running at least minInstances
+- **No public endpoint**: Cannot receive HTTP requests directly
+
+**Best for:** Queue consumers, background workers, message processors, scheduled polling jobs, internal microservices.
+
+## Basic Example
+
+```yaml
+resources:
+  queue:
+    type: sqs-queue
+
+  processor:
+    type: worker-service
+    properties:
+      packaging:
+        type: stacktape-image-buildpack
+        properties:
+          entryfilePath: src/processor.ts
+      resources:
+        cpu: 0.25
+        memory: 512
+      connectTo:
+        - queue
+```
+
+```typescript
+// src/processor.ts
+import { SQSClient, ReceiveMessageCommand, DeleteMessageCommand } from '@aws-sdk/client-sqs';
+
+const sqs = new SQSClient({});
+const queueUrl = process.env.STP_QUEUE_QUEUE_URL;
+
+async function processMessages() {
+  while (true) {
+    const { Messages } = await sqs.send(
+      new ReceiveMessageCommand({
+        QueueUrl: queueUrl,
+        MaxNumberOfMessages: 10,
+        WaitTimeSeconds: 20
+      })
+    );
+
+    for (const message of Messages || []) {
+      console.log('Processing:', message.Body);
+      // Process message...
+
+      await sqs.send(
+        new DeleteMessageCommand({
+          QueueUrl: queueUrl,
+          ReceiptHandle: message.ReceiptHandle
+        })
+      );
+    }
+  }
+}
+
+processMessages().catch(console.error);
+```
+
+## Packaging
+
+### Stacktape Image Buildpack (Recommended)
+
+Zero-config packaging that builds an optimized Docker image from your source code.
+
+```yaml
+packaging:
+  type: stacktape-image-buildpack
+  properties:
+    entryfilePath: src/processor.ts
+```
+
+Supports Node.js, Python, Go, Java, and Ruby. See [Web Service packaging](/compute/web-service#packaging) for detailed options.
+
+### Custom Dockerfile
+
+```yaml
+packaging:
+  type: custom-dockerfile
+  properties:
+    buildContextPath: ./
+    dockerfilePath: ./Dockerfile
+```
+
+### Prebuilt Image
+
+```yaml
+packaging:
+  type: prebuilt-image
+  properties:
+    image: myorg/worker:v1.2.3
+```
+
+## Resource Configuration
+
+### CPU and Memory
+
+Uses AWS Fargate (serverless) by default:
+
+| CPU (vCPU) | Memory Options            |
+| ---------- | ------------------------- |
+| 0.25       | 512 MB, 1 GB, 2 GB        |
+| 0.5        | 1-4 GB (1 GB increments)  |
+| 1          | 2-8 GB (1 GB increments)  |
+| 2          | 4-16 GB (1 GB increments) |
+| 4          | 8-30 GB (1 GB increments) |
+
+```yaml
+resources:
+  processor:
+    type: worker-service
+    properties:
+      resources:
+        cpu: 0.5
+        memory: 1024
+```
+
+### EC2 Instances
+
+For cost optimization on predictable workloads:
+
+```yaml
+resources:
+  processor:
+    type: worker-service
+    properties:
+      resources:
+        cpu: 1
+        memory: 2048
+        instanceTypes:
+          - t3.small
+          - t3a.small
+```
+
+### ARM Architecture
+
+Use Graviton for ~20% cost savings (Fargate only):
+
+```yaml
+resources:
+  processor:
+    type: worker-service
+    properties:
+      resources:
+        cpu: 0.5
+        memory: 1024
+        architecture: arm64
+```
+
+## Scaling
+
+### Basic Scaling
+
+```yaml
+scaling:
+  minInstances: 1
+  maxInstances: 5
+```
+
+### Auto-Scaling Policies
+
+Scale based on resource utilization:
+
+```yaml
+scaling:
+  minInstances: 1
+  maxInstances: 10
+  scalingPolicy:
+    keepAvgCpuUtilizationUnder: 70
+    keepAvgMemoryUtilizationUnder: 80
+```
+
+<Info>
+  Worker services scale based on CPU/memory utilization. For queue-based scaling, consider using Lambda functions with
+  SQS event triggers, which scale automatically based on queue depth.
+</Info>
+
+## Environment Variables
+
+```yaml
+environment:
+  - name: NODE_ENV
+    value: production
+  - name: API_KEY
+    value: $Secret('api-key')
+  - name: QUEUE_URL
+    value: $ResourceParam('queue', 'queueUrl')
+```
+
+Or use `connectTo` for automatic injection:
+
+```yaml
+connectTo:
+  - queue
+  - database
+```
+
+## Connecting to Resources
+
+```yaml
+resources:
+  queue:
+    type: sqs-queue
+
+  database:
+    type: relational-database
+    properties:
+      engine:
+        type: postgres
+
+  processor:
+    type: worker-service
+    properties:
+      connectTo:
+        - queue
+        - database
+```
+
+Your service receives:
+
+```typescript
+// Available environment variables
+process.env.STP_QUEUE_QUEUE_URL;
+process.env.STP_QUEUE_QUEUE_ARN;
+process.env.STP_DATABASE_CONNECTION_STRING;
+process.env.STP_DATABASE_HOST;
+```
+
+## Health Checks
+
+Worker services use command-based health checks:
+
+```yaml
+internalHealthCheck:
+  healthCheckCommand:
+    - CMD-SHELL
+    - curl -f http://localhost:8080/health || exit 1
+  interval: 30
+  timeout: 5
+  startPeriod: 60
+  retries: 3
+```
+
+Or a simple file-based health check:
+
+```yaml
+internalHealthCheck:
+  healthCheckCommand:
+    - CMD-SHELL
+    - test -f /tmp/healthy
+```
+
+```typescript
+// Your worker creates/updates this file when healthy
+import { writeFileSync } from 'fs';
+setInterval(() => writeFileSync('/tmp/healthy', ''), 10000);
+```
+
+## Side Containers
+
+### Init Container
+
+Run migrations or setup before main container:
+
+```yaml
+sideContainers:
+  - name: migrations
+    mode: run-on-init
+    packaging:
+      type: custom-dockerfile
+      properties:
+        dockerfilePath: ./migration.Dockerfile
+```
+
+### Sidecar Container
+
+For log forwarding, metrics, or proxies:
+
+```yaml
+sideContainers:
+  - name: otel-collector
+    mode: always-running
+    packaging:
+      type: prebuilt-image
+      properties:
+        image: otel/opentelemetry-collector:latest
+    resources:
+      cpu: 0.125
+      memory: 256
+```
+
+## EFS Volume Mounts
+
+For persistent storage across container restarts:
+
+```yaml
+resources:
+  storage:
+    type: efs-storage
+
+  processor:
+    type: worker-service
+    properties:
+      connectTo:
+        - storage
+      volumeMounts:
+        - efsStorageName: storage
+          containerPath: /data
+```
+
+## Remote Sessions
+
+Debug running containers:
+
+```yaml
+resources:
+  processor:
+    type: worker-service
+    properties:
+      enableRemoteSessions: true
+```
+
+```bash
+stacktape container:session --stage dev --resourceName processor
+```
+
+## Logging
+
+Logs are automatically sent to CloudWatch:
+
+```bash
+stacktape logs --stage dev --resourceName processor
+```
+
+Configure retention:
+
+```yaml
+logging:
+  retention: 14 # days
+```
+
+## Graceful Shutdown
+
+Handle SIGTERM for clean shutdown:
+
+```yaml
+stopTimeout: 30 # seconds (2-120)
+```
+
+```typescript
+process.on('SIGTERM', async () => {
+  console.log('Shutting down...');
+  // Finish processing current message
+  // Close database connections
+  process.exit(0);
+});
+```
+
+## Private Subnets
+
+Deploy in private subnets with NAT Gateway for enhanced security:
+
+```yaml
+resources:
+  processor:
+    type: worker-service
+    properties:
+      usePrivateSubnetsWithNAT: true
+```
+
+<Warning>NAT Gateway adds ~$32/month per AZ. Only use if your security requirements mandate private subnets.</Warning>
+
+## Common Patterns
+
+### Queue Consumer
+
+```yaml
+resources:
+  orders:
+    type: sqs-queue
+
+  processor:
+    type: worker-service
+    properties:
+      packaging:
+        type: stacktape-image-buildpack
+        properties:
+          entryfilePath: src/order-processor.ts
+      resources:
+        cpu: 0.25
+        memory: 512
+      connectTo:
+        - orders
+      scaling:
+        minInstances: 1
+        maxInstances: 5
+        scalingPolicy:
+          keepAvgCpuUtilizationUnder: 70
+```
+
+### Event Consumer with EventBridge
+
+```yaml
+resources:
+  eventBus:
+    type: event-bus
+
+  handler:
+    type: worker-service
+    properties:
+      packaging:
+        type: stacktape-image-buildpack
+        properties:
+          entryfilePath: src/event-handler.ts
+      resources:
+        cpu: 0.5
+        memory: 1024
+      connectTo:
+        - eventBus
+```
+
+### Multi-Queue Consumer
+
+```yaml
+resources:
+  highPriorityQueue:
+    type: sqs-queue
+
+  lowPriorityQueue:
+    type: sqs-queue
+
+  processor:
+    type: worker-service
+    properties:
+      packaging:
+        type: stacktape-image-buildpack
+        properties:
+          entryfilePath: src/multi-queue-processor.ts
+      resources:
+        cpu: 0.5
+        memory: 1024
+      connectTo:
+        - highPriorityQueue
+        - lowPriorityQueue
+```
+
+## Worker vs Lambda for Queues
+
+| Aspect                  | Worker Service    | Lambda + SQS                   |
+| ----------------------- | ----------------- | ------------------------------ |
+| **Scaling**             | CPU/memory based  | Automatic based on queue depth |
+| **Min cost**            | ~$8/month         | $0 when idle                   |
+| **Max processing time** | Unlimited         | 15 minutes                     |
+| **Concurrency control** | Instance count    | Reserved concurrency           |
+| **Cold starts**         | None after deploy | Yes, for new invocations       |
+
+**Use worker-service when:**
+
+- Processing takes longer than 15 minutes
+- You need predictable, sustained throughput
+- You want to avoid cold starts
+- You have complex stateful processing
+
+**Use Lambda when:**
+
+- Variable traffic patterns
+- Processing under 15 minutes
+- Cost optimization for low/sporadic traffic
+- Simple message handling
+
+## Pricing
+
+Same as web-service, minus load balancer costs.
+
+**Fargate (us-east-1):**
+
+- vCPU: ~$0.04048/hour
+- Memory: ~$0.004445/GB/hour
+
+**Example: 0.25 vCPU + 512MB running 24/7:**
+
+- CPU: 0.25 × $0.04048 × 730 = $7.39/month
+- Memory: 0.5 × $0.004445 × 730 = $1.62/month
+- **Total: ~$9/month** per instance
+
+## Referenceable Parameters
+
+| Parameter | Description     |
+| --------- | --------------- |
+| `arn`     | ECS service ARN |
+
+```yaml
+environment:
+  - name: SERVICE_ARN
+    value: $ResourceParam('processor', 'arn')
+```
+
+## API Reference
+
+<PropertiesTable definitionName="WorkerServiceConfig" />

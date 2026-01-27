@@ -1,0 +1,37 @@
+---
+title: 'bastion:tunnel'
+order: 26
+---
+
+# bastion:tunnel
+
+Creates a secure tunnel to a resource through a bastion host.
+
+Your stack must include a `bastion` resource. This is useful for accessing resources in a private VPC. If you have multiple bastions, you can specify one with the `--bastionResource` argument. The command will print the tunneled endpoints to the terminal.
+
+For more information, refer to the [bastion tunnel documentation](https://docs.stacktape.com/bastion-servers/#creating-bastion-tunnel).
+
+## Usage
+
+```bash
+stacktape bastion:tunnel --region <region> --stage <stage>
+```
+
+## Options
+
+| Option | Required | Type | Description |
+|--------|----------|------|-------------|
+| `--profile` (-p) | No | string |  |
+| `--logFormat` (-lf) | No | string |  |
+| `--logLevel` (-ll) | No | string |  |
+| `--help` (-h) | No | string |  |
+| `--awsAccount` (-aa) | No | string |  |
+| `--stage` (-s) | Yes | string |  |
+| `--region` (-r) | Yes | string |  |
+| `--projectName` (-prj) | No | string |  |
+| `--configPath` (-cp) | No | string |  |
+| `--currentWorkingDirectory` (-cwd) | No | string |  |
+| `--templateId` (-ti) | No | string |  |
+| `--bastionResource` (-br) | No | string |  |
+| `--resourceName` (-rn) | Yes | string |  |
+| `--localTunnelingPort` (-ltp) | No | string |  |

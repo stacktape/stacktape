@@ -7,7 +7,7 @@ import { loadUserCredentials } from '../_utils/initialization';
 import { getLogGroupInfoForStacktapeResource } from '../_utils/logs';
 
 // @todo logs command now only works for lambda functions and is also kind of shitty
-export const commandLogs = async (): Promise<LogsReturnValue> => {
+export const commandLogs = async () => {
   await loadUserCredentials();
   await globalStateManager.loadTargetStackInfo();
   await configManager.init({ configRequired: true });

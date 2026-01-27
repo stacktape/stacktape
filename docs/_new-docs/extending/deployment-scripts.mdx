@@ -1,0 +1,420 @@
+---
+title: 'Deployment Scripts'
+order: 5
+---
+
+# Deployment Scripts
+
+Deployment scripts let you execute custom logic during the deployment process. Use them for database migrations, seeding data, running smoke tests, or any other task that needs to run when your infrastructure is deployed.
+
+Under the hood, deployment scripts are Lambda functions that run at specific points in the deployment lifecycle.
+
+## When to Use
+
+- **Database migrations** - Run schema changes after database is created
+- **Seed data** - Populate initial data
+- **Smoke tests** - Verify deployment succeeded
+- **Cache warming** - Pre-populate caches
+- **Notifications** - Alert team of deployments
+
+<Info>
+
+Deployment scripts do NOT run during hotswap deployments.
+
+</Info>
+
+## Basic Example
+
+Test a public API endpoint after deployment:
+
+```ts
+// scripts/smoke-test.ts
+export const handler = async (event: { apiUrl: string }) => {
+  const response = await fetch(`${event.apiUrl}/health`);
+
+  if (!response.ok) {
+    throw new Error(`Health check failed: ${response.status}`);
+  }
+
+  console.log('Smoke test passed!');
+  return { success: true };
+};
+```
+
+
+```ts
+import { defineConfig } from 'stacktape';
+
+export default defineConfig({
+  resources: {
+    api: {
+      type: 'http-api-gateway',
+      properties: {
+        routes: [
+          {
+            path: '/health',
+            method: 'GET',
+            integration: { functionName: 'healthCheck' }
+          }
+        ]
+      }
+    },
+
+    healthCheck: {
+      type: 'function',
+      properties: {
+        packaging: {
+          type: 'stacktape-lambda-buildpack',
+          properties: { entryfilePath: 'src/health.ts' }
+        }
+      }
+    },
+
+    smokeTest: {
+      type: 'deployment-script',
+      properties: {
+        trigger: 'after:deploy',
+        packaging: {
+          type: 'stacktape-lambda-buildpack',
+          properties: {
+            entryfilePath: 'scripts/smoke-test.ts'
+          }
+        },
+        parameters: {
+          apiUrl: '$ResourceParam(\'api\', \'url\')'
+        }
+      }
+    }
+
+}
+});
+
+```
+
+
+## Trigger Options
+
+| Trigger          | When It Runs                              |
+| ---------------- | ----------------------------------------- |
+| `after:deploy`   | After all resources are created/updated   |
+| `before:delete`  | Before resources are deleted              |
+
+
+```ts
+{
+  cleanupScript: {
+    type: 'deployment-script',
+    properties: {
+      trigger: 'before:delete',
+      packaging: {
+        type: 'stacktape-lambda-buildpack',
+        properties: { entryfilePath: 'scripts/cleanup.ts' }
+      }
+    }
+  }
+}
+```
+
+
+
+<Warning>
+
+Scripts with `before:delete` trigger must have been present during the last deployment to run when deleting.
+
+</Warning>
+
+## Parameters
+
+Pass values to your script, including references to other resources:
+
+
+```ts
+{
+  migrateDatabase: {
+    type: 'deployment-script',
+    properties: {
+      trigger: 'after:deploy',
+      packaging: {
+        type: 'stacktape-lambda-buildpack',
+        properties: { entryfilePath: 'scripts/migrate.ts' }
+      },
+      parameters: {
+        databaseUrl: '$ResourceParam(\'database\', \'connectionString\')',
+        migrationVersion: '2024.01.15',
+        dryRun: false
+      }
+    }
+  }
+}
+```
+
+
+Access parameters in your script:
+
+```ts
+export const handler = async (event: { databaseUrl: string; migrationVersion: string; dryRun: boolean }) => {
+  const { databaseUrl, migrationVersion, dryRun } = event;
+
+  console.log(`Running migration ${migrationVersion}`);
+
+  if (dryRun) {
+    console.log('Dry run - no changes made');
+    return;
+  }
+
+  // Run migrations...
+};
+```
+
+## Environment Variables
+
+
+```ts
+{
+  seedScript: {
+    type: 'deployment-script',
+    properties: {
+      trigger: 'after:deploy',
+      packaging: {
+        type: 'stacktape-lambda-buildpack',
+        properties: { entryfilePath: 'scripts/seed.ts' }
+      },
+      environment: [
+        {
+          name: 'ADMIN_EMAIL',
+          value: 'admin@example.com'
+        },
+        {
+          name: 'API_KEY',
+          value: '$Secret(\'seed-api-key\')'
+        }
+      ]
+    }
+  }
+}
+```
+
+
+## Accessing Other Resources
+
+### Using connectTo
+
+Grant access to Stacktape resources automatically:
+
+
+```ts
+{
+  database: {
+    type: 'relational-database',
+    properties: {
+      engine: { type: 'postgres', properties: { version: '16.6' } }
+    }
+  },
+
+migrateScript: {
+type: 'deployment-script',
+properties: {
+trigger: 'after:deploy',
+packaging: {
+type: 'stacktape-lambda-buildpack',
+properties: { entryfilePath: 'scripts/migrate.ts' }
+},
+connectTo: ['database'] // Auto-grants access & injects connection info
+}
+}
+}
+
+```
+
+
+### Using IAM Statements
+
+For fine-grained control:
+
+
+```ts
+{
+  backupScript: {
+    type: 'deployment-script',
+    properties: {
+      trigger: 'after:deploy',
+      packaging: {
+        type: 'stacktape-lambda-buildpack',
+        properties: { entryfilePath: 'scripts/backup.ts' }
+      },
+      iamRoleStatements: [
+        {
+          Effect: 'Allow',
+          Action: ['s3:PutObject', 's3:GetObject'],
+          Resource: 'arn:aws:s3:::my-backup-bucket/*'
+        },
+        {
+          Effect: 'Allow',
+          Action: ['dynamodb:Scan'],
+          Resource: '$ResourceParam(\'table\', \'arn\')'
+        }
+      ]
+    }
+  }
+}
+```
+
+
+
+## Common Patterns
+
+### Database Migration
+
+```ts
+// scripts/migrate.ts
+import { drizzle } from 'drizzle-orm/postgres-js';
+import { migrate } from 'drizzle-orm/postgres-js/migrator';
+import postgres from 'postgres';
+
+export const handler = async () => {
+  const connectionString = process.env.STP_DATABASE_CONNECTION_STRING;
+  const sql = postgres(connectionString, { max: 1 });
+  const db = drizzle(sql);
+
+  console.log('Running migrations...');
+  await migrate(db, { migrationsFolder: './drizzle' });
+  console.log('Migrations complete');
+
+  await sql.end();
+};
+```
+
+### Seed Data
+
+```ts
+// scripts/seed.ts
+import { PrismaClient } from '@prisma/client';
+
+export const handler = async (event: { seedFile: string }) => {
+  const prisma = new PrismaClient();
+
+  try {
+    // Check if already seeded
+    const existingUsers = await prisma.user.count();
+    if (existingUsers > 0) {
+      console.log('Database already seeded, skipping');
+      return;
+    }
+
+    // Seed users
+    await prisma.user.createMany({
+      data: [
+        { email: 'admin@example.com', role: 'ADMIN' },
+        { email: 'user@example.com', role: 'USER' }
+      ]
+    });
+
+    console.log('Seed complete');
+  } finally {
+    await prisma.$disconnect();
+  }
+};
+```
+
+### Slack Notification
+
+```ts
+// scripts/notify.ts
+export const handler = async (event: { webhookUrl: string; stage: string; version: string }) => {
+  await fetch(event.webhookUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      text: `Deployed ${event.stage} - version ${event.version}`
+    })
+  });
+};
+```
+
+
+```ts
+{
+  notifySlack: {
+    type: 'deployment-script',
+    properties: {
+      trigger: 'after:deploy',
+      packaging: {
+        type: 'stacktape-lambda-buildpack',
+        properties: { entryfilePath: 'scripts/notify.ts' }
+      },
+      parameters: {
+        webhookUrl: '$Secret(\'slack-webhook\')',
+        stage: '$Stage()',
+        version: '$File(\'package.json\', \'$.version\')'
+      }
+    }
+  }
+}
+```
+
+
+## Running Scripts Manually
+
+Run a deployment script outside of deployment:
+
+```bash
+stacktape deployment-script:run \
+  --stage production \
+  --region eu-west-1 \
+  --resourceName migrateScript
+```
+
+## Configuration Options
+
+
+```ts
+{
+  myScript: {
+    type: 'deployment-script',
+    properties: {
+      // When to run
+      trigger: 'after:deploy',
+
+      // Code location
+      packaging: {
+        type: 'stacktape-lambda-buildpack',
+        properties: {
+          entryfilePath: 'scripts/my-script.ts'
+        }
+      },
+
+      // Data passed to handler
+      parameters: { key: 'value' },
+
+      // Environment variables
+      environment: [{ name: 'KEY', value: 'value' }],
+
+      // Resource access
+      connectTo: ['database', 'bucket'],
+
+      // Custom IAM permissions
+      iamRoleStatements: [],
+
+      // Lambda settings
+      timeout: 300,      // seconds (max 900)
+      memorySize: 1024   // MB
+    }
+
+}
+}
+
+```
+
+
+## Best Practices
+
+1. **Make scripts idempotent** - Safe to run multiple times
+2. **Add logging** - Helps debug deployment issues
+3. **Handle errors gracefully** - Failed scripts fail the deployment
+4. **Keep scripts fast** - Long scripts slow down deployments
+5. **Test locally first** - Verify logic before deploying
+
+## API Reference
+
+<PropertiesTable definitionName="DeploymentScript" />
+```

@@ -55,7 +55,16 @@ export type TuiSummary = {
   consoleUrl?: string;
 };
 
-export type TuiMessageType = 'info' | 'warn' | 'error' | 'success' | 'debug' | 'hint' | 'start' | 'announcement';
+export type TuiMessageType =
+  | 'info'
+  | 'warn'
+  | 'error'
+  | 'success'
+  | 'debug'
+  | 'hint'
+  | 'question'
+  | 'start'
+  | 'announcement';
 
 export type TuiMessage = {
   id: string;
@@ -74,7 +83,8 @@ export type TuiDeploymentHeader = {
   projectName: string;
   stageName: string;
   region: string;
-  action: 'DEPLOYING' | 'DELETING' | 'UPDATING' | 'PREVIEWING CHANGES';
+  action: 'DEPLOYING' | 'DEPLOYING DEV STACK' | 'DELETING' | 'UPDATING' | 'PREVIEWING CHANGES';
+  subtitle?: string;
 };
 
 export type TuiSelectOption = {
@@ -141,6 +151,8 @@ export type TuiState = {
   activePrompt?: TuiPrompt;
   /** When true, hides dynamic phase rendering to allow console.log streaming */
   streamingMode?: boolean;
+  /** When false, phase headers are hidden in TUI output */
+  showPhaseHeaders?: boolean;
   /** When true, the TUI is about to stop and phases should be finalized */
   isFinalizing?: boolean;
   /** Stored completion info to be committed after hooks finish */
@@ -172,4 +184,56 @@ export const CODEBUILD_DEPLOY_PHASE_NAMES: Partial<Record<DeploymentPhase, strin
   INITIALIZE: 'Initialize',
   UPLOAD: 'Prepare Pipeline',
   DEPLOY: 'Deploy'
+};
+
+/**
+ * Interface for command-specific TUIs (deploy, delete, etc.).
+ * Allows tuiManager to delegate rendering to command-specific UI when active.
+ */
+export type CommandTui = {
+  /** Whether the TUI is currently running */
+  isRunning: boolean;
+  /** Start the TUI */
+  start: () => void;
+  /** Stop the TUI gracefully */
+  stop: () => Promise<void>;
+  /** Force stop the TUI immediately (for error handling) */
+  forceStop?: () => void;
+  /** Set an active prompt to render in the TUI */
+  setPrompt?: (prompt: TuiPrompt | undefined) => void;
+  /** Clear the active prompt */
+  clearPrompt?: () => void;
+  /** Set the current phase */
+  setPhase: (phase: DeploymentPhase) => void;
+  /** Finish the current phase */
+  finishPhase: () => void;
+  /** Start tracking an event */
+  startEvent: (params: {
+    eventType: LoggableEventType;
+    description: string;
+    phase?: DeploymentPhase;
+    parentEventType?: LoggableEventType;
+    instanceId?: string;
+  }) => void;
+  /** Update an existing event */
+  updateEvent: (params: {
+    eventType: LoggableEventType;
+    additionalMessage?: string;
+    description?: string;
+    parentEventType?: LoggableEventType;
+    instanceId?: string;
+  }) => void;
+  /** Finish an event */
+  finishEvent: (params: {
+    eventType: LoggableEventType;
+    finalMessage?: string;
+    data?: Record<string, any>;
+    parentEventType?: LoggableEventType;
+    instanceId?: string;
+    status?: TuiEventStatus;
+  }) => void;
+  /** Append output lines to an event */
+  appendEventOutput?: (params: { eventType: LoggableEventType; lines: string[]; instanceId?: string }) => void;
+  /** Mark all running events as errored */
+  markAllAsErrored?: () => void;
 };

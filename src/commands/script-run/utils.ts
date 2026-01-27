@@ -191,7 +191,7 @@ const getLocalScriptExecutionFn = ({
     });
 
     // Callback to capture script output and send to TUI
-    // This avoids piping directly to stdout which conflicts with Ink rendering
+    // This avoids piping directly to stdout while streaming
     const onOutputLine = pipeStdio
       ? (line: string) => {
           tuiManager.appendEventOutput({

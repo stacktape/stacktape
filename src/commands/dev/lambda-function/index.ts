@@ -11,7 +11,7 @@ import { buildAndUpdateFunctionCode } from '../../_utils/fn-deployment';
 import { getLogGroupInfoForStacktapeResource } from '../../_utils/logs';
 import { hookToRestartStdinInput, SourceCodeWatcher } from '../utils';
 
-export const runDevLambdaFunction = async (): Promise<DevReturnValue> => {
+export const runDevLambdaFunction = async () => {
   const { resourceName, watch } = globalStateManager.args;
 
   const cloudwatchLogPrinter = new LambdaCloudwatchLogPrinter({

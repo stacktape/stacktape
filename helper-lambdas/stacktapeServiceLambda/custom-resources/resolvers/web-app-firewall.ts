@@ -128,7 +128,6 @@ const buildWebAclCommandInput = (firewall: StpServiceCustomResourceFirewallProps
     };
   }
   if (firewall.challengeImmunityTime) {
-    // @ts-expect-error - this can be removed once the @aws-sdk package is updated from "3.188.0" version
     input.ChallengeConfig = {
       ImmunityTimeProperty: {
         ImmunityTime: firewall.challengeImmunityTime

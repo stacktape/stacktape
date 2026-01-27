@@ -4,7 +4,7 @@ import { deployedStackOverviewManager } from '@domain-services/deployed-stack-ov
 import { stpErrors } from '@errors';
 import { initializeStackServicesForWorkingWithDeployedStack } from '../_utils/initialization';
 
-export const commandParamGet = async (): Promise<ParamGetReturnValue> => {
+export const commandParamGet = async () => {
   const resourceName = globalStateManager.args.resourceName;
   const paramName = globalStateManager.args.paramName;
   // we do not need to initialize all services yet
