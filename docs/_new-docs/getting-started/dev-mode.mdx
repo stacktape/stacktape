@@ -1,0 +1,132 @@
+---
+title: 'Development Mode'
+order: 3
+---
+
+# Development Mode
+
+Development mode lets you run your code locally while connected to real cloud resources. Changes are reflected instantly without redeploying.
+
+## Start Dev Mode
+
+```bash
+stacktape dev --stage dev --region us-east-1
+```
+
+This:
+
+1. Deploys your infrastructure (if not already deployed)
+2. Runs your Lambda functions locally
+3. Tunnels API Gateway requests to your local machine
+4. Watches for file changes and hot-reloads
+
+## How It Works
+
+<FlowDiagram
+  steps={[
+    { title: 'Your Code', description: 'Runs locally on your machine with hot-reloading' },
+    { title: 'Tunnel', description: 'Secure connection to AWS' },
+    { title: 'API Gateway', description: 'Routes requests to your local machine' },
+    { title: 'AWS Resources', description: 'Real databases, queues, and buckets in the cloud' }
+  ]}
+/>
+
+Your local code connects to real AWS resources (databases, queues, buckets) but runs on your machine for instant feedback.
+
+## Example Workflow
+
+```bash
+# Terminal 1: Start dev mode
+stacktape dev --stage dev --region us-east-1
+
+# Terminal 2: Make changes to your code
+# Changes are automatically detected and reloaded
+```
+
+Output:
+
+```
+✓ Infrastructure deployed
+✓ Dev tunnel established
+✓ Watching for changes...
+
+API: https://abc123.execute-api.us-east-1.amazonaws.com → localhost:3000
+
+[12:34:56] handler.ts changed, reloading...
+[12:34:57] Ready
+```
+
+## Dev Mode Options
+
+```bash
+# Specify which functions to run locally
+stacktape dev --stage dev --region us-east-1 --functionName myHandler
+
+# Use a different local port
+stacktape dev --stage dev --region us-east-1 --port 4000
+
+# Enable verbose logging
+stacktape dev --stage dev --region us-east-1 --logLevel debug
+```
+
+## Debugging
+
+### VS Code
+
+Add to `.vscode/launch.json`:
+
+```json
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "node",
+      "request": "attach",
+      "name": "Attach to Stacktape Dev",
+      "port": 9229,
+      "restart": true
+    }
+  ]
+}
+```
+
+Start dev mode with debugging:
+
+```bash
+stacktape dev --stage dev --region us-east-1 --inspect
+```
+
+Then attach the debugger in VS Code.
+
+## Local Databases
+
+For faster iteration, you can also run databases locally:
+
+```bash
+# Start a local PostgreSQL
+docker run -d -p 5432:5432 -e POSTGRES_PASSWORD=password postgres:16
+
+# Point your local code to it
+DATABASE_URL=postgres://postgres:password@localhost:5432/mydb npm run dev
+```
+
+See [Local Databases](/development/local-databases) for Docker Compose templates.
+
+## Hot-Swap Deployments
+
+For quick cloud deployments without full infrastructure updates:
+
+```bash
+stacktape deploy --stage dev --region us-east-1 --hotSwap
+```
+
+Hot-swap updates only Lambda code (~5 seconds vs ~30 seconds for full deploy).
+
+<Warning>
+  Hot-swap bypasses CloudFormation and should only be used in development. Always do a full deploy before production.
+</Warning>
+
+## Learn More
+
+- [Development Tools](/development) - Scripts, debugging, local databases
+- [Deployment](/getting-started/deployment) - Full deployment options

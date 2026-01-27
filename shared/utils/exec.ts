@@ -27,14 +27,6 @@ type ExecProps = {
   onOutputLine?: (line: string, stream: 'stdout' | 'stderr') => void;
 };
 
-const cancellableExec = (command: string, args: string[], params: ExecProps) => {
-  return getChildProcess(command, args, params);
-};
-
-const nodeExec = (filePath: string, args: string[], params: ExecProps) => {
-  return getChildProcess(filePath, args, params, true);
-};
-
 const getChildProcess = (
   command: string,
   args: string[],

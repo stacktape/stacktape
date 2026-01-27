@@ -1,0 +1,216 @@
+---
+title: 'Next.js Full-Stack'
+order: 3
+---
+
+# Next.js Full-Stack Application
+
+A complete Next.js application with database, authentication, and file uploads.
+
+## Configuration
+
+```typescript
+import {
+  defineConfig,
+  NextjsWeb,
+  RelationalDatabase,
+  RdsEnginePostgres,
+  UserAuthPool,
+  Bucket,
+  $Secret,
+  $ResourceParam
+} from 'stacktape';
+
+export default defineConfig(({ stage }) => {
+  const isProduction = stage === 'production';
+
+  // PostgreSQL database
+  const database = new RelationalDatabase({
+    engine: new RdsEnginePostgres({
+      version: '16',
+      primaryInstance: {
+        instanceSize: isProduction ? 'db.t4g.small' : 'db.t4g.micro'
+      }
+    }),
+    credentials: {
+      masterUserPassword: $Secret(`db-password-${stage}`)
+    }
+  });
+
+  // User authentication
+  const auth = new UserAuthPool({
+    passwordPolicy: {
+      minimumLength: 8,
+      requireNumbers: true
+    }
+  });
+
+  // File uploads bucket
+  const uploads = new Bucket({
+    directoryUpload: {
+      directoryPath: './public/uploads'
+    }
+  });
+
+  // Next.js application
+  const website = new NextjsWeb({
+    appDirectory: './',
+    connectTo: [database, auth, uploads],
+    serverLambda: {
+      joinDefaultVpc: true, // Required for database access
+      memory: 1024
+    },
+    customDomains: isProduction ? [{ domainName: 'myapp.com' }, { domainName: 'www.myapp.com' }] : [],
+    environment: [
+      { name: 'NEXTAUTH_SECRET', value: $Secret('nextauth-secret') },
+      { name: 'NEXTAUTH_URL', value: isProduction ? 'https://myapp.com' : `https://${stage}.myapp.com` }
+    ]
+  });
+
+  return {
+    hooks: {
+      afterDeploy: [{ scriptName: 'migrate' }]
+    },
+    scripts: {
+      migrate: {
+        executeCommand: 'npx prisma migrate deploy',
+        environment: {
+          DATABASE_URL: $ResourceParam('database', 'connectionString')
+        }
+      }
+    },
+    resources: { database, auth, uploads, website }
+  };
+});
+```
+
+## Project Structure
+
+<ProjectStructure
+  files={[
+    {
+      name: 'app',
+      type: 'folder',
+      children: [
+        { name: 'page.tsx', description: 'Home page' },
+        {
+          name: 'api',
+          type: 'folder',
+          children: [
+            {
+              name: 'auth',
+              type: 'folder',
+              children: [
+                {
+                  name: '[...nextauth]',
+                  type: 'folder',
+                  children: [{ name: 'route.ts', description: 'NextAuth handler' }]
+                }
+              ]
+            },
+            { name: 'upload', type: 'folder', children: [{ name: 'route.ts', description: 'File upload API' }] }
+          ]
+        },
+        { name: 'dashboard', type: 'folder', children: [{ name: 'page.tsx', description: 'Protected page' }] }
+      ]
+    },
+    { name: 'prisma', type: 'folder', children: [{ name: 'schema.prisma' }] },
+    { name: 'stacktape.ts' },
+    { name: 'package.json' }
+  ]}
+/>
+
+## Database Access
+
+```typescript
+// lib/db.ts
+import { PrismaClient } from '@prisma/client';
+
+const globalForPrisma = global as unknown as { prisma: PrismaClient };
+
+export const prisma = globalForPrisma.prisma || new PrismaClient();
+
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+```
+
+```typescript
+// app/api/users/route.ts
+import { prisma } from '@/lib/db';
+import { NextResponse } from 'next/server';
+
+export async function GET() {
+  const users = await prisma.user.findMany();
+  return NextResponse.json(users);
+}
+```
+
+## Authentication
+
+```typescript
+// app/api/auth/[...nextauth]/route.ts
+import NextAuth from 'next-auth';
+import CognitoProvider from 'next-auth/providers/cognito';
+
+const handler = NextAuth({
+  providers: [
+    CognitoProvider({
+      clientId: process.env.STP_AUTH_USER_POOL_CLIENT_ID!,
+      clientSecret: process.env.STP_AUTH_USER_POOL_CLIENT_SECRET!,
+      issuer: process.env.STP_AUTH_USER_POOL_ISSUER_URL!
+    })
+  ]
+});
+
+export { handler as GET, handler as POST };
+```
+
+## File Uploads
+
+```typescript
+// app/api/upload/route.ts
+import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { NextResponse } from 'next/server';
+
+const s3 = new S3Client({});
+
+export async function POST(request: Request) {
+  const formData = await request.formData();
+  const file = formData.get('file') as File;
+
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const key = `uploads/${Date.now()}-${file.name}`;
+
+  await s3.send(
+    new PutObjectCommand({
+      Bucket: process.env.STP_UPLOADS_BUCKET_NAME,
+      Key: key,
+      Body: buffer,
+      ContentType: file.type
+    })
+  );
+
+  return NextResponse.json({ key });
+}
+```
+
+## Development
+
+```bash
+# Start dev mode
+stacktape dev --stage dev --region us-east-1
+
+# Opens: http://localhost:3000
+# Database emulated locally
+# Auth pool connected to AWS
+```
+
+## Deploy
+
+```bash
+# Create secrets
+stacktape secret:create --region us-east-1  # db-password-dev
+stacktape secret:create --region us-east-1  # nextauth-secret
+
+# Deploy
+stacktape deploy --stage dev --region us-east-1
+```

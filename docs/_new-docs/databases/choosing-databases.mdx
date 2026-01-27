@@ -1,0 +1,37 @@
+---
+title: 'Choosing Databases'
+order: 1
+---
+
+# Choosing Database Resources
+
+Stacktape supports multiple database types for different use cases—from traditional SQL databases to NoSQL, caching, and search.
+
+## Comparison
+
+| Resource                | Type     | Serverless     | Best For                            |
+| ----------------------- | -------- | -------------- | ----------------------------------- |
+| **Relational Database** | SQL      | Aurora V2 only | Traditional apps, complex queries   |
+| **DynamoDB Table**      | NoSQL    | Yes            | High scale, simple access patterns  |
+| **Redis Cluster**       | Cache    | No             | Caching, sessions, real-time        |
+| **MongoDB Atlas**       | Document | No             | Flexible schemas, MongoDB ecosystem |
+| **Upstash Redis**       | Cache    | Yes            | Edge caching, serverless            |
+| **OpenSearch**          | Search   | No             | Full-text search, analytics         |
+
+## Decision Guide
+
+<DecisionTree
+  nodes={[
+    { question: 'Need SQL and transactions?', result: 'Relational Database' },
+    { question: 'Need simple key-value at scale?', result: 'DynamoDB Table' },
+    {
+      question: 'Need caching or sessions?',
+      children: [
+        { answer: 'Serverless/Edge?', result: 'Upstash Redis' },
+        { answer: 'High throughput?', result: 'Redis Cluster' }
+      ]
+    },
+    { question: 'Need full-text search?', result: 'OpenSearch' },
+    { question: 'Need flexible document schema?', result: 'MongoDB Atlas' }
+  ]}
+/>

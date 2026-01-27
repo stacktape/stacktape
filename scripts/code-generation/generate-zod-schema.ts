@@ -264,8 +264,41 @@ export const generateZodSchema = async (jsonSchema: object): Promise<void> => {
   zodSchemaCode = addNumberCoercion(zodSchemaCode);
   zodSchemaCode = addBooleanCoercion(zodSchemaCode);
 
-  logInfo('Writing Zod schema...');
-  await writeFile(OUTPUT_PATH, zodSchemaCode);
+  logInfo('Formatting Zod schema...');
+  // Add line breaks for readability without full prettier (too slow on large files)
+  // This makes TypeScript errors easier to locate by putting each property on its own line
+  let formattedCode = zodSchemaCode
+    .replace(/^(import .+;)$/gm, '$1\n') // Line break after imports
+    .replace(/"(\w+)":\s*z\./g, '\n"$1": z.') // Line break before each property definition
+    .replace(/\.strict\(\)\.optional\(\)/g, '.strict().optional()') // Keep these together
+    .replace(/\.strict\(\)/g, '.strict()\n'); // Line break after .strict()
 
-  logSuccess(`Zod schema written to ${OUTPUT_PATH} (${(zodSchemaCode.length / 1024).toFixed(2)} KB)`);
+  // Add proper indentation (simple 2-space indent for readability)
+  let depth = 0;
+  const lines = formattedCode.split('\n');
+  formattedCode = lines
+    .map((line) => {
+      const trimmed = line.trim();
+      if (!trimmed) return '';
+
+      // Decrease depth for closing braces/brackets at start of line
+      const closingAtStart = (trimmed.match(/^[\}\]]/g) || []).length;
+      depth = Math.max(0, depth - closingAtStart);
+
+      const indent = '  '.repeat(depth);
+      const result = indent + trimmed;
+
+      // Increase depth for opening braces/brackets
+      const openCount = (trimmed.match(/[\{\[]/g) || []).length;
+      const closeCount = (trimmed.match(/[\}\]]/g) || []).length;
+      depth = Math.max(0, depth + openCount - closeCount + closingAtStart);
+
+      return result;
+    })
+    .join('\n');
+
+  logInfo('Writing Zod schema...');
+  await writeFile(OUTPUT_PATH, formattedCode);
+
+  logSuccess(`Zod schema written to ${OUTPUT_PATH} (${(formattedCode.length / 1024).toFixed(2)} KB)`);
 };

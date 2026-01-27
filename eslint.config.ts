@@ -50,8 +50,13 @@ export default antfu(
           autoFix: true
         }
       ],
+      'unicorn/prefer-number-properties': 'off',
+      'perfectionist/sort-named-imports': 'off',
+      'import/consistent-type-specifier-style': 'off',
+      'perfectionist/sort-imports': 'off',
       'antfu/consistent-chaining': 'off',
       'eslint-comments/no-unlimited-disable': 'off',
+      'node/prefer-global/buffer': 'off',
       'prettier/prettier': ['warn'],
       'no-console': ['warn', { allow: ['warn', 'error', 'info', 'time', 'clear'] }],
       'ts/no-unused-vars': [

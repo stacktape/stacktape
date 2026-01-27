@@ -1,0 +1,168 @@
+---
+title: 'Hosting Bucket'
+order: 3
+---
+
+# Hosting Bucket
+
+S3 bucket with CloudFront CDN pre-configured for hosting static websites and SPAs.
+
+**Type:** `hosting-bucket`
+
+## When to Use
+
+**Advantages:**
+
+- **Zero server management**: Fully static hosting
+- **Global CDN**: CloudFront included
+- **Low cost**: Pay only for storage and transfer
+- **High availability**: Automatic failover
+
+**Best for:** Static websites, React/Vue/Angular SPAs, documentation sites.
+
+## Basic Example
+
+```yaml
+resources:
+  website:
+    type: hosting-bucket
+    properties:
+      uploadDirectoryPath: ./dist
+```
+
+Build your site first, then deploy:
+
+```bash
+npm run build
+stacktape deploy --stage production
+```
+
+## Custom Domain
+
+```yaml
+resources:
+  website:
+    type: hosting-bucket
+    properties:
+      uploadDirectoryPath: ./dist
+      cdn:
+        customDomains:
+          - domainName: www.myapp.com
+          - domainName: myapp.com
+```
+
+## SPA Configuration
+
+For single-page applications with client-side routing:
+
+```yaml
+resources:
+  website:
+    type: hosting-bucket
+    properties:
+      uploadDirectoryPath: ./dist
+      cdn:
+        errorDocument: /index.html
+```
+
+This redirects 404s to index.html for client-side routing.
+
+## Caching Headers
+
+Control browser and CDN caching:
+
+```yaml
+resources:
+  website:
+    type: hosting-bucket
+    properties:
+      uploadDirectoryPath: ./dist
+      fileOptions:
+        - directoryGlob: '**/*.html'
+          cacheControl: 'no-cache'
+        - directoryGlob: 'assets/**'
+          cacheControl: 'public, max-age=31536000, immutable'
+```
+
+## Edge Functions
+
+Add authentication or redirects at the edge:
+
+```yaml
+resources:
+  authCheck:
+    type: edge-lambda-function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/auth.ts
+
+  website:
+    type: hosting-bucket
+    properties:
+      uploadDirectoryPath: ./dist
+      cdn:
+        edgeFunctions:
+          onRequest: authCheck
+```
+
+## Web Application Firewall
+
+Protect against attacks:
+
+```yaml
+resources:
+  waf:
+    type: web-app-firewall
+
+  website:
+    type: hosting-bucket
+    properties:
+      uploadDirectoryPath: ./dist
+      cdn:
+        useFirewall: waf
+```
+
+## Build Integration
+
+Combine with scripts for build + deploy:
+
+```yaml
+scripts:
+  build:
+    type: local-script
+    properties:
+      executeCommand: npm run build
+
+resources:
+  website:
+    type: hosting-bucket
+    properties:
+      uploadDirectoryPath: ./dist
+```
+
+```bash
+stacktape script:run --scriptName build --stage prod
+stacktape deploy --stage prod
+```
+
+## Pricing
+
+- **S3 Storage**: $0.023/GB/month
+- **CloudFront Transfer**: ~$0.085/GB
+- **CloudFront Requests**: ~$0.0075/10K requests
+
+**Example**: 10GB site, 100K visitors/month = ~$5-10/month
+
+## Referenceable Parameters
+
+| Parameter           | Description                |
+| ------------------- | -------------------------- |
+| `cdnUrl`            | CloudFront URL             |
+| `bucketName`        | S3 bucket name             |
+| `cdnDistributionId` | CloudFront distribution ID |
+
+## API Reference
+
+<PropertiesTable definitionName="HostingBucketConfig" />

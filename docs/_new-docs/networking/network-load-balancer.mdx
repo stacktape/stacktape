@@ -1,0 +1,190 @@
+---
+title: 'Network Load Balancer'
+order: 4
+---
+
+# Network Load Balancer
+
+Layer 4 load balancer for TCP/TLS traffic with ultra-low latency and high throughput.
+
+**Type:** `network-load-balancer`
+
+## When to Use
+
+**Advantages:**
+
+- **Ultra-low latency**: Millions of requests per second
+- **TCP/TLS support**: Non-HTTP protocols
+- **Static IP**: Consistent endpoint addresses
+- **High throughput**: Handles extreme loads
+
+**Disadvantages:**
+
+- **No content-based routing**: Layer 4 only
+- **Fixed cost**: ~$16/month minimum
+- **Limited features**: No WAF, no WebSocket session affinity
+
+**Best for:** TCP services, gaming, IoT, high-performance requirements.
+
+## Basic Example
+
+```yaml
+resources:
+  nlb:
+    type: network-load-balancer
+    properties:
+      listeners:
+        - port: 443
+          protocol: TLS
+
+  service:
+    type: web-service
+    properties:
+      packaging:
+        type: stacktape-image-buildpack
+        properties:
+          entryfilePath: src/index.ts
+      resources:
+        cpu: 0.5
+        memory: 1024
+      loadBalancing:
+        type: network-load-balancer
+        properties:
+          loadBalancerName: nlb
+          port: 443
+```
+
+## Listeners
+
+```yaml
+resources:
+  nlb:
+    type: network-load-balancer
+    properties:
+      listeners:
+        - port: 443
+          protocol: TLS
+        - port: 80
+          protocol: TCP
+```
+
+Protocols: `TCP`, `TLS`, `UDP`, `TCP_UDP`
+
+## Custom Domains
+
+```yaml
+resources:
+  nlb:
+    type: network-load-balancer
+    properties:
+      listeners:
+        - port: 443
+          protocol: TLS
+      customDomains:
+        - domainName: tcp.myapp.com
+```
+
+## Interface
+
+```yaml
+resources:
+  nlb:
+    type: network-load-balancer
+    properties:
+      interface: internet # or 'internal'
+      listeners:
+        - port: 443
+          protocol: TLS
+```
+
+## IP Whitelisting
+
+```yaml
+resources:
+  nlb:
+    type: network-load-balancer
+    properties:
+      listeners:
+        - port: 443
+          protocol: TLS
+          whitelistIps:
+            - 1.2.3.4/32
+            - 10.0.0.0/8
+```
+
+## Use Cases
+
+### gRPC Service
+
+```yaml
+resources:
+  nlb:
+    type: network-load-balancer
+    properties:
+      listeners:
+        - port: 443
+          protocol: TLS
+
+  grpcService:
+    type: web-service
+    properties:
+      packaging:
+        type: custom-dockerfile
+        properties:
+          dockerfilePath: ./Dockerfile
+      resources:
+        cpu: 1
+        memory: 2048
+      loadBalancing:
+        type: network-load-balancer
+        properties:
+          loadBalancerName: nlb
+          port: 443
+```
+
+### Database Proxy
+
+```yaml
+resources:
+  nlb:
+    type: network-load-balancer
+    properties:
+      interface: internal
+      listeners:
+        - port: 5432
+          protocol: TCP
+
+  proxy:
+    type: web-service
+    properties:
+      packaging:
+        type: prebuilt-image
+        properties:
+          image: pgbouncer/pgbouncer:latest
+      resources:
+        cpu: 0.25
+        memory: 512
+      loadBalancing:
+        type: network-load-balancer
+        properties:
+          loadBalancerName: nlb
+          port: 5432
+```
+
+## Pricing
+
+- **Base**: ~$16/month
+- **NLCU-hour**: ~$0.006
+- **Data transfer**: Standard AWS rates
+
+## Referenceable Parameters
+
+| Parameter | Description       |
+| --------- | ----------------- |
+| `url`     | Load balancer URL |
+| `arn`     | Load balancer ARN |
+| `dnsName` | DNS name          |
+
+## API Reference
+
+<PropertiesTable definitionName="NetworkLoadBalancerConfig" />

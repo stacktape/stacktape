@@ -15,6 +15,9 @@ import { capitalizeFirstLetter } from '@/utils/helpers';
 import GithubSlugger from 'github-slugger';
 import { useHotReload } from '@/utils/hooks';
 
+// Allow overriding the docs content directory via environment variable
+const DOCS_CONTENT_DIR = process.env.DOCS_CONTENT_DIR || 'docs';
+
 export default function DocsPage({
   compiledSource,
   allDocPages,
@@ -43,21 +46,29 @@ export default function DocsPage({
 }
 
 export const getStaticPaths: GetStaticPaths = async () => {
-  const contentDir = join(process.cwd(), 'docs');
+  const contentDir = join(process.cwd(), DOCS_CONTENT_DIR);
   const paths = await getAllMDXFiles(contentDir);
 
   const slugPaths = paths.map((filePath) => {
     const relativePath = relative(contentDir, filePath);
-    const slug = relativePath
+    let slug = relativePath
       .replace(/\.mdx?$/, '')
       .split(sep)
       .filter(Boolean);
 
+    // Normalize index files: compute/index.mdx -> ['compute'] not ['compute', 'index']
+    if (slug.length > 0 && slug[slug.length - 1] === 'index') {
+      slug = slug.slice(0, -1);
+    }
+
     return { params: { slug } };
   });
 
-  // Add the root path to render docs/index.mdx
-  slugPaths.push({ params: { slug: [] } });
+  // Root index.mdx is already handled by the normalization above (becomes [])
+  // But we need to ensure empty slug is included
+  if (!slugPaths.some((p) => p.params.slug.length === 0)) {
+    slugPaths.push({ params: { slug: [] } });
+  }
 
   return {
     paths: slugPaths,
@@ -68,9 +79,25 @@ export const getStaticPaths: GetStaticPaths = async () => {
 export const getStaticProps: GetStaticProps = async ({ params }) => {
   const { slug = [] } = params as { slug: string[] };
 
-  // Handle root path by rendering docs/index.mdx
-  const filePath =
-    slug.length === 0 ? join(process.cwd(), 'docs', 'index.mdx') : join(process.cwd(), 'docs', `${slug.join('/')}.mdx`);
+  // Try to find the file - could be slug.mdx or slug/index.mdx
+  const contentDir = join(process.cwd(), DOCS_CONTENT_DIR);
+  let filePath: string;
+
+  if (slug.length === 0) {
+    filePath = join(contentDir, 'index.mdx');
+  } else {
+    // Try direct file first (e.g., compute/lambda-functions.mdx)
+    const directPath = join(contentDir, `${slug.join('/')}.mdx`);
+    // Then try index file (e.g., compute/index.mdx for /compute)
+    const indexPath = join(contentDir, slug.join('/'), 'index.mdx');
+
+    try {
+      await stat(directPath);
+      filePath = directPath;
+    } catch {
+      filePath = indexPath;
+    }
+  }
 
   try {
     const [mdxPageData, allDocPages, tableOfContents] = await Promise.all([
@@ -131,7 +158,7 @@ const getMdxPageData = async (filePath: string) => {
 };
 
 const getAllDocsData = async (): Promise<MdxPageDataForNavigation[]> => {
-  const contentDir = join(process.cwd(), 'docs');
+  const contentDir = join(process.cwd(), DOCS_CONTENT_DIR);
   const files = await getAllMDXFiles(contentDir);
 
   const pages: MdxPageDataForNavigation[] = await Promise.all(
@@ -140,10 +167,15 @@ const getAllDocsData = async (): Promise<MdxPageDataForNavigation[]> => {
       const { data: frontmatter } = matter(fileContent);
 
       const relativePath = relative(contentDir, filePath);
-      const slug = relativePath
+      let slug = relativePath
         .replace(/\.mdx?$/, '')
         .split(sep)
         .filter(Boolean);
+
+      // Normalize index files: compute/index -> ['compute'] not ['compute', 'index']
+      if (slug.length > 0 && slug[slug.length - 1] === 'index') {
+        slug = slug.slice(0, -1);
+      }
 
       const url = slug.length === 0 ? '/' : `/${slug.join('/')}`;
 
@@ -174,8 +206,24 @@ const getTitleFromSlug = (slug: string[]) => {
 const githubSlugger = new GithubSlugger();
 
 const getTableOfContents = async (slug: string[]): Promise<TableOfContentsItem[]> => {
-  const contentPath =
-    slug.length === 0 ? join(process.cwd(), 'docs', 'index.mdx') : join(process.cwd(), 'docs', `${slug.join('/')}.mdx`);
+  const contentDir = join(process.cwd(), DOCS_CONTENT_DIR);
+  let contentPath: string;
+
+  if (slug.length === 0) {
+    contentPath = join(contentDir, 'index.mdx');
+  } else {
+    // Try direct file first, then index file
+    const directPath = join(contentDir, `${slug.join('/')}.mdx`);
+    const indexPath = join(contentDir, slug.join('/'), 'index.mdx');
+
+    try {
+      await stat(directPath);
+      contentPath = directPath;
+    } catch {
+      contentPath = indexPath;
+    }
+  }
+
   const rawMdx = await readFile(contentPath, 'utf-8');
 
   // Remove frontmatter

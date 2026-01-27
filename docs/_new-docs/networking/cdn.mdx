@@ -1,0 +1,287 @@
+---
+title: 'CDN'
+order: 5
+---
+
+# CDN (Content Delivery Network)
+
+CloudFront CDN for global content delivery, caching, and edge computing.
+
+CDN is not a standalone resource. It's configured as:
+
+- **Built-in** on `hosting-bucket` (always enabled, configure via top-level properties)
+- **Optional property** on `bucket` (enable with `cdn.enabled: true`)
+- **Optional property** on `http-api-gateway` and `application-load-balancer`
+
+## When to Use
+
+**Advantages:**
+
+- **Global distribution**: 400+ edge locations
+- **Caching**: Reduce origin load
+- **DDoS protection**: Built-in protection
+- **Edge functions**: Run code at edge locations
+
+**Disadvantages:**
+
+- **Cache invalidation**: Changes take time to propagate
+- **Cost**: Data transfer and request charges
+- **Complexity**: Caching configuration
+
+**Best for:** Static websites, API caching, global applications.
+
+## Hosting Bucket (CDN Built-in)
+
+`hosting-bucket` includes CDN automatically. Configure CDN features via top-level properties:
+
+```yaml
+resources:
+  website:
+    type: hosting-bucket
+    properties:
+      uploadDirectoryPath: ./dist
+      hostingContentType: single-page-app
+      # CDN configuration at top level (not nested under cdn)
+      customDomains:
+        - domainName: www.myapp.com
+        - domainName: myapp.com
+      edgeFunctions:
+        onRequest: authFunction
+      routeRewrites:
+        - path: /api/*
+          routeTo:
+            type: http-api-gateway
+            properties:
+              httpApiGatewayName: api
+```
+
+## Storage Bucket with CDN
+
+Regular `bucket` requires explicitly enabling CDN:
+
+```yaml
+resources:
+  assets:
+    type: bucket
+    properties:
+      directoryUpload:
+        directoryPath: ./assets
+        headersPreset: static-website
+      cdn:
+        enabled: true
+        customDomains:
+          - domainName: assets.myapp.com
+```
+
+## API with CDN
+
+```yaml
+resources:
+  api:
+    type: http-api-gateway
+    properties:
+      cdn:
+        enabled: true
+```
+
+## Caching Configuration
+
+```yaml
+cdn:
+  enabled: true
+  cachingOptions:
+    minTTL: 0
+    defaultTTL: 86400 # 1 day
+    maxTTL: 31536000 # 1 year
+    cacheMethods:
+      - GET
+      - HEAD
+```
+
+## Cache Key Parameters
+
+Control what's included in the cache key:
+
+```yaml
+cdn:
+  enabled: true
+  cachingOptions:
+    cacheKeyParameters:
+      cookies:
+        whitelist:
+          - session_id
+      headers:
+        whitelist:
+          - Accept-Language
+      queryString:
+        whitelist:
+          - page
+          - sort
+```
+
+## Edge Functions
+
+Run code at CloudFront edge locations:
+
+```yaml
+resources:
+  authFunction:
+    type: edge-lambda-function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/auth.ts
+
+  website:
+    type: hosting-bucket
+    properties:
+      uploadDirectoryPath: ./dist
+      edgeFunctions:
+        onRequest: authFunction
+```
+
+Edge function triggers:
+
+- `onRequest` - When CDN receives request, before cache lookup
+- `onResponse` - Before returning response to client
+- `onOriginRequest` - Before forwarding to origin (advanced)
+- `onOriginResponse` - After origin responds (advanced)
+
+## Route Rewrites
+
+Route different paths to different origins:
+
+```yaml
+resources:
+  frontend:
+    type: hosting-bucket
+    properties:
+      uploadDirectoryPath: ./dist
+      routeRewrites:
+        - path: /api/*
+          routeTo:
+            type: http-api-gateway
+            properties:
+              httpApiGatewayName: api
+        - path: /assets/*
+          routeTo:
+            type: bucket
+            properties:
+              bucketName: assets
+```
+
+For regular buckets with CDN:
+
+```yaml
+resources:
+  frontend:
+    type: bucket
+    properties:
+      directoryUpload:
+        directoryPath: ./dist
+      cdn:
+        enabled: true
+        routeRewrites:
+          - path: /api/*
+            routeTo:
+              type: http-api-gateway
+              properties:
+                httpApiGatewayName: api
+```
+
+## Error Pages
+
+For hosting buckets:
+
+```yaml
+resources:
+  website:
+    type: hosting-bucket
+    properties:
+      uploadDirectoryPath: ./dist
+      errorDocument: /error.html
+      indexDocument: /index.html
+```
+
+For buckets with CDN:
+
+```yaml
+cdn:
+  enabled: true
+  errorDocument: /error.html
+  indexDocument: /index.html
+```
+
+## Price Class
+
+Control edge location distribution:
+
+```yaml
+cdn:
+  enabled: true
+  cloudfrontPriceClass: PriceClass_100 # Cheapest - US, Canada, Europe
+  # PriceClass_200 - Adds Asia, Africa, Middle East
+  # PriceClass_All - All edge locations (default)
+```
+
+## Cache Invalidation
+
+By default, Stacktape invalidates `/*` after each deployment. Disable if needed:
+
+```yaml
+cdn:
+  enabled: true
+  disableInvalidationAfterDeploy: true
+```
+
+## Web Application Firewall
+
+For hosting buckets:
+
+```yaml
+resources:
+  waf:
+    type: web-app-firewall
+    properties:
+      scope: cdn
+
+  website:
+    type: hosting-bucket
+    properties:
+      uploadDirectoryPath: ./dist
+      useFirewall: waf
+```
+
+For buckets with CDN:
+
+```yaml
+resources:
+  waf:
+    type: web-app-firewall
+    properties:
+      scope: cdn
+
+  assets:
+    type: bucket
+    properties:
+      cdn:
+        enabled: true
+        useFirewall: waf
+```
+
+## Pricing
+
+- **Data transfer**: ~$0.085/GB (first 10TB)
+- **Requests**: ~$0.0075/10K HTTPS requests
+- **Free tier**: 1TB/month, 10M requests/month
+
+## Referenceable Parameters
+
+When CDN is enabled, these parameters become available:
+
+| Parameter          | Description                 |
+| ------------------ | --------------------------- |
+| `cdnUrl`           | CloudFront distribution URL |
+| `cdnDomain`        | CloudFront domain name      |
+| `cdnCustomDomains` | Custom domain names         |

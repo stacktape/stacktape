@@ -1,0 +1,307 @@
+---
+title: 'CI/CD Integration'
+order: 4
+---
+
+# CI/CD Integration
+
+Integrate Stacktape with your existing CI/CD pipelines to automate deployments on every push.
+
+## Prerequisites
+
+1. **Stacktape API Key** - Get from [console.stacktape.com](https://console.stacktape.com)
+2. **AWS Account** - Connected in Stacktape Console or using local AWS credentials
+
+## GitHub Actions
+
+### Basic Workflow
+
+Create `.github/workflows/deploy.yml`:
+
+```yaml
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+      - staging
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Stacktape
+        run: npm install -g stacktape
+
+      - name: Deploy
+        env:
+          STACKTAPE_API_KEY: ${{ secrets.STACKTAPE_API_KEY }}
+        run: |
+          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            stacktape deploy --stage production --region eu-west-1 --autoConfirmOperation
+          else
+            stacktape deploy --stage staging --region eu-west-1 --autoConfirmOperation
+          fi
+```
+
+### Multi-Environment Workflow
+
+```yaml
+name: Deploy
+
+on:
+  push:
+    branches: [main, staging, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  STACKTAPE_API_KEY: ${{ secrets.STACKTAPE_API_KEY }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Stacktape
+        run: npm install -g stacktape
+
+      - name: Set stage name
+        id: stage
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "stage=pr-${{ github.event.number }}" >> $GITHUB_OUTPUT
+          elif [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            echo "stage=production" >> $GITHUB_OUTPUT
+          elif [ "${{ github.ref }}" = "refs/heads/staging" ]; then
+            echo "stage=staging" >> $GITHUB_OUTPUT
+          else
+            echo "stage=dev" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Deploy
+        run: stacktape deploy --stage ${{ steps.stage.outputs.stage }} --region eu-west-1 --autoConfirmOperation
+
+      - name: Comment PR with URL
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: 'Preview deployed to stage: `pr-${{ github.event.number }}`'
+            })
+
+  cleanup:
+    if: github.event_name == 'pull_request' && github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Stacktape
+        run: npm install -g stacktape
+
+      - name: Delete preview environment
+        env:
+          STACKTAPE_API_KEY: ${{ secrets.STACKTAPE_API_KEY }}
+        run: stacktape delete --stage pr-${{ github.event.number }} --region eu-west-1 --autoConfirmOperation
+```
+
+### Setting Secrets
+
+1. Go to your GitHub repository
+2. Navigate to **Settings** → **Secrets and variables** → **Actions**
+3. Click **New repository secret**
+4. Add `STACKTAPE_API_KEY` with your API key
+
+## GitLab CI
+
+Create `.gitlab-ci.yml`:
+
+```yaml
+stages:
+  - deploy
+
+variables:
+  STACKTAPE_API_KEY: $STACKTAPE_API_KEY
+
+.deploy_template: &deploy
+  image: node:20
+  before_script:
+    - npm install -g stacktape
+
+deploy_production:
+  <<: *deploy
+  stage: deploy
+  script:
+    - stacktape deploy --stage production --region eu-west-1 --autoConfirmOperation
+  only:
+    - main
+
+deploy_staging:
+  <<: *deploy
+  stage: deploy
+  script:
+    - stacktape deploy --stage staging --region eu-west-1 --autoConfirmOperation
+  only:
+    - staging
+
+deploy_preview:
+  <<: *deploy
+  stage: deploy
+  script:
+    - stacktape deploy --stage mr-$CI_MERGE_REQUEST_IID --region eu-west-1 --autoConfirmOperation
+  only:
+    - merge_requests
+  environment:
+    name: preview/$CI_MERGE_REQUEST_IID
+    on_stop: cleanup_preview
+
+cleanup_preview:
+  <<: *deploy
+  stage: deploy
+  script:
+    - stacktape delete --stage mr-$CI_MERGE_REQUEST_IID --region eu-west-1 --autoConfirmOperation
+  when: manual
+  environment:
+    name: preview/$CI_MERGE_REQUEST_IID
+    action: stop
+```
+
+### Setting Variables
+
+1. Go to your GitLab project
+2. Navigate to **Settings** → **CI/CD** → **Variables**
+3. Add `STACKTAPE_API_KEY` (mark as "Masked")
+
+## Bitbucket Pipelines
+
+Create `bitbucket-pipelines.yml`:
+
+```yaml
+image: node:20
+
+pipelines:
+  branches:
+    main:
+      - step:
+          name: Deploy to Production
+          script:
+            - npm install -g stacktape
+            - stacktape deploy --stage production --region eu-west-1 --autoConfirmOperation
+
+    staging:
+      - step:
+          name: Deploy to Staging
+          script:
+            - npm install -g stacktape
+            - stacktape deploy --stage staging --region eu-west-1 --autoConfirmOperation
+
+  pull-requests:
+    '**':
+      - step:
+          name: Deploy Preview
+          script:
+            - npm install -g stacktape
+            - stacktape deploy --stage pr-$BITBUCKET_PR_ID --region eu-west-1 --autoConfirmOperation
+```
+
+### Setting Variables
+
+1. Go to **Repository settings** → **Pipelines** → **Repository variables**
+2. Add `STACKTAPE_API_KEY`
+
+## CircleCI
+
+Create `.circleci/config.yml`:
+
+```yaml
+version: 2.1
+
+jobs:
+  deploy:
+    docker:
+      - image: cimg/node:20.0
+    parameters:
+      stage:
+        type: string
+    steps:
+      - checkout
+      - run:
+          name: Install Stacktape
+          command: npm install -g stacktape
+      - run:
+          name: Deploy
+          command: stacktape deploy --stage << parameters.stage >> --region eu-west-1 --autoConfirmOperation
+
+workflows:
+  deploy:
+    jobs:
+      - deploy:
+          stage: production
+          filters:
+            branches:
+              only: main
+      - deploy:
+          stage: staging
+          filters:
+            branches:
+              only: staging
+```
+
+## Best Practices
+
+### Use Stage Naming Conventions
+
+| Environment | Stage Name       | Branch           |
+| ----------- | ---------------- | ---------------- |
+| Production  | `production`     | `main`           |
+| Staging     | `staging`        | `staging`        |
+| Development | `dev`            | `develop`        |
+| PR Preview  | `pr-{number}`    | PR branches      |
+| Feature     | `feature-{name}` | Feature branches |
+
+### Protect Secrets
+
+- Never commit API keys to source control
+- Use CI/CD secret management
+- Rotate keys periodically
+- Use different keys for different environments if needed
+
+### Add Deployment Gates
+
+For production deployments, consider:
+
+- Manual approval steps
+- Required PR reviews
+- Passing tests before deploy
+- Deployment windows
+
+### Cache Dependencies
+
+Speed up builds by caching npm/node_modules:
+
+```yaml
+# GitHub Actions
+- uses: actions/cache@v3
+  with:
+    path: ~/.npm
+    key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+```
+
+### Use Concurrency Controls
+
+Prevent concurrent deployments to the same stage:
+
+```yaml
+# GitHub Actions
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+```

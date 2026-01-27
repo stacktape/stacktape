@@ -46,7 +46,7 @@ type GlobalConfigResponse = {
   deploymentNotifications: DeploymentNotificationDefinition[];
 };
 
-type CurrentUserAndOrgDataResponse = {
+export type CurrentUserAndOrgDataResponse = {
   user: {
     id: string;
     [key: string]: any;
@@ -143,6 +143,18 @@ type DeleteUndeployedStageResponse = {
   [key: string]: any;
 };
 
+const TRPC_REQUEST_TIMEOUT_MS = 30000; // 30 seconds
+
+const fetchWithTimeout = async (url: any, options: any) => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), TRPC_REQUEST_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+};
+
 const createTrpcApiKeyProtectedClient = ({ apiKey }: { apiKey: string }) => {
   return createTRPCClient<any>({
     links: [
@@ -150,7 +162,8 @@ const createTrpcApiKeyProtectedClient = ({ apiKey }: { apiKey: string }) => {
         url: STACKTAPE_TRPC_API_ENDPOINT,
         headers: {
           stp_api_key: apiKey
-        }
+        },
+        fetch: fetchWithTimeout as any
       })
     ]
   });

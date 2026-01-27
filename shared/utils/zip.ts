@@ -1,7 +1,7 @@
 // @note from https://github.com/nfriedly/node-bestzip
 import { createReadStream, createWriteStream } from 'node:fs';
 import { platform } from 'node:os';
-import { basename, dirname, join, sep } from 'node:path';
+import { basename, join } from 'node:path';
 import archiver from 'archiver';
 import execa from 'execa';
 import { createFile, rename } from 'fs-extra';

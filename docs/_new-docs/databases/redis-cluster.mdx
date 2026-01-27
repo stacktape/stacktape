@@ -1,0 +1,212 @@
+---
+title: 'Redis Cluster'
+order: 4
+---
+
+# Redis Cluster
+
+Fully managed Redis-compatible in-memory data store with sub-millisecond latency. Uses Amazon ElastiCache.
+
+**Type:** `redis-cluster`
+
+## When to Use
+
+**Advantages:**
+
+- **Sub-millisecond latency**: Fastest data access
+- **Rich data structures**: Strings, hashes, lists, sets, sorted sets
+- **Pub/Sub**: Real-time messaging
+- **High throughput**: Millions of ops/second
+
+**Disadvantages:**
+
+- **VPC only**: Not accessible from internet
+- **Memory cost**: More expensive than disk storage
+- **Not serverless**: Runs 24/7
+
+**Best for:** Caching, session stores, real-time leaderboards, rate limiting, pub/sub messaging.
+
+## Basic Example
+
+```yaml
+resources:
+  cache:
+    type: redis-cluster
+    properties:
+      instanceSize: cache.t4g.micro
+      defaultUserPassword: $Secret('redis-password')
+```
+
+## Connecting from Compute
+
+```yaml
+resources:
+  cache:
+    type: redis-cluster
+    properties:
+      instanceSize: cache.t4g.micro
+      defaultUserPassword: $Secret('redis-password')
+
+  api:
+    type: web-service
+    properties:
+      packaging:
+        type: stacktape-image-buildpack
+        properties:
+          entryfilePath: src/index.ts
+      resources:
+        cpu: 0.25
+        memory: 512
+      connectTo:
+        - cache
+```
+
+```typescript
+import Redis from 'ioredis';
+
+const redis = new Redis({
+  host: process.env.STP_CACHE_HOST,
+  port: parseInt(process.env.STP_CACHE_PORT),
+  password: process.env.STP_CACHE_PASSWORD
+});
+
+// Set/Get
+await redis.set('user:123', JSON.stringify({ name: 'John' }));
+const user = await redis.get('user:123');
+
+// Expiring keys
+await redis.setex('session:abc', 3600, 'session-data');
+
+// Increment
+await redis.incr('page:views');
+```
+
+## High Availability
+
+### Read Replicas
+
+```yaml
+resources:
+  cache:
+    type: redis-cluster
+    properties:
+      instanceSize: cache.r6g.large
+      defaultUserPassword: $Secret('redis-password')
+      numReplicaNodes: 2
+      enableAutomaticFailover: true
+```
+
+### Sharding
+
+For horizontal scaling:
+
+```yaml
+resources:
+  cache:
+    type: redis-cluster
+    properties:
+      instanceSize: cache.r6g.large
+      defaultUserPassword: $Secret('redis-password')
+      enableSharding: true
+      numShards: 3
+      numReplicaNodes: 1
+```
+
+## Accessibility
+
+Redis is VPC-only by default:
+
+```yaml
+accessibility:
+  accessibilityMode: vpc # or 'scoping-workloads-in-vpc'
+```
+
+<Warning>Redis clusters cannot be accessed from the internet. Your compute resources must be in the same VPC.</Warning>
+
+## Common Patterns
+
+### Caching Layer
+
+```typescript
+async function getUser(userId: string) {
+  // Check cache first
+  const cached = await redis.get(`user:${userId}`);
+  if (cached) return JSON.parse(cached);
+
+  // Fetch from database
+  const user = await db.query('SELECT * FROM users WHERE id = ?', [userId]);
+
+  // Cache for 1 hour
+  await redis.setex(`user:${userId}`, 3600, JSON.stringify(user));
+
+  return user;
+}
+```
+
+### Session Store
+
+```typescript
+import session from 'express-session';
+import RedisStore from 'connect-redis';
+
+app.use(
+  session({
+    store: new RedisStore({ client: redis }),
+    secret: 'your-secret',
+    resave: false,
+    saveUninitialized: false,
+    cookie: { maxAge: 86400000 }
+  })
+);
+```
+
+### Rate Limiting
+
+```typescript
+async function rateLimit(key: string, limit: number, windowSeconds: number) {
+  const current = await redis.incr(key);
+  if (current === 1) {
+    await redis.expire(key, windowSeconds);
+  }
+  return current <= limit;
+}
+
+// Usage
+const allowed = await rateLimit(`rate:${userId}`, 100, 60);
+```
+
+### Pub/Sub
+
+```typescript
+// Publisher
+await redis.publish('notifications', JSON.stringify({ type: 'new-order', orderId: '123' }));
+
+// Subscriber
+const sub = redis.duplicate();
+sub.subscribe('notifications');
+sub.on('message', (channel, message) => {
+  console.log(`Received: ${message}`);
+});
+```
+
+## Pricing
+
+| Instance         | vCPU | Memory | Cost/month |
+| ---------------- | ---- | ------ | ---------- |
+| cache.t4g.micro  | 2    | 0.5 GB | ~$12       |
+| cache.t4g.small  | 2    | 1.4 GB | ~$24       |
+| cache.t4g.medium | 2    | 3.1 GB | ~$48       |
+| cache.r6g.large  | 2    | 13 GB  | ~$130      |
+
+## Referenceable Parameters
+
+| Parameter          | Description         |
+| ------------------ | ------------------- |
+| `host`             | Redis hostname      |
+| `port`             | Redis port          |
+| `password`         | Redis password      |
+| `connectionString` | Full connection URL |
+
+## API Reference
+
+<PropertiesTable definitionName="RedisClusterConfig" />

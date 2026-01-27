@@ -251,6 +251,19 @@ class TuiStateManager {
           ...p,
           events: p.events.map((e) => {
             if (e.eventType === parentEventType) {
+              // If a child with the same instanceId already exists, update it in place
+              // (same workload going through multiple stages: build -> package -> upload)
+              if (childEvent.instanceId) {
+                const existingIndex = e.children.findIndex((c) => c.instanceId === childEvent.instanceId);
+                if (existingIndex >= 0) {
+                  const updatedChildren = [...e.children];
+                  updatedChildren[existingIndex] = {
+                    ...childEvent,
+                    startTime: e.children[existingIndex].startTime
+                  };
+                  return { ...e, children: updatedChildren };
+                }
+              }
               return { ...e, children: [...e.children, childEvent] };
             }
             return e;
@@ -276,12 +289,12 @@ class TuiStateManager {
       ...phase,
       events: phase.events.map((event) => {
         if (parentEventType && instanceId) {
-          // Update child event
+          // Update child event - match by instanceId (child may have been reused across event types)
           if (event.eventType === parentEventType) {
             return {
               ...event,
               children: event.children.map((child) => {
-                if (child.id === eventId) {
+                if (child.instanceId === instanceId) {
                   return {
                     ...child,
                     ...(additionalMessage !== undefined && { additionalMessage }),
@@ -323,12 +336,12 @@ class TuiStateManager {
       ...phase,
       events: phase.events.map((event) => {
         if (parentEventType && instanceId) {
-          // Finish child event
+          // Finish child event - match by instanceId (child may have been reused across event types)
           if (event.eventType === parentEventType) {
             return {
               ...event,
               children: event.children.map((child) => {
-                if (child.id === eventId) {
+                if (child.instanceId === instanceId) {
                   return {
                     ...child,
                     status,
@@ -397,16 +410,16 @@ class TuiStateManager {
   /**
    * Mark all currently running events and phases as errored.
    * Called when an error occurs to show failed state in the UI.
+   * Running children are left as 'pending' (interrupted) - only the phase/parent gets 'error'.
    */
   markAllRunningAsErrored() {
     const endTime = Date.now();
 
-    // Helper to mark event and its children as errored if running
     const markEventErrored = (event: TuiEvent): TuiEvent => {
+      // Running children become 'pending' (interrupted, shown as ○)
+      // Children already finished with 'error' keep their error status
       const children = event.children.map((child) =>
-        child.status === 'running'
-          ? { ...child, status: 'error' as TuiEventStatus, endTime, duration: endTime - child.startTime }
-          : child
+        child.status === 'running' ? { ...child, status: 'pending' as TuiEventStatus, endTime } : child
       );
 
       if (event.status === 'running') {

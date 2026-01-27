@@ -1,0 +1,253 @@
+---
+title: 'SQS Queue'
+order: 2
+---
+
+# SQS Queue
+
+Fully managed message queue for decoupling services and processing tasks asynchronously.
+
+**Type:** `sqs-queue`
+
+## When to Use
+
+**Advantages:**
+
+- **Reliable delivery**: Messages persisted until processed
+- **Scalable**: Handle any message volume
+- **Dead letter queue**: Capture failed messages
+- **FIFO support**: Ordered, exactly-once delivery
+
+**Disadvantages:**
+
+- **Pull-based**: Consumers must poll for messages
+- **Max message size**: 256 KB
+- **Max retention**: 14 days
+
+**Best for:** Background jobs, task queues, service decoupling, rate limiting.
+
+## Basic Example
+
+```yaml
+resources:
+  tasks:
+    type: sqs-queue
+
+  producer:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/producer.ts
+      connectTo:
+        - tasks
+
+  consumer:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/consumer.ts
+      events:
+        - type: sqs-integration
+          properties:
+            sqsQueueName: tasks
+            batchSize: 10
+```
+
+## Sending Messages
+
+```typescript
+import { SQSClient, SendMessageCommand } from '@aws-sdk/client-sqs';
+
+const sqs = new SQSClient({});
+const queueUrl = process.env.STP_TASKS_QUEUE_URL;
+
+await sqs.send(
+  new SendMessageCommand({
+    QueueUrl: queueUrl,
+    MessageBody: JSON.stringify({
+      type: 'process-image',
+      imageId: '123',
+      userId: 'user-456'
+    }),
+    DelaySeconds: 0
+  })
+);
+```
+
+## Processing Messages
+
+Lambda consumer:
+
+```typescript
+export const handler = async (event) => {
+  for (const record of event.Records) {
+    const message = JSON.parse(record.body);
+    console.log('Processing:', message);
+
+    // Process the message
+    await processImage(message.imageId);
+  }
+};
+```
+
+## Dead Letter Queue
+
+Capture messages that fail processing:
+
+```yaml
+resources:
+  tasks:
+    type: sqs-queue
+    properties:
+      deadLetterQueue:
+        maxReceiveCount: 3 # Retry 3 times before DLQ
+
+  tasksDLQ:
+    type: sqs-queue
+```
+
+## FIFO Queue
+
+Guaranteed ordering and exactly-once processing:
+
+```yaml
+resources:
+  orders:
+    type: sqs-queue
+    properties:
+      fifo: true
+      contentBasedDeduplication: true
+```
+
+FIFO queue names must end with `.fifo`:
+
+```typescript
+await sqs.send(
+  new SendMessageCommand({
+    QueueUrl: queueUrl,
+    MessageBody: JSON.stringify({ orderId: '123' }),
+    MessageGroupId: 'customer-456', // Messages in same group are ordered
+    MessageDeduplicationId: 'unique-id' // For deduplication
+  })
+);
+```
+
+## Visibility Timeout
+
+How long a message is hidden while being processed:
+
+```yaml
+resources:
+  tasks:
+    type: sqs-queue
+    properties:
+      visibilityTimeout: 60 # seconds
+```
+
+## Message Retention
+
+How long messages stay in queue:
+
+```yaml
+resources:
+  tasks:
+    type: sqs-queue
+    properties:
+      messageRetentionSeconds: 1209600 # 14 days max
+```
+
+## Long Polling
+
+Reduce empty responses and cost:
+
+```yaml
+resources:
+  tasks:
+    type: sqs-queue
+    properties:
+      receiveMessageWaitTimeSeconds: 20
+```
+
+## Batch Processing
+
+Configure Lambda batch settings:
+
+```yaml
+events:
+  - type: sqs-integration
+    properties:
+      sqsQueueName: tasks
+      batchSize: 10
+      maxBatchWindowSeconds: 5 # Wait up to 5s to fill batch
+```
+
+## Worker Service Consumer
+
+For long-running consumers:
+
+```yaml
+resources:
+  tasks:
+    type: sqs-queue
+
+  worker:
+    type: worker-service
+    properties:
+      packaging:
+        type: stacktape-image-buildpack
+        properties:
+          entryfilePath: src/worker.ts
+      resources:
+        cpu: 0.25
+        memory: 512
+      connectTo:
+        - tasks
+```
+
+```typescript
+import { SQSClient, ReceiveMessageCommand, DeleteMessageCommand } from '@aws-sdk/client-sqs';
+
+const sqs = new SQSClient({});
+const queueUrl = process.env.STP_TASKS_QUEUE_URL;
+
+while (true) {
+  const { Messages } = await sqs.send(
+    new ReceiveMessageCommand({
+      QueueUrl: queueUrl,
+      MaxNumberOfMessages: 10,
+      WaitTimeSeconds: 20
+    })
+  );
+
+  for (const message of Messages || []) {
+    await processMessage(JSON.parse(message.Body));
+    await sqs.send(
+      new DeleteMessageCommand({
+        QueueUrl: queueUrl,
+        ReceiptHandle: message.ReceiptHandle
+      })
+    );
+  }
+}
+```
+
+## Pricing
+
+- **Requests**: $0.40 per million (Standard), $0.50 per million (FIFO)
+- **Free tier**: 1 million requests/month
+
+## Referenceable Parameters
+
+| Parameter   | Description |
+| ----------- | ----------- |
+| `queueUrl`  | Queue URL   |
+| `queueArn`  | Queue ARN   |
+| `queueName` | Queue name  |
+
+## API Reference
+
+<PropertiesTable definitionName="SqsQueueConfig" />

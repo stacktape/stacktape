@@ -1,0 +1,35 @@
+---
+title: 'bastion:session'
+order: 25
+---
+
+# bastion:session
+
+Starts an interactive session with a bastion host.
+
+Your stack must include a `bastion` resource. If you have multiple bastions, you can specify which one to connect to with the `--bastionResource` argument. The session is established over a secure SSM connection.
+
+For more information, refer to the [bastion documentation](https://docs.stacktape.com/bastion-servers/#connecting-to-bastion-interactive-session).
+
+## Usage
+
+```bash
+stacktape bastion:session --region <region> --stage <stage>
+```
+
+## Options
+
+| Option | Required | Type | Description |
+|--------|----------|------|-------------|
+| `--profile` (-p) | No | string |  |
+| `--logFormat` (-lf) | No | string |  |
+| `--logLevel` (-ll) | No | string |  |
+| `--help` (-h) | No | string |  |
+| `--awsAccount` (-aa) | No | string |  |
+| `--stage` (-s) | Yes | string |  |
+| `--region` (-r) | Yes | string |  |
+| `--projectName` (-prj) | No | string |  |
+| `--configPath` (-cp) | No | string |  |
+| `--currentWorkingDirectory` (-cwd) | No | string |  |
+| `--templateId` (-ti) | No | string |  |
+| `--bastionResource` (-br) | No | string |  |

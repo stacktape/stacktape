@@ -1,0 +1,42 @@
+---
+title: 'deploy'
+order: 2
+---
+
+# deploy
+
+Deploys your stack to AWS.
+
+If the stack doesn't exist, it creates a new one. If it already exists, it updates it. This command requires a valid Stacktape configuration file (`stacktape.yml`) in the current directory, or you can specify a path using the `--configPath` option.
+
+## Usage
+
+```bash
+stacktape deploy --stage <stage> --region <region>
+```
+
+## Options
+
+| Option | Required | Type | Description |
+|--------|----------|------|-------------|
+| `--profile` (-p) | No | string |  |
+| `--logFormat` (-lf) | No | string |  |
+| `--logLevel` (-ll) | No | string |  |
+| `--help` (-h) | No | string |  |
+| `--awsAccount` (-aa) | No | string |  |
+| `--stage` (-s) | Yes | string |  |
+| `--region` (-r) | Yes | string |  |
+| `--projectName` (-prj) | No | string |  |
+| `--configPath` (-cp) | No | string |  |
+| `--currentWorkingDirectory` (-cwd) | No | string |  |
+| `--templateId` (-ti) | No | string |  |
+| `--disableDriftDetection` (-ddd) | No | string |  |
+| `--preserveTempFiles` (-ptf) | No | string |  |
+| `--dockerArgs` (-da) | No | string |  |
+| `--noCache` (-nc) | No | string |  |
+| `--disableDockerRemoteCache` (-drc) | No | string |  |
+| `--disableAutoRollback` (-dar) | No | string |  |
+| `--autoConfirmOperation` (-aco) | No | string |  |
+| `--showSensitiveValues` (-ssv) | No | string |  |
+| `--hotSwap` (-hs) | No | string |  |
+| `--disableLayerOptimization` (-dlo) | No | string |  |

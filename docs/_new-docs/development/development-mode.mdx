@@ -1,0 +1,350 @@
+---
+title: 'Development Mode'
+order: 2
+---
+
+# Development Mode
+
+Development mode (`stacktape dev`) lets you run your application locally while connected to cloud resources. It provides fast iteration without deploying to AWS for every change.
+
+## How It Works
+
+When you run `stacktape dev`:
+
+1. **Databases** are started in Docker containers locally
+2. **Lambda functions** are run locally with hot-reload
+3. **Container services** are built and run in Docker
+4. **Environment variables** are automatically configured to point to local resources
+5. **API Gateway requests** are tunneled to your local functions (optional)
+
+## Quick Start
+
+```bash
+stacktape dev --stage dev --region us-east-1
+```
+
+This starts development mode for all resources. You can also specify a single resource:
+
+```bash
+stacktape dev --stage dev --region us-east-1 --resourceName myFunction
+```
+
+## Keyboard Commands
+
+While in development mode:
+
+| Command        | Action                |
+| -------------- | --------------------- |
+| `rs` + Enter   | Rebuild and restart   |
+| `c` or `clear` | Clear the console     |
+| `q` or `quit`  | Exit development mode |
+
+## Lambda Functions
+
+For Lambda functions, development mode:
+
+1. Builds your function code
+2. Starts a local Lambda runtime
+3. Watches for file changes
+4. Hot-reloads on changes
+5. Optionally tunnels API Gateway requests to local
+
+### Basic Lambda Dev
+
+```yaml
+resources:
+  api:
+    type: http-api-gateway
+
+  handler:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/handler.ts
+      events:
+        - type: http-api-integration
+          properties:
+            httpApiGatewayName: api
+            method: GET
+            path: /
+```
+
+```bash
+stacktape dev --stage dev --region us-east-1 --resourceName handler
+```
+
+Your function is now available at `http://localhost:3000`.
+
+### Tunneling
+
+By default, Stacktape sets up a tunnel so requests to your deployed API Gateway are forwarded to your local function:
+
+```
+Internet → API Gateway (AWS) → Tunnel → Local Function
+```
+
+This lets you test with the real API Gateway URL while running locally.
+
+Disable tunneling if you don't need it:
+
+```bash
+stacktape dev --stage dev --region us-east-1 --resourceName handler --noTunnel
+```
+
+### File Watching
+
+Development mode watches your source files and automatically rebuilds when changes are detected. You can also manually trigger a rebuild:
+
+```
+# Press 'rs' + Enter to rebuild
+rs
+```
+
+Or use the `--watch` flag for automatic rebuilds:
+
+```bash
+stacktape dev --stage dev --region us-east-1 --watch
+```
+
+## Container Services
+
+For container services (web-service, private-service, worker-service), development mode:
+
+1. Builds your container image
+2. Runs the container locally in Docker
+3. Maps container ports to your host
+4. Injects environment variables
+
+### Basic Container Dev
+
+```yaml
+resources:
+  api:
+    type: web-service
+    properties:
+      packaging:
+        type: stacktape-image-buildpack
+        properties:
+          entryfilePath: ./src/server.ts
+      resources:
+        cpu: 0.5
+        memory: 1024
+```
+
+```bash
+stacktape dev --stage dev --region us-east-1 --resourceName api
+```
+
+Your service is available at `http://localhost:3000`.
+
+### Port Mapping
+
+Container ports are automatically mapped. If your service listens on port 8080:
+
+```yaml
+resources:
+  api:
+    type: web-service
+    properties:
+      packaging:
+        type: stacktape-image-buildpack
+        properties:
+          entryfilePath: ./src/server.ts
+      events:
+        - type: http-api-integration
+          properties:
+            containerPort: 8080
+```
+
+Access it at `http://localhost:8080`.
+
+## Environment Variables
+
+Development mode automatically configures environment variables:
+
+### Local Resources
+
+When databases run locally, environment variables point to localhost:
+
+```
+STP_DATABASE_HOST=localhost
+STP_DATABASE_PORT=5432
+STP_DATABASE_CONNECTION_STRING=postgresql://...@localhost:5432/...
+```
+
+### Cloud Resources
+
+For resources that can't be emulated locally (like SQS, SNS, S3), environment variables point to the real AWS resources:
+
+```
+STP_UPLOADS_BUCKET_NAME=my-app-dev-uploads-abc123
+STP_QUEUE_URL=https://sqs.us-east-1.amazonaws.com/...
+```
+
+### AWS Credentials
+
+Development mode injects AWS credentials so your code can access cloud resources:
+
+```
+AWS_ACCESS_KEY_ID=...
+AWS_SECRET_ACCESS_KEY=...
+AWS_SESSION_TOKEN=...
+AWS_REGION=us-east-1
+```
+
+## Multiple Resources
+
+Run development mode for all resources:
+
+```bash
+stacktape dev --stage dev --region us-east-1 --resources all
+```
+
+Or specific resources:
+
+```bash
+stacktape dev --stage dev --region us-east-1 --resources handler,api
+```
+
+Skip certain resources:
+
+```bash
+stacktape dev --stage dev --region us-east-1 --skipResources database
+```
+
+## Next.js Applications
+
+For `nextjs-web` resources, development mode starts the Next.js dev server:
+
+```yaml
+resources:
+  frontend:
+    type: nextjs-web
+    properties:
+      environment:
+        - name: NEXT_PUBLIC_API_URL
+          value: http://localhost:3001
+```
+
+```bash
+stacktape dev --stage dev --region us-east-1 --resourceName frontend
+```
+
+Your Next.js app runs with hot-reload at `http://localhost:3000`.
+
+## Static Sites
+
+For `hosting-bucket` resources, development mode starts a static file server:
+
+```yaml
+resources:
+  website:
+    type: hosting-bucket
+    properties:
+      directoryUpload:
+        directoryPath: ./dist
+```
+
+```bash
+stacktape dev --stage dev --region us-east-1 --resourceName website
+```
+
+## Legacy Mode
+
+If you prefer to run against deployed AWS resources instead of local emulation:
+
+```bash
+stacktape dev --stage dev --region us-east-1 --devMode legacy
+```
+
+In legacy mode:
+
+- No local Docker containers
+- All resources run in AWS
+- Code is deployed and watched for changes
+- Logs stream from CloudWatch
+
+<Warning>Legacy mode requires a deployed stack and incurs AWS costs during development.</Warning>
+
+## Prerequisites
+
+### Docker
+
+Docker is required for local database emulation and container development:
+
+- **macOS**: [Docker Desktop](https://www.docker.com/products/docker-desktop)
+- **Windows**: [Docker Desktop](https://www.docker.com/products/docker-desktop)
+- **Linux**: [Docker Engine](https://docs.docker.com/engine/install/)
+
+Verify Docker is running:
+
+```bash
+docker info
+```
+
+### Node.js
+
+For Lambda function development, Node.js 18+ is required:
+
+```bash
+node --version
+# v18.x.x or higher
+```
+
+## Troubleshooting
+
+### Port Already in Use
+
+If you see "port already in use" errors:
+
+```bash
+# Find the process using the port
+lsof -i :3000
+
+# Kill it
+kill -9 <PID>
+```
+
+Or specify a different port:
+
+```bash
+stacktape dev --stage dev --region us-east-1 --port 3001
+```
+
+### Docker Not Running
+
+```
+Error: Cannot connect to Docker daemon
+```
+
+Start Docker Desktop or the Docker service:
+
+```bash
+# Linux
+sudo systemctl start docker
+
+# macOS/Windows
+# Start Docker Desktop application
+```
+
+### Database Connection Issues
+
+If your code can't connect to the local database:
+
+1. Check Docker is running
+2. Verify the database container started: `docker ps`
+3. Check environment variables are set correctly
+4. Try restarting dev mode
+
+## Next Steps
+
+<NavBoxGrid columns={2}>
+  <NavBox
+    url="/development/local-databases"
+    text="Local Databases"
+    description="Learn about local database emulation"
+  />
+  <NavBox url="/development/scripts" text="Scripts" description="Run migrations and custom commands" />
+</NavBoxGrid>

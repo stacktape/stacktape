@@ -1,4 +1,4 @@
-import type { GetConfigParams } from '@api/npm/ts';
+import { GetConfigParams } from '@api/npm/ts/config';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { getTypescriptExport } from '@utils/file-loaders';
 

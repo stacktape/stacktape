@@ -1,0 +1,34 @@
+---
+title: 'compile-template'
+order: 9
+---
+
+# compile-template
+
+Compiles your Stacktape configuration into a CloudFormation template.
+
+By default, the template is saved to `./compiled-template.yaml`. Use the `--outFile` option to specify a different path.
+
+## Usage
+
+```bash
+stacktape compile-template --stage <stage> --region <region>
+```
+
+## Options
+
+| Option | Required | Type | Description |
+|--------|----------|------|-------------|
+| `--profile` (-p) | No | string |  |
+| `--logFormat` (-lf) | No | string |  |
+| `--logLevel` (-ll) | No | string |  |
+| `--help` (-h) | No | string |  |
+| `--awsAccount` (-aa) | No | string |  |
+| `--stage` (-s) | Yes | string |  |
+| `--region` (-r) | Yes | string |  |
+| `--projectName` (-prj) | No | string |  |
+| `--configPath` (-cp) | No | string |  |
+| `--currentWorkingDirectory` (-cwd) | No | string |  |
+| `--templateId` (-ti) | No | string |  |
+| `--outFile` (-out) | No | string |  |
+| `--preserveTempFiles` (-ptf) | No | string |  |

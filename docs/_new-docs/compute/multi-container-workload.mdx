@@ -1,0 +1,615 @@
+---
+title: 'Multi-Container Workload'
+order: 5
+---
+
+# Multi-Container Workload
+
+Multi-container workloads run multiple containers together in the same ECS task. This is the most flexible compute resource—you have full control over container configuration, networking, and accessibility.
+
+**Type:** `multi-container-workload`
+
+## When to Use
+
+**Advantages:**
+
+- **Multiple containers**: Run frontend, backend, sidecars in one unit
+- **Full flexibility**: Configure each container's accessibility separately
+- **Service mesh**: Built-in service discovery between workloads
+- **Shared resources**: Containers share CPU, memory, and network
+
+**Disadvantages:**
+
+- **More configuration**: Requires explicit setup for accessibility
+- **Complexity**: Need to understand ECS task definitions
+- **Single failure domain**: If the task dies, all containers restart
+
+**Best for:** Complex microservices, sidecar patterns (logging, proxies), frontend + backend in one deployment, services needing custom network configurations.
+
+<Info>
+  `web-service` and `worker-service` are simplified wrappers around `multi-container-workload`. Use those for common
+  patterns; use `multi-container-workload` when you need more control.
+</Info>
+
+## Basic Example
+
+```yaml
+resources:
+  api:
+    type: http-api-gateway
+
+  myApp:
+    type: multi-container-workload
+    properties:
+      containers:
+        - name: frontend
+          packaging:
+            type: stacktape-image-buildpack
+            properties:
+              entryfilePath: src/frontend/index.ts
+          environment:
+            - name: PORT
+              value: '3000'
+          events:
+            - type: http-api-gateway
+              properties:
+                httpApiGatewayName: api
+                containerPort: 3000
+                path: /*
+                method: '*'
+        - name: backend
+          packaging:
+            type: stacktape-image-buildpack
+            properties:
+              entryfilePath: src/backend/index.ts
+          environment:
+            - name: PORT
+              value: '8080'
+          events:
+            - type: workload-internal
+              properties:
+                containerPort: 8080
+      resources:
+        cpu: 0.5
+        memory: 1024
+```
+
+In this example:
+
+- `frontend` receives external HTTP traffic via API Gateway
+- `backend` is only accessible from within the workload via `localhost:8080`
+
+## Container Configuration
+
+### Essential Containers
+
+If an essential container fails, the entire task restarts:
+
+```yaml
+containers:
+  - name: main-app
+    essential: true # default: true
+    packaging:
+      type: stacktape-image-buildpack
+      properties:
+        entryfilePath: src/app.ts
+  - name: metrics-agent
+    essential: false # Task continues if this fails
+    packaging:
+      type: prebuilt-image
+      properties:
+        image: prom/prometheus:latest
+```
+
+### Container Dependencies
+
+Control startup order with `dependsOn`:
+
+```yaml
+containers:
+  - name: migrations
+    essential: false
+    packaging:
+      type: custom-dockerfile
+      properties:
+        dockerfilePath: ./migrations.Dockerfile
+  - name: app
+    dependsOn:
+      - containerName: migrations
+        condition: SUCCESS # Wait for migrations to complete successfully
+    packaging:
+      type: stacktape-image-buildpack
+      properties:
+        entryfilePath: src/app.ts
+```
+
+Conditions:
+
+- `START`: Container has started
+- `COMPLETE`: Container has finished (success or failure)
+- `SUCCESS`: Container finished successfully (exit code 0)
+- `HEALTHY`: Container's health check is passing
+
+### Container Health Checks
+
+```yaml
+containers:
+  - name: app
+    packaging:
+      type: stacktape-image-buildpack
+      properties:
+        entryfilePath: src/app.ts
+    internalHealthCheck:
+      healthCheckCommand:
+        - CMD-SHELL
+        - curl -f http://localhost:3000/health || exit 1
+      interval: 30
+      timeout: 5
+      startPeriod: 60
+      retries: 3
+```
+
+## Event Integrations (Accessibility)
+
+Events define how containers receive traffic. A container can have multiple events.
+
+### HTTP API Gateway
+
+Public HTTP/HTTPS endpoints via AWS API Gateway:
+
+```yaml
+containers:
+  - name: api
+    events:
+      - type: http-api-gateway
+        properties:
+          httpApiGatewayName: myGateway
+          containerPort: 3000
+          path: /api/*
+          method: '*'
+```
+
+Create the gateway resource:
+
+```yaml
+resources:
+  myGateway:
+    type: http-api-gateway
+```
+
+### Application Load Balancer
+
+For WebSocket support, sticky sessions, or advanced routing:
+
+```yaml
+containers:
+  - name: websocket-server
+    events:
+      - type: application-load-balancer
+        properties:
+          loadBalancerName: myAlb
+          containerPort: 8080
+          priority: 1
+          paths:
+            - /ws/*
+```
+
+Create the ALB:
+
+```yaml
+resources:
+  myAlb:
+    type: application-load-balancer
+```
+
+### Network Load Balancer
+
+For TCP/TLS traffic or ultra-low latency:
+
+```yaml
+containers:
+  - name: tcp-service
+    events:
+      - type: network-load-balancer
+        properties:
+          loadBalancerName: myNlb
+          containerPort: 9000
+          port: 443
+          protocol: TLS
+```
+
+### Workload Internal
+
+Access a container from other containers in the same workload via `localhost`:
+
+```yaml
+containers:
+  - name: frontend
+    packaging:
+      type: stacktape-image-buildpack
+      properties:
+        entryfilePath: src/frontend/index.ts
+    environment:
+      - name: BACKEND_URL
+        value: http://localhost:8080 # Access backend via localhost
+  - name: backend
+    packaging:
+      type: stacktape-image-buildpack
+      properties:
+        entryfilePath: src/backend/index.ts
+    events:
+      - type: workload-internal
+        properties:
+          containerPort: 8080
+```
+
+### Service Connect (Service Mesh)
+
+Access a container from other workloads in the same stack:
+
+```yaml
+resources:
+  internalApi:
+    type: multi-container-workload
+    properties:
+      containers:
+        - name: api
+          packaging:
+            type: stacktape-image-buildpack
+            properties:
+              entryfilePath: src/internal/index.ts
+          events:
+            - type: service-connect
+              properties:
+                containerPort: 3000
+                alias: internal-api # Optional custom alias
+                protocol: http # For protocol-aware metrics
+      resources:
+        cpu: 0.5
+        memory: 1024
+
+  publicApi:
+    type: multi-container-workload
+    properties:
+      containers:
+        - name: api
+          packaging:
+            type: stacktape-image-buildpack
+            properties:
+              entryfilePath: src/public/index.ts
+          environment:
+            - name: INTERNAL_API_URL
+              value: http://internal-api:3000 # Use the alias
+      resources:
+        cpu: 0.5
+        memory: 1024
+```
+
+Service Connect provides:
+
+- DNS-based service discovery
+- Protocol-aware metrics (HTTP, HTTP/2, gRPC)
+- Connection draining during deployments
+
+## Resource Configuration
+
+### CPU and Memory
+
+```yaml
+resources:
+  cpu: 1 # 0.25, 0.5, 1, 2, 4, 8, or 16 vCPUs
+  memory: 2048 # Memory in MB
+```
+
+Resources are shared across all containers in the workload.
+
+| CPU (vCPU) | Memory Options            |
+| ---------- | ------------------------- |
+| 0.25       | 512 MB, 1 GB, 2 GB        |
+| 0.5        | 1-4 GB (1 GB increments)  |
+| 1          | 2-8 GB (1 GB increments)  |
+| 2          | 4-16 GB (1 GB increments) |
+| 4          | 8-30 GB (1 GB increments) |
+
+### EC2 Instances
+
+For cost optimization:
+
+```yaml
+resources:
+  cpu: 2
+  memory: 4096
+  instanceTypes:
+    - t3.medium
+    - t3a.medium
+```
+
+### ARM Architecture (Fargate)
+
+```yaml
+resources:
+  cpu: 1
+  memory: 2048
+  architecture: arm64
+```
+
+## Scaling
+
+```yaml
+scaling:
+  minInstances: 2
+  maxInstances: 10
+  scalingPolicy:
+    keepAvgCpuUtilizationUnder: 70
+    keepAvgMemoryUtilizationUnder: 80
+```
+
+## Deployment Strategies
+
+Requires Application Load Balancer:
+
+```yaml
+resources:
+  alb:
+    type: application-load-balancer
+
+  myApp:
+    type: multi-container-workload
+    properties:
+      containers:
+        - name: api
+          events:
+            - type: application-load-balancer
+              properties:
+                loadBalancerName: alb
+                containerPort: 3000
+      deployment:
+        type: Canary10Percent5Minutes
+```
+
+Available strategies:
+
+- `AllAtOnce` (default)
+- `Canary10Percent5Minutes`
+- `Canary10Percent15Minutes`
+- `Linear10PercentEvery1Minute`
+- `Linear10PercentEvery3Minutes`
+
+## Environment Variables
+
+Per-container configuration:
+
+```yaml
+containers:
+  - name: frontend
+    environment:
+      - name: NODE_ENV
+        value: production
+      - name: API_URL
+        value: http://localhost:8080
+  - name: backend
+    environment:
+      - name: DATABASE_URL
+        value: $ResourceParam('database', 'connectionString')
+      - name: API_KEY
+        value: $Secret('api-key')
+```
+
+## Connecting to Resources
+
+```yaml
+resources:
+  database:
+    type: relational-database
+    properties:
+      engine:
+        type: postgres
+
+  myApp:
+    type: multi-container-workload
+    properties:
+      connectTo:
+        - database
+      containers:
+        - name: app
+          # STP_DATABASE_* env vars available
+```
+
+## Volume Mounts
+
+Share persistent storage across containers:
+
+```yaml
+resources:
+  storage:
+    type: efs-storage
+
+  myApp:
+    type: multi-container-workload
+    properties:
+      connectTo:
+        - storage
+      containers:
+        - name: writer
+          volumeMounts:
+            - efsStorageName: storage
+              containerPath: /data
+        - name: reader
+          volumeMounts:
+            - efsStorageName: storage
+              containerPath: /data
+              readOnly: true
+```
+
+## Remote Sessions
+
+```yaml
+enableRemoteSessions: true
+```
+
+Connect to specific containers:
+
+```bash
+stacktape container:session --stage dev --resourceName myApp --containerName app
+```
+
+## Common Patterns
+
+### Frontend + Backend
+
+```yaml
+resources:
+  api:
+    type: http-api-gateway
+
+  app:
+    type: multi-container-workload
+    properties:
+      containers:
+        - name: frontend
+          packaging:
+            type: stacktape-image-buildpack
+            properties:
+              entryfilePath: src/frontend/index.ts
+          events:
+            - type: http-api-gateway
+              properties:
+                httpApiGatewayName: api
+                containerPort: 3000
+                path: /*
+                method: '*'
+          environment:
+            - name: BACKEND_URL
+              value: http://localhost:8080
+        - name: backend
+          packaging:
+            type: stacktape-image-buildpack
+            properties:
+              entryfilePath: src/backend/index.ts
+          events:
+            - type: workload-internal
+              properties:
+                containerPort: 8080
+          dependsOn:
+            - containerName: frontend
+              condition: START
+      resources:
+        cpu: 1
+        memory: 2048
+```
+
+### App + Redis Sidecar
+
+```yaml
+containers:
+  - name: app
+    packaging:
+      type: stacktape-image-buildpack
+      properties:
+        entryfilePath: src/app.ts
+    environment:
+      - name: REDIS_URL
+        value: redis://localhost:6379
+  - name: redis
+    packaging:
+      type: prebuilt-image
+      properties:
+        image: redis:7-alpine
+    events:
+      - type: workload-internal
+        properties:
+          containerPort: 6379
+```
+
+### Init Container (Migrations)
+
+```yaml
+containers:
+  - name: migrations
+    essential: false
+    packaging:
+      type: custom-dockerfile
+      properties:
+        dockerfilePath: ./migrations.Dockerfile
+  - name: app
+    dependsOn:
+      - containerName: migrations
+        condition: SUCCESS
+    packaging:
+      type: stacktape-image-buildpack
+      properties:
+        entryfilePath: src/app.ts
+```
+
+### Microservices with Service Connect
+
+```yaml
+resources:
+  userService:
+    type: multi-container-workload
+    properties:
+      containers:
+        - name: api
+          events:
+            - type: service-connect
+              properties:
+                containerPort: 3000
+                alias: users
+      resources:
+        cpu: 0.5
+        memory: 1024
+
+  orderService:
+    type: multi-container-workload
+    properties:
+      containers:
+        - name: api
+          events:
+            - type: service-connect
+              properties:
+                containerPort: 3000
+                alias: orders
+          environment:
+            - name: USERS_URL
+              value: http://users:3000
+      resources:
+        cpu: 0.5
+        memory: 1024
+
+  gateway:
+    type: http-api-gateway
+
+  apiGateway:
+    type: multi-container-workload
+    properties:
+      containers:
+        - name: api
+          events:
+            - type: http-api-gateway
+              properties:
+                httpApiGatewayName: gateway
+                containerPort: 3000
+          environment:
+            - name: USERS_URL
+              value: http://users:3000
+            - name: ORDERS_URL
+              value: http://orders:3000
+      resources:
+        cpu: 0.25
+        memory: 512
+```
+
+## Pricing
+
+Same as other ECS-based resources:
+
+**Fargate (us-east-1):**
+
+- vCPU: ~$0.04048/hour
+- Memory: ~$0.004445/GB/hour
+
+Plus load balancer costs if using ALB/NLB.
+
+## API Reference
+
+<PropertiesTable definitionName="MultiContainerWorkloadConfig" />

@@ -1,0 +1,184 @@
+---
+title: 'Deploy Command'
+order: 2
+---
+
+# Deploy Command
+
+The `deploy` command builds your code, packages it, and deploys your infrastructure to AWS using CloudFormation.
+
+## Basic Usage
+
+```bash
+stacktape deploy --stage production --region eu-west-1
+```
+
+Required parameters:
+
+- `--stage` (`-s`) - Environment name (e.g., `production`, `staging`, `dev-john`). Max 12 characters.
+- `--region` (`-r`) - AWS region (e.g., `eu-west-1`, `us-east-1`)
+
+## What Happens During Deploy
+
+1. **Validation** - Config file is validated
+2. **Packaging** - Code is bundled (Lambda functions, containers, etc.)
+3. **Upload** - Artifacts are uploaded to S3
+4. **CloudFormation** - Infrastructure is created/updated
+5. **Output** - Resource URLs and info are displayed
+
+## Common Options
+
+### Auto-Confirm
+
+Skip confirmation prompts:
+
+```bash
+stacktape deploy --stage production --region eu-west-1 --autoConfirmOperation
+```
+
+### Hotswap (Development)
+
+Faster deployments for code-only changes by updating Lambda functions directly without CloudFormation:
+
+```bash
+stacktape deploy --stage dev --region eu-west-1 --hotSwap
+```
+
+<Warning>
+
+Only use hotswap for development. It bypasses CloudFormation, so your stack state may drift.
+
+</Warning>
+
+### Disable Auto-Rollback
+
+Keep the stack in a failed state instead of rolling back (useful for debugging):
+
+```bash
+stacktape deploy --stage staging --region eu-west-1 --disableAutoRollback
+```
+
+### Custom Config Path
+
+Use a different config file:
+
+```bash
+stacktape deploy --stage production --region eu-west-1 --configPath ./infrastructure/stacktape.yml
+```
+
+### AWS Profile
+
+Use a specific AWS profile:
+
+```bash
+stacktape deploy --stage production --region eu-west-1 --profile my-aws-profile
+```
+
+### No Cache
+
+Force fresh builds (ignore cached artifacts):
+
+```bash
+stacktape deploy --stage production --region eu-west-1 --noCache
+```
+
+### Debug Logging
+
+Get detailed logs for troubleshooting:
+
+```bash
+stacktape deploy --stage production --region eu-west-1 --logLevel debug
+```
+
+## CodeBuild Deploy
+
+For resource-intensive projects, deploy using AWS CodeBuild instead of your local machine:
+
+```bash
+stacktape codebuild:deploy --stage production --region eu-west-1
+```
+
+How it works:
+
+1. Your project is zipped and uploaded to S3
+2. A CodeBuild environment is provisioned in your AWS account
+3. The deployment runs on CodeBuild with logs streamed to your terminal
+
+Benefits:
+
+- More CPU/memory for large builds
+- Consistent build environment
+- No local Docker/Node requirements
+
+## Preview Changes
+
+See what changes will be made without deploying:
+
+```bash
+stacktape preview-changes --stage production --region eu-west-1
+```
+
+## Delete Stack
+
+Remove a deployed stack:
+
+```bash
+stacktape delete --stage production --region eu-west-1
+```
+
+## Setting Defaults
+
+Avoid typing stage and region every time:
+
+```bash
+stacktape defaults:configure --stage dev --region eu-west-1
+```
+
+Then deploy with just:
+
+```bash
+stacktape deploy
+```
+
+## Environment Variables
+
+You can also configure Stacktape via environment variables:
+
+```bash
+export STACKTAPE_STAGE=production
+export STACKTAPE_REGION=eu-west-1
+export STACKTAPE_PROFILE=my-aws-profile
+
+stacktape deploy
+```
+
+## CI/CD Usage
+
+For automated deployments, use the API key:
+
+```bash
+export STACKTAPE_API_KEY=your-api-key
+stacktape deploy --stage production --region eu-west-1 --autoConfirmOperation
+```
+
+Get your API key from [console.stacktape.com](https://console.stacktape.com).
+
+## All Options
+
+| Option                    | Alias  | Description                             |
+| ------------------------- | ------ | --------------------------------------- |
+| `--stage`                 | `-s`   | Environment name (required)             |
+| `--region`                | `-r`   | AWS region (required)                   |
+| `--autoConfirmOperation`  | `-aco` | Skip confirmation prompts               |
+| `--configPath`            | `-cp`  | Path to config file                     |
+| `--profile`               | `-p`   | AWS profile name                        |
+| `--awsAccount`            | `-aa`  | Connected AWS account name              |
+| `--hotSwap`               | `-hs`  | Fast deploy for code changes (dev only) |
+| `--disableAutoRollback`   | `-dar` | Don't rollback on failure               |
+| `--disableDriftDetection` | `-ddd` | Allow deploying to drifted stacks       |
+| `--noCache`               | `-nc`  | Force fresh builds                      |
+| `--logLevel`              | `-ll`  | `info`, `error`, or `debug`             |
+| `--logFormat`             | `-lf`  | `fancy`, `normal`, `basic`, or `json`   |
+| `--preserveTempFiles`     | `-ptf` | Keep generated CloudFormation templates |
+| `--showSensitiveValues`   | `-ssv` | Show secrets in output                  |
+| `--dockerArgs`            | `-da`  | Additional Docker arguments             |

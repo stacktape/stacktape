@@ -1,0 +1,384 @@
+---
+title: 'Local Databases'
+order: 3
+---
+
+# Local Databases
+
+Development mode automatically runs databases in Docker containers on your local machine. This eliminates the need to connect to cloud databases during development, reducing latency and costs.
+
+## Supported Databases
+
+| Resource Type                      | Local Docker Image      |
+| ---------------------------------- | ----------------------- |
+| `relational-database` (PostgreSQL) | `postgres:16`           |
+| `relational-database` (MySQL)      | `mysql:8`               |
+| `redis-cluster`                    | `redis:7`               |
+| `dynamo-db-table`                  | `amazon/dynamodb-local` |
+
+## How It Works
+
+When you run `stacktape dev`:
+
+1. Stacktape detects database resources in your config
+2. Docker containers are started for each database
+3. Environment variables are set to point to localhost
+4. Your application connects to local databases
+5. When you exit, containers are stopped and cleaned up
+
+## PostgreSQL
+
+```yaml
+resources:
+  database:
+    type: relational-database
+    properties:
+      engine:
+        type: postgres
+        properties:
+          version: '16'
+      credentials:
+        masterUserPassword: $Secret('db-password')
+
+  handler:
+    type: function
+    properties:
+      connectTo:
+        - database
+```
+
+In development mode, Stacktape:
+
+1. Starts `postgres:16` container on a random available port
+2. Creates a database with the name from your config
+3. Sets environment variables:
+
+```
+STP_DATABASE_HOST=localhost
+STP_DATABASE_PORT=5432
+STP_DATABASE_NAME=myapp
+STP_DATABASE_USER=postgres
+STP_DATABASE_PASSWORD=localpassword
+STP_DATABASE_CONNECTION_STRING=postgresql://postgres:localpassword@localhost:5432/myapp
+```
+
+Your code works identically in development and production:
+
+```typescript
+import { Client } from 'pg';
+
+const client = new Client({
+  connectionString: process.env.STP_DATABASE_CONNECTION_STRING
+});
+
+await client.connect();
+```
+
+## MySQL
+
+```yaml
+resources:
+  database:
+    type: relational-database
+    properties:
+      engine:
+        type: mysql
+        properties:
+          version: '8.0'
+```
+
+Local MySQL uses `mysql:8` image with the same environment variable pattern.
+
+## Redis
+
+```yaml
+resources:
+  cache:
+    type: redis-cluster
+    properties:
+      instanceSize: cache.t4g.micro
+      defaultUserPassword: $Secret('redis-password')
+
+  handler:
+    type: function
+    properties:
+      connectTo:
+        - cache
+```
+
+Environment variables in development:
+
+```
+STP_CACHE_HOST=localhost
+STP_CACHE_PORT=6379
+```
+
+```typescript
+import { createClient } from 'redis';
+
+const client = createClient({
+  url: `redis://${process.env.STP_CACHE_HOST}:${process.env.STP_CACHE_PORT}`
+});
+
+await client.connect();
+```
+
+## DynamoDB
+
+```yaml
+resources:
+  usersTable:
+    type: dynamo-db-table
+    properties:
+      primaryKey:
+        partitionKey:
+          name: id
+          type: string
+
+  handler:
+    type: function
+    properties:
+      connectTo:
+        - usersTable
+```
+
+DynamoDB Local is started and environment variables are set:
+
+```
+STP_USERS_TABLE_TABLE_NAME=my-app-dev-usersTable
+AWS_ENDPOINT_URL_DYNAMODB=http://localhost:8000
+```
+
+Configure the AWS SDK to use the local endpoint:
+
+```typescript
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
+
+const client = new DynamoDBClient({
+  endpoint: process.env.AWS_ENDPOINT_URL_DYNAMODB || undefined,
+  region: process.env.AWS_REGION || 'us-east-1'
+});
+```
+
+<Info>
+  The `endpoint` is only set in development mode. In production, it's undefined, and the SDK uses the default AWS
+  endpoint.
+</Info>
+
+## Data Persistence
+
+By default, local database data is **ephemeral**—it's lost when you stop development mode.
+
+### Persisting Data
+
+To persist data between dev sessions, use Docker volumes:
+
+```bash
+# Create a volume for PostgreSQL
+docker volume create stacktape-pg-data
+
+# Use the volume (Stacktape handles this automatically in recent versions)
+```
+
+<Info>Check `docker volume ls` to see Stacktape-created volumes.</Info>
+
+### Resetting Data
+
+To reset your local database to a clean state:
+
+```bash
+# Stop dev mode (press 'q')
+
+# Remove the Docker volume
+docker volume rm stacktape-pg-data
+
+# Restart dev mode
+stacktape dev --stage dev --region us-east-1
+```
+
+## Running Migrations
+
+Run database migrations in development mode using scripts:
+
+```yaml
+resources:
+  database:
+    type: relational-database
+    properties:
+      engine:
+        type: postgres
+
+scripts:
+  migrate:
+    type: local-script
+    properties:
+      executeCommand: npx prisma migrate dev
+      connectTo:
+        - database
+```
+
+With dev mode running in one terminal:
+
+```bash
+# Terminal 1
+stacktape dev --stage dev --region us-east-1
+```
+
+Run migrations in another terminal:
+
+```bash
+# Terminal 2
+stacktape script:run --scriptName migrate --stage dev --region us-east-1
+```
+
+The script automatically connects to the local database.
+
+## Seeding Data
+
+Create a seed script:
+
+```yaml
+scripts:
+  seed:
+    type: local-script
+    properties:
+      executeCommand: npx prisma db seed
+      connectTo:
+        - database
+```
+
+```bash
+stacktape script:run --scriptName seed --stage dev --region us-east-1
+```
+
+## Multiple Databases
+
+You can have multiple databases in development:
+
+```yaml
+resources:
+  mainDb:
+    type: relational-database
+    properties:
+      engine:
+        type: postgres
+
+  analyticsDb:
+    type: relational-database
+    properties:
+      engine:
+        type: postgres
+
+  cache:
+    type: redis-cluster
+    properties:
+      instanceSize: cache.t4g.micro
+
+  handler:
+    type: function
+    properties:
+      connectTo:
+        - mainDb
+        - analyticsDb
+        - cache
+```
+
+Each database runs in its own container with unique ports:
+
+```
+STP_MAIN_DB_HOST=localhost
+STP_MAIN_DB_PORT=5432
+STP_ANALYTICS_DB_HOST=localhost
+STP_ANALYTICS_DB_PORT=5433
+STP_CACHE_HOST=localhost
+STP_CACHE_PORT=6379
+```
+
+## Viewing Running Containers
+
+Check which containers are running:
+
+```bash
+docker ps
+```
+
+Output:
+
+```
+CONTAINER ID   IMAGE          PORTS                    NAMES
+abc123         postgres:16    0.0.0.0:5432->5432/tcp   stp-dev-database
+def456         redis:7        0.0.0.0:6379->6379/tcp   stp-dev-cache
+```
+
+## Connecting with Database Tools
+
+### pgAdmin / DBeaver
+
+Connect to local PostgreSQL:
+
+- **Host**: `localhost`
+- **Port**: `5432` (or the mapped port from `docker ps`)
+- **Database**: Your database name
+- **User**: `postgres`
+- **Password**: `localpassword` (or your configured password)
+
+### Redis CLI
+
+```bash
+docker exec -it stp-dev-cache redis-cli
+```
+
+### DynamoDB GUI
+
+Use [NoSQL Workbench](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/workbench.html) with endpoint `http://localhost:8000`.
+
+## Unsupported Databases
+
+Some databases cannot be emulated locally:
+
+| Resource                 | Alternative                       |
+| ------------------------ | --------------------------------- |
+| `mongo-db-atlas-cluster` | Run MongoDB in Docker manually    |
+| `upstash-redis`          | Connects to cloud Upstash         |
+| `open-search-domain`     | Run OpenSearch in Docker manually |
+
+For these, development mode connects to the actual cloud resource.
+
+## Troubleshooting
+
+### Container Won't Start
+
+```bash
+# Check Docker is running
+docker info
+
+# Check for port conflicts
+lsof -i :5432
+
+# Remove stuck containers
+docker rm -f $(docker ps -aq --filter name=stp-dev)
+```
+
+### Connection Refused
+
+If your app can't connect:
+
+1. Verify the container is running: `docker ps`
+2. Check environment variables are set
+3. Ensure you're using the correct port
+4. Wait a few seconds for the database to initialize
+
+### Slow Performance
+
+Local databases may be slower than cloud databases. For better performance:
+
+1. Increase Docker's memory allocation
+2. Use an SSD for Docker storage
+3. Consider using legacy mode for performance testing
+
+## Next Steps
+
+<NavBoxGrid columns={2}>
+  <NavBox url="/development/scripts" text="Scripts" description="Run migrations and custom commands" />
+  <NavBox url="/development/debugging" text="Debugging" description="Logs and troubleshooting" />
+</NavBoxGrid>

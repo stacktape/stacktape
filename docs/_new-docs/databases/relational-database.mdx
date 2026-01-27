@@ -1,0 +1,251 @@
+---
+title: 'Relational Database'
+order: 2
+---
+
+# Relational Database
+
+Fully managed SQL databases supporting PostgreSQL, MySQL, MariaDB, Oracle, and SQL Server. Uses Amazon RDS and Aurora under the hood.
+
+**Type:** `relational-database`
+
+## When to Use
+
+**Advantages:**
+
+- **ACID transactions**: Strong consistency guarantees
+- **Complex queries**: JOINs, aggregations, subqueries
+- **Mature ecosystem**: ORMs, tools, expertise
+- **Multiple engines**: PostgreSQL, MySQL, Aurora, etc.
+
+**Disadvantages:**
+
+- **Fixed capacity**: Must provision instance size (except Aurora Serverless)
+- **Scaling limits**: Vertical scaling has limits
+- **Cost**: Runs 24/7 even with low usage
+
+**Best for:** Web applications, e-commerce, CMS, any app requiring complex queries and transactions.
+
+## Basic Example
+
+```yaml
+resources:
+  database:
+    type: relational-database
+    properties:
+      credentials:
+        masterUserName: admin
+        masterUserPassword: $Secret('db-password')
+      engine:
+        type: postgres
+        properties:
+          version: '16'
+          instanceSize: db.t4g.micro
+```
+
+## Engine Types
+
+### Standard RDS (Single Instance)
+
+Best for development or small production workloads:
+
+```yaml
+engine:
+  type: postgres # or mysql, mariadb
+  properties:
+    version: '16'
+    instanceSize: db.t4g.small
+    storageSize: 20 # GB
+```
+
+### Aurora (Multi-Node Cluster)
+
+High performance and availability:
+
+```yaml
+engine:
+  type: aurora-postgresql
+  properties:
+    version: '16.1'
+    primaryInstance:
+      instanceSize: db.r6g.large
+    replicas:
+      - instanceSize: db.r6g.large
+```
+
+### Aurora Serverless V2
+
+Auto-scaling from 0.5 to 128 ACUs:
+
+```yaml
+engine:
+  type: aurora-postgresql-serverless-v2
+  properties:
+    version: '16.1'
+    minCapacity: 0.5
+    maxCapacity: 16
+```
+
+<Info>
+  Aurora Serverless V2 scales automatically based on load. Great for variable workloads but cannot scale to zero.
+</Info>
+
+### Aurora Serverless V1
+
+Can pause when idle (scale to zero):
+
+```yaml
+engine:
+  type: aurora-postgresql-serverless
+  properties:
+    version: '13.12'
+    minCapacity: 2 # ACUs
+    maxCapacity: 16
+    enablePauseAfterInactivity: true
+    pauseAfterInactivitySeconds: 300
+```
+
+## Accessibility
+
+### Internet Accessible (Default)
+
+```yaml
+accessibility:
+  accessibilityMode: internet
+```
+
+Database has a public endpoint. Access is controlled by security groups.
+
+### VPC Only
+
+```yaml
+accessibility:
+  accessibilityMode: vpc
+```
+
+Only accessible from resources in the same VPC. Most secure option.
+
+### Whitelisted IPs
+
+```yaml
+accessibility:
+  accessibilityMode: whitelisted-ips-only
+  whitelistedIps:
+    - 1.2.3.4/32
+    - 5.6.7.8/32
+```
+
+## Connecting from Compute
+
+```yaml
+resources:
+  database:
+    type: relational-database
+    properties:
+      credentials:
+        masterUserName: admin
+        masterUserPassword: $Secret('db-password')
+      engine:
+        type: postgres
+        properties:
+          version: '16'
+          instanceSize: db.t4g.micro
+
+  api:
+    type: web-service
+    properties:
+      packaging:
+        type: stacktape-image-buildpack
+        properties:
+          entryfilePath: src/index.ts
+      resources:
+        cpu: 0.25
+        memory: 512
+      connectTo:
+        - database
+```
+
+Your code receives:
+
+```typescript
+// Available environment variables
+process.env.STP_DATABASE_CONNECTION_STRING; // Full connection URL
+process.env.STP_DATABASE_HOST;
+process.env.STP_DATABASE_PORT;
+process.env.STP_DATABASE_NAME;
+process.env.STP_DATABASE_USER;
+process.env.STP_DATABASE_PASSWORD;
+```
+
+## Backups
+
+```yaml
+automatedBackupRetentionDays: 7 # 1-35 days
+```
+
+Aurora also supports:
+
+```yaml
+enablePointInTimeRecovery: true
+```
+
+## Read Replicas
+
+For read-heavy workloads:
+
+```yaml
+engine:
+  type: postgres
+  properties:
+    version: '16'
+    instanceSize: db.t4g.small
+    readReplicas:
+      - instanceSize: db.t4g.small
+      - instanceSize: db.t4g.small
+```
+
+## Multi-AZ
+
+For high availability:
+
+```yaml
+engine:
+  type: postgres
+  properties:
+    version: '16'
+    instanceSize: db.t4g.small
+    multiAz: true
+```
+
+## Pricing
+
+**RDS (us-east-1):**
+
+| Instance      | vCPU | RAM   | Cost/month |
+| ------------- | ---- | ----- | ---------- |
+| db.t4g.micro  | 2    | 1 GB  | ~$12       |
+| db.t4g.small  | 2    | 2 GB  | ~$24       |
+| db.t4g.medium | 2    | 4 GB  | ~$48       |
+| db.r6g.large  | 2    | 16 GB | ~$175      |
+
+Plus storage: ~$0.115/GB/month
+
+**Aurora Serverless V2:**
+
+- ~$0.12 per ACU-hour
+- Minimum 0.5 ACU = ~$43/month if running 24/7
+
+## Referenceable Parameters
+
+| Parameter               | Description               |
+| ----------------------- | ------------------------- |
+| `connectionString`      | Full connection URL       |
+| `host`                  | Database hostname         |
+| `port`                  | Database port             |
+| `name`                  | Database name             |
+| `arnForReadAccess`      | ARN for read-only access  |
+| `arnForReadWriteAccess` | ARN for read-write access |
+
+## API Reference
+
+<PropertiesTable definitionName="RelationalDatabaseConfig" />

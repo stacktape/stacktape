@@ -2,7 +2,7 @@ import { pascalCase } from 'change-case';
 import { shortHash } from '../utils/short-hash';
 import { buildResourceName, getLogGroupBaseName } from './utils';
 
-const codebuildDeploymentBucketResourceName = (region: string, accountId: string) => {
+export const codebuildDeploymentBucketResourceName = (region: string, accountId: string) => {
   return `stp-codebuild-deployment-${region}-${shortHash(accountId)}`;
 };
 

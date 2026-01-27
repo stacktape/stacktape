@@ -1,0 +1,136 @@
+---
+title: 'CLI Reference'
+order: 1
+---
+
+# CLI Reference
+
+The Stacktape CLI is your primary interface for deploying and managing infrastructure.
+
+## Installation
+
+```bash
+# macOS/Linux
+curl -L https://install.stacktape.com | bash
+
+# Windows (PowerShell)
+iwr https://install.stacktape.com/win | iex
+
+# npm (alternative)
+npm install -g stacktape
+```
+
+## Getting Help
+
+```bash
+# List all commands
+stacktape help
+
+# Get help for a specific command
+stacktape help deploy
+```
+
+## Commands
+
+### Core
+
+| Command | Description |
+|---------|-------------|
+| [deploy](/cli/deploy) | Deploys your stack to AWS. |
+| [delete](/cli/delete) | Deletes your stack from AWS. |
+| [dev](/cli/dev) | Runs your application locally for development and debugging. |
+| [logs](/cli/logs) | Prints logs from a specified resource to the console. |
+
+### Stack Management
+
+| Command | Description |
+|---------|-------------|
+| [stack:info](/cli/stack-info) | Prints information about a specified stack. |
+| [stack:list](/cli/stack-list) | Lists all stacks deployed in a specified region. |
+| [rollback](/cli/rollback) | Rolls back the stack to the last known good state. |
+| [preview-changes](/cli/preview-changes) | Shows a preview of the changes that will be made to your stack if you deploy the current configuration. |
+| [compile-template](/cli/compile-template) | Compiles your Stacktape configuration into a CloudFormation template. |
+| [package-workloads](/cli/package-workloads) | Packages your compute resources and prepares them for deployment. |
+
+### Secrets
+
+| Command | Description |
+|---------|-------------|
+| [secret:create](/cli/secret-create) | Creates a secret that is securely stored in AWS Secrets Manager. |
+| [secret:get](/cli/secret-get) | Prints details about a specified secret to the console. |
+| [secret:delete](/cli/secret-delete) | Deletes a specified secret. |
+
+### AWS Profiles
+
+| Command | Description |
+|---------|-------------|
+| [aws-profile:create](/cli/aws-profile-create) | Creates a new AWS profile on your system. |
+| [aws-profile:list](/cli/aws-profile-list) | Lists all AWS profiles configured on your system. |
+| [aws-profile:update](/cli/aws-profile-update) | Updates an existing AWS profile on your system. |
+| [aws-profile:delete](/cli/aws-profile-delete) | Deletes an AWS profile from your system. |
+
+### Sessions & Tunnels
+
+| Command | Description |
+|---------|-------------|
+| [bastion:session](/cli/bastion-session) | Starts an interactive session with a bastion host. |
+| [bastion:tunnel](/cli/bastion-tunnel) | Creates a secure tunnel to a resource through a bastion host. |
+| [container:session](/cli/container-session) | Starts an interactive session inside a deployed container. |
+
+### Scripts
+
+| Command | Description |
+|---------|-------------|
+| [script:run](/cli/script-run) | Executes a script defined in your configuration. |
+| [deployment-script:run](/cli/deployment-script-run) | Runs a deployment script defined in your configuration. |
+
+### Configuration
+
+| Command | Description |
+|---------|-------------|
+| [defaults:configure](/cli/defaults-configure) | Sets system-wide default arguments for Stacktape commands. |
+| [defaults:list](/cli/defaults-list) | Prints all configured system-wide Stacktape defaults. |
+| [init](/cli/init) | Initializes a new Stacktape project in a specified directory. |
+
+### Utilities
+
+| Command | Description |
+|---------|-------------|
+| [bucket:sync](/cli/bucket-sync) | Synchronizes the contents of a local directory with an S3 bucket. |
+| [domain:add](/cli/domain-add) | Adds a domain to your AWS account. |
+| [cf-module:update](/cli/cf-module-update) | Updates AWS CloudFormation infrastructure module private types to the latest compatible version. |
+| [param:get](/cli/param-get) | Retrieves a specified parameter from a resource in a deployed stack. |
+
+### Account
+
+| Command | Description |
+|---------|-------------|
+| [login](/cli/login) | Configures your Stacktape API key for the current system. |
+| [logout](/cli/logout) | Removes the Stacktape API key from the current system. |
+| [upgrade](/cli/upgrade) | Upgrades Stacktape to the latest version. |
+| [version](/cli/version) | Prints the current version of Stacktape. |
+| [help](/cli/help) | Displays help information for commands and their options. |
+
+
+
+## Common Options
+
+Most commands accept these options:
+
+| Option | Alias | Description |
+|--------|-------|-------------|
+| `--stage` | `-s` | Environment name (dev, staging, production) |
+| `--region` | `-r` | AWS region (us-east-1, eu-west-1, etc.) |
+| `--configPath` | `-cp` | Path to config file |
+| `--profile` | `-p` | AWS profile to use |
+| `--logLevel` | `-ll` | Log verbosity (debug, info, error) |
+| `--logFormat` | `-lf` | Output format (fancy, normal, basic, json) |
+| `--help` | `-h` | Show help for a command |
+
+## Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `STACKTAPE_API_KEY` | API key for CI/CD (alternative to `stacktape login`) |
+| `AWS_PROFILE` | Default AWS profile |
+| `AWS_REGION` | Default AWS region |

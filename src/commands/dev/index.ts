@@ -193,7 +193,7 @@ const getSelectedResources = async (allResources: SelectableResource[]): Promise
  * 5. Start local workloads (containers, frontends)
  * 6. Deploy and stream logs for functions
  */
-export const commandDev = async (): Promise<DevReturnValue> => {
+export const commandDev = async () => {
   // Register cleanup hooks for dev command (must be done at runtime, not module import time)
   // These hooks are NOT registered at module load to avoid side effects when stacktape code
   // is bundled into user applications

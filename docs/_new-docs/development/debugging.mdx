@@ -1,0 +1,324 @@
+---
+title: 'Debugging'
+order: 5
+---
+
+# Debugging
+
+Stacktape provides several tools for debugging your applications: logs, container sessions, and stack inspection.
+
+## Viewing Logs
+
+### CLI Logs
+
+Stream logs from a resource:
+
+```bash
+stacktape logs --stage dev --region us-east-1 --resourceName handler
+```
+
+Options:
+
+| Option     | Description                                               |
+| ---------- | --------------------------------------------------------- |
+| `--since`  | Show logs from this time (e.g., `5m`, `1h`, `2024-01-15`) |
+| `--filter` | Filter pattern for log messages                           |
+| `--follow` | Stream logs in real-time                                  |
+
+Examples:
+
+```bash
+# Last 5 minutes of logs
+stacktape logs --stage dev --region us-east-1 --resourceName handler --since 5m
+
+# Filter for errors
+stacktape logs --stage dev --region us-east-1 --resourceName handler --filter ERROR
+
+# Stream logs in real-time
+stacktape logs --stage dev --region us-east-1 --resourceName handler --follow
+```
+
+### Console Logs
+
+The Stacktape Console provides a visual log browser:
+
+1. Navigate to your stack in the console
+2. Click on a resource
+3. Open the "Logs" tab
+4. Filter by time range and search patterns
+
+`[IMAGE PLACEHOLDER: console-logs-browser]`
+
+Features:
+
+- Time range selection
+- Pattern filtering
+- Live tail mode
+- Download logs
+
+## Container Sessions
+
+Open an interactive shell inside a running container:
+
+```bash
+stacktape container:session --stage dev --region us-east-1 --resourceName api
+```
+
+This starts an SSH-like session using AWS Systems Manager (SSM):
+
+```
+Starting session with container...
+Connected to container api-abc123
+
+sh-4.2$ ls -la
+sh-4.2$ cat /app/logs/error.log
+sh-4.2$ exit
+```
+
+### Use Cases
+
+- Inspect container filesystem
+- Check running processes
+- Debug application state
+- View local logs
+- Test network connectivity
+
+### Requirements
+
+- Container must be running
+- ECS Exec must be enabled (Stacktape enables this by default)
+- Appropriate IAM permissions
+
+## Bastion Sessions
+
+Connect to a bastion host for VPC access:
+
+```bash
+stacktape bastion:session --stage dev --region us-east-1 --bastionResource bastion
+```
+
+From the bastion, you can:
+
+```bash
+# Connect to a private database
+psql -h private-db.internal -U postgres
+
+# Test network connectivity
+curl http://private-service.internal:3000/health
+
+# Debug DNS resolution
+nslookup private-db.internal
+```
+
+## Bastion Tunneling
+
+Create a tunnel through the bastion to access private resources from your local machine:
+
+```bash
+stacktape bastion:tunnel --stage dev --region us-east-1 \
+  --bastionResource bastion \
+  --resourceName database
+```
+
+This creates a local port forward:
+
+```
+Tunnel established:
+  Local:  localhost:5432
+  Remote: private-db.cluster-abc.us-east-1.rds.amazonaws.com:5432
+
+You can now connect with:
+  psql -h localhost -p 5432 -U postgres
+```
+
+Use your local database tools (pgAdmin, DBeaver, Prisma Studio) to connect via the tunnel.
+
+## Stack Information
+
+View information about your deployed stack:
+
+```bash
+stacktape stack:info --stage dev --region us-east-1
+```
+
+Output:
+
+```
+Stack: my-app-dev
+Status: DEPLOYED
+Region: us-east-1
+
+Resources:
+  handler:
+    Type: function
+    URL: https://abc123.lambda-url.us-east-1.on.aws
+  api:
+    Type: http-api-gateway
+    URL: https://xyz789.execute-api.us-east-1.amazonaws.com
+  database:
+    Type: relational-database
+    Host: my-app-dev-db.cluster-abc.us-east-1.rds.amazonaws.com
+```
+
+### Detailed Information
+
+Get detailed CloudFormation information:
+
+```bash
+stacktape stack:info --stage dev --region us-east-1 --detailed
+```
+
+This shows all child CloudFormation resources and their properties.
+
+## Getting Resource Parameters
+
+Get specific parameters from a resource:
+
+```bash
+stacktape param:get --stage dev --region us-east-1 \
+  --resourceName database \
+  --paramName connectionString
+```
+
+Output:
+
+```
+postgresql://master:password@my-app-dev-db.cluster-abc.us-east-1.rds.amazonaws.com:5432/myapp
+```
+
+Useful for debugging connection issues or scripting.
+
+## Preview Changes
+
+See what will change before deploying:
+
+```bash
+stacktape preview-changes --stage dev --region us-east-1
+```
+
+Output:
+
+```
+Changes to be deployed:
+
+  handler (function):
+    - Memory: 256 -> 512
+    - Timeout: 10 -> 30
+
+  database (relational-database):
+    No changes
+
+  newResource (bucket):
+    + Will be created
+```
+
+## Compile Template
+
+View the generated CloudFormation template:
+
+```bash
+stacktape compile-template --stage dev --region us-east-1
+```
+
+This creates `compiled-template.yaml` which you can inspect to understand exactly what Stacktape creates.
+
+## Common Issues
+
+### Lambda Cold Starts
+
+If your Lambda function is slow on first request:
+
+1. Check the memory setting (more memory = more CPU)
+2. Consider provisioned concurrency for critical functions
+3. Minimize package size
+4. Use warm-up requests
+
+### Container Health Check Failures
+
+If your container keeps restarting:
+
+```bash
+# Check container logs
+stacktape logs --stage dev --region us-east-1 --resourceName api --since 10m
+
+# Connect to the container
+stacktape container:session --stage dev --region us-east-1 --resourceName api
+
+# Check health endpoint manually
+curl http://localhost:3000/health
+```
+
+### Database Connection Issues
+
+If your function can't connect to the database:
+
+1. Verify `connectTo` is configured
+2. Check environment variables are set
+3. Verify security groups allow traffic
+4. For private databases, ensure Lambda is in VPC
+
+```bash
+# Check connection string
+stacktape param:get --stage dev --region us-east-1 \
+  --resourceName database --paramName connectionString
+
+# Test from bastion
+stacktape bastion:session --stage dev --region us-east-1 --bastionResource bastion
+# Then: psql -h $DB_HOST -U postgres
+```
+
+### Permission Errors
+
+If you get "Access Denied" errors:
+
+1. Check `connectTo` includes the target resource
+2. Verify IAM role has necessary permissions
+3. Check `iamRoleStatements` for custom permissions
+
+```bash
+# View the function's IAM role
+stacktape stack:info --stage dev --region us-east-1 --detailed
+# Look for the IAM role attached to your function
+```
+
+### Deployment Failures
+
+If deployment fails:
+
+```bash
+# Check the error message
+stacktape deploy --stage dev --region us-east-1
+
+# If stack is in a bad state, try rollback
+stacktape rollback --stage dev --region us-east-1
+
+# View CloudFormation events in AWS Console for more details
+```
+
+## Log Forwarding
+
+Forward logs to external services for advanced analysis:
+
+```yaml
+logForwarding:
+  httpEndpoint:
+    url: https://logs.example.com/ingest
+    accessKey: $Secret('log-service-key')
+```
+
+Or use built-in integrations:
+
+```yaml
+logForwarding:
+  datadog:
+    apiKey: $Secret('datadog-api-key')
+```
+
+See [Log Forwarding](/operations/logs#log-forwarding) for more details.
+
+## Next Steps
+
+<NavBoxGrid columns={2}>
+  <NavBox url="/operations/logs" text="Logs & Monitoring" description="Centralized logging and monitoring" />
+  <NavBox url="/security/bastions" text="Bastions" description="Secure access to private resources" />
+</NavBoxGrid>

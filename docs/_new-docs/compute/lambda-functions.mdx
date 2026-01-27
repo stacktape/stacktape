@@ -1,0 +1,548 @@
+---
+title: 'Lambda Functions'
+order: 2
+---
+
+# Lambda Functions
+
+Lambda functions are serverless compute that runs your code in response to events. You don't manage servers—AWS handles scaling, patching, and availability.
+
+**Type:** `function`
+
+## When to Use
+
+**Advantages:**
+
+- **Pay-per-use**: Only pay for execution time (billed per millisecond)
+- **Instant scaling**: Scales to thousands of concurrent executions
+- **Zero maintenance**: No servers to manage
+- **High availability**: Runs across multiple availability zones
+
+**Disadvantages:**
+
+- **15-minute limit**: Maximum execution time is 15 minutes
+- **Cold starts**: First invocation may have latency
+- **Limited configuration**: Only memory is configurable (CPU scales with memory)
+- **Stateless**: No persistent local storage between invocations
+
+**Best for:** APIs, webhooks, event processing, scheduled tasks, real-time file processing.
+
+## Basic Example
+
+```yaml
+resources:
+  api:
+    type: http-api-gateway
+
+  handler:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/handler.ts
+      events:
+        - type: http-api-integration
+          properties:
+            httpApiGatewayName: api
+            method: GET
+            path: /
+```
+
+```typescript
+// src/handler.ts
+export const handler = async (event: any) => {
+  return {
+    statusCode: 200,
+    body: JSON.stringify({ message: 'Hello World' })
+  };
+};
+```
+
+## Packaging
+
+### Stacktape Lambda Buildpack (Recommended)
+
+Zero-config packaging that handles bundling, dependencies, and optimization.
+
+```yaml
+packaging:
+  type: stacktape-lambda-buildpack
+  properties:
+    entryfilePath: ./src/handler.ts
+```
+
+#### TypeScript/JavaScript
+
+Stacktape uses **esbuild** for fast bundling:
+
+- Automatic TypeScript compilation
+- Tree-shaking to minimize bundle size
+- Source maps for debugging
+- CommonJS and ESM support
+
+```yaml
+packaging:
+  type: stacktape-lambda-buildpack
+  properties:
+    entryfilePath: ./src/handler.ts
+    # Optional: customize esbuild
+    esbuildOptions:
+      minify: true
+      sourcemap: true
+      target: 'node20'
+```
+
+#### Handling Native Dependencies
+
+For packages with native binaries (like `sharp`, `bcrypt`, `pg-native`):
+
+```yaml
+packaging:
+  type: stacktape-lambda-buildpack
+  properties:
+    entryfilePath: ./src/handler.ts
+    # Build native dependencies in Docker for Lambda compatibility
+    installCommandOverride: npm ci --platform=linux --arch=x64
+```
+
+Or use `external` to exclude packages from bundling:
+
+```yaml
+packaging:
+  type: stacktape-lambda-buildpack
+  properties:
+    entryfilePath: ./src/handler.ts
+    esbuildOptions:
+      external:
+        - sharp
+        - '@aws-sdk/*' # Already available in Lambda runtime
+```
+
+#### Python
+
+```yaml
+packaging:
+  type: stacktape-lambda-buildpack
+  properties:
+    entryfilePath: ./src/handler.py
+    runtime: python3.12
+```
+
+Supports pip, pipenv, and poetry for dependency management:
+
+```python
+# requirements.txt or Pipfile or pyproject.toml
+requests==2.31.0
+boto3==1.28.0
+```
+
+#### Java
+
+```yaml
+packaging:
+  type: stacktape-lambda-buildpack
+  properties:
+    entryfilePath: ./src/main/java/Handler.java
+    runtime: java21
+```
+
+Supports Gradle and Maven. Stacktape converts Maven to Gradle internally for faster builds.
+
+#### Go
+
+```yaml
+packaging:
+  type: stacktape-lambda-buildpack
+  properties:
+    entryfilePath: ./main.go
+    runtime: provided.al2023
+```
+
+### Custom Artifact
+
+Use your own pre-built deployment package:
+
+```yaml
+packaging:
+  type: custom-artifact
+  properties:
+    artifactPath: ./dist/function.zip
+    runtime: nodejs20.x
+    handler: index.handler
+```
+
+Build the artifact yourself:
+
+```bash
+# Build and zip
+npm run build
+cd dist && zip -r function.zip .
+```
+
+## Memory and CPU
+
+Lambda allocates CPU proportionally to memory:
+
+| Memory   | vCPUs |
+| -------- | ----- |
+| 128 MB   | ~0.1  |
+| 512 MB   | ~0.3  |
+| 1024 MB  | ~0.6  |
+| 1769 MB  | 1.0   |
+| 3008 MB  | 2.0   |
+| 10240 MB | 6.0   |
+
+```yaml
+resources:
+  handler:
+    type: function
+    properties:
+      memory: 1024 # 1 GB, approximately 0.6 vCPU
+      timeout: 30 # seconds (max 900)
+```
+
+## Event Triggers
+
+### HTTP API Gateway
+
+```yaml
+resources:
+  api:
+    type: http-api-gateway
+
+  handler:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/handler.ts
+      events:
+        - type: http-api-integration
+          properties:
+            httpApiGatewayName: api
+            method: GET
+            path: /users
+        - type: http-api-integration
+          properties:
+            httpApiGatewayName: api
+            method: POST
+            path: /users
+        - type: http-api-integration
+          properties:
+            httpApiGatewayName: api
+            method: '*'
+            path: /admin/*
+```
+
+### Schedule (Cron/Rate)
+
+```yaml
+events:
+  # Run every hour
+  - type: schedule-integration
+    properties:
+      scheduleRate: rate(1 hour)
+
+  # Run at 9am UTC every weekday
+  - type: schedule-integration
+    properties:
+      scheduleRate: cron(0 9 ? * MON-FRI *)
+```
+
+### SQS Queue
+
+```yaml
+resources:
+  queue:
+    type: sqs-queue
+
+  processor:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/processor.ts
+      events:
+        - type: sqs-integration
+          properties:
+            sqsQueueName: queue
+            batchSize: 10
+            maxBatchWindowSeconds: 5
+```
+
+### SNS Topic
+
+```yaml
+events:
+  - type: sns-integration
+    properties:
+      snsTopicName: notifications
+```
+
+### S3 Bucket
+
+```yaml
+resources:
+  uploads:
+    type: bucket
+
+  processor:
+    type: function
+    properties:
+      events:
+        - type: s3-integration
+          properties:
+            bucketArn: $ResourceParam('uploads', 'bucketArn')
+            s3EventType: 's3:ObjectCreated:*'
+            filterRule:
+              prefix: uploads/
+              suffix: .jpg
+```
+
+### DynamoDB Stream
+
+```yaml
+resources:
+  usersTable:
+    type: dynamo-db-table
+    properties:
+      streamType: NEW_AND_OLD_IMAGES
+
+  streamProcessor:
+    type: function
+    properties:
+      events:
+        - type: dynamo-db-integration
+          properties:
+            streamArn: $ResourceParam('usersTable', 'streamArn')
+            startingPosition: LATEST
+            batchSize: 100
+```
+
+### EventBridge
+
+```yaml
+events:
+  - type: event-bridge-integration
+    properties:
+      eventBusName: events
+      eventPattern:
+        source:
+          - my-application
+        detail-type:
+          - order-placed
+```
+
+### Kinesis Stream
+
+```yaml
+events:
+  - type: kinesis-integration
+    properties:
+      streamArn: arn:aws:kinesis:us-east-1:123456789:stream/my-stream
+      startingPosition: LATEST
+      batchSize: 100
+```
+
+### Application Load Balancer
+
+```yaml
+resources:
+  alb:
+    type: application-load-balancer
+
+  handler:
+    type: function
+    properties:
+      events:
+        - type: load-balancer-integration
+          properties:
+            loadBalancerName: alb
+            priority: 1
+            paths:
+              - /api/*
+```
+
+## Environment Variables
+
+```yaml
+resources:
+  handler:
+    type: function
+    properties:
+      environment:
+        - name: NODE_ENV
+          value: production
+        - name: API_KEY
+          value: $Secret('api-key')
+        - name: DATABASE_URL
+          value: $ResourceParam('database', 'connectionString')
+```
+
+Or with `connectTo` for automatic injection:
+
+```yaml
+connectTo:
+  - database
+  - cache
+  - uploads
+```
+
+## VPC Configuration
+
+By default, Lambda runs outside your VPC. To access VPC resources (like private databases):
+
+```yaml
+resources:
+  database:
+    type: relational-database
+    properties:
+      accessibility:
+        accessibilityMode: vpc
+
+  handler:
+    type: function
+    properties:
+      connectTo:
+        - database # Automatically configures VPC
+```
+
+<Warning>
+  Lambda functions in a VPC cannot access the internet without a NAT Gateway. For most use cases, keep databases
+  publicly accessible (with security groups) during development.
+</Warning>
+
+## Cold Starts
+
+Cold starts occur when AWS needs to initialize a new execution environment. Typical cold start times:
+
+| Runtime | Cold Start  |
+| ------- | ----------- |
+| Node.js | 100-500ms   |
+| Python  | 100-500ms   |
+| Java    | 1-5 seconds |
+| Go      | 50-100ms    |
+
+### Reducing Cold Starts
+
+1. **Minimize package size**: Use tree-shaking, exclude unnecessary dependencies
+2. **Increase memory**: More memory = faster initialization
+3. **Keep functions warm**: Use scheduled events for critical functions
+4. **Use provisioned concurrency**: Pre-initialize execution environments
+
+```yaml
+resources:
+  handler:
+    type: function
+    properties:
+      memory: 1024
+      provisionedConcurrency: 5 # Keep 5 instances warm
+```
+
+## Connecting to Resources
+
+```yaml
+resources:
+  database:
+    type: relational-database
+    properties:
+      engine:
+        type: postgres
+
+  uploads:
+    type: bucket
+
+  handler:
+    type: function
+    properties:
+      connectTo:
+        - database
+        - uploads
+```
+
+Your function receives:
+
+```typescript
+// Available environment variables
+process.env.STP_DATABASE_CONNECTION_STRING;
+process.env.STP_DATABASE_HOST;
+process.env.STP_UPLOADS_BUCKET_NAME;
+```
+
+## Logging
+
+Logs are automatically sent to CloudWatch. Access them via:
+
+```bash
+# CLI
+stacktape logs --stage dev --region us-east-1 --resourceName handler
+
+# Or in the Stacktape Console
+```
+
+Configure log retention:
+
+```yaml
+resources:
+  handler:
+    type: function
+    properties:
+      logging:
+        retention: 14 # days
+```
+
+## Destinations (Async Results)
+
+For asynchronous invocations, send results to another resource:
+
+```yaml
+resources:
+  handler:
+    type: function
+    properties:
+      destinations:
+        onSuccess:
+          type: sqs
+          properties:
+            sqsQueueName: successQueue
+        onFailure:
+          type: sqs
+          properties:
+            sqsQueueName: failureQueue
+```
+
+## Pricing
+
+Lambda pricing (us-east-1):
+
+- **Requests**: $0.20 per 1 million requests
+- **Duration**: $0.0000166667 per GB-second
+
+Example: 1 million requests/month at 128MB for 200ms each:
+
+- Requests: 1M × $0.20/M = $0.20
+- Duration: 1M × 0.2s × 0.125GB × $0.0000166667 = $0.42
+- **Total: ~$0.62/month**
+
+First 1 million requests and 400,000 GB-seconds are free each month.
+
+## Referenceable Parameters
+
+| Parameter | Description   |
+| --------- | ------------- |
+| `arn`     | Function ARN  |
+| `name`    | Function name |
+| `roleArn` | IAM role ARN  |
+
+```yaml
+environment:
+  - name: FUNCTION_ARN
+    value: $ResourceParam('handler', 'arn')
+```
+
+## API Reference
+
+<PropertiesTable definitionName="FunctionConfig" />

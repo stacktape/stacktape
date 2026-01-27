@@ -1,0 +1,196 @@
+---
+title: 'Upstash Redis'
+order: 6
+---
+
+# Upstash Redis
+
+Serverless Redis database optimized for edge computing and serverless applications.
+
+**Type:** `upstash-redis`
+
+## When to Use
+
+**Advantages:**
+
+- **Serverless**: Pay per request, scales to zero
+- **Edge-optimized**: Low latency globally
+- **REST API**: HTTP-based access (no persistent connections)
+- **Simple setup**: No VPC configuration needed
+
+**Disadvantages:**
+
+- **Third-party**: Managed by Upstash, not AWS
+- **Limited features**: Subset of Redis commands
+- **Cost at scale**: Can be expensive for high throughput
+
+**Best for:** Serverless functions, edge computing, rate limiting, session storage for Lambda.
+
+## Prerequisites
+
+1. Create an Upstash account at upstash.com
+2. Generate an API key
+3. Store it in Stacktape secrets
+
+```bash
+stacktape secret:set --name upstash-api-key --value your-api-key
+stacktape secret:set --name upstash-email --value your-email
+```
+
+## Basic Example
+
+```yaml
+resources:
+  cache:
+    type: upstash-redis
+```
+
+## Configuration
+
+### Enable Eviction
+
+Automatically evict keys when memory limit is reached:
+
+```yaml
+resources:
+  cache:
+    type: upstash-redis
+    properties:
+      enableEviction: true
+```
+
+## Connecting from Compute
+
+```yaml
+resources:
+  cache:
+    type: upstash-redis
+
+  api:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/handler.ts
+      connectTo:
+        - cache
+```
+
+### Using REST API (Recommended for Serverless)
+
+```typescript
+// No connection overhead - perfect for Lambda
+const response = await fetch(process.env.STP_CACHE_REST_URL, {
+  method: 'POST',
+  headers: {
+    Authorization: `Bearer ${process.env.STP_CACHE_REST_TOKEN}`
+  },
+  body: JSON.stringify(['SET', 'key', 'value'])
+});
+```
+
+Or use the Upstash Redis client:
+
+```typescript
+import { Redis } from '@upstash/redis';
+
+const redis = new Redis({
+  url: process.env.STP_CACHE_REST_URL,
+  token: process.env.STP_CACHE_REST_TOKEN
+});
+
+await redis.set('user:123', { name: 'John' });
+const user = await redis.get('user:123');
+```
+
+### Using Traditional Redis Client
+
+```typescript
+import Redis from 'ioredis';
+
+const redis = new Redis(process.env.STP_CACHE_REDIS_URL);
+
+await redis.set('key', 'value');
+const value = await redis.get('key');
+```
+
+## Common Patterns
+
+### Rate Limiting for API
+
+```typescript
+import { Ratelimit } from '@upstash/ratelimit';
+import { Redis } from '@upstash/redis';
+
+const ratelimit = new Ratelimit({
+  redis: new Redis({
+    url: process.env.STP_CACHE_REST_URL,
+    token: process.env.STP_CACHE_REST_TOKEN
+  }),
+  limiter: Ratelimit.slidingWindow(10, '10 s')
+});
+
+export async function handler(event) {
+  const ip = event.requestContext.http.sourceIp;
+  const { success } = await ratelimit.limit(ip);
+
+  if (!success) {
+    return { statusCode: 429, body: 'Too Many Requests' };
+  }
+
+  // Process request
+}
+```
+
+### Session Storage
+
+```typescript
+import { Redis } from '@upstash/redis';
+
+const redis = new Redis({
+  url: process.env.STP_CACHE_REST_URL,
+  token: process.env.STP_CACHE_REST_TOKEN
+});
+
+async function getSession(sessionId: string) {
+  return redis.get(`session:${sessionId}`);
+}
+
+async function setSession(sessionId: string, data: object, ttlSeconds = 3600) {
+  await redis.setex(`session:${sessionId}`, ttlSeconds, JSON.stringify(data));
+}
+```
+
+## Upstash vs ElastiCache Redis
+
+| Feature         | Upstash Redis         | ElastiCache Redis |
+| --------------- | --------------------- | ----------------- |
+| **Pricing**     | Pay per request       | Pay per hour      |
+| **Scaling**     | Automatic             | Manual            |
+| **Connections** | Connectionless (REST) | Persistent        |
+| **Network**     | Internet accessible   | VPC only          |
+| **Latency**     | ~1-5ms                | ~0.5ms            |
+| **Best for**    | Serverless, edge      | High throughput   |
+
+## Pricing
+
+- **Commands**: $0.20 per 100K commands
+- **Storage**: $0.25 per GB/month
+- **Free tier**: 10K commands/day
+
+## Referenceable Parameters
+
+| Parameter           | Description          |
+| ------------------- | -------------------- |
+| `host`              | Redis hostname       |
+| `port`              | Redis port           |
+| `password`          | Redis password       |
+| `redisUrl`          | Full Redis URL       |
+| `restUrl`           | REST API URL         |
+| `restToken`         | REST API token       |
+| `readOnlyRestToken` | Read-only REST token |
+
+## API Reference
+
+<PropertiesTable definitionName="UpstashRedisConfig" />

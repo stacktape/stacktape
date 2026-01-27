@@ -12,7 +12,7 @@ import { applicationManager } from '@application-services/application-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import logUpdate from 'log-update';
 import { setSpinnerDevTuiActive } from '../spinners';
-import { formatDuration, getWorkloadColor, resetWorkloadColors } from './components/utils';
+import { formatDuration, getWorkloadColor, resetWorkloadColors } from './utils';
 import { type BufferedLog, type RebuildStep, getRebuildRenderer, stopRebuild } from './rebuild';
 import { devTuiState } from './state';
 
@@ -471,7 +471,6 @@ class DevTuiManager {
 
       if (data.toString().charCodeAt(0) === 12) {
         console.clear();
-        return;
       }
     });
   }
@@ -496,10 +495,9 @@ ${workloads.map((w, idx) => `    ${tuiManager.colorize('white', String(idx + 1))
     const boxWidth = 78;
     const title = ' Dev mode ready ';
     const padLen = Math.floor((boxWidth - title.length) / 2);
-    const topLine = '┌' + '─'.repeat(boxWidth) + '┐';
-    const titleLine =
-      '│' + ' '.repeat(padLen) + tuiManager.makeBold(title) + ' '.repeat(boxWidth - padLen - title.length) + '│';
-    const bottomLine = '└' + '─'.repeat(boxWidth) + '┘';
+    const topLine = `┌${'─'.repeat(boxWidth)}┐`;
+    const titleLine = `│${' '.repeat(padLen)}${tuiManager.makeBold(title)}${' '.repeat(boxWidth - padLen - title.length)}│`;
+    const bottomLine = `└${'─'.repeat(boxWidth)}┘`;
 
     const lines = [
       tuiManager.colorize('cyan', topLine),

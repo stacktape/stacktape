@@ -5,6 +5,7 @@
   "private": true,
   "scripts": {
     "dev": "bun enhance:config:schema && concurrently -k -n next,watch -c cyan,yellow \"next dev --port 9001\" \"bun scripts/watch-content.ts\"",
+    "dev:new-docs": "bun enhance:config:schema && concurrently -k -n next,watch -c cyan,yellow \"cross-env NEXT_PUBLIC_DOCS_CONTENT_DIR=_new-docs DOCS_CONTENT_DIR=_new-docs next dev --port 9002\" \"bun scripts/watch-content-new.ts\"",
     "dev:next": "next dev --port 9001",
     "dev:watch": "bun scripts/watch-content.ts",
     "build": "bun enhance:config:schema && next build && next-sitemap --config next-sitemap.config.js",
@@ -70,6 +71,7 @@
     "zustand": "^5.0.8"
   },
   "devDependencies": {
+    "cross-env": "^10.1.0",
     "@emotion/babel-plugin": "^11.13.5",
     "@emotion/react": "^11.14.0",
     "@eslint/eslintrc": "^3.3.1",

@@ -21,34 +21,6 @@ function resolveConfigSchemaRef(ref: string): Record<string, any> {
   return get(configSchema, getJsObjPathFromRefPath(ref));
 }
 
-type RefObj = {
-  $ref: string;
-} & Record<string, any>;
-
-function isRefObject(obj: any): obj is RefObj {
-  return !!obj.$ref;
-}
-
-type AnyOfObj = {
-  anyOf: Array<Record<string, any>>;
-} & Record<string, any>;
-
-function isAnyOfObject(obj: any): obj is AnyOfObj {
-  return !!obj.anyOf;
-}
-
-function dereferenceJsonSchemaObject(obj: Record<string, any> | null) {
-  if (!obj) {
-    return {};
-  }
-
-  if (isRefObject(obj)) {
-    return resolveConfigSchemaRef(obj.$ref);
-  }
-
-  return obj;
-}
-
 const COMPUTE_RESOURCES: StpResourceType[] = [
   'web-service',
   'function',

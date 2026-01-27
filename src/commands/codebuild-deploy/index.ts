@@ -31,7 +31,7 @@ import { getStacktapeVersion } from '@utils/versioning';
 import { potentiallyPromptBeforeOperation, saveDetailedStackInfoMap } from '../_utils/common';
 import { initializeAllStackServices } from '../_utils/initialization';
 
-export const commandCodebuildDeploy = async (): Promise<CodebuildDeployReturnValue> => {
+export const commandCodebuildDeploy = async () => {
   // Configure TUI for codebuild deploy (Initialize, Prepare Pipeline, Deploy - no Build & Package)
   tuiManager.configureForCodebuildDeploy();
 

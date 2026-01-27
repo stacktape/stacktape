@@ -319,6 +319,6 @@ export const getCodebuildLogStreamNameFromBuildInfo = ({ buildInfo }: { buildInf
   return `${buildInfo.logs?.cloudWatchLogs?.streamName}/${buildInfo.arn.split(':').at(-1)}`;
 };
 
-const getCodebuildLogGroupNameFromBuildInfo = ({ buildInfo }: { buildInfo: Build }) => {
+export const getCodebuildLogGroupNameFromBuildInfo = ({ buildInfo }: { buildInfo: Build }) => {
   return buildInfo.logs?.cloudWatchLogs?.groupName;
 };

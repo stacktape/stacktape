@@ -4,7 +4,7 @@ import { GetCallerIdentityCommand, STSClient } from '@aws-sdk/client-sts';
 import { SignatureV4 } from '@aws-sdk/signature-v4';
 import { createRequest } from '@aws-sdk/util-create-request';
 
-type SignedRequest = { [key: string]: unknown };
+type SignedRequest = { headers: Record<string, string>; [key: string]: unknown };
 
 export const getSignedGetCallerIdentityRequest = async ({
   credentials,

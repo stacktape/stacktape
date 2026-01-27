@@ -1,0 +1,37 @@
+---
+title: 'script:run'
+order: 30
+---
+
+# script:run
+
+Executes a script defined in your configuration.
+
+You can pass environment variables to the script using the `--env` option (e.g., `--env MY_VAR=my_value`).
+
+To learn more, refer to the [scripts documentation](https://docs.stacktape.com/configuration/scripts/).
+
+## Usage
+
+```bash
+stacktape script:run --stage <stage>
+```
+
+## Options
+
+| Option | Required | Type | Description |
+|--------|----------|------|-------------|
+| `--profile` (-p) | No | string |  |
+| `--logFormat` (-lf) | No | string |  |
+| `--logLevel` (-ll) | No | string |  |
+| `--help` (-h) | No | string |  |
+| `--awsAccount` (-aa) | No | string |  |
+| `--stage` (-s) | Yes | string |  |
+| `--region` (-r) | No | string |  |
+| `--projectName` (-prj) | No | string |  |
+| `--configPath` (-cp) | No | string |  |
+| `--currentWorkingDirectory` (-cwd) | No | string |  |
+| `--templateId` (-ti) | No | string |  |
+| `--env` (-env) | No | string |  |
+| `--scriptName` (-scn) | Yes | string |  |
+| `--assumeRoleOfResource` (-aror) | No | string |  |

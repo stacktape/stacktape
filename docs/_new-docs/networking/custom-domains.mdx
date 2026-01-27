@@ -1,0 +1,173 @@
+---
+title: 'Custom Domains'
+order: 6
+---
+
+# Custom Domains
+
+Configure custom domain names with automatic TLS certificates for your resources.
+
+## How It Works
+
+When you specify a custom domain, Stacktape automatically:
+
+1. Creates or validates a TLS certificate via AWS Certificate Manager
+2. Configures the certificate on your load balancer/API Gateway/CDN
+3. Creates DNS records in Route 53 (if your domain is hosted there)
+
+## Domain in Route 53
+
+If your domain is registered or hosted in Route 53:
+
+```yaml
+resources:
+  api:
+    type: http-api-gateway
+    properties:
+      customDomains:
+        - domainName: api.myapp.com
+```
+
+That's it! Stacktape handles everything.
+
+## Domain with External DNS
+
+If your domain is hosted elsewhere:
+
+```yaml
+resources:
+  api:
+    type: http-api-gateway
+    properties:
+      customDomains:
+        - domainName: api.myapp.com
+          disableDnsRecordCreation: true
+```
+
+After deployment:
+
+1. Get the load balancer/CloudFront DNS name from stack outputs
+2. Create a CNAME record at your DNS provider pointing to it
+
+## Using Existing Certificate
+
+If you have an existing ACM certificate:
+
+```yaml
+resources:
+  api:
+    type: http-api-gateway
+    properties:
+      customDomains:
+        - domainName: api.myapp.com
+          customCertificateArn: arn:aws:acm:us-east-1:123456789:certificate/xxx
+```
+
+## Multiple Domains
+
+```yaml
+resources:
+  website:
+    type: hosting-bucket
+    properties:
+      uploadDirectoryPath: ./dist
+      cdn:
+        customDomains:
+          - domainName: myapp.com
+          - domainName: www.myapp.com
+```
+
+## Stage-Based Subdomains
+
+Use different subdomains for different stages:
+
+```yaml
+resources:
+  api:
+    type: http-api-gateway
+    properties:
+      customDomains:
+        - domainName: $Format('{}-api.myapp.com', $Stage())
+```
+
+This creates:
+
+- `dev-api.myapp.com` for dev stage
+- `prod-api.myapp.com` for prod stage
+
+## Apex Domain (Root Domain)
+
+For apex domains (e.g., `myapp.com` without `www`):
+
+```yaml
+resources:
+  website:
+    type: hosting-bucket
+    properties:
+      uploadDirectoryPath: ./dist
+      cdn:
+        customDomains:
+          - domainName: myapp.com
+```
+
+<Warning>
+  Apex domains require Route 53 for DNS. External DNS providers don't support ALIAS records for apex domains with
+  CloudFront.
+</Warning>
+
+## Wildcard Domains
+
+```yaml
+resources:
+  api:
+    type: http-api-gateway
+    properties:
+      customDomains:
+        - domainName: '*.api.myapp.com'
+```
+
+## Resources Supporting Custom Domains
+
+| Resource                  | Property Path                          |
+| ------------------------- | -------------------------------------- |
+| HTTP API Gateway          | `customDomains` or `cdn.customDomains` |
+| Application Load Balancer | `customDomains` or `cdn.customDomains` |
+| Network Load Balancer     | `customDomains`                        |
+| Hosting Bucket            | `cdn.customDomains`                    |
+| Bucket (with CDN)         | `cdn.customDomains`                    |
+| Web Service               | `customDomains`                        |
+| Next.js Website           | `customDomains`                        |
+
+## Certificate Validation
+
+For new domains, AWS needs to validate you own the domain:
+
+**Route 53 domains**: Automatic DNS validation
+
+**External DNS**:
+
+1. Stacktape outputs CNAME records for validation
+2. Add these records at your DNS provider
+3. Wait for validation (can take 30+ minutes)
+4. Redeploy after validation completes
+
+## Common Issues
+
+### Certificate Stuck in Pending
+
+If using external DNS, ensure you've added the validation CNAME records correctly.
+
+### Deployment Times Out
+
+Certificate validation can take time. If deployment times out:
+
+1. Check ACM console for validation status
+2. Ensure CNAME records are correct
+3. Redeploy after certificate is validated
+
+### Apex Domain Not Working
+
+Apex domains (without www) require:
+
+- Domain hosted in Route 53, OR
+- Using CloudFront with external DNS CNAME (won't work for apex)

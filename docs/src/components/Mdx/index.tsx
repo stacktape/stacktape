@@ -6,6 +6,7 @@ import { colors } from '../../styles/variables';
 import { Badge } from './Badge';
 import { CliCommandsApiReference } from './CliCommandsApiReference';
 import { CodeBlock, MdxCodeBlock } from './CodeBlock';
+import { DecisionTree, ProjectStructure, FlowDiagram } from './DecisionTree';
 import { DeploymentOptions, GettingStartedOptions, NavBox, NavBoxGrid } from './DeploymentOptions';
 import { Divider } from './Divider';
 import { EngineVersionsList } from './EngineVersionList';
@@ -220,7 +221,10 @@ export const MdxComponents = {
   GettingStartedOptions,
   ResourceList,
   NavBox,
-  NavBoxGrid
+  NavBoxGrid,
+  DecisionTree,
+  ProjectStructure,
+  FlowDiagram
 };
 
 // <hr

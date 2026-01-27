@@ -31,7 +31,7 @@ import { getECSHotswapInformation, updateEcsService } from '../_utils/cw-deploym
 import { getLambdaFunctionHotswapInformation, updateFunctionCode } from '../_utils/fn-deployment';
 import { initializeAllStackServices } from '../_utils/initialization';
 
-export const commandDeploy = async (): Promise<DeployReturnValue> => {
+export const commandDeploy = async () => {
   await initializeAllStackServices({
     commandRequiresDeployedStack: false,
     commandModifiesStack: true,

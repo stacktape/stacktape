@@ -1,13 +1,14 @@
 import { CLI_SOURCE_PATH, DEV_TMP_FOLDER_PATH } from '@shared/naming/project-fs-paths';
-import { dynamicRequire, transformToUnixPath } from '@shared/utils/fs-utils';
+import { dynamicRequire } from '@shared/utils/fs-utils';
 import { logError, logInfo, logWarn } from '@shared/utils/logging';
 import packageJson from '../package.json';
 import { packageHelperLambdas } from './package-helper-lambdas';
+import 'dotenv/config';
 
 const buildSource = async () => {
   const result = await Bun.build({
-    entrypoints: [transformToUnixPath(CLI_SOURCE_PATH)],
-    outdir: transformToUnixPath(DEV_TMP_FOLDER_PATH),
+    entrypoints: [CLI_SOURCE_PATH],
+    outdir: DEV_TMP_FOLDER_PATH,
     target: 'bun',
     minify: false,
     sourcemap: 'inline',

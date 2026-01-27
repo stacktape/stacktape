@@ -31,6 +31,18 @@ type DeleteDefaultDomainDnsRecordParams = {
   version: number;
 };
 
+const TRPC_REQUEST_TIMEOUT_MS = 30000; // 30 seconds
+
+const fetchWithTimeout = async (url: any, options: any) => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), TRPC_REQUEST_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+};
+
 const createTrpcAwsIdentityProtectedClient = ({
   credentials,
   region,
@@ -48,7 +60,8 @@ const createTrpcAwsIdentityProtectedClient = ({
           aws_identity: Buffer.from(
             JSON.stringify(await getSignedGetCallerIdentityRequest({ credentials, region }))
           ).toString('base64')
-        })
+        }),
+        fetch: fetchWithTimeout as any
       })
     ]
   } as CreateTRPCClientOptions<any>);
