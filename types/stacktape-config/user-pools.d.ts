@@ -318,6 +318,21 @@ interface UserAuthPoolProps {
    */
   useFirewall?: string;
   /**
+   * #### Custom Domain
+   *
+   * ---
+   *
+   * Configures a custom domain for the Cognito Hosted UI (e.g., `auth.example.com`).
+   *
+   * When configured, Cognito creates a CloudFront distribution to serve your custom domain.
+   * Stacktape automatically:
+   * - Configures the user pool domain with your custom domain and an ACM certificate from us-east-1
+   * - Creates a DNS record pointing to the CloudFront distribution
+   *
+   * The domain must be registered and verified in your Stacktape account with a valid ACM certificate in us-east-1.
+   */
+  customDomain?: UserPoolCustomDomainConfiguration;
+  /**
    * #### Generate a client secret
    *
    * ---
@@ -348,6 +363,38 @@ interface UserAuthPoolProps {
 type AllowedOauthFlow = 'code' | 'implicit' | 'client_credentials';
 
 type UserVerificationType = 'email-link' | 'email-code' | 'sms' | 'none';
+
+interface UserPoolCustomDomainConfiguration {
+  /**
+   * #### Domain Name
+   *
+   * ---
+   *
+   * Fully qualified domain name for the Cognito Hosted UI (e.g., `auth.example.com`).
+   */
+  domainName: string;
+  /**
+   * #### Custom Certificate ARN
+   *
+   * ---
+   *
+   * ARN of an ACM certificate in **us-east-1** to use for this domain.
+   * By default, Stacktape uses the certificate associated with your domain in us-east-1.
+   *
+   * The certificate must be in us-east-1 because Cognito uses CloudFront for custom domains.
+   */
+  customCertificateArn?: string;
+  /**
+   * #### Disable DNS Record Creation
+   *
+   * ---
+   *
+   * If `true`, Stacktape will not create a DNS record for this domain.
+   *
+   * @default false
+   */
+  disableDnsRecordCreation?: boolean;
+}
 
 interface UserPoolHooks {
   /**

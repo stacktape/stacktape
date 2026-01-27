@@ -1756,6 +1756,15 @@ export class ConfigManager {
       }
     );
 
+    this.userPools.forEach(({ name, customDomain }) => {
+      if (customDomain) {
+        const fullDomainName = customDomain.domainName;
+        domainAssociations[fullDomainName] = (domainAssociations[fullDomainName] || []).concat(name);
+        const rootDomain = getApexDomain(fullDomainName);
+        resultDomains.add(rootDomain);
+      }
+    });
+
     Object.entries(domainAssociations).forEach(([fullDomainName, associations]) => {
       if (associations.length > 1) {
         throw stpErrors.e47({ fullDomainName, associations });

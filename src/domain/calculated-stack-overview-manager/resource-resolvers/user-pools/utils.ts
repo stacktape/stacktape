@@ -8,6 +8,8 @@ import UserPoolUiCustomizationAttachment from '@cloudform/cognito/userPoolUiCust
 import { GetAtt, Ref } from '@cloudform/functions';
 import Role from '@cloudform/iam/role';
 import Permission from '@cloudform/lambda/permission';
+import Route53Record from '@cloudform/route53/recordSet';
+import { domainManager } from '@domain-services/domain-manager';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { awsResourceNames } from '@shared/naming/aws-resource-names';
 import { cfLogicalNames } from '@shared/naming/logical-names';
@@ -323,6 +325,17 @@ const getSchema = (attrSchema: AttributeSchema): SchemaAttribute => {
 };
 
 export const getUserPoolDomainResource = (userPool: StpUserAuthPool, userPoolName: string) => {
+  if (userPool.customDomain) {
+    return new UserPoolDomain({
+      UserPoolId: Ref(cfLogicalNames.userPool(userPoolName)),
+      Domain: userPool.customDomain.domainName,
+      CustomDomainConfig: new UserPoolDomain.CustomDomainConfigType({
+        CertificateArn:
+          userPool.customDomain.customCertificateArn ||
+          domainManager.getCertificateForDomain(userPool.customDomain.domainName, 'cdn')
+      })
+    });
+  }
   return new UserPoolDomain({
     UserPoolId: Ref(cfLogicalNames.userPool(userPoolName)),
     Domain:
@@ -358,3 +371,17 @@ export const getUserPoolUiCustomizationAttachmentResource = (
     UserPoolId: Ref(cfLogicalNames.userPool(userPoolName))
   });
 };
+
+export const getUserPoolCustomDomainDnsRecord = (
+  userPoolName: string,
+  domainConfiguration: { fullyQualifiedDomainName: string; hostedZoneId: string }
+) =>
+  new Route53Record({
+    HostedZoneId: domainConfiguration.hostedZoneId,
+    Name: domainConfiguration.fullyQualifiedDomainName,
+    Type: 'A',
+    AliasTarget: {
+      DNSName: GetAtt(cfLogicalNames.userPoolDomain(userPoolName), 'CloudFrontDistribution'),
+      HostedZoneId: 'Z2FDTNDATAQYW2'
+    }
+  });

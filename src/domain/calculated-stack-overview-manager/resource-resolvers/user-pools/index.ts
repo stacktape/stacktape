@@ -3,6 +3,7 @@ import { GetAtt, Ref } from '@cloudform/functions';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
 import { resolveReferenceToFirewall } from '@domain-services/config-manager/utils/web-app-firewall';
+import { domainManager } from '@domain-services/domain-manager';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import { getUserPoolDomainPrefix } from '@shared/naming/utils';
 import { getWebACLAssociation } from '../_utils/firewall-helpers';
@@ -11,6 +12,7 @@ import {
   getLambdaPermissionForHookResource,
   getSnsRoleSendSmsFromCognito,
   getUserPoolClientResource,
+  getUserPoolCustomDomainDnsRecord,
   getUserPoolDetailsCustomResource,
   getUserPoolDomainResource,
   getUserPoolResource,
@@ -78,14 +80,35 @@ export const resolveUserPools = async () => {
       paramValue: GetAtt(cfLogicalNames.userPool(name), 'ProviderURL'),
       showDuringPrint: false
     });
-    calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
-      paramName: 'domain',
-      nameChain,
-      paramValue: `${getUserPoolDomainPrefix(globalStateManager.targetStack.stackName, name)}.auth.${
-        globalStateManager.region
-      }.amazoncognito.com`,
-      showDuringPrint: false
-    });
+    if (userPoolDefinition.customDomain) {
+      const customDomainName = userPoolDefinition.customDomain.domainName;
+      if (!userPoolDefinition.customDomain.disableDnsRecordCreation) {
+        domainManager.validateDomainUsability(customDomainName);
+        calculatedStackOverviewManager.addCfChildResource({
+          cfLogicalName: cfLogicalNames.dnsRecord(customDomainName),
+          resource: getUserPoolCustomDomainDnsRecord(name, {
+            fullyQualifiedDomainName: customDomainName,
+            hostedZoneId: domainManager.getDomainStatus(customDomainName).hostedZoneInfo.HostedZone.Id
+          }),
+          nameChain
+        });
+      }
+      calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
+        paramName: 'domain',
+        nameChain,
+        paramValue: customDomainName,
+        showDuringPrint: false
+      });
+    } else {
+      calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
+        paramName: 'domain',
+        nameChain,
+        paramValue: `${getUserPoolDomainPrefix(globalStateManager.targetStack.stackName, name)}.auth.${
+          globalStateManager.region
+        }.amazoncognito.com`,
+        showDuringPrint: false
+      });
+    }
     (userPoolDefinition.identityProviders || []).forEach((identityProvider) => {
       calculatedStackOverviewManager.addCfChildResource({
         cfLogicalName: cfLogicalNames.identityProvider(name, identityProvider.type),
