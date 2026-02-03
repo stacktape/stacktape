@@ -3,6 +3,7 @@ import { GetAtt, Ref } from '@cloudform/functions';
 import KinesisConsumer from '@cloudform/kinesis/streamConsumer';
 import EventSourceMapping from '@cloudform/lambda/eventSourceMapping';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
+import { resolveReferenceToKinesisStream } from '@domain-services/config-manager/utils/kinesis-streams';
 import { awsResourceNames } from '@shared/naming/aws-resource-names';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import { ExpectedError } from '@utils/errors';
@@ -59,13 +60,28 @@ export const resolveKinesisEvents = ({
             ' You can only define one of these properties or omit both of them.'
         );
       }
+
+      // Resolve streamArn from kinesisStreamName if provided
+      let streamArn: string | IntrinsicFunction = event.properties.streamArn;
+      if (event.properties.kinesisStreamName) {
+        resolveReferenceToKinesisStream({
+          referencedFrom: name,
+          referencedFromType: configParentResourceType,
+          stpResourceReference: event.properties.kinesisStreamName
+        });
+        streamArn = GetAtt(
+          cfLogicalNames.kinesisStream(event.properties.kinesisStreamName),
+          'Arn'
+        ) as unknown as string;
+      }
+
       let consumerArn = event.properties.consumerArn;
       if (event.properties.autoCreateConsumer) {
         calculatedStackOverviewManager.addCfChildResource({
           cfLogicalName: cfLogicalNames.kinesisEventConsumer(name, index),
           nameChain,
           resource: new KinesisConsumer({
-            StreamARN: event.properties.streamArn,
+            StreamARN: streamArn,
             ConsumerName: awsResourceNames.kinesisEventConsumer(globalStateManager.targetStack.stackName, name, index)
           })
         });
@@ -73,9 +89,9 @@ export const resolveKinesisEvents = ({
       }
       if (consumerArn) {
         eventInducedKinesisConsumerStatement.Resource.push(consumerArn);
-        eventInducedKinesisStreamWithConsumerStatement.Resource.push(event.properties.streamArn);
+        eventInducedKinesisStreamWithConsumerStatement.Resource.push(streamArn);
       } else {
-        eventInducedKinesisStreamStatement.Resource.push(event.properties.streamArn);
+        eventInducedKinesisStreamStatement.Resource.push(streamArn);
       }
 
       const lambdaEndpointArn = aliasLogicalName ? Ref(aliasLogicalName) : GetAtt(cfLogicalName, 'Arn');
@@ -86,8 +102,9 @@ export const resolveKinesisEvents = ({
         resource: getEventSourceMapping({
           eventDetails: event.properties,
           consumerArn,
-          lambdaEndpointArn
-        }) // roleDependency
+          lambdaEndpointArn,
+          streamArn
+        })
       });
 
       if (event.properties.onFailure?.type === 'sns') {
@@ -118,18 +135,20 @@ export const resolveKinesisEvents = ({
 const getEventSourceMapping = ({
   eventDetails,
   lambdaEndpointArn,
-  consumerArn
+  consumerArn,
+  streamArn
 }: {
   eventDetails: KinesisIntegrationProps;
   lambdaEndpointArn: string | IntrinsicFunction;
   consumerArn?: string;
+  streamArn: string | IntrinsicFunction;
 }) => {
   // const consumerDependency =
   //   !eventDetails.consumerArn ||
   //   (getIsDirective(eventDetails.consumerArn) && startsLikeGetParamDirective(eventDetails.consumerArn));
   const resource = new EventSourceMapping({
     BatchSize: eventDetails.batchSize,
-    EventSourceArn: consumerArn || eventDetails.streamArn,
+    EventSourceArn: consumerArn || streamArn,
     Enabled: true,
     FunctionName: lambdaEndpointArn,
     StartingPosition: eventDetails.startingPosition || 'TRIM_HORIZON',
