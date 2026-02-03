@@ -202,7 +202,7 @@ interface RedisClusterProps {
    *
    * ---
    *
-   * @default 6.2
+   * @default "6.2"
    */
   engineVersion?: '7.1' | '7.0' | '6.2' | '6.0';
   /**

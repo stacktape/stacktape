@@ -23,7 +23,8 @@ type StacktapeResourceDefinition =
   | SnsTopic
   | WebAppFirewall
   | OpenSearchDomain
-  | EfsFilesystem;
+  | EfsFilesystem
+  | KinesisStream;
 
 type StpResource = (
   | StpWorkloadDefinition
@@ -53,6 +54,7 @@ type StpResource = (
   | StpHelperEdgeLambdaFunction
   | StpOpenSearchDomain
   | StpEfsFilesystem
+  | StpKinesisStream
 ) & {
   _nestedResources?: {
     [nestedStpResourceIdentifier: string]: StpResource;
@@ -182,7 +184,8 @@ type StpResourceScopableByConnectToAffectingRole =
   | Subtype<StpResource, StpOpenSearchDomain>
   | Subtype<StpResource, StpUserAuthPool>
   | Subtype<StpResource, StpSqsQueue>
-  | Subtype<StpResource, StpSnsTopic>;
+  | Subtype<StpResource, StpSnsTopic>
+  | Subtype<StpResource, StpKinesisStream>;
 
 type ConnectToAwsServicesMacro =
   (typeof import('../../src/domain/config-manager/utils/resource-references'))['ConnectToAwsServiceMacros'][number];
@@ -1293,4 +1296,5 @@ type StacktapeResourceReferenceableParam =
   | WebServiceReferencableParam
   | WorkerServiceReferencableParams
   | WebAppFirewallReferencableParams
-  | OpenSearchDomainReferencableParams;
+  | OpenSearchDomainReferencableParams
+  | KinesisStreamReferencableParam;

@@ -11,9 +11,6 @@ export const INSTALL_SCRIPTS_BUCKET_NAME =
 export const INSTALL_SCRIPTS_PREVIEW_BUCKET_NAME =
   process.env.INSTALL_SCRIPTS_PREVIEW_BUCKET_NAME || 'internal-services-production-installscriptsbucketpreview-7b7a41';
 
-export const STACKTAPE_TRPC_API_ENDPOINT =
-  process.env.STP_CUSTOM_TRPC_API_ENDPOINT || (IS_DEV ? 'https://dev-api.stacktape.com' : 'https://api.stacktape.com');
-
 export const MIXPANEL_TOKEN = '5f4ad0b60610c9b0398528c77e5459da';
 
 export const DEFAULT_STARTER_PROJECT_TARGET_DIRECTORY = 'stacktape-project';
@@ -28,6 +25,7 @@ export const possiblySupportedLangExtensions = [
   'java',
   'rb',
   'go',
+  'php',
   'cs',
   'jsx',
   'tsx'
@@ -47,8 +45,9 @@ export const lambdaRuntimesForFileExtension: {
   py: ['python3.13', 'python3.12', 'python3.11', 'python3.10'],
   java: ['java21', 'java17', 'java11'],
   rb: ['ruby3.3'],
+  php: ['provided.al2', 'provided.al2023'],
   go: ['provided.al2', 'provided.al2023'],
-  cs: ['dotnet8', 'dotnet6']
+  cs: ['dotnet10', 'dotnet8', 'dotnet6']
 };
 export const supportedWorkloadExtensions: (typeof possiblySupportedLangExtensions)[number][] = [
   'js',
@@ -58,7 +57,10 @@ export const supportedWorkloadExtensions: (typeof possiblySupportedLangExtension
   'tsx',
   'py',
   'java',
-  'go'
+  'go',
+  'rb',
+  'php',
+  'cs'
 ];
 export const supportedAwsCdkConstructExtensions: (typeof possiblySupportedLangExtensions)[number][] = ['js', 'ts'];
 export const supportedCodeConfigLanguages: (typeof possiblySupportedLangExtensions)[number][] = ['js', 'ts', 'py'];
@@ -199,6 +201,7 @@ export const RESOURCE_DEFAULTS: { [_resourceType in StpResourceType]: Partial<St
   'aws-cdk-construct': {},
   'sns-topic': {},
   'sqs-queue': {},
+  'kinesis-stream': {},
   'web-app-firewall': {},
   bastion: {
     instanceSize: 't3.micro'

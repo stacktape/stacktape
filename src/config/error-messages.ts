@@ -118,7 +118,7 @@ If you want to disable local emulation, use the ${tuiManager.prettyOption('disab
         `For sync by bucket ID, provide ${tuiManager.prettyOption('bucketId')} (AWS physical ID or bucket name) and ${tuiManager.prettyOption(
           'sourcePath'
         )}. If the bucket is deployed by Stacktape, you can get the bucket ID using ${tuiManager.prettyCommand(
-          'stack:info'
+          'info:stack'
         )}.`
       ]
     };
@@ -293,7 +293,7 @@ If you want to disable local emulation, use the ${tuiManager.prettyOption('disab
     stackName,
     organizationName,
     awsAccountName,
-    command
+    command: _command
   }: {
     stackName: string;
     organizationName: string;
@@ -303,18 +303,7 @@ If you want to disable local emulation, use the ${tuiManager.prettyOption('disab
     return {
       type: 'NON_EXISTING_STACK',
       message: `Cannot retrieve stack details for ${tuiManager.prettyStackName(stackName)}. Stack not found.`,
-      hint: [
-        ...hintMessages.incorrectAwsAccount({ organizationName, awsAccountName }),
-        ...(command === 'stack:info'
-          ? [
-              `When using ${tuiManager.prettyCommand(
-                command
-              )} for a non-deployed stack, provide config and use ${tuiManager.prettyOption(
-                'detailed'
-              )} to see what would be created.`
-            ]
-          : [])
-      ]
+      hint: hintMessages.incorrectAwsAccount({ organizationName, awsAccountName })
     };
   },
   e31({ stackName }): ReturnedError {
@@ -1966,11 +1955,20 @@ Property ${tuiManager.prettyConfigProperty('runAppAs')} can be specified only fo
       hint: `Error details: ${errorMessage}`
     };
   },
-  e138({ configPath, errorMessage }: { configPath: string; errorMessage: string }): ReturnedError {
+  e138({
+    configPath,
+    errorMessage,
+    userStackTrace
+  }: {
+    configPath: string;
+    errorMessage: string;
+    userStackTrace?: string;
+  }): ReturnedError {
     return {
       type: 'CONFIG_VALIDATION',
       message: `Failed to execute TypeScript config ${tuiManager.prettyFilePath(configPath)}.`,
-      hint: `Error details: ${errorMessage}`
+      hint: `Error details: ${errorMessage}`,
+      userStackTrace
     };
   },
   e139({ configPath }: { configPath: string }): ReturnedError {

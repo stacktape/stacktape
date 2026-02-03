@@ -24,12 +24,25 @@ import { commandDelete } from './commands/delete';
 import { commandDeploy } from './commands/deploy';
 import { commandDeploymentScriptRun } from './commands/deployment-script-run';
 import { commandDev } from './commands/dev';
+import { commandDevStop } from './commands/dev-stop';
 import { commandDomainAdd } from './commands/domain-add';
 import { commandHelp } from './commands/help';
 import { commandInit } from './commands/init';
+import { commandInfoOperations } from './commands/info-operations';
+import { commandInfoProjects } from './commands/info-projects';
+import { commandInfoStack } from './commands/info-stack';
+import { commandInfoWhoami } from './commands/info-whoami';
 import { commandLogin } from './commands/login';
 import { commandLogout } from './commands/logout';
-import { commandLogs } from './commands/logs';
+import { commandDebugLogs } from './commands/debug-logs';
+import { commandDebugAlarms } from './commands/debug-alarms';
+import { commandDebugMetrics } from './commands/debug-metrics';
+import { commandDebugContainerExec } from './commands/debug-container-exec';
+import { commandDebugSql } from './commands/debug-sql';
+import { commandDebugAwsSdk } from './commands/debug-aws-sdk';
+import { commandDebugDynamodb } from './commands/debug-dynamodb';
+import { commandDebugRedis } from './commands/debug-redis';
+import { commandDebugOpensearch } from './commands/debug-opensearch';
 import { commandPackageWorkloads } from './commands/package-workloads';
 import { commandParamGet } from './commands/param-get';
 import { commandPreviewChanges } from './commands/preview-changes';
@@ -38,10 +51,14 @@ import { commandScriptRun } from './commands/script-run';
 import { commandSecretCreate } from './commands/secret-create';
 import { commandSecretDelete } from './commands/secret-delete';
 import { commandSecretGet } from './commands/secret-get';
-import { commandStackInfo } from './commands/stack-info';
-import { commandStackList } from './commands/stack-list';
+
+import { commandInfoStacks } from './commands/info-stacks';
 import { commandUpgrade } from './commands/upgrade';
 import { commandVersion } from './commands/version';
+import { initAgentMode } from './commands/_utils/agent-mode';
+
+/** Commands that use the full phase-based TUI (deploy progress, phases, etc.) */
+const commandsWithPhaseTui: StacktapeCommand[] = ['deploy', 'delete', 'codebuild:deploy'];
 
 export const runCommand = async (opts: StacktapeProgrammaticOptions) => {
   try {
@@ -53,9 +70,11 @@ export const runCommand = async (opts: StacktapeProgrammaticOptions) => {
     setSentryTags({ invocationId: globalStateManager.invocationId, command: globalStateManager.command });
     await deleteTempFolder();
 
-    tuiManager.init({ logFormat: globalStateManager.logFormat, logLevel: globalStateManager.logLevel });
-    // Dev mode uses simple spinners instead of TUI
-    if (globalStateManager.command !== 'dev') {
+    tuiManager.init({ logLevel: globalStateManager.logLevel });
+    // Initialize agent mode (sets non-TTY output for spinners)
+    initAgentMode();
+    // Only start phase-based TUI for deploy/delete commands
+    if (commandsWithPhaseTui.includes(globalStateManager.command)) {
       tuiManager.start();
     }
 
@@ -106,9 +125,18 @@ const getCommandExecutor = (command: StacktapeCommand) => {
     help: commandHelp,
     init: commandInit,
     dev: commandDev,
+    'dev:stop': commandDevStop,
     'package-workloads': commandPackageWorkloads,
     'preview-changes': commandPreviewChanges,
-    logs: commandLogs,
+    'debug:logs': commandDebugLogs,
+    'debug:alarms': commandDebugAlarms,
+    'debug:metrics': commandDebugMetrics,
+    'debug:container-exec': commandDebugContainerExec,
+    'debug:sql': commandDebugSql,
+    'debug:aws-sdk': commandDebugAwsSdk,
+    'debug:dynamodb': commandDebugDynamodb,
+    'debug:redis': commandDebugRedis,
+    'debug:opensearch': commandDebugOpensearch,
     rollback: commandRollback,
     'secret:create': commandSecretCreate,
     'secret:delete': commandSecretDelete,
@@ -119,13 +147,17 @@ const getCommandExecutor = (command: StacktapeCommand) => {
     'container:session': commandContainerSession,
     'cf-module:update': commandCfModuleUpdate,
     'script:run': commandScriptRun,
-    'stack:info': commandStackInfo,
+
     'param:get': commandParamGet,
-    'stack:list': commandStackList,
+    'info:stacks': commandInfoStacks,
     version: commandVersion,
     login: commandLogin,
     logout: commandLogout,
-    upgrade: commandUpgrade
+    upgrade: commandUpgrade,
+    'info:whoami': commandInfoWhoami,
+    'info:projects': commandInfoProjects,
+    'info:operations': commandInfoOperations,
+    'info:stack': commandInfoStack
   };
   return commandMap[command];
 };

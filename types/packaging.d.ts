@@ -44,6 +44,8 @@ type GoSpecificPackagingProps = Record<string, never>;
 type JavaSpecificPackagingProps = JavaLanguageSpecificConfig;
 type RubySpecificPackagingProps = Record<string, never>;
 type CSharpSpecificPackagingProps = Record<string, never>;
+type PhpSpecificPackagingProps = PhpLanguageSpecificConfig;
+type DotnetSpecificPackagingProps = DotnetLanguageSpecificConfig;
 
 type PackagingOutput = {
   size: number;
@@ -82,6 +84,15 @@ type LanguageSpecificBundleOutput = {
   java?: {
     useMaven: boolean;
     javaVersion: SupportedJavaVersion;
+  };
+  ruby?: {
+    rubyVersion: SupportedRubyVersion;
+  };
+  php?: {
+    phpVersion: SupportedPhpVersion;
+  };
+  dotnet?: {
+    dotnetVersion: SupportedDotnetVersion;
   };
 };
 

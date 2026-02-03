@@ -67,7 +67,7 @@ interface MongoDbAtlasClusterProps {
    *
    * Available versions are `5.0`, `6.0`, and `7.0`.
    *
-   * @default 7.0
+   * @default "7.0"
    */
   version?: '5.0' | '6.0' | '7.0';
   /**

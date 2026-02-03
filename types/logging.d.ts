@@ -71,7 +71,9 @@ type LoggableEventType =
   | 'DEV_SESSION_ERROR'
   | 'BUILD_SHARED_LAYER'
   | 'UPLOAD_SHARED_LAYER'
-  | 'BUILD_HOSTING_BUCKET';
+  | 'BUILD_HOSTING_BUCKET'
+  | 'CONNECT_AWS_ACCOUNT'
+  | 'SETUP_CICD';
 
 type EventLogEntryType = 'START' | 'UPDATE' | 'FINISH';
 

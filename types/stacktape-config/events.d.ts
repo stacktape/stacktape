@@ -506,9 +506,22 @@ interface KinesisIntegration {
 
 interface KinesisIntegrationProps {
   /**
-   * #### The ARN of the Kinesis stream to consume records from.
+   * #### The name of a Kinesis stream defined in your stack's resources.
+   *
+   * ---
+   *
+   * You must specify either `kinesisStreamName` or `streamArn`.
    */
-  streamArn: string;
+  kinesisStreamName?: string;
+  /**
+   * #### The ARN of an existing Kinesis stream to consume records from.
+   *
+   * ---
+   *
+   * Use this to consume from a stream that is not managed by your stack.
+   * You must specify either `kinesisStreamName` or `streamArn`.
+   */
+  streamArn?: string;
   /**
    * #### The ARN of a specific stream consumer to use.
    *

@@ -7,7 +7,6 @@ type StacktapeCliArgs = import('../src/config/cli/options').StacktapeCliArgs;
 type StacktapeArg = keyof StacktapeArgs;
 type StacktapeArgs = StacktapeCliArgs;
 
-type LogFormat = 'fancy' | 'normal' | 'basic' | 'json';
 type LogLevel = 'info' | 'debug' | 'error';
 type TokenType = 'idToken' | 'refreshToken' | 'accessToken';
 type ResourceLogsType = 'access' | 'process';
