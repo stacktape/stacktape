@@ -1,7 +1,6 @@
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
-import { configGenManager, type ConfigGenPhaseInfo } from '@utils/config-gen';
-import { pathExists } from 'fs-extra';
+import { configGenManager, getPhaseDisplayName, type ConfigGenPhaseInfo } from '@utils/config-gen';
 import { basename, relative, join, isAbsolute } from 'node:path';
 
 // ============ Types ============
@@ -185,17 +184,4 @@ export const initUsingAiConfigGen = async (options: InitUsingAiConfigGenOptions 
     tuiManager.info('');
     throw error;
   }
-};
-
-// ============ Helpers ============
-
-const getPhaseDisplayName = (phase: string): string => {
-  const names: Record<string, string> = {
-    FILE_SELECTION: 'Scanning files',
-    WAITING_FOR_FILE_CONTENTS: 'Reading files',
-    ANALYZING_DEPLOYMENTS: 'Analyzing code',
-    GENERATING_CONFIG: 'Generating config',
-    ADJUSTING_ENV_VARS: 'Configuring env vars'
-  };
-  return names[phase] || phase;
 };
