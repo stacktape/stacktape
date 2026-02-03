@@ -100,8 +100,8 @@ interface PyLanguageSpecificConfig {
    *
    * ---
    *
-   * Stacktape will automatically detect the package manager based on the files in your project.
-   * You only need to set this if you are using a non-standard file name for your dependencies.
+   * Stacktape uses `uv` for dependency resolution and installation. This option is kept
+   * for compatibility and must be set to `uv` if provided.
    */
   packageManager?: SupportedPythonPackageManager;
   /**
@@ -138,7 +138,7 @@ interface PyLanguageSpecificConfig {
 
 type SupportedPythonVersion = 2.7 | 3.6 | 3.7 | 3.8 | 3.9 | 3.11 | 3.12 | 3.13 | 3.14;
 
-type SupportedPythonPackageManager = 'pip' | 'pipenv' | 'poetry';
+type SupportedPythonPackageManager = 'uv';
 
 type SupportedPythonRunAppAs = 'WSGI' | 'ASGI';
 
@@ -166,6 +166,43 @@ interface JavaLanguageSpecificConfig {
 type SupportedJavaVersion = 8 | 11 | 17 | 19;
 
 interface GoLanguageSpecificConfig {}
+
+interface RubyLanguageSpecificConfig {
+  /**
+   * #### The version of Ruby to use.
+   *
+   * @default 3.3
+   */
+  rubyVersion?: SupportedRubyVersion;
+}
+
+type SupportedRubyVersion = 3.2 | 3.3;
+
+interface PhpLanguageSpecificConfig {
+  /**
+   * #### The version of PHP to use.
+   *
+   * @default 8.3
+   */
+  phpVersion?: SupportedPhpVersion;
+}
+
+type SupportedPhpVersion = 8.2 | 8.3;
+
+interface DotnetLanguageSpecificConfig {
+  /**
+   * #### The path to your .NET project file (.csproj).
+   */
+  projectFile?: string;
+  /**
+   * #### The version of .NET to use.
+   *
+   * @default 8
+   */
+  dotnetVersion?: SupportedDotnetVersion;
+}
+
+type SupportedDotnetVersion = 6 | 8;
 
 interface StpBuildpackSharedProps {
   /**
@@ -202,7 +239,10 @@ interface StpBuildpackSharedProps {
     | EsLanguageSpecificConfig
     | PyLanguageSpecificConfig
     | JavaLanguageSpecificConfig
-    | GoLanguageSpecificConfig;
+    | GoLanguageSpecificConfig
+    | PhpLanguageSpecificConfig
+    | DotnetLanguageSpecificConfig
+    | RubyLanguageSpecificConfig;
 }
 
 interface StpBuildpackLambdaPackagingProps extends StpBuildpackSharedProps {
@@ -219,7 +259,7 @@ interface StpBuildpackLambdaPackagingProps extends StpBuildpackSharedProps {
  *
  * The `stacktape-lambda-buildpack` automatically bundles your code and dependencies into an optimized Lambda deployment package.
  *
- * **Supported languages:** JavaScript, TypeScript, Python, Java, and Go.
+ * **Supported languages:** JavaScript, TypeScript, Python, Java, Go, Ruby, PHP, and .NET.
  *
  * For JS/TS, your code is bundled into a single file. Source maps are automatically generated.
  * Packages are cached based on a checksum, so unchanged code is not re-packaged.
@@ -555,7 +595,10 @@ interface StpBuildpackBjImagePackagingProps extends StpBuildpackSharedProps {
     | EsLanguageSpecificConfig
     | PyLanguageSpecificConfig
     | JavaLanguageSpecificConfig
-    | GoLanguageSpecificConfig;
+    | GoLanguageSpecificConfig
+    | PhpLanguageSpecificConfig
+    | DotnetLanguageSpecificConfig
+    | RubyLanguageSpecificConfig;
   /**
    * #### Builds the image with support for glibc-based binaries.
    *

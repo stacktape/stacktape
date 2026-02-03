@@ -32,6 +32,12 @@ import { buildUsingStacktapeGoImageBuildpack } from '@shared/packaging/stacktape
 import { buildUsingStacktapeGoLambdaBuildpack } from '@shared/packaging/stacktape-go-lambda-buildpack';
 import { buildUsingStacktapeJavaImageBuildpack } from '@shared/packaging/stacktape-java-image-buildpack';
 import { buildUsingStacktapeJavaLambdaBuildpack } from '@shared/packaging/stacktape-java-lambda-buildpack';
+import { buildUsingStacktapeRbImageBuildpack } from '@shared/packaging/stacktape-rb-image-buildpack';
+import { buildUsingStacktapeRbLambdaBuildpack } from '@shared/packaging/stacktape-rb-lambda-buildpack';
+import { buildUsingStacktapePhpImageBuildpack } from '@shared/packaging/stacktape-php-image-buildpack';
+import { buildUsingStacktapePhpLambdaBuildpack } from '@shared/packaging/stacktape-php-lambda-buildpack';
+import { buildUsingStacktapeDotnetImageBuildpack } from '@shared/packaging/stacktape-dotnet-image-buildpack';
+import { buildUsingStacktapeDotnetLambdaBuildpack } from '@shared/packaging/stacktape-dotnet-lambda-buildpack';
 import { buildUsingStacktapePyImageBuildpack } from '@shared/packaging/stacktape-py-image-buildpack';
 import { buildUsingStacktapePyLambdaBuildpack } from '@shared/packaging/stacktape-py-lambda-buildpack';
 import {
@@ -1215,6 +1221,120 @@ export class PackagingManager {
           }
           if (packagingType === 'stacktape-image-buildpack') {
             const result = await buildUsingStacktapeGoImageBuildpack({
+              ...sharedProps,
+              ...sharedStpBuildpackProps,
+              distFolderPath: fsPaths.absoluteContainerArtifactFolderPath({
+                jobName,
+                invocationId: globalStateManager.invocationId
+              }),
+              additionalDigestInput
+            });
+            this.#packagedJobs.push({ ...result, skipped: result.outcome === 'skipped' });
+            return result;
+          }
+          break;
+        }
+        case 'rb': {
+          const sharedStpBuildpackProps = {
+            ...packaging.properties,
+            languageSpecificConfig: packaging.properties.languageSpecificConfig as RubyLanguageSpecificConfig,
+            minify: true,
+            entryfilePath: join(globalStateManager.workingDir, packaging.properties.entryfilePath)
+          };
+          const additionalDigestInput = objectHash(sharedStpBuildpackProps);
+          if (packagingType === 'stacktape-lambda-buildpack') {
+            const result = await buildUsingStacktapeRbLambdaBuildpack({
+              ...sharedProps,
+              ...sharedStpBuildpackProps,
+              sizeLimit: 250,
+              zippedSizeLimit: 50,
+              distFolderPath: fsPaths.absoluteLambdaArtifactFolderPath({
+                jobName,
+                invocationId: globalStateManager.invocationId
+              }),
+              additionalDigestInput
+            });
+            this.#packagedJobs.push({ ...result, skipped: result.outcome === 'skipped' });
+            return result;
+          }
+          if (packagingType === 'stacktape-image-buildpack') {
+            const result = await buildUsingStacktapeRbImageBuildpack({
+              ...sharedProps,
+              ...sharedStpBuildpackProps,
+              distFolderPath: fsPaths.absoluteContainerArtifactFolderPath({
+                jobName,
+                invocationId: globalStateManager.invocationId
+              }),
+              additionalDigestInput
+            });
+            this.#packagedJobs.push({ ...result, skipped: result.outcome === 'skipped' });
+            return result;
+          }
+          break;
+        }
+        case 'php': {
+          const sharedStpBuildpackProps = {
+            ...packaging.properties,
+            languageSpecificConfig: packaging.properties.languageSpecificConfig as PhpLanguageSpecificConfig,
+            minify: true,
+            entryfilePath: join(globalStateManager.workingDir, packaging.properties.entryfilePath)
+          };
+          const additionalDigestInput = objectHash(sharedStpBuildpackProps);
+          if (packagingType === 'stacktape-lambda-buildpack') {
+            const result = await buildUsingStacktapePhpLambdaBuildpack({
+              ...sharedProps,
+              ...sharedStpBuildpackProps,
+              sizeLimit: 250,
+              zippedSizeLimit: 50,
+              distFolderPath: fsPaths.absoluteLambdaArtifactFolderPath({
+                jobName,
+                invocationId: globalStateManager.invocationId
+              }),
+              additionalDigestInput
+            });
+            this.#packagedJobs.push({ ...result, skipped: result.outcome === 'skipped' });
+            return result;
+          }
+          if (packagingType === 'stacktape-image-buildpack') {
+            const result = await buildUsingStacktapePhpImageBuildpack({
+              ...sharedProps,
+              ...sharedStpBuildpackProps,
+              distFolderPath: fsPaths.absoluteContainerArtifactFolderPath({
+                jobName,
+                invocationId: globalStateManager.invocationId
+              }),
+              additionalDigestInput
+            });
+            this.#packagedJobs.push({ ...result, skipped: result.outcome === 'skipped' });
+            return result;
+          }
+          break;
+        }
+        case 'cs': {
+          const sharedStpBuildpackProps = {
+            ...packaging.properties,
+            languageSpecificConfig: packaging.properties.languageSpecificConfig as DotnetLanguageSpecificConfig,
+            minify: true,
+            entryfilePath: join(globalStateManager.workingDir, packaging.properties.entryfilePath)
+          };
+          const additionalDigestInput = objectHash(sharedStpBuildpackProps);
+          if (packagingType === 'stacktape-lambda-buildpack') {
+            const result = await buildUsingStacktapeDotnetLambdaBuildpack({
+              ...sharedProps,
+              ...sharedStpBuildpackProps,
+              sizeLimit: 250,
+              zippedSizeLimit: 50,
+              distFolderPath: fsPaths.absoluteLambdaArtifactFolderPath({
+                jobName,
+                invocationId: globalStateManager.invocationId
+              }),
+              additionalDigestInput
+            });
+            this.#packagedJobs.push({ ...result, skipped: result.outcome === 'skipped' });
+            return result;
+          }
+          if (packagingType === 'stacktape-image-buildpack') {
+            const result = await buildUsingStacktapeDotnetImageBuildpack({
               ...sharedProps,
               ...sharedStpBuildpackProps,
               distFolderPath: fsPaths.absoluteContainerArtifactFolderPath({
