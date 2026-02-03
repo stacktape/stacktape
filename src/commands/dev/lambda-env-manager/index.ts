@@ -1,6 +1,5 @@
 import type { LocalResourceInstance } from '../local-resources';
 import type { TunnelInfo } from '../tunnel-manager';
-import { applicationManager } from '@application-services/application-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import {
@@ -12,6 +11,7 @@ import {
 } from '@aws-sdk/client-lambda';
 import { configManager } from '@domain-services/config-manager';
 import { injectedParameterEnvVarName } from '@shared/naming/utils';
+import { createCleanupHook } from '../cleanup-utils';
 import { DEV_CONFIG } from '../dev-config';
 
 type LambdaEnvBackup = {
@@ -20,7 +20,6 @@ type LambdaEnvBackup = {
 };
 
 const envBackups: LambdaEnvBackup[] = [];
-let cleanupHookRegistered = false;
 
 const { updateRetryAttempts: LAMBDA_UPDATE_RETRY_ATTEMPTS, updateRetryDelayMs: LAMBDA_UPDATE_RETRY_DELAY_MS } =
   DEV_CONFIG.lambda;
@@ -43,6 +42,18 @@ const getLambdaClient = (): LambdaClient | null => {
   cachedLambdaClient = new LambdaClient({ region });
   cachedRegion = region;
   return cachedLambdaClient;
+};
+
+/**
+ * Destroy the cached Lambda client to prevent credential staleness.
+ * Called during cleanup.
+ */
+const destroyLambdaClient = (): void => {
+  if (cachedLambdaClient) {
+    cachedLambdaClient.destroy();
+    cachedLambdaClient = null;
+    cachedRegion = null;
+  }
 };
 
 const buildLambdaFunctionName = (stpResourceName: string): string => {
@@ -141,9 +152,13 @@ export const detectLambdasNeedingTunnels = async (
 
     // Check if Lambda is in VPC (joinDefaultVpc: true)
     if ((lambda as any).joinDefaultVpc) {
+      const resourceList = referencedLocalResources.join(', ');
       skippedLambdas.push({
         name: lambda.name,
-        reason: 'Lambda is in VPC without NAT gateway - cannot connect to external tunnels'
+        reason:
+          `Lambda is in VPC and cannot reach local resources via public tunnel. ` +
+          `Options: (1) Set "dev.remote: true" on [${resourceList}] to use deployed AWS resources, ` +
+          `(2) Remove joinDefaultVpc during dev, or (3) Use --skipResources ${lambda.name} to exclude this function`
       });
       continue;
     }
@@ -455,15 +470,36 @@ export const getBackedUpFunctionNames = (): string[] => {
   return envBackups.map((b) => b.functionName);
 };
 
-// Register cleanup hook (only once)
-export const registerLambdaEnvCleanupHook = (): void => {
-  if (cleanupHookRegistered) return;
-  cleanupHookRegistered = true;
+/**
+ * Get current environment variables for a Lambda function from AWS.
+ * Returns null if the function doesn't exist or region is not configured.
+ */
+export const getLambdaEnvVars = async (stpResourceName: string): Promise<Record<string, string> | null> => {
+  const client = getLambdaClient();
+  if (!client) {
+    return null;
+  }
 
-  applicationManager.registerCleanUpHook(async () => {
-    await restoreLambdaEnvVars();
-  });
+  const functionName = buildLambdaFunctionName(stpResourceName);
+
+  try {
+    const config = await client.send(new GetFunctionConfigurationCommand({ FunctionName: functionName }));
+    return config.Environment?.Variables || {};
+  } catch (err) {
+    if (err instanceof ResourceNotFoundException) {
+      return null;
+    }
+    throw err;
+  }
 };
 
-// Auto-register cleanup hook when module is loaded
-registerLambdaEnvCleanupHook();
+/**
+ * Register cleanup hook for Lambda env vars.
+ * Must be called explicitly when dev command starts, not at module import time,
+ * to avoid side effects when this module is bundled into user code.
+ */
+export const registerLambdaEnvCleanupHook = createCleanupHook('lambda-env', async () => {
+  await restoreLambdaEnvVars();
+  // Destroy cached client to prevent credential staleness on next run
+  destroyLambdaClient();
+});

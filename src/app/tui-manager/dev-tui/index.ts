@@ -4,6 +4,7 @@ import type {
   LocalResource,
   LogEntry,
   ResourceStatus,
+  SetupStep,
   SetupStepStatus,
   Workload,
   WorkloadType
@@ -16,13 +17,22 @@ import { setSpinnerDevTuiActive } from '../spinners';
 import { formatDuration, getWorkloadColor, resetWorkloadColors } from './utils';
 import { type BufferedLog, type RebuildStep, getRebuildRenderer, stopRebuild } from './rebuild';
 import { devTuiState } from './state';
+import { agentLog } from 'src/commands/dev/agent-logger';
 
 export type { Hook, HookStatus, LocalResource, LogEntry, ResourceStatus, Workload, WorkloadType };
 export type { RebuildStep } from './rebuild';
 
 type CommandHandler = (command: string) => void;
 type RebuildHandler = (workloadName: string | null) => Promise<void>;
+type ReadyHandler = () => void;
 type DevPhase = 'startup' | 'running' | 'rebuilding';
+
+// Common renderer interface
+interface DevTuiRendererInterface {
+  start: () => void;
+  stop: () => void;
+  render: () => void;
+}
 
 const SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 
@@ -83,7 +93,7 @@ class DevTuiRenderer {
       const headerIcon = allDone
         ? tuiManager.colorize('green', '✓')
         : tuiManager.colorize('cyan', SPINNER_FRAMES[this.spinnerFrame]);
-      lines.push(`${headerIcon} ${tuiManager.colorize('white', 'Starting local resources')}`);
+      lines.push(`\n${headerIcon} ${tuiManager.colorize('white', 'Starting local resources')}`);
       state.localResources.forEach((r, idx) => {
         const isLast = idx === state.localResources.length - 1;
         const prefix = isLast ? ' └─' : ' ├─';
@@ -243,10 +253,127 @@ class DevTuiRenderer {
   }
 }
 
+/**
+ * Non-TTY renderer for dev mode - used in agent mode or CI environments.
+ * Outputs append-only plain text without colors, animations, or log-update.
+ * Optimized for consumption by LLMs and automated tools.
+ */
+class DevTuiNonTtyRenderer implements DevTuiRendererInterface {
+  private printedItems = new Set<string>();
+  private unsubscribe: (() => void) | null = null;
+
+  start() {
+    this.printedItems.clear();
+    // Subscribe to state changes and render incrementally
+    this.unsubscribe = devTuiState.subscribe(() => this.render());
+    this.render();
+  }
+
+  stop() {
+    if (this.unsubscribe) {
+      this.unsubscribe();
+      this.unsubscribe = null;
+    }
+    // Final render to ensure all items are printed
+    this.render();
+  }
+
+  render() {
+    const state = devTuiState.getState();
+    this.renderLocalResources(state.localResources);
+    this.renderSetupSteps(state.setupSteps);
+    this.renderHooks(state.hooks);
+    this.renderWorkloads(state.workloads);
+  }
+
+  private log(message: string) {
+    console.log(message);
+  }
+
+  private renderLocalResources(resources: LocalResource[]) {
+    for (const r of resources) {
+      const key = `local-${r.name}-${r.status}`;
+      if (this.printedItems.has(key)) continue;
+
+      if (r.status === 'starting') {
+        this.log(`[~] Local resource "${r.name}" (${r.type}): starting`);
+        this.printedItems.add(key);
+      } else if (r.status === 'running') {
+        const port = r.port ? ` on localhost:${r.port}` : '';
+        this.log(`[+] Local resource "${r.name}" (${r.type}): running${port}`);
+        this.printedItems.add(key);
+      } else if (r.status === 'error') {
+        this.log(`[x] Local resource "${r.name}" (${r.type}): error - ${r.error || 'Failed'}`);
+        this.printedItems.add(key);
+      }
+    }
+  }
+
+  private renderSetupSteps(steps: SetupStep[]) {
+    for (const step of steps) {
+      const key = `setup-${step.id}-${step.status}`;
+      if (this.printedItems.has(key)) continue;
+
+      if (step.status === 'running') {
+        this.log(`[~] Setup "${step.label}": running`);
+        this.printedItems.add(key);
+      } else if (step.status === 'done') {
+        const detail = step.detail ? ` - ${step.detail}` : '';
+        this.log(`[+] Setup "${step.label}": done${detail}`);
+        this.printedItems.add(key);
+      } else if (step.status === 'skipped') {
+        this.log(`[-] Setup "${step.label}": skipped`);
+        this.printedItems.add(key);
+      }
+    }
+  }
+
+  private renderHooks(hooks: Hook[]) {
+    for (const hook of hooks) {
+      const key = `hook-${hook.name}-${hook.status}`;
+      if (this.printedItems.has(key)) continue;
+
+      if (hook.status === 'running') {
+        this.log(`[~] Hook "${hook.name}": running`);
+        this.printedItems.add(key);
+      } else if (hook.status === 'success') {
+        const duration = hook.duration ? ` (${formatDuration(hook.duration)})` : '';
+        this.log(`[+] Hook "${hook.name}": success${duration}`);
+        this.printedItems.add(key);
+      } else if (hook.status === 'error') {
+        this.log(`[x] Hook "${hook.name}": error - ${hook.error || 'Failed'}`);
+        this.printedItems.add(key);
+      }
+    }
+  }
+
+  private renderWorkloads(workloads: Workload[]) {
+    for (const w of workloads) {
+      const key = `workload-${w.name}-${w.status}`;
+      if (this.printedItems.has(key)) continue;
+
+      if (w.status === 'starting') {
+        const msg = w.statusMessage ? ` - ${w.statusMessage}` : '';
+        this.log(`[~] Workload "${w.name}" (${w.type}): starting${msg}`);
+        this.printedItems.add(key);
+      } else if (w.status === 'running') {
+        const url = w.url ? ` at ${w.url}` : '';
+        const size = w.size ? ` [${w.size}]` : '';
+        this.log(`[+] Workload "${w.name}" (${w.type}): running${url}${size}`);
+        this.printedItems.add(key);
+      } else if (w.status === 'error') {
+        this.log(`[x] Workload "${w.name}" (${w.type}): error - ${w.error || 'Failed'}`);
+        this.printedItems.add(key);
+      }
+    }
+  }
+}
+
 class DevTuiManager {
-  private renderer: DevTuiRenderer | null = null;
+  private renderer: DevTuiRendererInterface | null = null;
   private commandHandler: CommandHandler | null = null;
   private rebuildHandler: RebuildHandler | null = null;
+  private readyHandler: ReadyHandler | null = null;
   private isRunning = false;
   private phase: DevPhase = 'startup';
   private stdinListenerSetup = false;
@@ -254,15 +381,26 @@ class DevTuiManager {
   private rebuildLogBuffer: BufferedLog[] = [];
   private startupLogBuffer: BufferedLog[] = [];
   private workloadTypes: Map<string, WorkloadType> = new Map();
+  private _agentMode = false;
 
-  start(config: { projectName: string; stageName: string; onCommand?: CommandHandler; devMode?: 'normal' | 'legacy' }) {
+  start(config: {
+    projectName: string;
+    stageName: string;
+    onCommand?: CommandHandler;
+    onReady?: ReadyHandler;
+    devMode?: 'normal' | 'legacy';
+    /** When true, uses non-TTY renderer optimized for LLM/agent consumption */
+    agentMode?: boolean;
+  }) {
     if (this.isRunning) return;
 
     this.isRunning = true;
     this.phase = 'startup';
     this.commandHandler = config.onCommand || null;
+    this.readyHandler = config.onReady || null;
     this.startupLogBuffer = [];
     this.rebuildLogBuffer = [];
+    this._agentMode = config.agentMode ?? false;
 
     tuiManager.setDevTuiActive(true);
     setSpinnerDevTuiActive(true);
@@ -274,9 +412,21 @@ class DevTuiManager {
       devMode: config.devMode || 'normal'
     });
 
-    this.renderer = new DevTuiRenderer();
+    // Use non-TTY renderer in agent mode for LLM-friendly output
+    if (this._agentMode) {
+      this.renderer = new DevTuiNonTtyRenderer();
+    } else {
+      this.renderer = new DevTuiRenderer();
+    }
     this.renderer.start();
-    this.unsubscribe = devTuiState.subscribe(() => this.renderer?.render());
+    // DevTuiNonTtyRenderer handles its own state subscription, only add for TTY renderer
+    if (!this._agentMode) {
+      this.unsubscribe = devTuiState.subscribe(() => this.renderer?.render());
+    }
+  }
+
+  get agentMode(): boolean {
+    return this._agentMode;
   }
 
   stop() {
@@ -326,17 +476,33 @@ class DevTuiManager {
     tuiManager.setDevTuiActive(false);
     setSpinnerDevTuiActive(false);
 
+    // Call ready handler first (prints agent startup message in agent mode)
+    if (this.readyHandler) {
+      this.readyHandler();
+    }
+
     this.printRunningSummary();
-    this.setupKeyboardShortcuts();
+
+    // Only setup keyboard shortcuts in interactive mode (not agent mode)
+    if (!this._agentMode) {
+      this.setupKeyboardShortcuts();
+    }
 
     // Flush buffered startup logs after a short delay (so user can read the summary)
+    // In agent mode, flush immediately without delay
     if (this.startupLogBuffer.length > 0) {
-      setTimeout(() => {
+      const flushLogs = () => {
         for (const log of this.startupLogBuffer) {
           this.printLog(log.source, log.message, log.level);
         }
         this.startupLogBuffer = [];
-      }, 1000);
+      };
+
+      if (this._agentMode) {
+        flushLogs();
+      } else {
+        setTimeout(flushLogs, 1000);
+      }
     }
   }
 
@@ -355,6 +521,12 @@ class DevTuiManager {
     this.phase = 'rebuilding';
     this.rebuildLogBuffer = [];
 
+    // In agent mode, use simple text output
+    if (this._agentMode) {
+      console.log(`[~] Rebuilding workloads: ${workloadNames.join(', ')}`);
+      return;
+    }
+
     // Suppress spinners and tuiManager output during rebuild
     tuiManager.setDevTuiActive(true);
     setSpinnerDevTuiActive(true);
@@ -368,6 +540,14 @@ class DevTuiManager {
    */
   setRebuildStep(name: string, step: RebuildStep, detail?: string) {
     if (this.phase !== 'rebuilding') return;
+
+    // In agent mode, output as plain text
+    if (this._agentMode) {
+      const detailStr = detail ? ` - ${detail}` : '';
+      console.log(`[~] ${name}: ${step}${detailStr}`);
+      return;
+    }
+
     getRebuildRenderer().setWorkloadStep(name, step, detail);
   }
 
@@ -376,6 +556,10 @@ class DevTuiManager {
    */
   setRebuildSize(name: string, size: string) {
     if (this.phase !== 'rebuilding') return;
+
+    // In agent mode, skip (will be shown in done message)
+    if (this._agentMode) return;
+
     getRebuildRenderer().setWorkloadSize(name, size);
   }
 
@@ -384,6 +568,14 @@ class DevTuiManager {
    */
   setRebuildDone(name: string, size?: string) {
     if (this.phase !== 'rebuilding') return;
+
+    // In agent mode, output as plain text
+    if (this._agentMode) {
+      const sizeStr = size ? ` [${size}]` : '';
+      console.log(`[+] ${name}: rebuild complete${sizeStr}`);
+      return;
+    }
+
     getRebuildRenderer().setWorkloadDone(name, size);
   }
 
@@ -392,6 +584,13 @@ class DevTuiManager {
    */
   setRebuildError(name: string, error: string) {
     if (this.phase !== 'rebuilding') return;
+
+    // In agent mode, output as plain text
+    if (this._agentMode) {
+      console.log(`[x] ${name}: rebuild failed - ${error}`);
+      return;
+    }
+
     getRebuildRenderer().setWorkloadError(name, error);
   }
 
@@ -410,15 +609,18 @@ class DevTuiManager {
   async finishRebuild() {
     if (this.phase !== 'rebuilding') return;
 
-    // Stop the rebuild renderer
-    stopRebuild();
+    // In agent mode, skip the fancy renderer stop
+    if (!this._agentMode) {
+      // Stop the rebuild renderer
+      stopRebuild();
 
-    // Re-enable normal output (spinners stay suppressed in running phase)
-    tuiManager.setDevTuiActive(false);
-    setSpinnerDevTuiActive(false);
+      // Re-enable normal output (spinners stay suppressed in running phase)
+      tuiManager.setDevTuiActive(false);
+      setSpinnerDevTuiActive(false);
 
-    // Wait 1 second so user can read the summary
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+      // Wait 1 second so user can read the summary
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
 
     // Print buffered logs
     for (const log of this.rebuildLogBuffer) {
@@ -532,6 +734,20 @@ ${tuiManager.colorize('cyan', '  Keyboard shortcuts:')}
     const state = devTuiState.getState();
     const runningWorkloads = state.workloads.filter((w) => w.status === 'running' || w.status === 'error');
 
+    // In agent mode, use plain text output without colors or box decorations
+    if (this._agentMode) {
+      console.log('');
+      console.log('--- Dev mode ready ---');
+      console.log(`Workloads running: ${runningWorkloads.length}`);
+      for (const workload of runningWorkloads) {
+        const status = workload.status === 'running' ? 'running' : 'error';
+        const url = workload.url ? ` at ${workload.url}` : '';
+        console.log(`  ${workload.name} (${workload.type}): ${status}${url}`);
+      }
+      console.log('');
+      return;
+    }
+
     const contentLines: string[] = [];
     contentLines.push(`${tuiManager.colorize('gray', 'Workloads running:')} ${runningWorkloads.length}`);
     for (const [index, workload] of runningWorkloads.entries()) {
@@ -636,6 +852,15 @@ ${tuiManager.colorize('cyan', '  Keyboard shortcuts:')}
 
   private printLog(source: string, message: string, level: LogEntry['level']) {
     const timestamp = new Date().toLocaleTimeString('en-US', { hour12: false });
+
+    // In agent mode, write to JSONL log file and use plain text console output
+    if (this._agentMode) {
+      agentLog(source, message, level === 'debug' ? 'info' : level);
+      const levelPrefix = level === 'error' ? '[ERROR] ' : level === 'warn' ? '[WARN] ' : '';
+      console.log(`${timestamp} [${source}] ${levelPrefix}${message}`);
+      return;
+    }
+
     const levelColor = level === 'error' ? 'red' : level === 'warn' ? 'yellow' : undefined;
     const msg = levelColor ? tuiManager.colorize(levelColor, message) : message;
 

@@ -26,26 +26,10 @@ const buildConnectionInfo = (host: string, port: number) => {
   };
 };
 
-const checkOpenSearchReady = async (port: number): Promise<boolean> => {
-  try {
-    const response = await fetch(`http://localhost:${port}/_cluster/health`, {
-      headers: {
-        Authorization: `Basic ${Buffer.from('admin:admin').toString('base64')}`
-      }
-    });
-    if (!response.ok) return false;
-    const data = (await response.json()) as { status?: string };
-    // OpenSearch is ready when status is green or yellow
-    return data.status === 'green' || data.status === 'yellow';
-  } catch {
-    return false;
-  }
-};
-
 export const startLocalOpenSearch = async (
   config: LocalResourceConfig & { containerName: string }
 ): Promise<LocalResourceInstance> => {
-  const { name, version, dataDir, containerName } = config;
+  const { name: _name, version, dataDir, containerName } = config;
   const defaultPort = DEFAULT_PORTS.opensearch;
   const preferredPort = config.port || defaultPort;
 

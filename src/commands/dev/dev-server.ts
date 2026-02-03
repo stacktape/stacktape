@@ -1,10 +1,11 @@
 import type { ChildProcess } from 'node:child_process';
-import { spawn } from 'node:child_process';
+import { execSync, spawn } from 'node:child_process';
 import { isAbsolute, join } from 'node:path';
-import { applicationManager } from '@application-services/application-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { serialize } from '@shared/utils/misc';
-import { createFrameworkParser, detectFramework, type FrameworkType, stripAnsi } from './framework-parsers';
+import { createCleanupHook } from './cleanup-utils';
+import { DEV_CONFIG } from './dev-config';
+import { createFrameworkParser, detectFramework, type FrameworkType } from './framework-parsers';
 import {
   extractPortFromCommand,
   getDefaultPort,
@@ -12,6 +13,8 @@ import {
   killProcessOnPort,
   parsePortFromError
 } from './port-utils';
+
+const { readyTimeoutMs: DEV_SERVER_READY_TIMEOUT_MS, readyDelayMs: DEV_SERVER_READY_DELAY_MS } = DEV_CONFIG.devServer;
 
 // Re-export for convenience
 export { detectFramework, type FrameworkType };
@@ -85,8 +88,7 @@ export const stopDevServer = async (name: string): Promise<void> => {
     if (pid && !proc.killed) {
       try {
         if (process.platform === 'win32') {
-          // Windows: kill process tree
-          const { execSync } = await import('node:child_process');
+          // Windows: kill process tree (execSync already imported at top of file)
           execSync(`taskkill /PID ${pid} /T /F`, { stdio: 'ignore' });
         } else {
           // Unix: kill process group
@@ -115,7 +117,6 @@ export const stopDevServerSync = (name: string): void => {
     if (pid) {
       try {
         if (process.platform === 'win32') {
-          const { execSync } = require('node:child_process');
           execSync(`taskkill /PID ${pid} /T /F`, { stdio: 'ignore' });
         } else {
           process.kill(-pid, 'SIGKILL');
@@ -215,7 +216,8 @@ export const startDevServer = async ({
         cwd: workingDir,
         env,
         stdio: ['ignore', 'pipe', 'pipe'],
-        shell: true
+        shell: true,
+        windowsHide: true
       });
 
       runningDevServers.set(name, proc);
@@ -234,7 +236,7 @@ export const startDevServer = async ({
         callbacks?.onOutput?.(line);
 
         // Collect error output for EADDRINUSE detection
-        errorBuffer += line + '\n';
+        errorBuffer += `${line}\n`;
 
         // Use framework-aware parser
         const parsed = parseOutput(line);
@@ -267,7 +269,7 @@ export const startDevServer = async ({
           if (currentState.status === 'ready' && !readyTimeout) {
             readyTimeout = setTimeout(() => {
               resolveOnce(currentState);
-            }, 300); // Delay to capture URL and compile time from subsequent output
+            }, DEV_SERVER_READY_DELAY_MS);
           }
 
           // If we have ready + URL + compile time, resolve immediately
@@ -319,7 +321,7 @@ export const startDevServer = async ({
           }
           resolveOnce(currentState);
         }
-      }, 10000);
+      }, DEV_SERVER_READY_TIMEOUT_MS);
     });
   };
 
@@ -361,19 +363,12 @@ export const isDevServerRunning = (name: string): boolean => {
   return proc !== undefined && !proc.killed;
 };
 
-// Track if cleanup hook has been registered
-let devServerCleanupHookRegistered = false;
-
 /**
  * Register cleanup hook for dev servers.
  * Must be called explicitly when dev command starts.
  */
-export const registerDevServerCleanupHook = () => {
-  if (devServerCleanupHookRegistered) return;
-  devServerCleanupHookRegistered = true;
-  applicationManager.registerCleanUpHook(async () => {
-    for (const [name] of runningDevServers) {
-      stopDevServerSync(name);
-    }
-  });
-};
+export const registerDevServerCleanupHook = createCleanupHook('dev-server', async () => {
+  for (const [name] of runningDevServers) {
+    stopDevServerSync(name);
+  }
+});

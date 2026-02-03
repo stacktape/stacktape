@@ -14,22 +14,48 @@ import { getDirectiveParams, getIsDirective, startsLikeGetParamDirective } from 
 import { getAugmentedEnvironment } from '@utils/environment';
 import { startPortForwardingSessions, substituteTunneledEndpointsInEnvironmentVars } from '@utils/ssm-session';
 import chokidar from 'chokidar';
-import { getLocalInvokeAwsCredentials, SESSION_DURATION_SECONDS } from '../_utils/assume-role';
+import { createCleanupHook } from './cleanup-utils';
+import {
+  DEV_SESSION_DURATION_SECONDS,
+  getLocalInvokeAwsCredentials,
+  SESSION_DURATION_SECONDS
+} from '../_utils/assume-role';
 
 type OnChangeFn = (props: { stats: Stats; changedFile: string }) => any;
 
-// Track credential expiry timers so they can be cleared on cleanup
-const credentialExpiryTimers: NodeJS.Timeout[] = [];
+// Track credential expiry timers per workload so they can be cleared on rebuild
+const credentialExpiryTimers = new Map<string, NodeJS.Timeout>();
 
-const registerCredentialExpiryTimer = (timer: NodeJS.Timeout) => {
-  credentialExpiryTimers.push(timer);
+const registerCredentialExpiryTimer = (workloadName: string, timer: NodeJS.Timeout) => {
+  // Clear any existing timer for this workload before adding new one
+  const existingTimer = credentialExpiryTimers.get(workloadName);
+  if (existingTimer) {
+    clearTimeout(existingTimer);
+  }
+  credentialExpiryTimers.set(workloadName, timer);
 };
 
+/**
+ * Clear credential expiry timer for a specific workload.
+ * Called when a workload is rebuilt to prevent spurious expiry warnings.
+ */
+export const clearCredentialExpiryTimer = (workloadName: string) => {
+  const timer = credentialExpiryTimers.get(workloadName);
+  if (timer) {
+    clearTimeout(timer);
+    credentialExpiryTimers.delete(workloadName);
+  }
+};
+
+/**
+ * Clear all credential expiry timers.
+ * Called during cleanup.
+ */
 export const clearCredentialExpiryTimers = () => {
-  for (const timer of credentialExpiryTimers) {
+  for (const timer of credentialExpiryTimers.values()) {
     clearTimeout(timer);
   }
-  credentialExpiryTimers.length = 0;
+  credentialExpiryTimers.clear();
 };
 
 export class SourceCodeWatcher {
@@ -207,14 +233,23 @@ export const getWorkloadEnvironmentVars = async (jobDetails: {
   // Get AWS credentials unless skipped (for local-only mode)
   let awsCredentialsEnvVars: Record<string, string> = {};
   if (!jobDetails.skipAwsCredentials) {
-    awsCredentialsEnvVars = await getLocalInvokeAwsCredentials({ assumeRoleOfWorkload: jobDetails.workloadName });
+    const isDevStack = globalStateManager.command === 'dev';
+    awsCredentialsEnvVars = await getLocalInvokeAwsCredentials({
+      assumeRoleOfWorkload: jobDetails.workloadName,
+      isDevStack
+    });
+    const sessionDuration = isDevStack ? DEV_SESSION_DURATION_SECONDS : SESSION_DURATION_SECONDS;
+    const workloadName = jobDetails.workloadName;
     const expiryTimer = setTimeout(
       () => {
-        tuiManager.warn('Temporary AWS credentials expired. Restart dev to refresh permissions.');
+        tuiManager.warn(
+          `AWS credentials for workload "${workloadName}" have expired. ` +
+            `Rebuild this workload (press 'r' or use /rebuild/${workloadName}) to refresh credentials.`
+        );
       },
-      (SESSION_DURATION_SECONDS - 120) * 1000
+      (sessionDuration - 120) * 1000
     );
-    registerCredentialExpiryTimer(expiryTimer);
+    registerCredentialExpiryTimer(workloadName, expiryTimer);
   }
 
   // Resolve env vars from deployed connectTo resources
@@ -271,13 +306,20 @@ export const resolveRunningContainersWithSamePort = async ({
   /** When true, auto-stop conflicting containers without prompting (used when DevTUI is active) */
   autoStopConflicting?: boolean;
 }) => {
-  if (!ports) {
+  if (!ports || ports.length === 0) {
     return;
   }
   const runningContainers = await listDockerContainers();
+  const portsSet = new Set(ports);
+
+  // Find containers that have any of the requested ports mapped as public (host) ports
+  // Only check TCP ports since we're mapping HTTP/TCP services
   const containersWithConflictingPorts = runningContainers.filter((container) =>
-    container.Ports.find(
-      (containerPortInfo) => ports.find((port) => port === containerPortInfo.PublicPort) // @wtf? && port.protocol) || containerPortInfo.Type === 'tcp'
+    container.Ports.some(
+      (portInfo) =>
+        portInfo.PublicPort !== undefined &&
+        portsSet.has(portInfo.PublicPort) &&
+        (portInfo.Type === 'tcp' || portInfo.Type === undefined) // Default to TCP if type not specified
     )
   );
 
@@ -315,18 +357,11 @@ export const gracefullyStopContainer = async (containerName: string) => {
   }
 };
 
-// Track if cleanup hook has been registered (to avoid duplicate registrations)
-let credentialCleanupHookRegistered = false;
-
 /**
  * Register cleanup hook for credential timers.
  * Must be called explicitly when dev command starts, not at module import time,
  * to avoid side effects when this module is bundled into user code.
  */
-export const registerCredentialCleanupHook = () => {
-  if (credentialCleanupHookRegistered) return;
-  credentialCleanupHookRegistered = true;
-  applicationManager.registerCleanUpHook(async () => {
-    clearCredentialExpiryTimers();
-  });
-};
+export const registerCredentialCleanupHook = createCleanupHook('credential-timers', async () => {
+  clearCredentialExpiryTimers();
+});

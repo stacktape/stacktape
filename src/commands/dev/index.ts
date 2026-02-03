@@ -3,7 +3,7 @@ import { eventManager } from '@application-services/event-manager';
 import { applicationManager } from '@application-services/application-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { box as clackBox } from '@clack/prompts';
-import { MultiSpinner } from '@application-services/tui-manager/spinners';
+import { MultiSpinner, setSpinnerAgentMode } from '@application-services/tui-manager/spinners';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
@@ -14,8 +14,23 @@ import { devTuiManager } from 'src/app/tui-manager/dev-tui';
 import { devTuiState } from 'src/app/tui-manager/dev-tui/state';
 import type { DevTuiState } from 'src/app/tui-manager/dev-tui/types';
 import { initializeStackServicesForDevPhase1, initializeStackServicesForDevPhase2 } from '../_utils/initialization';
-import { agentLog } from './agent-logger';
-import { registerAgentCleanupHook, startAgentServer, updateAgentState } from './agent-server';
+import {
+  buildAgentReadyMessage,
+  deleteAgentLockFile,
+  getRunningAgent,
+  spawnAgentDaemon,
+  writeAgentLockFile
+} from './agent-daemon';
+import { agentLog, getAgentLogFilePath } from './agent-logger';
+import {
+  buildStartupMessage,
+  getAgentPort,
+  registerAgentCleanupHook,
+  setRebuildFunctions,
+  startAgentServer,
+  updateAgentState
+} from './agent-server';
+import { initDevAgentCredentials } from './dev-agent-credentials';
 import { getDevModeType, isLegacyDevMode } from './dev-mode-utils';
 import { registerDevServerCleanupHook } from './dev-server';
 import { deployDevStack } from './dev-stack-deployer';
@@ -24,7 +39,10 @@ import {
   getRemoteResourceNames,
   registerLocalResourceCleanupHook
 } from './local-resources';
+import { registerHealthMonitorCleanupHook } from './local-resources/health-monitor';
 import { rebuildAllWorkloads, rebuildWorkload, runParallelWorkloads } from './parallel-runner';
+import { findAvailablePort } from './port-utils';
+import { registerLambdaEnvCleanupHook } from './lambda-env-manager';
 import { registerTunnelCleanupHook } from './tunnel-manager';
 import { registerCredentialCleanupHook } from './utils';
 
@@ -117,21 +135,65 @@ const buildSelectableResources = (
 };
 
 /**
+ * Simple fuzzy matching using Levenshtein distance.
+ * Returns matches sorted by similarity (closest first).
+ */
+const findSimilarNames = (input: string, candidates: string[], maxDistance = 3): string[] => {
+  const levenshtein = (a: string, b: string): number => {
+    const matrix: number[][] = [];
+    const aLower = a.toLowerCase();
+    const bLower = b.toLowerCase();
+
+    for (let i = 0; i <= bLower.length; i++) {
+      matrix[i] = [i];
+    }
+    for (let j = 0; j <= aLower.length; j++) {
+      matrix[0][j] = j;
+    }
+
+    for (let i = 1; i <= bLower.length; i++) {
+      for (let j = 1; j <= aLower.length; j++) {
+        if (bLower.charAt(i - 1) === aLower.charAt(j - 1)) {
+          matrix[i][j] = matrix[i - 1][j - 1];
+        } else {
+          matrix[i][j] = Math.min(matrix[i - 1][j - 1] + 1, matrix[i][j - 1] + 1, matrix[i - 1][j] + 1);
+        }
+      }
+    }
+    return matrix[bLower.length][aLower.length];
+  };
+
+  return candidates
+    .map((candidate) => ({ name: candidate, distance: levenshtein(input, candidate) }))
+    .filter((item) => item.distance <= maxDistance)
+    .sort((a, b) => a.distance - b.distance)
+    .map((item) => item.name);
+};
+
+/**
  * Get selected resources based on CLI args or interactive picker.
  */
 const getSelectedResources = async (allResources: SelectableResource[]): Promise<Set<string>> => {
   const { resources: resourcesArg, skipResources: skipResourcesArg } = globalStateManager.args;
 
   const allNames = new Set(allResources.map((r) => r.name));
+  const allNamesArray = [...allNames];
 
-  // Validate resource names
+  // Validate resource names with fuzzy matching for suggestions
   const validateNames = (names: Set<string>, argName: string) => {
     for (const name of names) {
       if (name !== 'all' && !allNames.has(name)) {
+        // Find similar names for better error message
+        const similar = findSimilarNames(name, allNamesArray, 3);
+        const hint =
+          similar.length > 0
+            ? `Did you mean: ${similar.slice(0, 3).join(', ')}? Available resources: ${allNamesArray.join(', ')}`
+            : `Available resources: ${allNamesArray.join(', ')}`;
+
         throw getError({
           type: 'CLI',
           message: `Resource "${name}" specified in --${argName} does not exist.`,
-          hint: `Available resources: ${[...allNames].join(', ')}`
+          hint
         });
       }
     }
@@ -166,7 +228,7 @@ const getSelectedResources = async (allResources: SelectableResource[]): Promise
     return new Set([...allNames].filter((n) => !skipSet.has(n)));
   }
 
-  // Case 4: No args - show interactive picker
+  // Case 4: No args - show interactive picker (all selected by default)
   const options = allResources.map((r) => ({
     value: r.name,
     label: `${r.name}`,
@@ -176,9 +238,9 @@ const getSelectedResources = async (allResources: SelectableResource[]): Promise
   // Start TUI temporarily for the prompt (dev command doesn't start TUI by default)
   tuiManager.start();
   const selected = await tuiManager.promptMultiSelect({
-    message: 'Select resources to run in dev mode:',
-    options
-    // No defaultValues - starts with nothing selected
+    message: 'Select resources to run in dev mode (all selected by default):',
+    options,
+    defaultValues: allResources.map((r) => r.name)
   });
   await tuiManager.stop();
 
@@ -192,6 +254,12 @@ const getSelectedResources = async (allResources: SelectableResource[]): Promise
  * - normal (default): Deploys a stripped-down "dev stack" and emulates databases locally
  * - legacy: Requires existing deployed stack, no local database emulation
  *
+ * Agent mode (--agent):
+ * - Spawns as a detached daemon process
+ * - Parent waits for AGENT_READY signal, then exits
+ * - Daemon keeps running with HTTP API on specified port
+ * - Use --stop to stop a running agent
+ *
  * Flow:
  * 1. Initialize credentials and config
  * 2. Show resource picker (or use --resources/--skipResources)
@@ -202,13 +270,104 @@ const getSelectedResources = async (allResources: SelectableResource[]): Promise
  * 6. Deploy and stream logs for functions
  */
 export const commandDev = async () => {
+  const agentPortArg = globalStateManager.args.agentPort;
+  const agentEnabled = Boolean(globalStateManager.args.agent || agentPortArg !== undefined);
+  const isAgentChild = Boolean(globalStateManager.args.agentChild);
+
+  // Handle --agent (without --agent-child): spawn daemon and exit
+  // The daemon child will have --agent-child flag set
+  if (agentEnabled && !isAgentChild) {
+    // Check if agent is already running
+    const runningAgent = await getRunningAgent();
+    if (runningAgent) {
+      console.log(
+        buildAgentReadyMessage({
+          port: runningAgent.port,
+          projectName: runningAgent.projectName,
+          stage: runningAgent.stage,
+          region: runningAgent.region,
+          workloads: runningAgent.workloads.map((name) => ({ name, type: 'unknown' })),
+          databases: runningAgent.databases.map((name) => ({ name, type: 'unknown' })),
+          logFile: runningAgent.logFile || ''
+        })
+      );
+      return;
+    }
+
+    // Find available port
+    const defaultAgentPort = 7331;
+    const agentPort = agentPortArg ?? (await findAvailablePort(defaultAgentPort));
+    if (!agentPort) {
+      throw getError({
+        type: 'CLI',
+        message: `Could not find available port for agent server (tried ${defaultAgentPort}-${defaultAgentPort + 99}).`,
+        hint: 'Specify a port with --agentPort or free up ports in that range.'
+      });
+    }
+
+    // Build args for daemon (remove --agent and --agentPort with its value, add --agent-child)
+    const allArgs = process.argv.slice(2);
+    const originalArgs: string[] = [];
+    for (let i = 0; i < allArgs.length; i++) {
+      const arg = allArgs[i];
+      if (arg === '--agent') continue;
+      if (arg === '--agentPort' || arg === '-ap') {
+        i++; // Skip next arg (the port value)
+        continue;
+      }
+      if (arg.startsWith('--agentPort=') || arg.startsWith('-ap=')) continue;
+      originalArgs.push(arg);
+    }
+
+    console.log('Starting dev agent daemon...');
+    console.log('(This may take several minutes if deploying a new dev stack)');
+    console.log('');
+    const result = await spawnAgentDaemon({
+      originalArgs,
+      agentPort,
+      timeoutMs: 600000 // 10 minutes for stack deployment + startup
+    });
+
+    if (!result.success) {
+      console.error(`Failed to start dev agent: ${result.error}`);
+      process.exit(1);
+    }
+
+    // Print startup message with endpoint documentation
+    if (result.readyPayload) {
+      const { port, projectName, stage, region, workloads, databases, logFile } = result.readyPayload;
+      console.log('');
+      console.log(
+        buildStartupMessage({
+          projectName,
+          stage: stage || '',
+          region: region || '',
+          workloads: workloads || [],
+          databases: databases || [],
+          port,
+          logFile
+        })
+      );
+      console.log('');
+      console.log('─'.repeat(60));
+      console.log('IMPORTANT: When done, stop the dev agent with:');
+      console.log(`  bun dev dev:stop --agentPort ${port}`);
+      console.log('─'.repeat(60));
+    }
+
+    // Daemon started successfully - parent can exit
+    return;
+  }
+
   // Register cleanup hooks for dev command (must be done at runtime, not module import time)
   // These hooks are NOT registered at module load to avoid side effects when stacktape code
   // is bundled into user applications
   registerCredentialCleanupHook();
   registerLocalResourceCleanupHook();
+  registerHealthMonitorCleanupHook();
   registerDevServerCleanupHook();
   registerTunnelCleanupHook();
+  registerLambdaEnvCleanupHook();
 
   const devMode = getDevModeType();
   const isLegacy = isLegacyDevMode();
@@ -217,26 +376,48 @@ export const commandDev = async () => {
   // This also prompts for stage if not provided
   await initializeStackServicesForDevPhase1();
 
-  const agentPortArg = globalStateManager.args.agentPort;
-  const agentEnabled = Boolean(globalStateManager.args.agent || agentPortArg !== undefined);
-  const agentPort = agentPortArg ?? (agentEnabled ? 7331 : null);
+  // Set agent mode early so spinners use plain text output
+  if (agentEnabled) {
+    setSpinnerAgentMode(true);
+  }
 
-  if (agentEnabled && agentPort !== null) {
+  if (agentEnabled) {
+    // Find available port (use specified port or find one starting from 7331)
+    const defaultAgentPort = 7331;
+    const agentPort = agentPortArg ?? (await findAvailablePort(defaultAgentPort));
+    if (!agentPort) {
+      throw getError({
+        type: 'CLI',
+        message: `Could not find available port for agent server (tried ${defaultAgentPort}-${defaultAgentPort + 99}).`,
+        hint: 'Specify a port with --agentPort or free up ports in that range.'
+      });
+    }
+
     registerAgentCleanupHook();
+    setRebuildFunctions(rebuildWorkload, rebuildAllWorkloads);
     await startAgentServer(agentPort, join(globalStateManager.workingDir, '.stacktape', 'dev-agent'));
   }
 
-  const headerTitle = `RUNNING DEV MODE${isLegacy ? ' (legacy)' : ''}`;
-  const projectNameLabel = tuiManager.makeBold(globalStateManager.targetStack.projectName);
-  const stageNameLabel = tuiManager.colorize('cyan', globalStateManager.targetStack.stage);
-  const regionLabel = tuiManager.colorize('gray', globalStateManager.region);
-  clackBox(`${projectNameLabel} → ${stageNameLabel} (${regionLabel})`, tuiManager.makeBold(` ${headerTitle} `), {
-    rounded: true,
-    width: 'auto',
-    titleAlign: 'left',
-    contentAlign: 'left'
-  });
-  console.info('');
+  // Print header - plain text in agent mode, clack box otherwise
+  if (agentEnabled) {
+    const headerTitle = `DEV MODE${isLegacy ? ' (legacy)' : ''}`;
+    console.log(
+      `--- ${headerTitle}: ${globalStateManager.targetStack.projectName} -> ${globalStateManager.targetStack.stage} (${globalStateManager.region}) ---`
+    );
+    console.log('');
+  } else {
+    const headerTitle = `RUNNING DEV MODE${isLegacy ? ' (legacy)' : ''}`;
+    const projectNameLabel = tuiManager.makeBold(globalStateManager.targetStack.projectName);
+    const stageNameLabel = tuiManager.colorize('cyan', globalStateManager.targetStack.stage);
+    const regionLabel = tuiManager.colorize('gray', globalStateManager.region);
+    clackBox(`${projectNameLabel} → ${stageNameLabel} (${regionLabel})`, tuiManager.makeBold(` ${headerTitle} `), {
+      rounded: true,
+      width: 'auto',
+      titleAlign: 'left',
+      contentAlign: 'left'
+    });
+    console.info('');
+  }
 
   const allWorkloads = getDevCompatibleResources();
   // In legacy mode, we don't offer local database emulation
@@ -268,6 +449,14 @@ export const commandDev = async () => {
   // Filter workloads and emulatable resources based on selection
   const devCompatibleResources = allWorkloads.filter((r) => selectedResourceNames.has(r.name));
   const emulateableResources = allEmulateableResources.filter((r) => selectedResourceNames.has(r.name));
+
+  // Log selected resources in agent mode
+  if (agentEnabled) {
+    const workloadNames = devCompatibleResources.map((r) => `${r.name} (${r.category})`);
+    const dbNames = emulateableResources.map((r) => `${r.name} (${r.engineType})`);
+    const allNames = [...workloadNames, ...dbNames];
+    console.log(`[~] Selected resources: ${allNames.join(', ')}`);
+  }
 
   // Phase 2: Load AWS metadata (stack info, etc.)
   const multiSpinner = new MultiSpinner(tuiManager.colorize.bind(tuiManager));
@@ -309,10 +498,15 @@ export const commandDev = async () => {
         const isProbablyDevStage = stageName.includes('dev') || stageName.includes('local');
 
         if ((failedStatuses.has(stackStatus) || inProgressStatuses.has(stackStatus)) && isProbablyDevStage) {
-          tuiManager.warn(
-            `Stack '${globalStateManager.targetStack.stackName}' exists but isn't marked as a dev stack and is in ${stackStatus}.`
-          );
-          tuiManager.info('Deleting the failed stack and redeploying a fresh dev stack...');
+          const warnMsg = `Stack '${globalStateManager.targetStack.stackName}' exists but isn't marked as a dev stack and is in ${stackStatus}.`;
+          const infoMsg = 'Deleting the failed stack and redeploying a fresh dev stack...';
+          if (agentEnabled) {
+            console.log(`[!] ${warnMsg}`);
+            console.log(`[~] ${infoMsg}`);
+          } else {
+            tuiManager.warn(warnMsg);
+            tuiManager.info(infoMsg);
+          }
           await stackManager.deleteStack();
           await stackManager.refetchStackDetails(globalStateManager.targetStack.stackName);
         } else {
@@ -327,22 +521,35 @@ export const commandDev = async () => {
 
     // Deploy dev stack if it doesn't exist
     if (!stackManager.existingStackDetails) {
-      eventManager.setSilentMode(false);
-      tuiManager.start();
-      tuiManager.setShowPhaseHeaders(false);
-      tuiManager.setHeader({
-        action: 'DEPLOYING DEV STACK',
-        projectName: globalStateManager.targetStack.projectName,
-        stageName: globalStateManager.targetStack.stage,
-        region: globalStateManager.region,
-        subtitle: 'minimal stack for dev mode'
-      });
-      try {
-        await deployDevStack();
-      } finally {
-        await tuiManager.stop();
-        tuiManager.setShowPhaseHeaders(true);
-        eventManager.setSilentMode(true);
+      if (agentEnabled) {
+        // Agent mode: plain text output for dev stack deployment
+        console.log('[~] Deploying dev stack (minimal stack for dev mode)...');
+        try {
+          await deployDevStack();
+          console.log('[+] Dev stack deployed successfully');
+        } catch (err) {
+          console.log('[x] Dev stack deployment failed');
+          throw err;
+        }
+      } else {
+        // Interactive mode: use TUI
+        eventManager.setSilentMode(false);
+        tuiManager.start();
+        tuiManager.setShowPhaseHeaders(false);
+        tuiManager.setHeader({
+          action: 'DEPLOYING DEV STACK',
+          projectName: globalStateManager.targetStack.projectName,
+          stageName: globalStateManager.targetStack.stage,
+          region: globalStateManager.region,
+          subtitle: 'minimal stack for dev mode'
+        });
+        try {
+          await deployDevStack();
+        } finally {
+          await tuiManager.stop();
+          tuiManager.setShowPhaseHeaders(true);
+          eventManager.setSilentMode(true);
+        }
       }
 
       // Refresh stack details after deployment
@@ -358,15 +565,84 @@ export const commandDev = async () => {
   const projectName = globalStateManager.targetStack.projectName;
   const stageName = globalStateManager.targetStack.stage;
 
+  // Prepare resource info for agent startup message
+  const workloadInfos = devCompatibleResources.map((r) => ({ name: r.name, type: r.category }));
+  const databaseInfos = emulateableResources.map((r) => ({ name: r.name, type: r.engineType }));
+
   // Start the Dev TUI
+  // When agent mode is enabled, use non-TTY renderer for LLM-friendly output
   devTuiManager.start({
     projectName,
     stageName,
     onCommand: handleCommand,
-    devMode
+    onReady: agentEnabled
+      ? () => {
+          const port = getAgentPort();
+
+          // Write lock file for discovery by other processes
+          writeAgentLockFile({
+            pid: process.pid,
+            port: port!,
+            phase: 'ready',
+            projectName,
+            stage: stageName,
+            region: globalStateManager.region,
+            startedAt: new Date().toISOString(),
+            workloads: workloadInfos.map((w) => w.name),
+            databases: databaseInfos.map((d) => d.name),
+            logFile: getAgentLogFilePath() || undefined
+          });
+
+          // Get workload details from state for the ready message
+          const state = devTuiState.getState();
+          const workloadsWithUrls = state.workloads.map((w) => ({
+            name: w.name,
+            type: w.type,
+            url: w.url
+          }));
+          const databasesWithPorts = state.localResources.map((r) => ({
+            name: r.name,
+            type: r.type,
+            port: r.port
+          }));
+
+          // Print AGENT_READY for daemon parent to detect
+          // This MUST be printed for the daemon spawning to work
+          console.log(
+            buildAgentReadyMessage({
+              port: port!,
+              projectName,
+              stage: stageName,
+              region: globalStateManager.region,
+              workloads: workloadsWithUrls,
+              databases: databasesWithPorts,
+              logFile: getAgentLogFilePath() || ''
+            })
+          );
+          console.log('');
+
+          // Also print human-readable info
+          console.log(
+            buildStartupMessage({
+              projectName,
+              stage: stageName,
+              region: globalStateManager.region,
+              workloads: workloadInfos,
+              databases: databaseInfos,
+              logFile: getAgentLogFilePath() || undefined
+            })
+          );
+          console.log('');
+        }
+      : undefined,
+    devMode,
+    agentMode: agentEnabled
   });
 
   if (agentEnabled) {
+    // Initialize dev agent credentials (scoped IAM role for agent API)
+    initDevAgentCredentials();
+
     let agentLogCursor = 0;
     const mapLogLevel = (level: 'info' | 'warn' | 'error' | 'debug'): 'info' | 'warn' | 'error' => {
       if (level === 'error') return 'error';
@@ -412,6 +688,11 @@ export const commandDev = async () => {
   }
 
   applicationManager.registerCleanUpHook(async () => {
+    // Delete lock file when agent stops
+    if (agentEnabled) {
+      deleteAgentLockFile();
+    }
+
     const state = devTuiState.getState();
     const logLine = devTuiManager.running
       ? devTuiManager.systemLog.bind(devTuiManager)
@@ -434,6 +715,7 @@ export const commandDev = async () => {
     }
 
     devTuiManager.stop();
+    setSpinnerAgentMode(false);
   });
 
   // Set up rebuild handler for keyboard shortcuts
@@ -449,7 +731,7 @@ export const commandDev = async () => {
   // In legacy mode, this is skipped (no local database emulation)
   for (const resource of emulateableResources) {
     if (!remoteResourceNames.has(resource.name)) {
-      const resourceType = mapResourceType(resource.type);
+      const resourceType = mapResourceType(resource.type, resource.engineType);
       if (resourceType) {
         devTuiManager.addLocalResource({ name: resource.name, type: resourceType });
       }
@@ -499,8 +781,8 @@ export const commandDev = async () => {
 
   // Keep the process running until Ctrl+C
   await new Promise<void>((resolve) => {
-    const cleanup = () => {
-      applicationManager.handleExitSignal('SIGINT');
+    const cleanup = async () => {
+      await applicationManager.handleExitSignal('SIGINT');
       resolve();
     };
 
@@ -509,13 +791,19 @@ export const commandDev = async () => {
   });
 };
 
-const mapResourceType = (type: string): 'postgres' | 'mysql' | 'redis' | 'dynamodb' | null => {
+const mapResourceType = (
+  type: string,
+  engineType?: string
+): 'postgres' | 'mysql' | 'mariadb' | 'redis' | 'dynamodb' | 'opensearch' | null => {
   if (type === 'relational-database') {
-    // Need to check engine type - for now assume postgres
-    return 'postgres';
+    // Check engine type for relational databases
+    if (engineType === 'mysql' || engineType?.includes('mysql')) return 'mysql';
+    if (engineType === 'mariadb') return 'mariadb';
+    return 'postgres'; // Default for postgres, aurora-postgres, etc.
   }
   if (type === 'redis-cluster') return 'redis';
   if (type === 'dynamo-db-table') return 'dynamodb';
+  if (type === 'open-search-domain') return 'opensearch';
   return null;
 };
 

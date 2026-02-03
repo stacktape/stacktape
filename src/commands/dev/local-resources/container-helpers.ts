@@ -1,4 +1,5 @@
 import type { LocalResourceConfig, LocalResourceInstance } from './index';
+import { globalStateManager } from '@application-services/global-state-manager';
 import { inspectDockerContainer } from '@shared/utils/docker';
 import { isPortInUse } from '@shared/utils/ports';
 import findFreePorts from 'find-free-ports';
@@ -7,6 +8,23 @@ import { DEV_CONFIG } from '../dev-config';
 export const DEFAULT_LOCAL_HOST = 'localhost';
 export const DEFAULT_PASSWORD = DEV_CONFIG.localResources.defaultPassword;
 export const DEFAULT_PORTS = DEV_CONFIG.localResources.ports;
+
+/**
+ * Calculate a port offset based on stage name to avoid conflicts between parallel dev modes.
+ * Uses a djb2-style hash to spread stages across a port range.
+ */
+const getStagePortOffset = (): number => {
+  const stage = globalStateManager.stage || '';
+  if (!stage) return 0;
+
+  // djb2 hash - better distribution than simple sum
+  let hash = 5381;
+  for (let i = 0; i < stage.length; i++) {
+    hash = (hash * 33) ^ stage.charCodeAt(i);
+  }
+  // Ensure positive and limit to ~50 different port ranges (0-4900 offset, stepping by 100)
+  return (Math.abs(hash) % 50) * 100;
+};
 
 export const isContainerRunning = async (containerName: string): Promise<boolean> => {
   const info = await inspectDockerContainer(containerName);
@@ -45,11 +63,24 @@ export const getContainerPort = async (
 };
 
 export const findAvailablePort = async (preferredPort: number): Promise<number> => {
-  if (await isPortInUse(preferredPort)) {
-    const [freePort] = await findFreePorts(1);
-    return freePort;
+  // Apply stage-based offset to avoid conflicts between parallel dev modes
+  const stageOffset = getStagePortOffset();
+  const startPort = preferredPort + stageOffset;
+
+  // Try ports sequentially starting from offset port
+  const maxAttempts = 100;
+  let port = startPort;
+
+  for (let i = 0; i < maxAttempts; i++) {
+    if (!(await isPortInUse(port))) {
+      return port;
+    }
+    port++;
   }
-  return preferredPort;
+
+  // Fallback to system-assigned free port
+  const [freePort] = await findFreePorts(1);
+  return freePort;
 };
 
 export const getImageTag = (version: string, imageType: string): string => {

@@ -8,7 +8,7 @@ export type ResourceStatus = 'pending' | 'starting' | 'running' | 'error' | 'sto
 
 export type LocalResource = {
   name: string;
-  type: 'postgres' | 'mysql' | 'redis' | 'dynamodb';
+  type: 'postgres' | 'mysql' | 'mariadb' | 'redis' | 'dynamodb' | 'opensearch';
   status: ResourceStatus;
   port?: number;
   host?: string;

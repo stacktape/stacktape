@@ -3,8 +3,16 @@
  * Handles port conflicts, process cleanup, and port allocation.
  */
 
-import { exec, execSync } from 'node:child_process';
+import { exec } from 'node:child_process';
 import { createServer } from 'node:net';
+import { DEV_CONFIG } from './dev-config';
+
+/** Cache for port availability checks to avoid repeated socket operations */
+type PortCacheEntry = { available: boolean; timestamp: number };
+const portAvailabilityCache = new Map<number, PortCacheEntry>();
+
+/** How long to cache port availability results (ms) */
+const PORT_CACHE_TTL_MS = DEV_CONFIG.devServer?.portCacheTtlMs ?? 1000;
 
 /**
  * Find the process ID using a specific port.
@@ -75,19 +83,42 @@ export const killProcess = async (pid: number): Promise<boolean> => {
 /**
  * Kill any process using a specific port.
  * Returns true if a process was found and killed.
+ * Automatically clears the port cache after killing.
  */
 export const killProcessOnPort = async (port: number): Promise<boolean> => {
   const pid = await findProcessByPort(port);
   if (pid) {
-    return killProcess(pid);
+    const result = await killProcess(pid);
+    // Clear cache for this port since its status has changed
+    clearPortCache(port);
+    return result;
   }
   return false;
 };
 
 /**
- * Check if a port is available.
+ * Check if a port is available (with caching).
+ * Uses a short-lived cache to avoid repeated socket operations during rapid checks.
  */
-export const isPortAvailable = (port: number): Promise<boolean> => {
+export const isPortAvailable = async (port: number): Promise<boolean> => {
+  // Check cache first
+  const cached = portAvailabilityCache.get(port);
+  if (cached && Date.now() - cached.timestamp < PORT_CACHE_TTL_MS) {
+    return cached.available;
+  }
+
+  const available = await checkPortAvailability(port);
+
+  // Cache the result
+  portAvailabilityCache.set(port, { available, timestamp: Date.now() });
+
+  return available;
+};
+
+/**
+ * Internal function to actually check port availability via socket.
+ */
+const checkPortAvailability = (port: number): Promise<boolean> => {
   return new Promise((resolve) => {
     const server = createServer();
 
@@ -106,6 +137,18 @@ export const isPortAvailable = (port: number): Promise<boolean> => {
 
     server.listen(port, '127.0.0.1');
   });
+};
+
+/**
+ * Clear the port availability cache.
+ * Call this after killing a process to ensure fresh checks.
+ */
+export const clearPortCache = (port?: number): void => {
+  if (port !== undefined) {
+    portAvailabilityCache.delete(port);
+  } else {
+    portAvailabilityCache.clear();
+  }
 };
 
 /**

@@ -19,6 +19,7 @@ import { parseContainerError } from '@utils/errors';
 import { addCallerToAssumeRolePolicy } from 'src/commands/_utils/assume-role';
 import { initializeStackServicesForDevPhase2 } from 'src/commands/_utils/initialization';
 import { categorizeConnectToResources, getLocalResourceEnvVars, startLocalResources } from '../local-resources';
+import { startHealthMonitoring } from '../local-resources/health-monitor';
 import {
   getBastionTunnelsForResource,
   getDeployedBastionStpName,
@@ -72,8 +73,9 @@ export const runDevContainer = async () => {
   const localResourceInstances = await startLocalResources(localResourceNames);
   const localResourceEnvVars = getLocalResourceEnvVars(localResourceInstances);
 
-  // Inject local resource env vars into process.env for hooks
+  // Start health monitoring for local resources (detects crashes, auto-restarts)
   if (localResourceInstances.length > 0) {
+    startHealthMonitoring(localResourceInstances);
     Object.assign(process.env, localResourceEnvVars);
   }
 

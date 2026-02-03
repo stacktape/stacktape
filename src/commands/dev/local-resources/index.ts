@@ -1,12 +1,13 @@
 import { join } from 'node:path';
-import { applicationManager } from '@application-services/application-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { configManager } from '@domain-services/config-manager';
 import { injectedParameterEnvVarName } from '@shared/naming/utils';
 import { stopDockerContainer } from '@shared/utils/docker';
+import { ExpectedError } from '@utils/errors';
 import { ensureDir } from 'fs-extra';
 import { devTuiManager } from 'src/app/tui-manager/dev-tui';
+import { createCleanupHook } from '../cleanup-utils';
 import { startLocalDynamoDb } from './dynamodb';
 import { startLocalMysql } from './mysql';
 import { startLocalOpenSearch } from './opensearch';
@@ -59,11 +60,13 @@ export type LocalResourceInstance = LocalResourceConfig & {
 const localResourceInstances: LocalResourceInstance[] = [];
 
 const getDataDir = (resourceName: string) => {
-  return join(globalStateManager.workingDir, '.stacktape', 'dev-data', resourceName, 'data');
+  const { stage } = globalStateManager;
+  return join(globalStateManager.workingDir, '.stacktape', 'dev-data', stage, resourceName, 'data');
 };
 
 const getLocalContainerName = (resourceName: string) => {
-  return `stp-local-${resourceName}`;
+  const { stage } = globalStateManager;
+  return `stp-${stage}-${resourceName}`;
 };
 
 export const getSupportedLocalResourceTypes = (): LocalResourceType[] => [
@@ -280,9 +283,10 @@ const buildLocalResourceConfig = (resourceName: string): LocalResourceConfig | n
 export const startLocalResources = async (resourceNames: string[]): Promise<LocalResourceInstance[]> => {
   if (!resourceNames.length) return [];
 
-  // Build configs first and pre-resolve port conflicts
+  const freshDb = Boolean(globalStateManager.args.freshDb);
+
+  // Build configs - port conflicts are handled per-resource in findAvailablePort (with stage offset)
   const configs: Array<{ resourceName: string; config: LocalResourceConfig; containerName: string }> = [];
-  const usedPorts = new Set<number>();
 
   for (const resourceName of resourceNames) {
     const config = buildLocalResourceConfig(resourceName);
@@ -290,11 +294,6 @@ export const startLocalResources = async (resourceNames: string[]): Promise<Loca
       tuiManager.warn(`Cannot create local config for resource "${resourceName}"`);
       continue;
     }
-    // If port already claimed by another resource in this batch, find a free one
-    while (usedPorts.has(config.port)) {
-      config.port++;
-    }
-    usedPorts.add(config.port);
     configs.push({ resourceName, config, containerName: getLocalContainerName(resourceName) });
   }
 
@@ -303,6 +302,13 @@ export const startLocalResources = async (resourceNames: string[]): Promise<Loca
   const errors: Array<{ resourceName: string; error: Error }> = [];
 
   const startPromises = configs.map(async ({ resourceName, config, containerName }) => {
+    // If --freshDb flag is set, remove existing data directory
+    if (freshDb) {
+      const { remove, pathExists } = await import('fs-extra');
+      if (await pathExists(config.dataDir)) {
+        await remove(config.dataDir);
+      }
+    }
     await ensureDir(config.dataDir);
 
     // Update DevTui status
@@ -342,22 +348,35 @@ export const startLocalResources = async (resourceNames: string[]): Promise<Loca
       const friendlyError = parseDockerError(err);
       if (useDevTui) {
         devTuiManager.setLocalResourceStatus(resourceName, 'error', { error: friendlyError });
-        // Collect error but don't throw - let DevTui show the error state
-        errors.push({ resourceName, error: new Error(friendlyError) });
-        return null;
       }
-      throw new Error(friendlyError);
+      // Always collect errors - we'll throw after all resources are attempted
+      errors.push({ resourceName, error: new Error(friendlyError) });
+      return null;
     }
   });
 
   const results = await Promise.all(startPromises);
 
-  // If DevTui is not running and there were errors, throw the first one
-  if (!useDevTui && errors.length > 0) {
-    throw errors[0].error;
+  // Throw if any resources failed to start
+  if (errors.length > 0) {
+    const failedNames = errors.map((e) => `${e.resourceName}: ${e.error.message}`).join('\n  ');
+    // Check if it's a Docker-related error to provide better hints
+    const isDockerError = errors.some(
+      (e) => e.error.message.includes('Docker is not running') || e.error.message.includes('Docker is not installed')
+    );
+    const hint = isDockerError ? 'Start Docker Desktop and try again.' : undefined;
+    throw new ExpectedError('DOCKER', `Failed to start local resource(s):\n  ${failedNames}`, hint);
   }
 
-  return results.filter((r): r is LocalResourceInstance => r !== null);
+  const successfulResults = results.filter((r): r is LocalResourceInstance => r !== null);
+
+  // Log summary (useful for debugging and non-DevTui mode)
+  if (successfulResults.length > 0 && !useDevTui) {
+    const summary = successfulResults.map((r) => `${r.name} (${r.type}:${r.actualPort})`).join(', ');
+    tuiManager.success(`Started ${successfulResults.length} local resource(s): ${summary}`);
+  }
+
+  return successfulResults;
 };
 
 export const stopLocalResources = async (): Promise<void> => {
@@ -392,17 +411,10 @@ export const getRunningLocalInstances = (): LocalResourceInstance[] => {
   return [...localResourceInstances];
 };
 
-// Track if cleanup hook has been registered
-let localResourceCleanupHookRegistered = false;
-
 /**
  * Register cleanup hook for local resources.
  * Must be called explicitly when dev command starts.
  */
-export const registerLocalResourceCleanupHook = () => {
-  if (localResourceCleanupHookRegistered) return;
-  localResourceCleanupHookRegistered = true;
-  applicationManager.registerCleanUpHook(async () => {
-    await stopLocalResources();
-  });
-};
+export const registerLocalResourceCleanupHook = createCleanupHook('local-resources', async () => {
+  await stopLocalResources();
+});

@@ -6,7 +6,11 @@ export const DEV_CONFIG = {
     server: process.env.STACKTAPE_TUNNEL_SERVER || 'bore.pub',
     startupTimeoutMs: 30000,
     retryAttempts: 2,
-    retryDelayMs: 2000
+    retryDelayMs: 2000,
+    /** Number of reconnection attempts when a tunnel dies unexpectedly */
+    reconnectAttempts: 3,
+    /** Delay between reconnection attempts (ms) */
+    reconnectDelayMs: 5000
   },
 
   /** Lambda environment manager configuration */
@@ -43,12 +47,33 @@ export const DEV_CONFIG = {
       redis: 500,
       dynamodb: 300,
       opensearch: 1000
+    },
+    /** Health check configuration for ongoing monitoring */
+    healthCheck: {
+      /** Interval between health checks (ms) */
+      intervalMs: 30000,
+      /** Number of consecutive failures before marking unhealthy */
+      failureThreshold: 2,
+      /** Whether to attempt auto-restart on failure */
+      autoRestart: true,
+      /** Max restart attempts before giving up */
+      maxRestartAttempts: 3
     }
   },
 
   /** Container configuration */
   container: {
     stopWaitTimeSec: 5
+  },
+
+  /** Dev server configuration */
+  devServer: {
+    /** How long to cache port availability results (ms) */
+    portCacheTtlMs: 1000,
+    /** Timeout for waiting for ready signal from dev server (ms) */
+    readyTimeoutMs: 10000,
+    /** Delay after ready signal to capture URL and compile time (ms) */
+    readyDelayMs: 300
   }
 } as const;
 
