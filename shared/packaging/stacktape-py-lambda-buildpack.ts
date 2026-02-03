@@ -1,11 +1,8 @@
-import { getFileSize, getFolder, getFolderSize } from '@shared/utils/fs-utils';
-import { getError } from '@shared/utils/misc';
-import { archiveItem } from '@shared/utils/zip';
-import { rename } from 'fs-extra';
+import { isAbsolute, join } from 'node:path';
+import { getFolder } from '@shared/utils/fs-utils';
+import { DEFAULT_PYTHON_VERSION } from './bundlers/constants';
 import { buildPythonArtifact } from './bundlers/py';
-
-const FILE_SIZE_UNIT = 'MB';
-const DEFAULT_PYTHON_VERSION = 3.9;
+import { createLambdaZipArtifact } from './lambda-artifact';
 
 export const buildUsingStacktapePyLambdaBuildpack = async ({
   progressLogger,
@@ -14,64 +11,45 @@ export const buildUsingStacktapePyLambdaBuildpack = async ({
   zippedSizeLimit,
   languageSpecificConfig,
   entryfilePath,
+  cwd,
   ...otherProps
 }: StpBuildpackInput & {
   zippedSizeLimit: number;
   languageSpecificConfig: PyLanguageSpecificConfig;
 }): Promise<PackagingOutput> => {
-  const sourcePath = languageSpecificConfig?.packageManagerFile
-    ? getFolder(languageSpecificConfig.packageManagerFile)
-    : getFolder(entryfilePath);
+  const packageManagerFilePath = languageSpecificConfig?.packageManagerFile
+    ? isAbsolute(languageSpecificConfig.packageManagerFile)
+      ? languageSpecificConfig.packageManagerFile
+      : join(cwd, languageSpecificConfig.packageManagerFile)
+    : null;
+  const relativeSourcePath = packageManagerFilePath ? getFolder(packageManagerFilePath) : getFolder(entryfilePath);
+  const sourcePath = isAbsolute(relativeSourcePath) ? relativeSourcePath : join(cwd, relativeSourcePath);
+  const absoluteEntryfilePath = isAbsolute(entryfilePath) ? entryfilePath : join(cwd, entryfilePath);
 
   const { digest, outcome, distFolderPath, ...otherOutputProps } = await buildPythonArtifact({
     ...otherProps,
     distFolderPath: otherProps.distFolderPath,
     pythonVersion: languageSpecificConfig?.pythonVersion ?? DEFAULT_PYTHON_VERSION,
     sourcePath,
-    entryfilePath,
-    rawEntryfilePath: entryfilePath,
+    entryfilePath: absoluteEntryfilePath,
+    rawEntryfilePath: absoluteEntryfilePath,
     name,
-    packageManager: languageSpecificConfig?.packageManager,
     progressLogger,
+    cwd,
     languageSpecificConfig
   });
 
-  const unzippedSize = await getFolderSize(distFolderPath, FILE_SIZE_UNIT, 2);
-
-  if (sizeLimit && unzippedSize > sizeLimit) {
-    throw getError({
-      type: 'PACKAGING',
-      message: `Function ${name} has size ${unzippedSize}${FILE_SIZE_UNIT}. Should be less than ${sizeLimit}${FILE_SIZE_UNIT}.`
-    });
+  if (outcome === 'skipped') {
+    return { ...otherOutputProps, digest, outcome, size: null, jobName: name } as PackagingOutput;
   }
 
-  let zippedSize: number = null;
-  await progressLogger.startEvent({
-    eventType: 'ZIP_PACKAGE',
-    description: 'Getting folder size and zipping package'
-  });
-
-  await archiveItem({
-    absoluteSourcePath: distFolderPath,
-    format: 'zip',
-    useNativeZip: true
-  });
-
-  const originalZipPath = `${distFolderPath}.zip`;
-  zippedSize = await getFileSize(originalZipPath, FILE_SIZE_UNIT, 2);
-  if (zippedSizeLimit && zippedSize > zippedSizeLimit) {
-    throw getError({
-      type: 'PACKAGING',
-      message: `${name} has size ${zippedSize}. Should be less than ${zippedSizeLimit}.`
-    });
-  }
-
-  const adjustedZipPath = `${distFolderPath}-${digest}.zip`;
-  await rename(originalZipPath, adjustedZipPath);
-
-  await progressLogger.finishEvent({
-    eventType: 'ZIP_PACKAGE',
-    finalMessage: `Artifact size: ${unzippedSize} MB. Zipped artifact size: ${zippedSize} MB.`
+  const { unzippedSize, zippedSize, artifactPath } = await createLambdaZipArtifact({
+    name,
+    distFolderPath,
+    digest,
+    sizeLimit,
+    zippedSizeLimit,
+    progressLogger
   });
 
   return {
@@ -79,8 +57,9 @@ export const buildUsingStacktapePyLambdaBuildpack = async ({
     outcome,
     zippedSize,
     size: unzippedSize,
-    artifactPath: adjustedZipPath,
+    artifactPath,
     details: { ...otherOutputProps },
+    sourceFiles: otherOutputProps.sourceFiles,
     jobName: name
   };
 };

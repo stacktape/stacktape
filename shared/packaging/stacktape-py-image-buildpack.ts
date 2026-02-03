@@ -1,11 +1,10 @@
-import { extname, join } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 import { buildDockerImage } from '@shared/utils/docker';
 import { buildPythonDockerfile } from '@shared/utils/dockerfiles';
 import { getFolder } from '@shared/utils/fs-utils';
 import { outputFile } from 'fs-extra';
+import { DEFAULT_PYTHON_VERSION } from './bundlers/constants';
 import { buildPythonArtifact } from './bundlers/py';
-
-const DEFAULT_PYTHON_VERSION = 3.9;
 
 export const buildUsingStacktapePyImageBuildpack = async ({
   progressLogger,
@@ -17,33 +16,38 @@ export const buildUsingStacktapePyImageBuildpack = async ({
   dockerBuildOutputArchitecture,
   cacheFromRef,
   cacheToRef,
+  cwd,
   ...otherProps
 }: StpBuildpackInput & {
   languageSpecificConfig: PyLanguageSpecificConfig;
   cacheFromRef?: string;
   cacheToRef?: string;
 }): Promise<PackagingOutput> => {
-  const handler = extname(entryfilePath).split(':')[1];
-  const filePath = handler ? entryfilePath.substring(0, entryfilePath.length - handler.length - 1) : entryfilePath;
-  const sourcePath = languageSpecificConfig?.packageManagerFile
-    ? getFolder(languageSpecificConfig.packageManagerFile)
-    : getFolder(entryfilePath);
+  const { filePath, handler } = parsePythonEntryfile(entryfilePath);
+  const packageManagerFilePath = languageSpecificConfig?.packageManagerFile
+    ? isAbsolute(languageSpecificConfig.packageManagerFile)
+      ? languageSpecificConfig.packageManagerFile
+      : join(cwd, languageSpecificConfig.packageManagerFile)
+    : null;
+  const relativeSourcePath = packageManagerFilePath ? getFolder(packageManagerFilePath) : getFolder(filePath);
+  const sourcePath = isAbsolute(relativeSourcePath) ? relativeSourcePath : join(cwd, relativeSourcePath);
+  const absoluteEntryfilePath = isAbsolute(entryfilePath) ? entryfilePath : join(cwd, entryfilePath);
   const bundlingOutput = await buildPythonArtifact({
     ...otherProps,
     distFolderPath,
     pythonVersion: languageSpecificConfig?.pythonVersion || DEFAULT_PYTHON_VERSION,
     sourcePath,
-    entryfilePath,
+    entryfilePath: absoluteEntryfilePath,
     name,
-    rawEntryfilePath: entryfilePath,
-    packageManager: languageSpecificConfig?.packageManager,
+    rawEntryfilePath: absoluteEntryfilePath,
     progressLogger,
     requiresGlibcBinaries,
     dockerBuildOutputArchitecture,
+    cwd,
     languageSpecificConfig
   });
 
-  const { digest, outcome, ...otherOutputProps } = bundlingOutput;
+  const { digest, outcome, sourceFiles, ...otherOutputProps } = bundlingOutput;
 
   if (outcome === 'skipped') {
     return { ...bundlingOutput, size: null, jobName: name };
@@ -58,7 +62,7 @@ export const buildUsingStacktapePyImageBuildpack = async ({
       pythonVersion: languageSpecificConfig?.pythonVersion || DEFAULT_PYTHON_VERSION,
       entryfilePath: filePath,
       handler,
-      packageManagerFile: languageSpecificConfig?.packageManagerFile,
+      packageManagerFile: packageManagerFilePath || undefined,
       alpine: !requiresGlibcBinaries,
       runAppAs: languageSpecificConfig?.runAppAs,
       customDockerBuildCommands: otherProps.customDockerBuildCommands
@@ -86,7 +90,20 @@ export const buildUsingStacktapePyImageBuildpack = async ({
     imageName: name,
     size,
     digest,
+    sourceFiles,
     details: { ...otherOutputProps, dockerOutput, duration, imageCreated: created },
     jobName: name
   };
+};
+
+const parsePythonEntryfile = (entryfilePath: string) => {
+  const colonIndex = entryfilePath.lastIndexOf(':');
+  const lastSlashIndex = Math.max(entryfilePath.lastIndexOf('/'), entryfilePath.lastIndexOf('\\'));
+  const hasHandler = colonIndex !== -1 && colonIndex > lastSlashIndex;
+  if (!hasHandler) {
+    return { filePath: entryfilePath, handler: undefined };
+  }
+  const filePath = entryfilePath.slice(0, colonIndex);
+  const handler = entryfilePath.slice(colonIndex + 1);
+  return { filePath, handler };
 };

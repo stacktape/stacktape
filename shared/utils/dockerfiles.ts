@@ -219,43 +219,47 @@ COPY --from=build /${installationDirName}/node_modules /node_modules`;
 export const buildPythonArtifactDockerfile = ({
   pythonVersion,
   minify,
-  packageManager,
   alpine
 }: {
   pythonVersion: number;
   minify?: boolean;
-  packageManager?: SupportedPythonPackageManager;
   alpine?: boolean;
 }) => {
   let baseImage = `public.ecr.aws/docker/library/python:${pythonVersion}`;
   if (alpine) {
     baseImage += '-alpine';
   }
-  let lockCommand = '';
-
-  switch (packageManager) {
-    case 'pip':
-      break;
-    case 'pipenv':
-      lockCommand = `RUN pip install pipenv
-RUN pipenv lock -r`;
-      break;
-    case 'poetry':
-      lockCommand = `RUN pip install "poetry<2.0.0"
-RUN poetry export --without-hashes -f requirements.txt -o requirements.txt --with-credentials`;
-      break;
-  }
-  const installDepsCommand = 'RUN pip install -r requirements.txt --target .';
-  const minifyCommand = `RUN pip install python-minifier
+  const systemDepsCommand = alpine
+    ? 'RUN apk add --no-cache build-base'
+    : 'RUN apt-get update && apt-get install -y build-essential';
+  const installUvCommand = alpine ? 'RUN pip install uv' : 'RUN pip install uv';
+  const installDepsCommand = `RUN if [ -n "$STP_PY_DEP_FILE" ]; then \
+  if [ "$STP_PY_DEP_TYPE" = "pipfile" ]; then \
+    uv pip compile --pipfile "$STP_PY_DEP_FILE" -o /tmp/requirements.txt; \
+    uv pip install --system --target . -r /tmp/requirements.txt; \
+  elif [ "$STP_PY_DEP_TYPE" = "pyproject" ]; then \
+    uv pip compile "$STP_PY_DEP_FILE" -o /tmp/requirements.txt; \
+    uv pip install --system --target . -r /tmp/requirements.txt; \
+  elif [ "$STP_PY_DEP_TYPE" = "uv-lock" ]; then \
+    uv pip install --system --target . -r "$STP_PY_DEP_FILE"; \
+  else \
+    uv pip install --system --target . -r "$STP_PY_DEP_FILE"; \
+  fi; \
+fi`;
+  const minifyCommand = `RUN uv pip install --system python-minifier
 RUN pyminify . --in-place`;
 
   const dockerfile = `FROM ${baseImage} AS build
+
+ARG STP_PY_DEP_FILE
+ARG STP_PY_DEP_TYPE
 
 RUN mkdir /dist
 COPY ./ ./dist
 WORKDIR /dist
 
-${lockCommand}
+${installUvCommand}
+${systemDepsCommand}
 ${installDepsCommand}
 ${minify ? minifyCommand : ''}
 
@@ -274,11 +278,11 @@ export const buildJavaArtifactDockerfile = ({
   useMaven?: boolean;
   alpine?: boolean;
 }) => {
-  let baseImage = `public.ecr.aws/docker/library/gradle:7.5.1-jdk${javaVersion}`;
+  let baseImage = `public.ecr.aws/docker/library/gradle:8.5-jdk${javaVersion}`;
   if (alpine) {
     baseImage += '-alpine';
   }
-  const mavenToGradleCommand = 'RUN "1\nno\n" | gradle init --type pom';
+  const mavenToGradleCommand = 'RUN printf "1\\nno\\n" | gradle init --type pom';
   const createDist = 'RUN gradle stacktapeDist --init-script stp-init.gradle';
 
   return `FROM ${baseImage} AS build
@@ -294,13 +298,13 @@ COPY --from=build /dist/dist .
 `;
 };
 
-export const buildGoArtifactDockerfile = ({ alpine }: { alpine: boolean }) => {
+export const buildGoArtifactDockerfile = ({ alpine, entryfilePath }: { alpine: boolean; entryfilePath: string }) => {
   let baseImage = 'public.ecr.aws/docker/library/golang';
   if (alpine) {
     baseImage += ':alpine';
   }
   const lambdaLibraryCommand = 'RUN go get github.com/aws/aws-lambda-go/lambda';
-  const buildCommand = 'RUN GOOS=linux GOARCH=amd64 go build -o bootstrap main.go';
+  const buildCommand = `RUN CGO_ENABLED=0 GOOS=linux go build -o bootstrap ${basename(entryfilePath)}`;
 
   return `FROM ${baseImage} AS build
 
@@ -309,7 +313,6 @@ COPY . /dist
 WORKDIR /dist
 ${lambdaLibraryCommand}
 ${buildCommand}
-RUN ls
 
 FROM scratch AS artifact
 COPY --from=build /dist .
@@ -368,7 +371,7 @@ ${cmd}
 export const buildJavaDockerfile = ({
   javaVersion,
   entryfilePath,
-  alpine,
+  alpine: _alpine,
   customDockerBuildCommands
 }: {
   javaVersion: number;
@@ -376,10 +379,7 @@ export const buildJavaDockerfile = ({
   alpine?: boolean;
   customDockerBuildCommands?: string[];
 }) => {
-  let baseImage = `public.ecr.aws/docker/library/gradle:7.5.1-jdk${javaVersion}`;
-  if (alpine) {
-    baseImage += '-alpine';
-  }
+  const baseImage = `public.ecr.aws/amazoncorretto/amazoncorretto:${javaVersion}`;
   return `FROM ${baseImage}
 RUN mkdir /app
 COPY . /app
@@ -391,17 +391,15 @@ CMD java -classpath "$CLASSPATH:/app/lib/*" ${getJavaPackageName(entryfilePath)}
 };
 
 export const buildGoDockerfile = ({
-  entryfilePath,
   alpine,
   customDockerBuildCommands
 }: {
-  entryfilePath: string;
   alpine: boolean;
   customDockerBuildCommands?: string[];
 }) => {
-  let baseImage = 'public.ecr.aws/docker/library/golang';
+  let baseImage = 'public.ecr.aws/docker/library/debian:bookworm-slim';
   if (alpine) {
-    baseImage += ':alpine';
+    baseImage = 'public.ecr.aws/docker/library/alpine:3.19';
   }
   return `FROM ${baseImage}
 RUN mkdir /app
@@ -409,6 +407,187 @@ COPY . /app
 WORKDIR /app
 ${(customDockerBuildCommands || []).map((command) => `RUN ${command}`).join('\n')}
 
-CMD go run ${basename(entryfilePath)}
+RUN chmod +x /app/bootstrap
+
+CMD ["./bootstrap"]
+`;
+};
+
+export const buildRubyArtifactDockerfile = ({ rubyVersion, alpine }: { rubyVersion: number; alpine?: boolean }) => {
+  let baseImage = `public.ecr.aws/docker/library/ruby:${rubyVersion}`;
+  if (alpine) {
+    baseImage += '-alpine';
+  }
+  const systemDepsCommand = alpine
+    ? 'RUN apk add --no-cache build-base'
+    : 'RUN apt-get update && apt-get install -y build-essential';
+  const bundleInstallCommand = `RUN if [ -f Gemfile ]; then \
+  bundle config set path vendor/bundle && \
+  bundle install --without development test; \
+fi`;
+
+  return `FROM ${baseImage} AS build
+
+${systemDepsCommand}
+
+RUN mkdir /dist
+COPY ./ ./dist
+WORKDIR /dist
+
+${bundleInstallCommand}
+
+FROM scratch AS artifact
+COPY --from=build /dist .
+`;
+};
+
+export const buildRubyDockerfile = ({
+  rubyVersion,
+  entryfilePath,
+  alpine,
+  customDockerBuildCommands
+}: {
+  rubyVersion: number;
+  entryfilePath: string;
+  alpine?: boolean;
+  customDockerBuildCommands?: string[];
+}) => {
+  let baseImage = `public.ecr.aws/docker/library/ruby:${rubyVersion}`;
+  if (alpine) {
+    baseImage += '-alpine';
+  }
+  const systemDepsCommand = alpine
+    ? 'RUN apk add --no-cache build-base'
+    : 'RUN apt-get update && apt-get install -y build-essential';
+  const bundleInstallCommand = `RUN if [ -f Gemfile ]; then \
+  bundle config set path vendor/bundle && \
+  bundle install --without development test; \
+fi`;
+
+  const cmd = `CMD ["sh", "-c", "if [ -f Gemfile ]; then bundle exec ruby ${basename(
+    entryfilePath
+  )}; else ruby ${basename(entryfilePath)}; fi"]`;
+
+  return `FROM ${baseImage}
+${systemDepsCommand}
+${(customDockerBuildCommands || []).map((command) => `RUN ${command}`).join('\n')}
+RUN mkdir /app
+COPY . /app
+WORKDIR /app
+
+${bundleInstallCommand}
+
+${cmd}
+`;
+};
+
+export const buildPhpArtifactDockerfile = ({ phpVersion, alpine }: { phpVersion: number; alpine?: boolean }) => {
+  let baseImage = `public.ecr.aws/docker/library/php:${phpVersion}`;
+  if (alpine) {
+    baseImage += '-alpine';
+  }
+  const systemDepsCommand = alpine
+    ? 'RUN apk add --no-cache git unzip'
+    : 'RUN apt-get update && apt-get install -y git unzip';
+  const composerInstallCommand = `RUN if [ -f composer.json ]; then \
+  composer install --no-dev --prefer-dist --no-interaction --no-progress; \
+fi`;
+
+  return `FROM composer:2 AS composer
+FROM ${baseImage} AS build
+
+${systemDepsCommand}
+COPY --from=composer /usr/bin/composer /usr/local/bin/composer
+
+RUN mkdir /dist
+COPY ./ ./dist
+WORKDIR /dist
+
+${composerInstallCommand}
+
+FROM scratch AS artifact
+COPY --from=build /dist .
+`;
+};
+
+export const buildPhpDockerfile = ({
+  phpVersion,
+  entryfilePath,
+  alpine,
+  customDockerBuildCommands
+}: {
+  phpVersion: number;
+  entryfilePath: string;
+  alpine?: boolean;
+  customDockerBuildCommands?: string[];
+}) => {
+  let baseImage = `public.ecr.aws/docker/library/php:${phpVersion}`;
+  if (alpine) {
+    baseImage += '-alpine';
+  }
+  const systemDepsCommand = alpine
+    ? 'RUN apk add --no-cache git unzip'
+    : 'RUN apt-get update && apt-get install -y git unzip';
+  const composerInstallCommand = `RUN if [ -f composer.json ]; then \
+  composer install --no-dev --prefer-dist --no-interaction --no-progress; \
+fi`;
+
+  return `FROM composer:2 AS composer
+FROM ${baseImage}
+${systemDepsCommand}
+COPY --from=composer /usr/bin/composer /usr/local/bin/composer
+${(customDockerBuildCommands || []).map((command) => `RUN ${command}`).join('\n')}
+RUN mkdir /app
+COPY . /app
+WORKDIR /app
+
+${composerInstallCommand}
+
+CMD ["php", "${basename(entryfilePath)}"]
+`;
+};
+
+export const buildDotnetArtifactDockerfile = ({
+  dotnetVersion,
+  projectFilePath
+}: {
+  dotnetVersion: number;
+  projectFilePath: string;
+}) => {
+  const sdkVersion = `${dotnetVersion}.0`;
+  const baseImage = `mcr.microsoft.com/dotnet/sdk:${sdkVersion}`;
+
+  return `FROM ${baseImage} AS build
+
+WORKDIR /src
+COPY . .
+
+RUN dotnet restore "${projectFilePath}"
+RUN dotnet publish "${projectFilePath}" -c Release -o /dist
+
+FROM scratch AS artifact
+COPY --from=build /dist .
+`;
+};
+
+export const buildDotnetDockerfile = ({
+  dotnetVersion,
+  assemblyName,
+  customDockerBuildCommands
+}: {
+  dotnetVersion: number;
+  assemblyName: string;
+  customDockerBuildCommands?: string[];
+}) => {
+  const runtimeVersion = `${dotnetVersion}.0`;
+  const baseImage = `mcr.microsoft.com/dotnet/aspnet:${runtimeVersion}`;
+
+  return `FROM ${baseImage}
+${(customDockerBuildCommands || []).map((command) => `RUN ${command}`).join('\n')}
+RUN mkdir /app
+COPY . /app
+WORKDIR /app
+
+CMD ["dotnet", "${assemblyName}.dll"]
 `;
 };
