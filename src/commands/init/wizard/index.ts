@@ -51,7 +51,7 @@ export const runInitWizard = async (): Promise<void> => {
 
   intro(`Initializing project - ${tuiManager.makeBold(projectName)}`);
 
-  log.message('Stacktape will analyze your project and generate a deployment configuration.\n', {
+  log.message('Stacktape will analyze your project and generate a deployment configuration.', {
     withGuide: true,
     symbol: color.cyan('i')
   });
