@@ -1,6 +1,5 @@
 import type { JsonSchemaGenerator } from 'typescript-json-schema';
 import { join } from 'node:path';
-import { argAliases as cliArgsAliases } from '../../src/config/cli/options';
 import { CONFIG_SCHEMA_PATH } from '@shared/naming/project-fs-paths';
 import { logInfo } from '@shared/utils/logging';
 import fastGlob from 'fast-glob';

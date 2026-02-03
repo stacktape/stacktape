@@ -119,7 +119,7 @@ function generatePropsTypeAliases(): string {
  * Plain types that need to be bundled into plain.d.ts
  * These are the YAML-equivalent types without class augmentation
  */
-const PLAIN_TYPES_TO_GENERATE = [
+const _PLAIN_TYPES_TO_GENERATE = [
   'StacktapeConfig',
   'StacktapeResourceDefinition',
   // Resource types
@@ -145,6 +145,7 @@ const PLAIN_TYPES_TO_GENERATE = [
   'UpstashRedis',
   'SqsQueue',
   'SnsTopic',
+  'KinesisStream',
   'WebAppFirewall',
   'OpenSearchDomain',
   'EfsFilesystem',
@@ -181,6 +182,7 @@ const PLAIN_TYPES_TO_GENERATE = [
   'UpstashRedisProps',
   'SqsQueueProps',
   'SnsTopicProps',
+  'KinesisStreamProps',
   'WebAppFirewallProps',
   'OpenSearchDomainProps',
   'EfsFilesystemProps',

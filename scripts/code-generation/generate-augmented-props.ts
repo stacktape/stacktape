@@ -26,6 +26,7 @@ const ALL_CONNECTABLE_RESOURCES = [
   'UpstashRedis',
   'SqsQueue',
   'SnsTopic',
+  'KinesisStream',
   'OpenSearchDomain',
   'EfsFilesystem',
   'PrivateService',

@@ -1,5 +1,4 @@
-import { cliCommands, type StacktapeCommand } from '../src/config/cli/commands';
-import { argAliases } from '../src/config/cli/options';
+import { cliCommands } from '../src/config/cli/commands';
 import { getCommandInfo } from '../src/config/cli/utils';
 import { writeFile } from 'fs-extra';
 

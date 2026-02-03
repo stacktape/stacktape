@@ -1,4 +1,4 @@
-import type { ResourceClassName, ResourceDefinition } from '@api/npm/ts/class-config';
+import type { ResourceClassName } from '@api/npm/ts/class-config';
 import type { JSDocComment, ReferenceableParam, ReferenceableParamsMap } from './types';
 import {
   getResourcesWithAugmentedProps,
