@@ -6,5 +6,6 @@
       "command": ["npx", "-y", "@executeautomation/playwright-mcp-server"],
       "enabled": false
     }
-  }
+  },
+  "plugin": ["opencode-anthropic-auth@latest"]
 }

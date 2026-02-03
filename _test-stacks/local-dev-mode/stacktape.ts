@@ -32,6 +32,36 @@ export default defineConfig(() => {
     }
   });
 
+  const mysqlDb = new RelationalDatabase({
+    credentials: {
+      masterUserPassword: 'testPassword123'
+    },
+    engine: {
+      type: 'mysql',
+      properties: {
+        version: '8.0',
+        primaryInstance: {
+          instanceSize: 'db.t3.micro'
+        }
+      }
+    }
+  });
+
+  const mariaDb = new RelationalDatabase({
+    credentials: {
+      masterUserPassword: 'testPassword123'
+    },
+    engine: {
+      type: 'mariadb',
+      properties: {
+        version: '10.11',
+        primaryInstance: {
+          instanceSize: 'db.t3.micro'
+        }
+      }
+    }
+  });
+
   const redis = new RedisCluster({
     instanceSize: 'cache.t3.micro',
     defaultUserPassword: 'redisTestPassword1234'
@@ -58,7 +88,7 @@ export default defineConfig(() => {
       memory: 512
     },
     port: 8080,
-    connectTo: [postgresDb, redis, dynamoDb, openSearch]
+    connectTo: [postgresDb, mysqlDb, mariaDb, redis, dynamoDb, openSearch]
   });
 
   const webService = new WebService({
@@ -142,6 +172,8 @@ export default defineConfig(() => {
     },
     resources: {
       postgresDb,
+      mysqlDb,
+      mariaDb,
       redis,
       dynamoDb,
       openSearch,

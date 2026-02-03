@@ -1,0 +1,6 @@
+{
+  "name": "stacktape/php-worker",
+  "require": {
+    "monolog/monolog": "^3.0"
+  }
+}
