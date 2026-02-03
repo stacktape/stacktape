@@ -2,6 +2,55 @@
 
 Quick reference for the agent mode HTTP API.
 
+## Info Commands
+
+Use these CLI commands to query deployment information without a config file:
+
+| Command | Description |
+| ------- | ----------- |
+| `stacktape info:whoami` | Show current user, organization, AWS accounts, and projects |
+| `stacktape info:projects` | List all projects with stages, status, and costs |
+| `stacktape info:operations [--projectName X] [--stage Y] [--limit N]` | Recent deployment operations |
+| `stacktape info:stack --stackName NAME --region REGION [--awsAccount NAME]` | Stack outputs and resources |
+
+### info:whoami
+
+```
+User
+  Name: John Doe
+  Email: john@example.com
+
+Organization
+  Name: Acme Corp
+
+Connected AWS Accounts
+  - default (123456789012) - ACTIVE
+
+Accessible Projects
+  - my-api
+  - my-frontend
+```
+
+### info:projects
+
+Lists all projects with their deployed stages, status (in-progress, errored), and monthly costs.
+
+### info:operations
+
+Shows recent deploy/delete operations with success/failure status. Use filters:
+- `--projectName my-api` - filter by project
+- `--stage dev` - filter by stage
+- `--limit 50` - number of results (default 25, max 100)
+
+Failed operations include error descriptions.
+
+### info:stack
+
+Returns stack outputs (URLs, endpoints) and CloudFormation resources. Requires:
+- `--stackName my-api-dev` - the CloudFormation stack name
+- `--region eu-west-1` - AWS region
+- `--awsAccount default` - optional, auto-detected if only one account connected
+
 ## Start Command
 
 ```bash

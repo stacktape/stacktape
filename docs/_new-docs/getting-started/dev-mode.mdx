@@ -1,132 +1,112 @@
 ---
-title: 'Development Mode'
+title: 'Dev Mode'
 order: 3
 ---
 
-# Development Mode
+# Dev Mode
 
-Development mode lets you run your code locally while connected to real cloud resources. Changes are reflected instantly without redeploying.
-
-## Start Dev Mode
+Dev mode runs your workloads locally while connecting to (or emulating) cloud resources. Change code, see results immediately - no redeploy needed.
 
 ```bash
 stacktape dev --stage dev --region us-east-1
 ```
 
-This:
+## How it works
 
-1. Deploys your infrastructure (if not already deployed)
-2. Runs your Lambda functions locally
-3. Tunnels API Gateway requests to your local machine
-4. Watches for file changes and hot-reloads
+Dev mode creates a minimal "dev stack" in AWS (IAM roles, secrets, API gateways) and runs everything else locally:
 
-## How It Works
+- **Lambda functions** - Deployed to AWS, but with logs streamed to your terminal
+- **Containers** (web-service, worker-service) - Run as Docker containers on your machine
+- **Databases** - Emulated locally with Docker (PostgreSQL, MySQL, Redis, DynamoDB, OpenSearch)
+- **Static sites** (hosting-bucket, Next.js) - Served from a local dev server
 
-<FlowDiagram
-  steps={[
-    { title: 'Your Code', description: 'Runs locally on your machine with hot-reloading' },
-    { title: 'Tunnel', description: 'Secure connection to AWS' },
-    { title: 'API Gateway', description: 'Routes requests to your local machine' },
-    { title: 'AWS Resources', description: 'Real databases, queues, and buckets in the cloud' }
-  ]}
-/>
+Your Lambda functions can still reach your locally-emulated databases through automatic tunneling.
 
-Your local code connects to real AWS resources (databases, queues, buckets) but runs on your machine for instant feedback.
+## Starting dev mode
 
-## Example Workflow
+**Run all workloads:**
 
 ```bash
-# Terminal 1: Start dev mode
-stacktape dev --stage dev --region us-east-1
-
-# Terminal 2: Make changes to your code
-# Changes are automatically detected and reloaded
+stacktape dev --stage dev --region us-east-1 --resources all
 ```
 
-Output:
-
-```
-✓ Infrastructure deployed
-✓ Dev tunnel established
-✓ Watching for changes...
-
-API: https://abc123.execute-api.us-east-1.amazonaws.com → localhost:3000
-
-[12:34:56] handler.ts changed, reloading...
-[12:34:57] Ready
-```
-
-## Dev Mode Options
+**Run specific workloads:**
 
 ```bash
-# Specify which functions to run locally
-stacktape dev --stage dev --region us-east-1 --functionName myHandler
-
-# Use a different local port
-stacktape dev --stage dev --region us-east-1 --port 4000
-
-# Enable verbose logging
-stacktape dev --stage dev --region us-east-1 --logLevel debug
+stacktape dev --stage dev --region us-east-1 --resources myApi,myWorker
 ```
 
-## Debugging
-
-### VS Code
-
-Add to `.vscode/launch.json`:
-
-```json
-{
-  "version": "0.2.0",
-  "configurations": [
-    {
-      "type": "node",
-      "request": "attach",
-      "name": "Attach to Stacktape Dev",
-      "port": 9229,
-      "restart": true
-    }
-  ]
-}
-```
-
-Start dev mode with debugging:
+**Watch for changes and auto-rebuild:**
 
 ```bash
-stacktape dev --stage dev --region us-east-1 --inspect
+stacktape dev --stage dev --region us-east-1 --resources all --watch
 ```
 
-Then attach the debugger in VS Code.
+## Local database emulation
 
-## Local Databases
+Dev mode automatically spins up Docker containers for your databases:
 
-For faster iteration, you can also run databases locally:
+| Resource Type                | Local Emulator                    |
+| ---------------------------- | --------------------------------- |
+| PostgreSQL/Aurora PostgreSQL | `postgres:latest`                 |
+| MySQL/Aurora MySQL           | `mysql:latest` / `mariadb:latest` |
+| Redis                        | `redis:latest`                    |
+| DynamoDB                     | `amazon/dynamodb-local`           |
+| OpenSearch                   | `opensearchproject/opensearch`    |
+
+Database data persists between runs in `.stacktape/dev-data/{stage}/`.
+
+**Start fresh:**
 
 ```bash
-# Start a local PostgreSQL
-docker run -d -p 5432:5432 -e POSTGRES_PASSWORD=password postgres:16
-
-# Point your local code to it
-DATABASE_URL=postgres://postgres:password@localhost:5432/mydb npm run dev
+stacktape dev --stage dev --region us-east-1 --freshDb
 ```
 
-See [Local Databases](/development/local-databases) for Docker Compose templates.
-
-## Hot-Swap Deployments
-
-For quick cloud deployments without full infrastructure updates:
+**Use deployed (remote) database instead:**
 
 ```bash
-stacktape deploy --stage dev --region us-east-1 --hotSwap
+stacktape dev --stage dev --region us-east-1 --remoteResources myDatabase
 ```
 
-Hot-swap updates only Lambda code (~5 seconds vs ~30 seconds for full deploy).
+## Environment variables
 
-<Warning>
-  Hot-swap bypasses CloudFormation and should only be used in development. Always do a full deploy before production.
-</Warning>
+Local workloads receive the same `STP_*` environment variables as deployed resources, pointing to local endpoints:
 
-## Learn More
+```
+STP_MY_DB_CONNECTION_STRING=postgres://postgres:postgres@localhost:5432/postgres
+STP_MY_DB_HOST=localhost
+STP_MY_DB_PORT=5432
+```
 
-- [Development Tools](/development) - Scripts, debugging, local databases
-- [Deployment](/getting-started/deployment) - Full deployment options
+## Manual rebuilds
+
+When running without `--watch`, trigger rebuilds manually:
+
+- Type `rs` + Enter in the terminal to rebuild
+- Or call the HTTP API (see [Using with AI](/getting-started/using-with-ai))
+
+## Command options
+
+| Flag                | Description                                            |
+| ------------------- | ------------------------------------------------------ |
+| `--resources`       | Resources to run (`all` or comma-separated names)      |
+| `--skipResources`   | Resources to exclude                                   |
+| `--watch`           | Auto-rebuild on file changes                           |
+| `--remoteResources` | Resources to connect to AWS instead of local emulation |
+| `--freshDb`         | Delete existing local database data                    |
+| `--noTunnel`        | Disable Lambda-to-local tunneling                      |
+
+## Legacy mode
+
+If you need to connect to an already-deployed stack (no local emulation):
+
+```bash
+stacktape dev --stage dev --region us-east-1 --devMode legacy
+```
+
+Legacy mode requires an existing deployment and connects directly to deployed AWS resources.
+
+## Next steps
+
+- [Using with AI](/getting-started/using-with-ai) - Programmatic control via HTTP API
+- [Console](/getting-started/console) - Web-based deployment and monitoring

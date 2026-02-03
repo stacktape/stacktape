@@ -18,7 +18,7 @@ bun run tsc
 bun run build:npm --version 3.4.0
 
 # Development mode
-bun dev {command} ..options..
+bun dev dev --projectName dev-mode --region eu-west-1 --stage {some-unique-stage} --cp {path-to-stacktape-config} ...options...
 
 # Deploy stack
 # Use meaningful, but unique name for stage. Must by at most 10 characters
