@@ -13,7 +13,7 @@ import { loadFromJavascript, loadFromTypescript } from '@utils/file-loaders';
 import { parseUserCodeFilepath } from '@utils/user-code-processing';
 import { readJsonSync } from 'fs-extra';
 
-// eslint-disable-next-line ts/no-unused-vars
+// eslint-disable-next-line unused-imports/no-unused-vars, ts/no-unused-vars
 declare class CDKConstruct extends ImportedCdkStack {
   constructor(scope: ImportedCdkStack, id: string, props?: any);
 }

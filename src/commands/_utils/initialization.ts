@@ -28,6 +28,7 @@ import { settleAllBeforeThrowing } from '@shared/utils/misc';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { getErrorHandler, loggingPlugin } from '@utils/aws-sdk-manager/utils';
 import { logCollectorStream } from '@utils/log-collector';
+import { ensureAwsAccountConnected } from './aws-connection-preflight';
 
 export const initializeAllStackServices = async ({
   commandModifiesStack,
@@ -371,6 +372,12 @@ export const initializeStackServicesForWorkingWithDeployedStack = async ({
 
 export const loadUserCredentials = async () => {
   await eventManager.startEvent({ eventType: 'LOAD_USER_DATA', description: 'Loading user data' });
+
+  // First, ensure AWS account is connected (may prompt user to connect if no accounts)
+  // This must happen before loadUserCredentials because that accesses targetAwsAccount
+  await ensureAwsAccountConnected();
+
+  // Now load credentials (this will access targetAwsAccount which is now guaranteed to exist)
   await globalStateManager.loadUserCredentials();
   awsSdkManager.init({
     credentials: globalStateManager.credentials,

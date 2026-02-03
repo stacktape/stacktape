@@ -172,18 +172,20 @@ export const resolveConnectToList = ({
       }
     }
 
+    const resourceType = resource.type as StpResourceType;
     if (
-      resource.type === 'function' ||
-      resource.type === 'multi-container-workload' ||
-      resource.type === 'batch-job' ||
-      resource.type === 'state-machine' ||
-      resource.type === 'event-bus' ||
-      resource.type === 'bucket' ||
-      resource.type === 'dynamo-db-table' ||
-      resource.type === 'user-auth-pool' ||
-      resource.type === 'sqs-queue' ||
-      resource.type === 'sns-topic' ||
-      resource.type === 'open-search-domain'
+      resourceType === 'function' ||
+      resourceType === 'multi-container-workload' ||
+      resourceType === 'batch-job' ||
+      resourceType === 'state-machine' ||
+      resourceType === 'event-bus' ||
+      resourceType === 'bucket' ||
+      resourceType === 'dynamo-db-table' ||
+      resourceType === 'user-auth-pool' ||
+      resourceType === 'sqs-queue' ||
+      resourceType === 'sns-topic' ||
+      resourceType === 'open-search-domain' ||
+      resourceType === 'kinesis-stream'
     ) {
       result.accessToResourcesRequiringRoleChanges.push(resource as StpResourceScopableByConnectToAffectingRole);
       return;

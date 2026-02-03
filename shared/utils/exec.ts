@@ -55,6 +55,7 @@ const getChildProcess = (
     env: { FORCE_COLOR: '3', ...(inheritEnvVarsExcept?.length ? inheritedEnv : {}), ...env },
     cwd,
     extendEnv: !disableExtendEnv && !inheritEnvVarsExcept?.length,
+    windowsHide: true,
     ...(pipeStdio && { stdin: 'inherit' as const, stdout: 'pipe' as const, stderr: 'pipe' as const })
   };
   const childProcess = useNodeExec ? execa.node(command, args, cpOpts) : execa(command, args, cpOpts);

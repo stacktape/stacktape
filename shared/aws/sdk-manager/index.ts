@@ -85,15 +85,25 @@ import {
   ListDistributionsCommand
 } from '@aws-sdk/client-cloudfront';
 import {
+  CloudWatchClient,
+  DescribeAlarmsCommand,
+  GetMetricDataCommand,
+  StateValue,
+  type MetricDataQuery,
+  type MetricDataResult
+} from '@aws-sdk/client-cloudwatch';
+import {
   CloudWatchLogsClient,
   CreateLogGroupCommand,
   CreateLogStreamCommand,
   DescribeLogGroupsCommand,
   DescribeLogStreamsCommand,
   FilterLogEventsCommand,
+  GetQueryResultsCommand,
   PutLogEventsCommand,
   PutRetentionPolicyCommand,
-  ResourceNotFoundException
+  ResourceNotFoundException,
+  StartQueryCommand
 } from '@aws-sdk/client-cloudwatch-logs';
 import {
   ArtifactsType,
@@ -489,6 +499,12 @@ export class AwsSdkManager {
     return cloudWatchLogs;
   }
 
+  #cloudwatch() {
+    const cloudWatch = new CloudWatchClient(this.#getClientArgs());
+    this.plugins.forEach(cloudWatch.middlewareStack.use);
+    return cloudWatch;
+  }
+
   #lambda() {
     const lambda = new LambdaClient({
       // In order to honor the overall maximum timeout set for the target process when invoking lambda,
@@ -616,15 +632,14 @@ export class AwsSdkManager {
     const duration = durationSeconds && durationSeconds <= 60 * 60 ? 60 * 60 : durationSeconds || 60 * 60 * 12;
 
     const executeAssumeRole = async () => {
-      const result = await this.#sts()
-        .send(
-          new AssumeRoleCommand({
-            RoleArn: roleArn,
-            DurationSeconds: duration,
-            RoleSessionName: roleSessionName
-          })
-        )
-        .catch(errHandler);
+      // Don't catch errors here - let them propagate for retry logic
+      const result = await this.#sts().send(
+        new AssumeRoleCommand({
+          RoleArn: roleArn,
+          DurationSeconds: duration,
+          RoleSessionName: roleSessionName
+        })
+      );
       return {
         accessKeyId: result.Credentials.AccessKeyId,
         secretAccessKey: result.Credentials.SecretAccessKey,
@@ -634,16 +649,17 @@ export class AwsSdkManager {
     };
 
     if (retry) {
+      // Apply error handler after all retries exhausted
       return pRetry(executeAssumeRole, {
         retries: retry.count,
         onFailedAttempt: async (error) => {
           this.printer?.debug(`Attempt ${error.attemptNumber} failed. There are ${error.retriesLeft} retries left.`);
           await wait(retry.delaySeconds * 1000);
         }
-      });
+      }).catch(errHandler);
     }
 
-    return executeAssumeRole();
+    return executeAssumeRole().catch(errHandler);
   };
 
   addUserToRolePrincipals = async ({ userArn, roleName }: { userArn: string; roleName: string }) => {
@@ -1746,6 +1762,98 @@ export class AwsSdkManager {
     return this.#cloudwatchLogs()
       .send(new PutLogEventsCommand({ logGroupName, logStreamName, logEvents }))
       .catch(errHandler);
+  };
+
+  /**
+   * Run CloudWatch Logs Insights query
+   */
+  runLogsInsightsQuery = async ({
+    logGroupName,
+    query,
+    startTime,
+    endTime
+  }: {
+    logGroupName: string;
+    query: string;
+    startTime: Date;
+    endTime: Date;
+  }): Promise<{ results: Record<string, string>[] }> => {
+    const errHandler = this.#getErrorHandler('Failed to run Logs Insights query.');
+    const startResponse = await this.#cloudwatchLogs()
+      .send(
+        new StartQueryCommand({
+          logGroupName,
+          queryString: query,
+          startTime: Math.floor(startTime.getTime() / 1000),
+          endTime: Math.floor(endTime.getTime() / 1000)
+        })
+      )
+      .catch(errHandler);
+
+    const queryId = startResponse.queryId;
+    let status = 'Running';
+    let results: Record<string, string>[] = [];
+
+    while (status === 'Running' || status === 'Scheduled') {
+      await wait(500);
+      const response = await this.#cloudwatchLogs().send(new GetQueryResultsCommand({ queryId })).catch(errHandler);
+      status = response.status;
+      if (response.results) {
+        results = response.results.map((row) =>
+          row.reduce(
+            (acc, field) => {
+              if (field.field && field.value) acc[field.field] = field.value;
+              return acc;
+            },
+            {} as Record<string, string>
+          )
+        );
+      }
+    }
+
+    return { results };
+  };
+
+  /**
+   * Describe CloudWatch alarms for a stack
+   */
+  describeAlarms = async ({ alarmNamePrefix, stateValue }: { alarmNamePrefix?: string; stateValue?: StateValue }) => {
+    const errHandler = this.#getErrorHandler('Failed to describe CloudWatch alarms.');
+    const response = await this.#cloudwatch()
+      .send(
+        new DescribeAlarmsCommand({
+          MaxRecords: 100,
+          ...(alarmNamePrefix && { AlarmNamePrefix: alarmNamePrefix }),
+          ...(stateValue && { StateValue: stateValue })
+        })
+      )
+      .catch(errHandler);
+    return response.MetricAlarms || [];
+  };
+
+  /**
+   * Get CloudWatch metric data
+   */
+  getMetricData = async ({
+    metricQueries,
+    startTime,
+    endTime
+  }: {
+    metricQueries: MetricDataQuery[];
+    startTime: Date;
+    endTime: Date;
+  }): Promise<MetricDataResult[]> => {
+    const errHandler = this.#getErrorHandler('Failed to get CloudWatch metric data.');
+    const response = await this.#cloudwatch()
+      .send(
+        new GetMetricDataCommand({
+          MetricDataQueries: metricQueries,
+          StartTime: startTime,
+          EndTime: endTime
+        })
+      )
+      .catch(errHandler);
+    return response.MetricDataResults || [];
   };
 
   updateExistingSecret = async (secretArn: string, newSecretString: string) => {

@@ -1,1 +1,21 @@
-export const EXCLUDE_FROM_CHECKSUM_GLOBS = ['node_modules', 'test_coverage'];
+export const EXCLUDE_FROM_CHECKSUM_GLOBS = [
+  'node_modules',
+  'test_coverage',
+  '.git',
+  '.idea',
+  '.vscode',
+  '.stacktape',
+  '.serverless',
+  '.next',
+  '.open-next',
+  '.venv',
+  '__pycache__',
+  '.pytest_cache',
+  '.ruff_cache',
+  '.mypy_cache',
+  '.gradle',
+  '.mvn',
+  'dist',
+  'build',
+  'target'
+];

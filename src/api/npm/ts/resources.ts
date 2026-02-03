@@ -74,6 +74,7 @@ export const {
   UpstashRedis,
   SqsQueue,
   SnsTopic,
+  KinesisStream,
   WebAppFirewall,
   OpenSearchDomain,
   EfsFilesystem,

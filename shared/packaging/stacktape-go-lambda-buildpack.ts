@@ -1,10 +1,7 @@
-import { getFileSize, getFolder, getFolderSize } from '@shared/utils/fs-utils';
-import { getError } from '@shared/utils/misc';
-import { archiveItem } from '@shared/utils/zip';
-import { rename } from 'fs-extra';
+import { isAbsolute, join } from 'node:path';
+import { getFolder } from '@shared/utils/fs-utils';
 import { buildGoArtifact } from './bundlers/go';
-
-const FILE_SIZE_UNIT = 'MB';
+import { createLambdaZipArtifact } from './lambda-artifact';
 
 export const buildUsingStacktapeGoLambdaBuildpack = async ({
   progressLogger,
@@ -12,56 +9,35 @@ export const buildUsingStacktapeGoLambdaBuildpack = async ({
   entryfilePath,
   sizeLimit,
   zippedSizeLimit,
+  cwd,
   ...otherProps
 }: StpBuildpackInput & { zippedSizeLimit: number }): Promise<PackagingOutput> => {
   const sourcePath = getFolder(entryfilePath);
+  const absoluteSourcePath = isAbsolute(sourcePath) ? sourcePath : join(cwd, sourcePath);
+  const absoluteEntryfilePath = isAbsolute(entryfilePath) ? entryfilePath : join(cwd, entryfilePath);
 
   const { digest, outcome, distFolderPath, ...otherOutputProps } = await buildGoArtifact({
     ...otherProps,
     distFolderPath: otherProps.distFolderPath,
-    sourcePath,
+    sourcePath: absoluteSourcePath,
     progressLogger,
     name,
-    entryfilePath,
-    rawEntryfilePath: entryfilePath
+    entryfilePath: absoluteEntryfilePath,
+    rawEntryfilePath: absoluteEntryfilePath,
+    cwd
   });
 
-  const unzippedSize = await getFolderSize(distFolderPath, FILE_SIZE_UNIT, 2);
-
-  if (sizeLimit && unzippedSize > sizeLimit) {
-    throw getError({
-      type: 'PACKAGING',
-      message: `Function ${name} has size ${unzippedSize}${FILE_SIZE_UNIT}. Should be less than ${sizeLimit}${FILE_SIZE_UNIT}.`
-    });
+  if (outcome === 'skipped') {
+    return { ...otherOutputProps, digest, outcome, size: null, jobName: name } as PackagingOutput;
   }
 
-  let zippedSize: number = null;
-  await progressLogger.startEvent({
-    eventType: 'ZIP_PACKAGE',
-    description: 'Getting folder size and zipping package'
-  });
-
-  await archiveItem({
-    absoluteSourcePath: distFolderPath,
-    format: 'zip',
-    useNativeZip: true
-  });
-
-  const originalZipPath = `${distFolderPath}.zip`;
-  zippedSize = await getFileSize(originalZipPath, FILE_SIZE_UNIT, 2);
-  if (zippedSizeLimit && zippedSize > zippedSizeLimit) {
-    throw getError({
-      type: 'PACKAGING',
-      message: `${name} has size ${zippedSize}. Should be less than ${zippedSizeLimit}.`
-    });
-  }
-
-  const adjustedZipPath = `${distFolderPath}-${digest}.zip`;
-  await rename(originalZipPath, adjustedZipPath);
-
-  await progressLogger.finishEvent({
-    eventType: 'ZIP_PACKAGE',
-    finalMessage: `Artifact size: ${unzippedSize} MB. Zipped artifact size: ${zippedSize} MB.`
+  const { unzippedSize, zippedSize, artifactPath } = await createLambdaZipArtifact({
+    name,
+    distFolderPath,
+    digest,
+    sizeLimit,
+    zippedSizeLimit,
+    progressLogger
   });
 
   return {
@@ -69,8 +45,9 @@ export const buildUsingStacktapeGoLambdaBuildpack = async ({
     outcome,
     zippedSize,
     size: unzippedSize,
-    artifactPath: adjustedZipPath,
+    artifactPath,
     details: { ...otherOutputProps },
+    sourceFiles: otherOutputProps.sourceFiles,
     jobName: name
   };
 };

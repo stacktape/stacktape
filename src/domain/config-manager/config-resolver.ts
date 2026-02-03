@@ -16,18 +16,51 @@ import {
   getDirectiveWithoutPath,
   getIsDirective
 } from '@utils/directives';
-import { ExpectedError, UnexpectedError } from '@utils/errors';
+import { ExpectedError, getUserCodeStackTrace, UnexpectedError } from '@utils/errors';
 import { loadFromAnySupportedFile, loadFromTypescript } from '@utils/file-loaders';
 import { getUserCodeAsFn, parseUserCodeFilepath } from '@utils/user-code-processing';
 import { validatePrimitiveFunctionParams } from '@utils/validation-utils';
 import { remove, writeFile } from 'fs-extra';
 import { builtInDirectives } from './built-in-directives';
 
+type BuildError = {
+  message: string;
+  position?: {
+    file: string;
+    line: number;
+    column: number;
+    lineText: string;
+  };
+};
+
+/**
+ * Format build errors from AggregateError into a readable string
+ */
+const formatBuildErrors = (errors: BuildError[]): string => {
+  return errors
+    .map((e) => {
+      if (e.position) {
+        return `${e.position.file}:${e.position.line}:${e.position.column} - ${e.message}\n  ${e.position.lineText}`;
+      }
+      return e.message;
+    })
+    .join('\n\n');
+};
+
 /**
  * Parse TypeScript config loading errors and throw appropriate user-friendly errors
  */
 const handleTypescriptConfigError = (error: Error, configPath: string): never => {
   const errorMessage = error.message || String(error);
+
+  // Handle AggregateError (Bun build errors)
+  if (error.constructor.name === 'AggregateError' && 'errors' in error) {
+    const aggregateError = error as Error & { errors: BuildError[] };
+    if (aggregateError.errors?.length) {
+      const formattedErrors = formatBuildErrors(aggregateError.errors);
+      throw stpErrors.e137({ configPath, errorMessage: formattedErrors });
+    }
+  }
 
   // Check for missing package errors
   const packageMatch = errorMessage.match(/Cannot find package '([^']+)'/);
@@ -55,8 +88,9 @@ const handleTypescriptConfigError = (error: Error, configPath: string): never =>
     throw stpErrors.e137({ configPath, errorMessage });
   }
 
-  // Generic execution error
-  throw stpErrors.e138({ configPath, errorMessage });
+  // Generic execution error - try to extract user stack trace
+  const userStackTrace = getUserCodeStackTrace(error);
+  throw stpErrors.e138({ configPath, errorMessage, userStackTrace });
 };
 
 type DirectiveToProcess = Directive & {

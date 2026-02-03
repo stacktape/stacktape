@@ -1,4 +1,4 @@
-import { join, basename, extname } from 'node:path';
+import { join, basename } from 'node:path';
 import { readdir, readFile, stat } from 'fs-extra';
 import { stringMatchesGlob } from '@shared/utils/misc';
 
@@ -165,7 +165,7 @@ const filterFilesByExtensionLimit = (filePaths: string[], limit: number = 3): st
 export const tryGetContentTruncated = async (filePath: string, repoRoot: string): Promise<string> => {
   try {
     const absolutePath = join(repoRoot, filePath);
-    
+
     // Check file size first
     const stats = await stat(absolutePath);
     if (stats.size > 1024 * 1024) {

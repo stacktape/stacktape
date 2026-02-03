@@ -1,4 +1,4 @@
-import { DEFAULT_KEEP_PREVIOUS_DEPLOYMENT_ARTIFACTS_COUNT, IS_DEV } from '@config';
+import { DEFAULT_KEEP_PREVIOUS_DEPLOYMENT_ARTIFACTS_COUNT } from '@config';
 import { jsonFetch } from './http-client';
 
 const V1 = 'v000001';

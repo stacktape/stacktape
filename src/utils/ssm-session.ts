@@ -1,4 +1,5 @@
 import type { Task as ECSTask, ExecuteCommandCommandInput } from '@aws-sdk/client-ecs';
+import { DesiredStatus } from '@aws-sdk/client-ecs';
 import type { StartSessionCommandInput } from '@aws-sdk/client-ssm';
 import type { ExecaChildProcess } from 'execa';
 import readline from 'node:readline';
@@ -181,6 +182,68 @@ export const runEcsExecSsmShellSession = async ({
     await awsSdkManager.terminateSsmSession({ sessionId: startSessionResponse.SessionId });
   }
   return startSessionResponse.SessionId;
+};
+
+/**
+ * Execute a command in a container and capture output (non-interactive)
+ */
+export const runEcsExecCommand = async ({
+  clusterArn,
+  taskArn,
+  containerName,
+  command
+}: {
+  clusterArn: string;
+  taskArn: string;
+  containerName: string;
+  command: string;
+}): Promise<{ output: string; exitCode: number }> => {
+  const executeCommandCommandInput: ExecuteCommandCommandInput = {
+    command,
+    interactive: true, // ECS Exec requires interactive=true even for non-interactive commands
+    task: taskArn,
+    cluster: clusterArn,
+    container: containerName
+  };
+
+  const startSessionResponse = await awsSdkManager.startEcsExecSsmSession(executeCommandCommandInput);
+
+  const clusterName = clusterArn.split('/').pop();
+  const taskId = taskArn.split('/').pop();
+
+  // Get task details to find container runtime ID
+  const tasks = await awsSdkManager.listEcsTasks({
+    ecsClusterName: clusterArn,
+    desiredStatus: DesiredStatus.RUNNING
+  });
+  const task = tasks.find((t) => t.taskArn === taskArn);
+  const targetContainerRuntimeId = task?.containers?.find(({ name }) => name === containerName)?.runtimeId;
+
+  const startSessionTargetParams = { Target: `ecs:${clusterName}_${taskId}_${targetContainerRuntimeId}` };
+
+  try {
+    const result = await execa(
+      fsPaths.sessionManagerPath(),
+      [
+        JSON.stringify(startSessionResponse),
+        globalStateManager.region,
+        'StartSession',
+        '',
+        JSON.stringify(startSessionTargetParams)
+      ],
+      {
+        timeout: 60000, // 60 second timeout
+        reject: false // Don't throw on non-zero exit
+      }
+    );
+
+    return {
+      output: result.stdout || result.stderr || '',
+      exitCode: result.exitCode ?? 1
+    };
+  } finally {
+    await awsSdkManager.terminateSsmSession({ sessionId: startSessionResponse.SessionId });
+  }
 };
 
 export const runSsmShellScript = async ({

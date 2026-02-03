@@ -104,9 +104,16 @@ export class DeployedStackOverviewManager {
   /**
    * Inject local workload info into stackInfoMap for dev mode.
    * This allows $ResourceParam directives to resolve URLs for locally-running workloads.
+   *
+   * @param localWorkloads - Array of workload info to inject
+   * @param options - Options object
+   * @param options.markAsLocallyInjected - If false, the workload won't be marked as locally injected,
+   *   meaning it can still assume its IAM role. This is used when the dev stack creates
+   *   IAM roles for container workloads even though they run locally. Defaults to true.
    */
   injectLocalWorkloadInfo = (
-    localWorkloads: { name: string; resourceType: string; url?: string; address?: string }[]
+    localWorkloads: { name: string; resourceType: string; url?: string; address?: string }[],
+    { markAsLocallyInjected = true }: { markAsLocallyInjected?: boolean } = {}
   ) => {
     if (!this.stackInfoMap) {
       this.stackInfoMap = { resources: {}, metadata: {} } as StackInfoMap;
@@ -123,7 +130,9 @@ export class DeployedStackOverviewManager {
         resourceType: workload.resourceType,
         referencableParams
       } as StackInfoMapResource;
-      this.#locallyInjectedResources.add(workload.name);
+      if (markAsLocallyInjected) {
+        this.#locallyInjectedResources.add(workload.name);
+      }
     }
   };
 

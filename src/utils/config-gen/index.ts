@@ -3,7 +3,6 @@ import { convertYamlToTypescript } from '@shared/utils/config-converter';
 import { stringifyToYaml } from '@shared/utils/yaml';
 import { writeFile, pathExists } from 'fs-extra';
 import { join } from 'node:path';
-import type { CliConfigGenSession } from '@shared/trpc/public';
 import type { ConfigGenProgressCallback, ConfigGenResult, ConfigGenPhaseInfo } from './types';
 import {
   listAllFilesInDirectory,
@@ -12,7 +11,7 @@ import {
   DEFAULT_IGNORE_PATTERNS
 } from './file-scanner';
 
-export { listAllFilesInDirectory, getPrettyPrintedFiles, tryGetContentTruncated, DEFAULT_IGNORE_PATTERNS };
+export { DEFAULT_IGNORE_PATTERNS, getPrettyPrintedFiles, listAllFilesInDirectory, tryGetContentTruncated };
 export * from './types';
 
 // ============ Constants ============
@@ -28,6 +27,20 @@ const PHASE_MESSAGES: Record<string, string> = {
   ANALYZING_DEPLOYMENTS: 'Identifying deployable units...',
   GENERATING_CONFIG: 'Generating Stacktape configuration...',
   ADJUSTING_ENV_VARS: 'Configuring environment variables...'
+};
+
+/** Human-readable phase display names for UI */
+export const PHASE_DISPLAY_NAMES: Record<string, string> = {
+  FILE_SELECTION: 'Scanning files',
+  WAITING_FOR_FILE_CONTENTS: 'Reading files',
+  ANALYZING_DEPLOYMENTS: 'Analyzing code',
+  GENERATING_CONFIG: 'Generating config',
+  ADJUSTING_ENV_VARS: 'Configuring env vars'
+};
+
+/** Get human-readable display name for a config gen phase */
+export const getPhaseDisplayName = (phase: string): string => {
+  return PHASE_DISPLAY_NAMES[phase] || phase;
 };
 
 // ============ Config Gen Manager ============
@@ -169,12 +182,8 @@ export class ConfigGenManager {
    * @param outputPath - Optional custom output path
    * @returns The path where the file was written
    */
-  async writeConfig(
-    config: StacktapeConfig,
-    format: 'yaml' | 'typescript',
-    outputPath?: string
-  ): Promise<string> {
-    const cwd = process.cwd();
+  async writeConfig(config: StacktapeConfig, format: 'yaml' | 'typescript', outputPath?: string): Promise<string> {
+    const cwd = this.#workingDirectory;
 
     let filePath: string;
     let content: string;
@@ -197,12 +206,8 @@ export class ConfigGenManager {
    * Check if a stacktape config file already exists.
    */
   async configFileExists(): Promise<{ exists: boolean; path?: string }> {
-    const cwd = process.cwd();
-    const possiblePaths = [
-      join(cwd, 'stacktape.yml'),
-      join(cwd, 'stacktape.yaml'),
-      join(cwd, 'stacktape.ts')
-    ];
+    const cwd = this.#workingDirectory;
+    const possiblePaths = [join(cwd, 'stacktape.yml'), join(cwd, 'stacktape.yaml'), join(cwd, 'stacktape.ts')];
 
     for (const path of possiblePaths) {
       if (await pathExists(path)) {
@@ -231,11 +236,15 @@ export class ConfigGenManager {
 
       const session = await publicApiClient.getCliConfigGenState(this.#sessionId!);
 
-      // Update progress
+      // Update progress with available data
       const message = PHASE_MESSAGES[session.phase] || 'Processing...';
       this.#reportProgress(onProgress, {
         phase: session.phase,
-        message
+        message,
+        details: {
+          deployableUnits: session.data.deployableUnits,
+          requiredResources: session.data.requiredResources
+        }
       });
 
       // Check final states

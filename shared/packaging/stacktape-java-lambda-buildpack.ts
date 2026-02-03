@@ -1,11 +1,8 @@
-import { getFileSize, getFolder, getFolderSize } from '@shared/utils/fs-utils';
-import { getError } from '@shared/utils/misc';
-import { archiveItem } from '@shared/utils/zip';
-import { rename } from 'fs-extra';
+import { isAbsolute, join } from 'node:path';
+import { getFolder } from '@shared/utils/fs-utils';
+import { DEFAULT_JAVA_VERSION } from './bundlers/constants';
 import { buildJavaArtifact } from './bundlers/java';
-
-const FILE_SIZE_UNIT = 'MB';
-const DEFAULT_JAVA_VERSION = 11;
+import { createLambdaZipArtifact } from './lambda-artifact';
 
 export const buildUsingStacktapeJavaLambdaBuildpack = async ({
   progressLogger,
@@ -14,62 +11,42 @@ export const buildUsingStacktapeJavaLambdaBuildpack = async ({
   sizeLimit,
   zippedSizeLimit,
   languageSpecificConfig,
+  cwd,
   ...otherProps
 }: StpBuildpackInput & {
   zippedSizeLimit: number;
   languageSpecificConfig: JavaLanguageSpecificConfig;
 }): Promise<PackagingOutput> => {
   const sourcePath = getFolder(entryfilePath);
-  const rootSourcePath = sourcePath.substring(0, sourcePath.search(/src(\/|\\)main(\/|\\)java/));
+  const absoluteSourcePath = isAbsolute(sourcePath) ? sourcePath : join(cwd, sourcePath);
+  const rootSourceIndex = absoluteSourcePath.search(/src(\/|\\)main(\/|\\)java/);
+  const rootSourcePath = rootSourceIndex === -1 ? absoluteSourcePath : absoluteSourcePath.slice(0, rootSourceIndex);
+  const absoluteEntryfilePath = isAbsolute(entryfilePath) ? entryfilePath : join(cwd, entryfilePath);
 
   const { digest, outcome, distFolderPath, ...otherOutputProps } = await buildJavaArtifact({
     ...otherProps,
     distFolderPath: otherProps.distFolderPath,
     javaVersion: languageSpecificConfig?.javaVersion ?? DEFAULT_JAVA_VERSION,
     sourcePath: rootSourcePath,
-    entryfilePath,
+    entryfilePath: absoluteEntryfilePath,
     name,
     progressLogger,
-    rawEntryfilePath: entryfilePath,
+    rawEntryfilePath: absoluteEntryfilePath,
+    cwd,
     languageSpecificConfig
   });
 
-  const unzippedSize = await getFolderSize(distFolderPath, FILE_SIZE_UNIT, 2);
-
-  if (sizeLimit && unzippedSize > sizeLimit) {
-    throw getError({
-      type: 'PACKAGING',
-      message: `Function ${name} has size ${unzippedSize}${FILE_SIZE_UNIT}. Should be less than ${sizeLimit}${FILE_SIZE_UNIT}.`
-    });
+  if (outcome === 'skipped') {
+    return { ...otherOutputProps, digest, outcome, size: null, jobName: name } as PackagingOutput;
   }
 
-  let zippedSize: number = null;
-  await progressLogger.startEvent({
-    eventType: 'ZIP_PACKAGE',
-    description: 'Getting folder size and zipping package'
-  });
-
-  await archiveItem({
-    absoluteSourcePath: distFolderPath,
-    format: 'zip',
-    useNativeZip: true
-  });
-
-  const originalZipPath = `${distFolderPath}.zip`;
-  zippedSize = await getFileSize(originalZipPath, FILE_SIZE_UNIT, 2);
-  if (zippedSizeLimit && zippedSize > zippedSizeLimit) {
-    throw getError({
-      type: 'PACKAGING',
-      message: `${name} has size ${zippedSize}. Should be less than ${zippedSizeLimit}.`
-    });
-  }
-
-  const adjustedZipPath = `${distFolderPath}-${digest}.zip`;
-  await rename(originalZipPath, adjustedZipPath);
-
-  await progressLogger.finishEvent({
-    eventType: 'ZIP_PACKAGE',
-    finalMessage: `Artifact size: ${unzippedSize} MB. Zipped artifact size: ${zippedSize} MB.`
+  const { unzippedSize, zippedSize, artifactPath } = await createLambdaZipArtifact({
+    name,
+    distFolderPath,
+    digest,
+    sizeLimit,
+    zippedSizeLimit,
+    progressLogger
   });
 
   return {
@@ -77,8 +54,9 @@ export const buildUsingStacktapeJavaLambdaBuildpack = async ({
     outcome,
     zippedSize,
     size: unzippedSize,
-    artifactPath: adjustedZipPath,
+    artifactPath,
     details: { ...otherOutputProps },
+    sourceFiles: otherOutputProps.sourceFiles,
     jobName: name
   };
 };

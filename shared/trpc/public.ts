@@ -1,5 +1,5 @@
 import { createTRPCClient, httpBatchLink } from '@trpc/client';
-import { STACKTAPE_TRPC_API_ENDPOINT } from '../../src/config/random';
+import { STACKTAPE_TRPC_API_ENDPOINT } from '../../src/config/params';
 
 export type CliConfigGenSessionState = 'WAITING_FOR_FILES' | 'ANALYZING' | 'SUCCESS' | 'ERROR' | 'CANCELLED';
 
@@ -88,7 +88,89 @@ export type SubmitFilesResponse = {
   success: boolean;
 };
 
+// ============ CLI Auth Types ============
+
+export type ExchangeTokenForApiKeyInput = {
+  idToken: string;
+};
+
+export type ExchangeTokenForApiKeyResponse = {
+  success: boolean;
+  apiKey?: string;
+  error?: string;
+};
+
+// ============ AWS Connection Types ============
+
+export type CreateAwsConnectionWithLocalCredsInput = {
+  organizationId: string;
+  connectionName: string;
+  profile?: string;
+  connectionMode: 'BASIC' | 'PRIVILEGED';
+};
+
+export type CreateAwsConnectionWithLocalCredsResponse = {
+  success: boolean;
+  awsAccountId?: string;
+  connectionName?: string;
+  error?: string;
+};
+
+export type CreateAwsConnectionPendingInput = {
+  organizationId: string;
+  connectionName: string;
+  connectionMode: 'BASIC' | 'PRIVILEGED';
+};
+
+export type CreateAwsConnectionPendingResponse = {
+  connectionId: string;
+  quickCreateUrl: string;
+};
+
+export type GetAwsConnectionStatusInput = {
+  connectionId: string;
+};
+
+export type GetAwsConnectionStatusResponse = {
+  state: 'PENDING' | 'ACTIVE' | 'FAILED';
+  awsAccountId?: string;
+  name?: string;
+};
+
+// ============ Git Provider Types ============
+
+export type GetGitProviderConnectionStatusInput = {
+  organizationId: string;
+  provider: 'GITHUB' | 'GITLAB' | 'BITBUCKET';
+};
+
+export type GetGitProviderConnectionStatusResponse = {
+  isConnected: boolean;
+  installationId?: string;
+};
+
+export type CreateGitDeploymentConfigFromCliInput = {
+  organizationId: string;
+  projectId: string;
+  awsAccountConnectionId: string;
+  branch: string;
+  owner: string;
+  repository: string;
+  targetRegion: string;
+  stage: string;
+  configSource: 'GIT_REPOSITORY' | 'STACKTAPE_DATABASE';
+  deployOnGitEvent: 'PUSHED_TO_BRANCH' | 'PULL_REQUEST_OPENED';
+  configPath: string | null;
+  templateId: string | null;
+};
+
+export type CreateGitDeploymentConfigFromCliResponse = {
+  success: boolean;
+  id?: string;
+};
+
 type PublicTrpcClient = {
+  // Config generation
   startCliConfigGen: {
     mutate: (input: StartCliConfigGenInput) => Promise<StartCliConfigGenResponse>;
   };
@@ -100,6 +182,27 @@ type PublicTrpcClient = {
   };
   cancelCliConfigGen: {
     mutate: (input: { sessionId: string }) => Promise<{ success: boolean }>;
+  };
+  // CLI Auth
+  exchangeTokenForApiKey: {
+    mutate: (input: ExchangeTokenForApiKeyInput) => Promise<ExchangeTokenForApiKeyResponse>;
+  };
+  // AWS Connection
+  createAwsConnectionWithLocalCreds: {
+    mutate: (input: CreateAwsConnectionWithLocalCredsInput) => Promise<CreateAwsConnectionWithLocalCredsResponse>;
+  };
+  createAwsConnectionPending: {
+    mutate: (input: CreateAwsConnectionPendingInput) => Promise<CreateAwsConnectionPendingResponse>;
+  };
+  getAwsConnectionStatus: {
+    query: (input: GetAwsConnectionStatusInput) => Promise<GetAwsConnectionStatusResponse>;
+  };
+  // Git Provider
+  getGitProviderConnectionStatus: {
+    query: (input: GetGitProviderConnectionStatusInput) => Promise<GetGitProviderConnectionStatusResponse>;
+  };
+  createGitDeploymentConfigFromCli: {
+    mutate: (input: CreateGitDeploymentConfigFromCliInput) => Promise<CreateGitDeploymentConfigFromCliResponse>;
   };
 };
 
@@ -165,6 +268,64 @@ export class PublicApiClient {
    */
   cancelCliConfigGen = async (sessionId: string): Promise<{ success: boolean }> => {
     return this.#ensureInitialized().cancelCliConfigGen.mutate({ sessionId });
+  };
+
+  // ============ CLI Auth Methods ============
+
+  /**
+   * Exchange a Cognito ID token for a Stacktape API key.
+   * This is the recommended way for CLI authentication.
+   */
+  exchangeTokenForApiKey = async (input: ExchangeTokenForApiKeyInput): Promise<ExchangeTokenForApiKeyResponse> => {
+    return this.#ensureInitialized().exchangeTokenForApiKey.mutate(input);
+  };
+
+  // ============ AWS Connection Methods ============
+
+  /**
+   * Create AWS connection using local credentials.
+   * This will deploy the CloudFormation stack using the user's local AWS credentials.
+   */
+  createAwsConnectionWithLocalCreds = async (
+    input: CreateAwsConnectionWithLocalCredsInput
+  ): Promise<CreateAwsConnectionWithLocalCredsResponse> => {
+    return this.#ensureInitialized().createAwsConnectionWithLocalCreds.mutate(input);
+  };
+
+  /**
+   * Create a pending AWS connection and get the quick-create URL.
+   */
+  createAwsConnectionPending = async (
+    input: CreateAwsConnectionPendingInput
+  ): Promise<CreateAwsConnectionPendingResponse> => {
+    return this.#ensureInitialized().createAwsConnectionPending.mutate(input);
+  };
+
+  /**
+   * Get the status of an AWS connection.
+   */
+  getAwsConnectionStatus = async (input: GetAwsConnectionStatusInput): Promise<GetAwsConnectionStatusResponse> => {
+    return this.#ensureInitialized().getAwsConnectionStatus.query(input);
+  };
+
+  // ============ Git Provider Methods ============
+
+  /**
+   * Check if a git provider is connected for an organization.
+   */
+  getGitProviderConnectionStatus = async (
+    input: GetGitProviderConnectionStatusInput
+  ): Promise<GetGitProviderConnectionStatusResponse> => {
+    return this.#ensureInitialized().getGitProviderConnectionStatus.query(input);
+  };
+
+  /**
+   * Create a git deployment configuration from CLI.
+   */
+  createGitDeploymentConfigFromCli = async (
+    input: CreateGitDeploymentConfigFromCliInput
+  ): Promise<CreateGitDeploymentConfigFromCliResponse> => {
+    return this.#ensureInitialized().createGitDeploymentConfigFromCli.mutate(input);
   };
 }
 

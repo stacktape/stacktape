@@ -650,6 +650,13 @@ export const awsResourceNames = {
       lengthLimit: 256
     });
   },
+  // limit 128 https://docs.aws.amazon.com/kinesis/latest/APIReference/API_CreateStream.html
+  kinesisStream(stpResourceName: string, stackName: string) {
+    return buildResourceName({
+      proposedResourceName: `${stackName}-${stpResourceName}`,
+      lengthLimit: 128
+    });
+  },
   wafWebACLName(stpResourceName: string, stackName: string, globallyUniqueStackHash: string) {
     return buildResourceName({
       proposedResourceName: `${stackName}-${globallyUniqueStackHash}-${stpResourceName}-acl`,

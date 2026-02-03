@@ -1,18 +1,30 @@
 import { tuiManager } from '@application-services/tui-manager';
-import { NtpTimeSync } from 'ntp-time-sync';
 
-const synced = NtpTimeSync.getInstance({
-  servers: ['time.aws.com'],
-  sampleCount: 3,
-  ntpDefaults: { minPoll: 17 }
-});
+const HTTP_TIME_SYNC_TIMEOUT_MS = 5000;
 
-export const getAwsSynchronizedTime = async () => {
+const getTimeViaHttp = async (): Promise<Date> => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), HTTP_TIME_SYNC_TIMEOUT_MS);
   try {
-    return synced.now();
+    const response = await fetch('https://aws.amazon.com', {
+      method: 'HEAD',
+      signal: controller.signal
+    });
+    const dateHeader = response.headers.get('date');
+    if (dateHeader) {
+      return new Date(dateHeader);
+    }
+    throw new Error('No date header in response');
+  } finally {
+    clearTimeout(timeoutId);
+  }
+};
+
+export const getAwsSynchronizedTime = async (): Promise<Date> => {
+  try {
+    return await getTimeViaHttp();
   } catch (err) {
-    console.error(`Unable to get time synced with AWS: ${err.message}.\n Using local time`);
-    tuiManager.debug(`Failed to sync time with AWS: ${err.message}. Using local time.`);
+    tuiManager.debug(`Failed to sync time via HTTP: ${err.message}. Using local time.`);
     return new Date();
   }
 };

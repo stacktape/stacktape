@@ -71,6 +71,9 @@ export const consoleLinks = {
       `/queues/${encodeURIComponent(`https://sqs.${region}.amazonaws.com/${awsAccountId}/${sqsQueueAwsName}`)}`
     );
   },
+  kinesisStream(region: string, kinesisStreamAwsName: string) {
+    return getBaseAwsConsoleLink(region, 'kinesis', `streams/${kinesisStreamAwsName}/streamDetails`);
+  },
   firewallMetrics({ region }: { region: string }) {
     return `https://console.aws.amazon.com/cloudwatch/home?region=${region}#metricsV2:graph=~();namespace=~'AWS*2fWAFV2`;
   },

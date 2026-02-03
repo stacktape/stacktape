@@ -539,6 +539,10 @@ export class ConfigManager {
     return this.getResourcesFromConfig<StpSnsTopic>('sns-topic');
   }
 
+  get kinesisStreams() {
+    return this.getResourcesFromConfig<StpKinesisStream>('kinesis-stream');
+  }
+
   get webAppFirewalls() {
     return this.getResourcesFromConfig<StpWebAppFirewall>('web-app-firewall');
   }
@@ -1987,6 +1991,7 @@ export class ConfigManager {
       ...this.awsCdkConstructs,
       ...this.sqsQueues,
       ...this.snsTopics,
+      ...this.kinesisStreams,
       ...this.hostingBuckets,
       ...this.webAppFirewalls,
       ...this.nextjsWebs,

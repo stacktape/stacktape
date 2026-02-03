@@ -57,6 +57,7 @@ export const RESOURCES_CONVERTIBLE_TO_CLASSES: ResourceDefinition[] = [
       'UpstashRedis',
       'SqsQueue',
       'SnsTopic',
+      'KinesisStream',
       'OpenSearchDomain',
       'EfsFilesystem',
       'PrivateService'
@@ -80,6 +81,7 @@ export const RESOURCES_CONVERTIBLE_TO_CLASSES: ResourceDefinition[] = [
       'UpstashRedis',
       'SqsQueue',
       'SnsTopic',
+      'KinesisStream',
       'OpenSearchDomain',
       'EfsFilesystem'
     ]
@@ -102,6 +104,7 @@ export const RESOURCES_CONVERTIBLE_TO_CLASSES: ResourceDefinition[] = [
       'UpstashRedis',
       'SqsQueue',
       'SnsTopic',
+      'KinesisStream',
       'OpenSearchDomain',
       'EfsFilesystem'
     ]
@@ -124,6 +127,7 @@ export const RESOURCES_CONVERTIBLE_TO_CLASSES: ResourceDefinition[] = [
       'UpstashRedis',
       'SqsQueue',
       'SnsTopic',
+      'KinesisStream',
       'OpenSearchDomain',
       'EfsFilesystem',
       'LambdaFunction',
@@ -149,6 +153,7 @@ export const RESOURCES_CONVERTIBLE_TO_CLASSES: ResourceDefinition[] = [
       'UpstashRedis',
       'SqsQueue',
       'SnsTopic',
+      'KinesisStream',
       'OpenSearchDomain',
       'EfsFilesystem',
       'PrivateService',
@@ -176,6 +181,7 @@ export const RESOURCES_CONVERTIBLE_TO_CLASSES: ResourceDefinition[] = [
       'UpstashRedis',
       'SqsQueue',
       'SnsTopic',
+      'KinesisStream',
       'OpenSearchDomain',
       'EfsFilesystem'
     ]
@@ -296,6 +302,14 @@ export const RESOURCES_CONVERTIBLE_TO_CLASSES: ResourceDefinition[] = [
     canConnectTo: []
   },
   {
+    className: 'KinesisStream',
+    resourceType: 'kinesis-stream',
+    propsType: 'KinesisStreamProps',
+    interfaceName: 'KinesisStream',
+    sourceFile: 'kinesis-streams.d.ts',
+    canConnectTo: []
+  },
+  {
     className: 'WebAppFirewall',
     resourceType: 'web-app-firewall',
     propsType: 'WebAppFirewallProps',
@@ -337,6 +351,7 @@ export const RESOURCES_CONVERTIBLE_TO_CLASSES: ResourceDefinition[] = [
       'UpstashRedis',
       'SqsQueue',
       'SnsTopic',
+      'KinesisStream',
       'OpenSearchDomain',
       'EfsFilesystem',
       'PrivateService',

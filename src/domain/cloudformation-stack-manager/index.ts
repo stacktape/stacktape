@@ -4,6 +4,7 @@ import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { OnFailure, ResourceStatus, StackStatus } from '@aws-sdk/client-cloudformation';
+import { isAgentMode } from 'src/commands/_utils/agent-mode';
 import { DeploymentRolloutState } from '@aws-sdk/client-ecs';
 import { MONITORING_FREQUENCY_SECONDS } from '@config';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
@@ -609,7 +610,7 @@ export class StackManager {
     const completeResources = new Set<string>();
     const seenResources = new Set<string>();
     let resourcesToHandleCount: number;
-    let isResourceToHandleCountPossiblyInaccurate = false;
+    let _isResourceToHandleCountPossiblyInaccurate = false;
     if (cfStackAction === 'create') {
       // when we are creating, we know exactly what amount of resources we need to create
       resourcesToHandleCount = Object.keys(templateManager.initialTemplate.Resources).length;
@@ -618,7 +619,7 @@ export class StackManager {
       resourcesToHandleCount = this.existingStackResources.length;
     } else {
       // when running update command we do not know accurately how many resources need to be updated
-      isResourceToHandleCountPossiblyInaccurate = true;
+      _isResourceToHandleCountPossiblyInaccurate = true;
       resourcesToHandleCount = Object.keys(templateManager.template.Resources).length;
     }
     const templateDiff = cfStackAction === 'update' ? templateManager.getOldTemplateDiff() : undefined;
@@ -691,8 +692,6 @@ export class StackManager {
     };
 
     const handleProgress = () => {
-      // printing updating progress
-      const inProgressAmount = inProgressResources.size;
       const completedAmount = completeResources.size;
 
       // Get change summary (needed for both normal and cleanup progress)
@@ -702,6 +701,30 @@ export class StackManager {
         createResourcesCount: resourcesToHandleCount,
         deleteResourcesCount: resourcesToHandleCount
       });
+
+      // Agent mode: simplified progress output
+      if (isAgentMode()) {
+        const plannedSet =
+          updatedResourceLogicalNames && updatedResourceLogicalNames.length > 0
+            ? new Set(updatedResourceLogicalNames)
+            : changeSummary.counts.created + changeSummary.counts.updated + changeSummary.counts.deleted > 0
+              ? new Set([
+                  ...changeSummary.lists.created,
+                  ...changeSummary.lists.updated,
+                  ...changeSummary.lists.deleted
+                ])
+              : undefined;
+        const completedCount = plannedSet
+          ? Array.from(completeResources).filter((name) => plannedSet.has(name)).length
+          : completeResources.size;
+        const totalPlanned = plannedSet?.size || resourcesToHandleCount;
+        const percent = totalPlanned > 0 ? Math.round((completedCount / totalPlanned) * 100) : 0;
+        onProgress(`${completedCount}/${totalPlanned} resources (${percent}%)`);
+        return;
+      }
+
+      // Human mode: detailed progress output
+      const inProgressAmount = inProgressResources.size;
 
       // During cleanup phase, show a different message indicating main deployment is done
       if (cleanupAfterSuccessfulUpdateInProgress) {
@@ -948,7 +971,7 @@ export class StackManager {
                 event.ResourceStatus === (StackStatus.UPDATE_COMPLETE_CLEANUP_IN_PROGRESS as any)
               ) {
                 cleanupAfterSuccessfulUpdateInProgress = true;
-                isResourceToHandleCountPossiblyInaccurate = true;
+                _isResourceToHandleCountPossiblyInaccurate = true;
                 inProgressResources.clear();
                 completeResources.clear();
               }

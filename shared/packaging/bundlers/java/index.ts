@@ -4,7 +4,7 @@ import { buildJavaArtifactDockerfile } from '@shared/utils/dockerfiles';
 import { transformToUnixPath } from '@shared/utils/fs-utils';
 import { outputFile, remove } from 'fs-extra';
 import objectHash from 'object-hash';
-import { getBundleDigest } from './utils';
+import { getBundleDigest, getSourceFiles } from './utils';
 
 export const buildJavaArtifact = async ({
   sourcePath,
@@ -12,7 +12,7 @@ export const buildJavaArtifact = async ({
   javaVersion,
   useMaven,
   rawEntryfilePath,
-  cwd,
+  cwd: _cwd,
   additionalDigestInput,
   distIndexFilePath,
   progressLogger,
@@ -29,6 +29,40 @@ export const buildJavaArtifact = async ({
   progressLogger: ProgressLogger;
   languageSpecificConfig: JavaLanguageSpecificConfig;
 }): Promise<CreateBundleOutput> => {
+  await progressLogger.startEvent({
+    eventType: 'CALCULATE_CHECKSUM',
+    description: 'Calculating checksum for caching'
+  });
+
+  const digest = await getBundleDigest({
+    externalDependencies: [],
+    rootPath: sourcePath,
+    additionalDigestInput: objectHash({ additionalDigestInput, dockerBuildOutputArchitecture }),
+    languageSpecificConfig,
+    rawEntryfilePath
+  });
+  const sourceFiles = await getSourceFiles({ rootPath: sourcePath });
+  if (existingDigests.includes(digest)) {
+    await progressLogger.finishEvent({
+      eventType: 'CALCULATE_CHECKSUM',
+      finalMessage: 'Same artifact is already deployed, skipping.'
+    });
+    return {
+      digest,
+      outcome: 'skipped' as const,
+      distFolderPath,
+      distIndexFilePath,
+      sourceFiles,
+      languageSpecificBundleOutput: {
+        java: {
+          useMaven,
+          javaVersion
+        }
+      }
+    };
+  }
+  await progressLogger.finishEvent({ eventType: 'CALCULATE_CHECKSUM' });
+
   await progressLogger.startEvent({ eventType: 'BUILD_CODE', description: 'Building code' });
   const dockerfileContents = buildJavaArtifactDockerfile({
     javaVersion,
@@ -60,45 +94,12 @@ export const buildJavaArtifact = async ({
   await remove(stpInitGradlePath);
   await progressLogger.finishEvent({ eventType: 'BUILD_CODE' });
 
-  await progressLogger.startEvent({
-    eventType: 'CALCULATE_CHECKSUM',
-    description: 'Calculating checksum for caching'
-  });
-
-  const digest = await getBundleDigest({
-    externalDependencies: [],
-    cwd,
-    additionalDigestInput: objectHash({ additionalDigestInput, dockerBuildOutputArchitecture }),
-    languageSpecificConfig,
-    rawEntryfilePath
-  });
-  if (existingDigests.includes(digest)) {
-    await progressLogger.finishEvent({
-      eventType: 'CALCULATE_CHECKSUM',
-      finalMessage: 'Same artifact is already deployed, skipping.'
-    });
-    return {
-      digest,
-      outcome: 'skipped' as const,
-      distFolderPath,
-      distIndexFilePath,
-      sourceFiles: [],
-      languageSpecificBundleOutput: {
-        java: {
-          useMaven,
-          javaVersion
-        }
-      }
-    };
-  }
-  await progressLogger.finishEvent({ eventType: 'CALCULATE_CHECKSUM' });
-
   return {
     distIndexFilePath,
     distFolderPath,
     digest,
     outcome: 'bundled' as const,
-    sourceFiles: [],
+    sourceFiles,
     languageSpecificBundleOutput: {
       java: {
         useMaven,

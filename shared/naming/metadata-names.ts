@@ -45,5 +45,11 @@ export const stackMetadataNames = {
   },
   natPublicIps() {
     return 'natPublicIps';
+  },
+  devAgentRoleExternalId() {
+    return 'devAgentRoleExternalId';
+  },
+  debugAgentRoleExternalId() {
+    return 'debugAgentRoleExternalId';
   }
 };

@@ -262,6 +262,23 @@ const getStatementsForAccessingSnsTopic = (statementProps: StatementProps): StpI
   }
 ];
 
+const getStatementsForAccessingKinesisStream = (statementProps: StatementProps): StpIamRoleStatement[] => [
+  {
+    Effect: 'Allow',
+    Action: [
+      'kinesis:DescribeStream',
+      'kinesis:DescribeStreamSummary',
+      'kinesis:GetRecords',
+      'kinesis:GetShardIterator',
+      'kinesis:ListShards',
+      'kinesis:ListStreams',
+      'kinesis:PutRecord',
+      'kinesis:PutRecords'
+    ],
+    Resource: [GetAtt(cfLogicalNames.kinesisStream(statementProps.stacktapeResourceName), 'Arn') as unknown as string]
+  }
+];
+
 const getStatementsForAwsServiceMacro = (macro: ConnectToAwsServicesMacro): StpIamRoleStatement[] => {
   if (macro === 'aws:ses') {
     return [
@@ -368,6 +385,10 @@ export const getPoliciesForRoles = ({
         }
         case 'sns-topic': {
           connectToStatements.push(...getStatementsForAccessingSnsTopic(statementProps));
+          break;
+        }
+        case 'kinesis-stream': {
+          connectToStatements.push(...getStatementsForAccessingKinesisStream(statementProps));
           break;
         }
         // @todo

@@ -215,7 +215,8 @@ export const getConfigPath = (): string => {
   const { configPath, currentWorkingDirectory } = globalStateManager.args;
   const dirPath = currentWorkingDirectory || process.cwd();
   if (configPath) {
-    const absoluteConfigPath = join(dirPath, configPath);
+    // If configPath is already absolute, use it directly
+    const absoluteConfigPath = isAbsolute(configPath) ? configPath : join(dirPath, configPath);
     if (!isFileAccessible(absoluteConfigPath)) {
       throw stpErrors.e14({ configPath: absoluteConfigPath });
     }

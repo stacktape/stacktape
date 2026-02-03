@@ -121,12 +121,14 @@ export const validateArgs = ({
   command,
   rawArgs,
   defaults,
-  fromEnv
+  fromEnv,
+  skipRegionValidation
 }: {
   rawArgs: StacktapeArgs;
   command: StacktapeCommand;
   defaults: ConfigurableCliArgsDefaults;
   fromEnv: Omit<ConfigurableCliArgsDefaults, 'stage'>;
+  skipRegionValidation?: boolean;
 }) => {
   const filteredFromEnv: Record<string, unknown> = {};
   Object.entries(fromEnv)
@@ -213,7 +215,11 @@ export const validateArgs = ({
         validateStage(mergedArgs[requiredArg] as string);
       }
       if (requiredArg === 'region') {
-        validateRegion(mergedArgs[requiredArg] as string);
+        // Skip region validation if it will be prompted interactively
+        if (!skipRegionValidation) {
+          validateRegion(mergedArgs[requiredArg] as string);
+        }
+        continue; // Skip the generic missing check for region - handled separately
       }
       if (!mergedArgs[requiredArg]) {
         throw getError({

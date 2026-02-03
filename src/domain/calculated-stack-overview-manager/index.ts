@@ -21,6 +21,8 @@ import { resolveAcceptVpcPeeringCustomResource } from './resource-resolvers/back
 import { resolveCodeDeploySharedResources } from './resource-resolvers/background-resources/code-deploy';
 import { resolveDefaultDomainCertCustomResource } from './resource-resolvers/background-resources/default-domain-cert-custom-resource';
 import { resolveDeploymentBucket } from './resource-resolvers/background-resources/deployment-bucket';
+import { resolveDebugAgentRole } from './resource-resolvers/background-resources/debug-agent-role';
+import { resolveDevAgentRole } from './resource-resolvers/background-resources/dev-agent-role';
 import { resolveImageRepository } from './resource-resolvers/background-resources/deployment-image-repository';
 import { resolveS3EventsCustomResource } from './resource-resolvers/background-resources/s3-events-custom-resource';
 import { resolveSensitiveDataCustomResource } from './resource-resolvers/background-resources/sensitive-data-custom-resource';
@@ -46,8 +48,10 @@ import { resolveEventBuses } from './resource-resolvers/event-buses';
 import { resolveFunctions } from './resource-resolvers/functions';
 import { resolveHostingBuckets } from './resource-resolvers/hosting-buckets';
 import { resolveHttpApiGateways } from './resource-resolvers/http-api-gateways';
+import { resolveKinesisStreams } from './resource-resolvers/kinesis-streams';
 import { resolveAtlasMongoClusters } from './resource-resolvers/mongo-db-atlas-clusters';
 import { resolveContainerWorkloads } from './resource-resolvers/multi-container-workloads';
+import { resolveDevContainerWorkloadRoles } from './resource-resolvers/multi-container-workloads/dev-roles';
 import { resolveNetworkLoadBalancers } from './resource-resolvers/network-load-balancers';
 import { resolveNextjsWebs } from './resource-resolvers/nextjs-web';
 import { resolveOpenSearchDomains } from './resource-resolvers/open-search';
@@ -119,11 +123,15 @@ export class CalculatedStackOverviewManager {
       resolveWorkerServices(),
       resolveSqsQueues(),
       resolveSnsTopics(),
+      resolveKinesisStreams(),
       resolveHostingBuckets(),
       resolveWebAppFirewalls(),
       resolveDeploymentScripts(),
       resolveNextjsWebs(),
-      resolveEfsFilesystems()
+      resolveEfsFilesystems(),
+      resolveDevAgentRole(),
+      resolveDebugAgentRole(),
+      resolveDevContainerWorkloadRoles()
     ]);
     await eventManager.finishEvent({ eventType: 'RESOLVE_CONFIG', phase: 'INITIALIZE' });
   };

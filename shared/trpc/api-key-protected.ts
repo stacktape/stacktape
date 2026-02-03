@@ -1,5 +1,5 @@
 import { createTRPCClient, httpBatchLink } from '@trpc/client';
-import { STACKTAPE_TRPC_API_ENDPOINT } from '../../src/config/random';
+import { STACKTAPE_TRPC_API_ENDPOINT } from '../../src/config/params';
 
 // Manually typed interfaces based on actual TRPC router at console-app/server/api/api-key-protected.ts
 type RecordStackOperationParams = {
@@ -143,6 +143,68 @@ type DeleteUndeployedStageResponse = {
   [key: string]: any;
 };
 
+export type ProjectsWithStagesResponse = Array<{
+  id: string;
+  name: string;
+  stages: Array<{
+    stage: string;
+    status: string;
+    deploymentIsInProgress: boolean;
+    isErrored: boolean;
+    lastUpdateTime: number;
+    thisMonthCosts: {
+      currencyCode: string;
+      total: number;
+    };
+    previousMonthCosts: {
+      currencyCode: string;
+      total: number;
+    };
+  }>;
+  undeployedStages: Array<{
+    id?: string;
+    name?: string;
+    [key: string]: any;
+  }>;
+  [key: string]: any;
+}>;
+
+export type RecentStackOperationsParams = {
+  projectName?: string;
+  stage?: string;
+  limit?: number;
+};
+
+export type RecentStackOperationsResponse = Array<{
+  id: string;
+  command?: string | null;
+  projectName?: string | null;
+  stackName?: string | null;
+  stage?: string | null;
+  region?: string | null;
+  createdAt?: Date | string;
+  startTime?: Date | string | null;
+  endTime?: Date | string | null;
+  success?: boolean | null;
+  inProgress?: boolean | null;
+  description?: string | null;
+}>;
+
+export type StackDetailsParams = {
+  stackName: string;
+  region: string;
+  awsAccountName?: string;
+};
+
+export type StackDetailsResponse = {
+  stackOutput?: {
+    [key: string]: string;
+  };
+  stackInfoMap?: any;
+  resources?: any[];
+  description?: string | null;
+};
+
 type ApiKeyTrpcClient = {
   recordStackOperation: {
     mutate: (args: RecordStackOperationParams) => Promise<void>;
@@ -170,6 +232,15 @@ type ApiKeyTrpcClient = {
   };
   deleteUndeployedStageFromCli: {
     mutate: (args: DeleteUndeployedStageParams) => Promise<DeleteUndeployedStageResponse>;
+  };
+  projectsWithStages: {
+    query: () => Promise<ProjectsWithStagesResponse>;
+  };
+  recentStackOperations: {
+    query: (args: RecentStackOperationsParams) => Promise<RecentStackOperationsResponse>;
+  };
+  stackDetails: {
+    query: (args: StackDetailsParams) => Promise<StackDetailsResponse>;
   };
 };
 
@@ -240,5 +311,17 @@ export class ApiKeyProtectedClient {
 
   deleteUndeployedStage = async (args: DeleteUndeployedStageParams): Promise<DeleteUndeployedStageResponse> => {
     return this.#client!.deleteUndeployedStageFromCli.mutate(args);
+  };
+
+  projectsWithStages = async (): Promise<ProjectsWithStagesResponse> => {
+    return this.#client!.projectsWithStages.query();
+  };
+
+  recentStackOperations = async (args: RecentStackOperationsParams): Promise<RecentStackOperationsResponse> => {
+    return this.#client!.recentStackOperations.query(args);
+  };
+
+  stackDetails = async (args: StackDetailsParams): Promise<StackDetailsResponse> => {
+    return this.#client!.stackDetails.query(args);
   };
 }

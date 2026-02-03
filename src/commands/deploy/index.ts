@@ -30,6 +30,7 @@ import {
 import { getECSHotswapInformation, updateEcsService } from '../_utils/cw-deployment';
 import { getLambdaFunctionHotswapInformation, updateFunctionCode } from '../_utils/fn-deployment';
 import { initializeAllStackServices } from '../_utils/initialization';
+import { promptCiCdSetupAfterDeploy } from '../_utils/cicd-setup';
 
 export const commandDeploy = async () => {
   await initializeAllStackServices({
@@ -176,6 +177,11 @@ export const commandDeploy = async () => {
     links: resourceLinks,
     consoleUrl
   });
+
+  // Prompt for CI/CD setup after successful deploy (only for new stacks in TTY mode)
+  if (stackManager.stackActionType === 'create' && globalStateManager.invokedFrom === 'cli') {
+    eventManager.addFinalAction(() => promptCiCdSetupAfterDeploy());
+  }
 
   return { stackInfo: detailedStackInfoSensitive, packagedWorkloads };
 };

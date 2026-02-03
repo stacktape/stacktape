@@ -1,4 +1,4 @@
-import { join } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 import { buildDockerImage } from '@shared/utils/docker';
 import { buildGoDockerfile } from '@shared/utils/dockerfiles';
 import { getFolder } from '@shared/utils/fs-utils';
@@ -12,23 +12,27 @@ export const buildUsingStacktapeGoImageBuildpack = async ({
   dockerBuildOutputArchitecture,
   cacheFromRef,
   cacheToRef,
+  cwd,
   ...otherProps
 }: StpBuildpackInput & {
   cacheFromRef?: string;
   cacheToRef?: string;
 }): Promise<PackagingOutput> => {
   const sourcePath = getFolder(entryfilePath);
+  const absoluteSourcePath = isAbsolute(sourcePath) ? sourcePath : join(cwd, sourcePath);
+  const absoluteEntryfilePath = isAbsolute(entryfilePath) ? entryfilePath : join(cwd, entryfilePath);
   const bundlingOutput = await buildGoArtifact({
     ...otherProps,
-    sourcePath,
+    sourcePath: absoluteSourcePath,
     progressLogger,
     name,
-    entryfilePath,
-    rawEntryfilePath: entryfilePath,
+    entryfilePath: absoluteEntryfilePath,
+    rawEntryfilePath: absoluteEntryfilePath,
+    cwd,
     dockerBuildOutputArchitecture
   });
 
-  const { digest, outcome, distFolderPath, ...otherOutputProps } = bundlingOutput;
+  const { digest, outcome, distFolderPath, sourceFiles, ...otherOutputProps } = bundlingOutput;
   if (outcome === 'skipped') {
     return { ...bundlingOutput, size: null, jobName: name };
   }
@@ -39,7 +43,6 @@ export const buildUsingStacktapeGoImageBuildpack = async ({
   await outputFile(
     dockerfilePath,
     buildGoDockerfile({
-      entryfilePath,
       alpine: !otherProps?.requiresGlibcBinaries,
       customDockerBuildCommands: otherProps.customDockerBuildCommands
     })
@@ -66,6 +69,7 @@ export const buildUsingStacktapeGoImageBuildpack = async ({
     imageName: name,
     size,
     digest,
+    sourceFiles,
     details: { ...otherOutputProps, dockerOutput, duration, imageCreated: created },
     jobName: name
   };

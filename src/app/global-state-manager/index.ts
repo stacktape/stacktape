@@ -4,10 +4,12 @@ import { eventManager } from '@application-services/event-manager';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { commandsNotRequiringApiKey } from '../../config/cli/commands';
+import { getRequiredArgs } from '../../config/cli/utils';
 import {
   DEFAULT_CLOUDFORMATION_REGISTRY_BUCKET_NAME,
   DEFAULT_CLOUDFORMATION_REGISTRY_BUCKET_REGION,
-  RECORDED_STACKTAPE_COMMANDS
+  RECORDED_STACKTAPE_COMMANDS,
+  SUPPORTED_AWS_REGIONS
 } from '@config';
 import { configManager } from '@domain-services/config-manager';
 import { stpErrors } from '@errors';
@@ -106,6 +108,18 @@ export class GlobalStateManager {
     if (config) {
       this.presetConfig = config;
     }
+
+    // Check if region is required but missing - we'll prompt for it in TTY mode
+    const requiredArgs = getRequiredArgs(this.command);
+    const commandRequiresRegion = requiredArgs?.includes('region');
+    const regionFromArgs =
+      this.rawArgs.region ||
+      process.env.AWS_DEFAULT_REGION ||
+      this.persistedState?.cliArgsDefaults?.region ||
+      this.awsConfigFileContent?.[this.rawArgs.profile || process.env.AWS_PROFILE || 'default']?.region;
+    const regionIsMissing = commandRequiresRegion && !regionFromArgs;
+    const shouldPromptForRegion = regionIsMissing && process.stdout.isTTY && this.invokedFrom === 'cli';
+
     validateArgs({
       rawArgs: this.rawArgs,
       command: this.command,
@@ -115,8 +129,23 @@ export class GlobalStateManager {
         profile: process.env.AWS_PROFILE,
         awsAccount: process.env.AWS_ACCOUNT,
         projectName: process.env.PROJECT_NAME
-      }
+      },
+      skipRegionValidation: shouldPromptForRegion
     });
+
+    // Prompt for region if missing and in TTY mode
+    if (shouldPromptForRegion) {
+      const selectedRegion = await tuiManager.promptSelect({
+        message: 'Select AWS region:',
+        options: SUPPORTED_AWS_REGIONS.map((r) => ({
+          label: r,
+          value: r
+        })),
+        defaultValue: 'us-east-1'
+      });
+      this.rawArgs.region = selectedRegion as AWSRegion;
+    }
+
     // persisted system ID can be also loaded from env variable. This is necessary when running `codebuild:deploy`
     const persistedSystemId = this.persistedState?.systemId || process.env.STP_ORIGINAL_SYSTEM_ID;
     this.systemId = persistedSystemId || generateUuid();
@@ -178,17 +207,6 @@ export class GlobalStateManager {
 
   get isDebugMode() {
     return process.env.STP_DEBUG === 'true' || this.logLevel === 'debug';
-  }
-
-  get logFormat(): LogFormat {
-    if (this.invokedFrom !== 'cli') {
-      return 'json';
-    }
-    let logFormat = propertyFromObjectOrNull(this.args, 'logFormat') || 'fancy';
-    if (logFormat === 'fancy' && !process.stdout.isTTY) {
-      logFormat = 'normal';
-    }
-    return logFormat;
   }
 
   get logLevel(): LogLevel {
@@ -288,8 +306,11 @@ export class GlobalStateManager {
   };
 
   loadUserCredentials = async () => {
-    await stacktapeTrpcApiManager.init({ apiKey: this.apiKey });
-    await this.loadUserDataFromTrpcApi();
+    // Only load user data if not already loaded (ensureAwsAccountConnected may have done this)
+    if (!this.userData || !this.organizationData) {
+      await stacktapeTrpcApiManager.init({ apiKey: this.apiKey });
+      await this.loadUserDataFromTrpcApi();
+    }
     await this.loadValidatedAwsCredentials();
   };
 

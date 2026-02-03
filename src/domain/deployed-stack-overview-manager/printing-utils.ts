@@ -151,7 +151,7 @@ export const getResourceInfoLines = ({
     .filter(
       ([paramName, { showDuringPrint }]) =>
         showDuringPrint &&
-        !(globalStateManager.command !== 'stack:info' && (paramName.endsWith('Arn') || paramName.endsWith('arn')))
+        !(globalStateManager.command !== 'info:stack' && (paramName.endsWith('Arn') || paramName.endsWith('arn')))
     )
     .map(([paramName, { value, ssmParameterName }]) => {
       if (ssmParameterName) {

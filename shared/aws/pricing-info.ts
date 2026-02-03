@@ -682,7 +682,7 @@ export const downloadSimplePricingInfo = async ({
   return prices;
 };
 
-const SERVICES_WITH_STATIC_PRICES: {
+const _SERVICES_WITH_STATIC_PRICES: {
   AtlasMongo: PricingInfo;
   awswaf: PricingInfo;
   AWSEvents: PricingInfo;
@@ -1766,7 +1766,7 @@ const getPricingInformationForResource = async ({
   }
 };
 
-const loadProductPricesIntoDynamoTable = async ({
+const _loadProductPricesIntoDynamoTable = async ({
   prices,
   dynamoDbTableName
 }: {
@@ -1801,7 +1801,7 @@ const loadProductPricesIntoDynamoTable = async ({
   );
 };
 
-const getCumulatedPriceInfoForStack = async ({
+const _getCumulatedPriceInfoForStack = async ({
   stackConfig,
   region = 'us-east-1',
   dynamoDbTableName

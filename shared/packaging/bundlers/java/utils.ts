@@ -1,30 +1,42 @@
-import { join } from 'node:path';
-import { getHashFromMultipleFiles, getMatchingFilesByGlob } from '@shared/utils/fs-utils';
-import objectHash from 'object-hash';
+import { getBundleDigestFromGlobs, getSourceFilesFromGlobs } from '../_shared';
 
-const FILES_TO_INCLUDE_IN_DIGEST = ['build.gradle', 'pom.xml'];
-export const getBundleDigest = async ({
-  cwd,
+const FILE_GLOBS = ['./**/*.java'];
+const EXTRA_FILES = [
+  'build.gradle',
+  'build.gradle.kts',
+  'settings.gradle',
+  'settings.gradle.kts',
+  'gradle.properties',
+  'gradle.lockfile',
+  'pom.xml',
+  'mvnw',
+  'mvnw.cmd',
+  '.mvn/wrapper/maven-wrapper.properties',
+  'gradle/wrapper/gradle-wrapper.properties'
+];
+
+export const getBundleDigest = ({
+  rootPath,
   externalDependencies,
   additionalDigestInput,
   rawEntryfilePath,
   languageSpecificConfig
 }: {
-  cwd: string;
+  rootPath: string;
   externalDependencies: { name: string; version: string }[];
-  additionalDigestInput: string;
+  additionalDigestInput?: string;
   rawEntryfilePath: string;
-  languageSpecificConfig: JavaLanguageSpecificConfig;
-}) => {
-  const javaFiles = await getMatchingFilesByGlob({ globPattern: './**/*.java', cwd });
-  const makeAbsolute = (filePath) => join(cwd, filePath);
-  const filesToIncludeInDigest = [...javaFiles, ...FILES_TO_INCLUDE_IN_DIGEST].map(makeAbsolute);
+  languageSpecificConfig?: JavaLanguageSpecificConfig;
+}) =>
+  getBundleDigestFromGlobs({
+    rootPath,
+    fileGlobs: FILE_GLOBS,
+    extraFiles: EXTRA_FILES,
+    externalDependencies,
+    additionalDigestInput,
+    rawEntryfilePath,
+    languageSpecificConfig
+  });
 
-  const hash = await getHashFromMultipleFiles(filesToIncludeInDigest);
-  hash.update(objectHash(languageSpecificConfig || {}));
-  hash.update(rawEntryfilePath);
-  hash.update(objectHash(externalDependencies));
-  hash.update(additionalDigestInput ?? '');
-
-  return hash.digest('hex');
-};
+export const getSourceFiles = ({ rootPath }: { rootPath: string }) =>
+  getSourceFilesFromGlobs({ rootPath, fileGlobs: FILE_GLOBS, extraFiles: EXTRA_FILES });

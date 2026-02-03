@@ -781,7 +781,10 @@ export const isAuroraCluster = ({ resource }: { resource: StpRelationalDatabase 
   isAuroraEngine(resource.engine.type);
 
 export const isAuroraServerlessCluster = ({ resource }: { resource: StpRelationalDatabase }) =>
-  resource.engine.type === 'aurora-mysql-serverless' || resource.engine.type === 'aurora-postgresql-serverless';
+  resource.engine.type === 'aurora-mysql-serverless' ||
+  resource.engine.type === 'aurora-postgresql-serverless' ||
+  resource.engine.type === 'aurora-mysql-serverless-v2' ||
+  resource.engine.type === 'aurora-postgresql-serverless-v2';
 
 const encryptionUnsupportedInstanceSizes = [
   'db.m1.small',

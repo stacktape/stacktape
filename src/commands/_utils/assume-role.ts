@@ -6,7 +6,7 @@ import { getRoleArnFromSessionArn } from '@shared/naming/utils';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 
 export const SESSION_DURATION_SECONDS = 3600;
-export const DEV_SESSION_DURATION_SECONDS = 43200; // 12 hours for dev stacks
+export const DEV_SESSION_DURATION_SECONDS = 3600; // 1 hour (matches default IAM role MaxSessionDuration)
 
 export const addCallerToAssumeRolePolicy = async ({ roleName }: { roleName: string }) => {
   const callerIdentityArn = globalStateManager.credentials.identity.arn.includes(':assumed-role')
@@ -33,6 +33,9 @@ export const getLocalInvokeAwsCredentials = async ({
   const workloadRoleName = deployedStackOverviewManager.getIamRoleNameOfDeployedResource(assumeRoleOfWorkload);
 
   await addCallerToAssumeRolePolicy({ roleName: workloadRoleName });
+
+  // Wait for IAM trust policy propagation (eventual consistency)
+  await new Promise((resolve) => setTimeout(resolve, 2000));
 
   const durationSeconds = isDevStack ? DEV_SESSION_DURATION_SECONDS : SESSION_DURATION_SECONDS;
   const credentials = await awsSdkManager.getAssumedRoleCredentials({

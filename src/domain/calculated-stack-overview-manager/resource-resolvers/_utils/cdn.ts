@@ -931,8 +931,7 @@ export const getCloudfrontDistributionResource = ({
       break;
     }
     default: {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const originType: never = defaultOriginType;
+      const _originType: never = defaultOriginType;
     }
   }
   const distributionConfig: DistributionConfig = {
@@ -1085,8 +1084,7 @@ const getCustomEdgeFunctionsAssociations = ({
           break;
         }
         default: {
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
-          const exhaustiveCheck: never = triggerType;
+          const _exhaustiveCheck: never = triggerType;
         }
       }
       if ((resolvedReference as CloudfrontFunctionReferencedUsingArn).cloudfrontFunctionArn) {

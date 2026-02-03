@@ -1,5 +1,5 @@
 import { tuiManager } from '@application-services/tui-manager';
-import { type StacktapeCommand } from '../config/cli/commands';
+import type { StacktapeCommand } from '../config/cli/commands';
 import { getCommandDescription } from '../config/cli/utils';
 import { ExpectedError } from './errors';
 

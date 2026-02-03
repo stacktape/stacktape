@@ -695,6 +695,9 @@ export const CHILD_RESOURCES: Record<
   // ===== SNS TOPIC =====
   'sns-topic': [{ logicalName: cfLogicalNames.snsTopic, resourceType: 'AWS::SNS::Topic' }],
 
+  // ===== KINESIS STREAM =====
+  'kinesis-stream': [{ logicalName: cfLogicalNames.kinesisStream, resourceType: 'AWS::Kinesis::Stream' }],
+
   // ===== BASTION =====
   bastion: [
     {

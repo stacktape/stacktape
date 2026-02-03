@@ -13,6 +13,7 @@ export class ExpectedError extends Error {
   hint?: string | string[];
   details?: ReturnType<typeof getErrorDetails>;
   metadata?: Record<string, any>;
+  userStackTrace?: string;
 
   constructor(type: ErrorType, message: string, hint?: string | string[], metadata?: Record<string, any>) {
     super(message);
@@ -137,6 +138,49 @@ export const getPrettyStacktrace = (
           : res;
     })
     .join('\n');
+};
+
+/**
+ * Get a pretty stack trace showing only user code frames (for config errors)
+ */
+export const getUserCodeStackTrace = (error: Error, colorize?: (msg: string) => string): string | null => {
+  const trace = stacktrace.parse(error);
+  const userFrames = trace
+    .filter(({ fileName, native }) => {
+      if (native || !fileName) return false;
+      if (fileName === '------' || fileName === 'native') return false;
+      if (fileName.startsWith('internal/') || fileName.startsWith('node:')) return false;
+      // Only include user code, not node_modules or stacktape internals
+      if (fileName.includes('node_modules')) return false;
+      if (fileName.includes('stacktape/src') || fileName.includes('stacktape\\src')) return false;
+      if (fileName.includes('__publish-folder') || fileName.includes('stacktape.js')) return false;
+      return true;
+    })
+    .map((callsite) => {
+      const { fileName, lineNumber, columnNumber, functionName } = callsite;
+      let adjustedFileName: string = fileName;
+
+      // Format function name
+      let adjustedFunctionName = '';
+      if (functionName && !functionName.includes('Object.')) {
+        adjustedFunctionName = `${functionName} `;
+      } else if (!functionName) {
+        adjustedFunctionName = '<anonymous> ';
+      }
+
+      // Convert to relative path
+      if (isAbsolute(fileName) && isFileAccessible(fileName)) {
+        adjustedFileName = getRelativePath(fileName).replaceAll('\\', '/');
+      } else {
+        adjustedFileName = getRelativePath(join(process.cwd(), fileName)).replaceAll('\\', '/');
+      }
+
+      const position = `./${adjustedFileName}:${lineNumber}${columnNumber ? `:${columnNumber}` : ''}`;
+      const line = `  at ${adjustedFunctionName}(${position})`;
+      return colorize ? colorize(line) : line;
+    });
+
+  return userFrames.length > 0 ? userFrames.join('\n') : null;
 };
 
 export const getErrorDetails = (error: UnexpectedError | ExpectedError) => {

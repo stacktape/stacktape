@@ -223,7 +223,7 @@ export const startCodebuildDeployment = async ({
   return awsSdkManager.getCodebuildDeployment({ buildId: build.id });
 };
 
-const startCodebuildDelete = async ({
+const _startCodebuildDelete = async ({
   awsSdkManager,
   awsAccountId,
   invocationId,

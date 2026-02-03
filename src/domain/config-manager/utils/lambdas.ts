@@ -1,7 +1,8 @@
 /* eslint-disable no-template-curly-in-string */
 import { globalStateManager } from '@application-services/global-state-manager';
 import { GetAtt, Ref, Sub } from '@cloudform/functions';
-import { IS_DEV, STACKTAPE_TRPC_API_ENDPOINT } from '@config';
+import { IS_DEV } from '../../../config/random';
+import { STACKTAPE_TRPC_API_ENDPOINT } from '../../../config/params';
 import { sesManager } from '@domain-services/ses-manager';
 import { vpcManager } from '@domain-services/vpc-manager';
 import { stpErrors } from '@errors';
@@ -565,15 +566,32 @@ export const getLambdaHandler = ({ name, packaging }: { packaging: LambdaPackagi
     const extension = getFileExtension(packaging.properties.entryfilePath);
     const handlerToUse =
       packaging.properties.handlerFunction ??
-      (extension === 'java' ? '' : extension === 'go' ? '' : extension === 'py' ? 'handler' : 'default');
+      (extension === 'java'
+        ? ''
+        : extension === 'go'
+          ? ''
+          : extension === 'py'
+            ? 'handler'
+            : extension === 'rb'
+              ? 'handler'
+              : extension === 'php'
+                ? 'handler'
+                : extension === 'cs'
+                  ? ''
+                  : 'default');
     let entry = '';
     switch (extension) {
       case 'py':
       case 'go':
+      case 'rb':
+      case 'php':
         entry = getFileNameWithoutExtension(packaging.properties.entryfilePath);
         break;
       case 'java':
         entry = getContainingFolderName(packaging.properties.entryfilePath);
+        break;
+      case 'cs':
+        entry = '';
         break;
       default:
         entry = 'index';

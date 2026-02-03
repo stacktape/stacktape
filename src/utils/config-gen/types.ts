@@ -12,6 +12,8 @@ export type ConfigGenPhaseInfo = {
     selectedFiles?: string[];
     filesRead?: number;
     filesToRead?: number;
+    deployableUnits?: CliConfigGenDeployableUnit[];
+    requiredResources?: CliConfigGenRequiredResource[];
   };
 };
 

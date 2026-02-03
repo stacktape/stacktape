@@ -1317,6 +1317,12 @@ export const cfLogicalNames = {
       suffix: { cloudformationResourceType: 'AWS::SNS::Topic' }
     }).replaceAll('_', '');
   },
+  kinesisStream(stpResourceName: string) {
+    return buildCfLogicalName({
+      stpResourceName,
+      suffix: { cloudformationResourceType: 'AWS::Kinesis::Stream' }
+    });
+  },
   webAppFirewallCustomResource(stpResourceName: string) {
     return buildCfLogicalName({
       stpResourceName,
