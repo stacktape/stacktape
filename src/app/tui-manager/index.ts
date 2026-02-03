@@ -15,6 +15,9 @@ import {
   box as clackBox,
   log as clackLog,
   note as clackNote,
+  S_BAR,
+  S_BAR_END,
+  S_BAR_START,
   updateSettings as clackUpdateSettings
 } from '@clack/prompts';
 import ci from 'ci-info';
@@ -23,7 +26,7 @@ import terminalLink from 'terminal-link';
 import { renderErrorToString, renderNextStepsToString, renderStackErrorsToString } from './non-tty-renderer';
 import { PromptManager } from './prompts';
 import { NonTtyRenderer, TtyRenderer } from './renderer';
-import { createSpinner, createSpinnerProgressLogger, MultiSpinner } from './spinners';
+import { createSpinner, createSpinnerProgressLogger, MultiSpinner, setSpinnerGuidedMode } from './spinners';
 import { tuiState } from './state';
 import { formatDuration, stripAnsi } from './utils';
 
@@ -55,6 +58,7 @@ export type ErrorDisplayData = {
   message: string;
   hints?: string[];
   stackTrace?: string;
+  userStackTrace?: string;
   sentryEventId?: string;
   isExpected?: boolean;
 };
@@ -82,11 +86,11 @@ class TuiManager {
   private _wasEverStarted = false;
   private _headerCommitted = false;
   private _devTuiActive = false;
-  private logFormat: LogFormat = 'fancy';
+  private _guidedMode = false;
   private logLevel: LogLevel = 'info';
 
   constructor() {
-    this.isTTY = process.stdout.isTTY && !ci.isCI;
+    this.isTTY = (process.stdout.isTTY || process.env.FORCE_TTY === '1') && !ci.isCI;
   }
 
   get enabled(): boolean {
@@ -105,12 +109,27 @@ class TuiManager {
     return this._devTuiActive;
   }
 
+  get guidedMode(): boolean {
+    return this._guidedMode;
+  }
+
+  /**
+   * Enable agent mode - forces non-TTY output for LLM/programmatic consumption.
+   * Must be called after init() but before start().
+   */
+  setAgentMode(enabled: boolean) {
+    if (enabled) {
+      this.isTTY = false;
+      // Reinitialize prompt manager with non-TTY mode
+      this.promptManager = new PromptManager(this.colorize.bind(this), false);
+    }
+  }
+
   // ─── Lifecycle ───
 
-  init(options: { logFormat?: LogFormat; logLevel?: LogLevel } = {}) {
-    this.logFormat = options.logFormat || 'fancy';
+  init(options: { logLevel?: LogLevel } = {}) {
     this.logLevel = options.logLevel || 'info';
-    this.isTTY = process.stdout.isTTY && !ci.isCI && this.logFormat === 'fancy';
+    this.isTTY = (process.stdout.isTTY || process.env.FORCE_TTY === '1') && !ci.isCI;
     this.promptManager = new PromptManager(this.colorize.bind(this), this.isTTY);
     clackUpdateSettings({ withGuide: false });
   }
@@ -120,10 +139,6 @@ class TuiManager {
    * Uses log-update for TTY, plain console for non-TTY.
    */
   start() {
-    if (this.logFormat === 'json' || this.logFormat === 'basic') {
-      return;
-    }
-
     this._isEnabled = true;
     this._wasEverStarted = true;
     this._headerCommitted = false;
@@ -229,6 +244,42 @@ class TuiManager {
     this._devTuiActive = active;
   }
 
+  /**
+   * Start a guided command session with intro header and left border guide.
+   * Use this for simple commands that don't need the full deploy/delete TUI.
+   * All subsequent logs, prompts, and spinners will render within the guide.
+   */
+  intro(title: string) {
+    if (!this.isTTY) {
+      console.info(`\n● ${title}\n`);
+      return;
+    }
+    this._guidedMode = true;
+    setSpinnerGuidedMode(true);
+    clackUpdateSettings({ withGuide: true });
+    // Custom intro with cyan dot indicator
+    process.stdout.write(`${this.colorize('cyan', S_BAR_START)}  ${title}\n`);
+  }
+
+  /**
+   * End a guided command session with outro message.
+   * Shows a green checkmark to indicate success.
+   * Resets the guide mode.
+   */
+  outro(message?: string) {
+    if (!this.isTTY) {
+      if (message) console.info(`\n✓ ${message}\n`);
+      return;
+    }
+    // Custom outro with green checkmark
+    const checkmark = this.colorize('green', '✓');
+    const outroMessage = message ? `${checkmark} ${message}` : '';
+    process.stdout.write(`${this.colorize('gray', S_BAR)}\n${this.colorize('green', S_BAR_END)}  ${outroMessage}\n`);
+    this._guidedMode = false;
+    setSpinnerGuidedMode(false);
+    clackUpdateSettings({ withGuide: false });
+  }
+
   // ─── Spinners ───
 
   createSpinner({ text }: { text: string }) {
@@ -280,13 +331,15 @@ class TuiManager {
   }
 
   private log(type: TuiMessageType, message: string) {
-    // If TUI is running in TTY mode, add to state (will be rendered)
-    if (this._isEnabled && this.isTTY && !this._isPaused) {
+    // If TUI is running in TTY mode with an active phase, add to state (will be rendered)
+    // For simple commands (no phase), print directly to console
+    const hasActivePhase = tuiState.getState().currentPhase !== undefined;
+    if (this._isEnabled && this.isTTY && !this._isPaused && hasActivePhase) {
       tuiState.addMessage(type, type, message);
       return;
     }
 
-    // Otherwise print to console directly (unless DevTui is handling output)
+    // Print to console directly for non-TTY, paused TUI, or no active phase
     if (!this._devTuiActive) {
       this.printToConsole(type, message);
     }
@@ -294,32 +347,32 @@ class TuiManager {
   }
 
   private printToConsole(type: TuiMessageType, message: string) {
-    if (this.logFormat === 'fancy') {
+    if (this.isTTY) {
       switch (type) {
         case 'info':
-          clackLog.info(message);
+          clackLog.message(message, { symbol: this.colorize('cyan', '●') });
           break;
         case 'success':
-          clackLog.success(message);
+          clackLog.message(message, { symbol: this.colorize('green', '✓') });
           break;
         case 'error':
-          clackLog.error(message);
+          clackLog.message(message, { symbol: this.colorize('red', '✖') });
           break;
         case 'warn':
-          clackLog.warn(message);
+          clackLog.message(message, { symbol: this.colorize('yellow', '▲') });
           break;
         case 'debug':
-          clackLog.step(this.colorize('gray', `⚙ ${message}`));
+          clackLog.message(this.colorize('gray', message), { symbol: this.colorize('gray', '○') });
           break;
         case 'hint':
-          clackLog.info(this.colorize('blue', `💡 ${message}`));
+          clackLog.message(this.colorize('blue', message), { symbol: this.colorize('blue', '●') });
           break;
         case 'question':
-          clackLog.message(this.colorize('cyan', `? ${message}`));
+          clackLog.message(message, { symbol: this.colorize('cyan', '?') });
           break;
         case 'start':
         case 'announcement':
-          clackLog.step(message);
+          clackLog.message(message, { symbol: this.colorize('cyan', '▶') });
           break;
         default:
           clackLog.message(message);
@@ -536,12 +589,12 @@ class TuiManager {
   // ─── Formatting Helpers ───
 
   colorize(color: string, text: string): string {
-    if (this.logFormat !== 'fancy') return text;
+    if (!this.isTTY) return text;
     return (kleur[color as keyof typeof kleur] as (text: string) => string)?.(text) ?? text;
   }
 
   makeBold(text: string | number): string {
-    if (this.logFormat !== 'fancy') return text.toString();
+    if (!this.isTTY) return text.toString();
     return kleur.bold(text);
   }
 
@@ -584,7 +637,7 @@ class TuiManager {
 
   prettyFilePath(filePath: string): string {
     const relativePath = transformToUnixPath(getRelativePath(filePath));
-    const underlined = this.logFormat === 'fancy' ? kleur.underline(relativePath) : relativePath;
+    const underlined = this.isTTY ? kleur.underline(relativePath) : relativePath;
     return underlined.startsWith('./') ? underlined : `./${underlined}`;
   }
 
@@ -628,18 +681,12 @@ class TuiManager {
       message: errorMessage,
       hints: this.logLevel !== 'error' ? hints : undefined,
       stackTrace: prettyStackTrace || undefined,
+      userStackTrace: (error as ExpectedError).userStackTrace || (error as any).userStackTrace || undefined,
       sentryEventId: sentryEventId || undefined,
       isExpected: error.isExpected
     };
 
-    if (this.logFormat === 'json') {
-      this.printStacktapeLog({
-        type: 'ERROR',
-        data: { errorType, message: errorMessage, reportedErrorId: sentryEventId, stack: prettyStackTrace }
-      });
-    } else {
-      this.displayError(errorData);
-    }
+    this.displayError(errorData);
   }
 
   displayError(errorData: ErrorDisplayData) {
@@ -663,7 +710,7 @@ class TuiManager {
     this._isEnabled = false;
     this._isPaused = false;
 
-    if (this.logFormat === 'fancy') {
+    if (this.isTTY) {
       this.displayErrorWithClack(errorData);
     } else {
       const errorString = renderErrorToString(errorData, this.colorize.bind(this), this.makeBold.bind(this));
@@ -676,27 +723,30 @@ class TuiManager {
   private displayErrorWithClack(errorData: ErrorDisplayData) {
     const typeLabel = errorData.isExpected === false ? 'Unexpected Error' : this.getErrorLabel(errorData.errorType);
 
-    // Error header box with red border
+    // Error header without box
     console.error('');
-    clackBox(errorData.message, `✖ ${typeLabel}`, {
-      rounded: false,
-      width: 'auto',
-      titleAlign: 'center',
-      contentAlign: 'left',
-      formatBorder: (text: string) => this.colorize('red', text)
-    });
+    console.error(this.colorize('red', `[x] ${typeLabel}`));
+    console.error('');
+    console.error(errorData.message);
+
+    // User stack trace (for config errors - shows where in user's code the error occurred)
+    if (errorData.userStackTrace) {
+      console.error('');
+      console.error(this.makeBold('Stack trace in your code:'));
+      console.error(this.colorize('cyan', errorData.userStackTrace));
+    }
 
     // Hints
     const hints = errorData.hints || [];
     if (hints.length > 0) {
       console.error('');
-      console.error(this.makeBold(this.colorize('blue', 'Hints:')));
+      console.error(this.makeBold('Hints:'));
       for (const hint of hints) {
         console.error(`  ${this.colorize('gray', '→')} ${hint}`);
       }
     }
 
-    // Stack trace
+    // Stack trace (internal)
     if (errorData.stackTrace) {
       console.error('');
       console.error(this.makeBold('Stack trace:'));
@@ -763,19 +813,10 @@ class TuiManager {
   }
 
   printTable({ header, rows }: { header: string[]; rows: string[][] }) {
-    if (this.logFormat === 'json') {
-      this.printStacktapeLog({ type: 'TABLE', data: { header, rows } });
-      return;
-    }
     this.printAsciiTable(header, rows);
   }
 
   printLines(lines: string[]) {
-    if (this.logFormat === 'json') {
-      this.printStacktapeLog({ type: 'TEXT', data: { lines } });
-      return;
-    }
-
     for (const line of lines) {
       console.info(line);
       logCollectorStream.write(line);
@@ -860,16 +901,11 @@ class TuiManager {
   }
 
   showNextSteps(steps: NextStep[]) {
-    if (this.logFormat === 'json') {
-      this.printStacktapeLog({ type: 'NEXT_STEPS', data: { steps } });
-      return;
-    }
-
     if (this._isEnabled && this.isTTY) {
       this.pause();
     }
 
-    if (this.logFormat === 'fancy') {
+    if (this.isTTY) {
       const noteLines: string[] = [];
       steps.forEach((step, index) => {
         let stepLine = `${this.colorize('cyan', `${index + 1}.`)} ${step.text}`;
@@ -906,6 +942,264 @@ class TuiManager {
       titleAlign: 'left',
       contentAlign: 'left'
     });
+  }
+
+  printWhoami({
+    user,
+    organization,
+    connectedAwsAccounts,
+    projects
+  }: {
+    user: { id: string; name?: string; email?: string; [key: string]: any };
+    organization: { id: string; name: string; [key: string]: any };
+    connectedAwsAccounts: Array<{
+      id: string;
+      name?: string;
+      awsAccountId?: string;
+      state?: string;
+      [key: string]: any;
+    }>;
+    projects: Array<{ id: string; name: string; [key: string]: any }>;
+  }) {
+    const lines: string[] = [];
+
+    lines.push(this.makeBold('User'));
+    lines.push(`  Name: ${this.colorize('cyan', user.name || 'N/A')}`);
+    lines.push(`  Email: ${this.colorize('cyan', user.email || 'N/A')}`);
+    lines.push(`  ID: ${this.colorize('gray', user.id)}`);
+    lines.push('');
+
+    lines.push(this.makeBold('Organization'));
+    lines.push(`  Name: ${this.colorize('cyan', organization.name)}`);
+    lines.push(`  ID: ${this.colorize('gray', organization.id)}`);
+    lines.push('');
+
+    lines.push(this.makeBold('Connected AWS Accounts'));
+    if (connectedAwsAccounts.length === 0) {
+      lines.push(`  ${this.colorize('gray', 'No connected accounts')}`);
+    } else {
+      for (const acc of connectedAwsAccounts) {
+        const stateColor = acc.state === 'ACTIVE' ? 'green' : 'yellow';
+        lines.push(
+          `  - ${this.colorize('cyan', acc.name || 'unnamed')} (${acc.awsAccountId || 'N/A'}) - ${this.colorize(stateColor, acc.state || 'UNKNOWN')}`
+        );
+      }
+    }
+    lines.push('');
+
+    lines.push(this.makeBold('Accessible Projects'));
+    if (projects.length === 0) {
+      lines.push(`  ${this.colorize('gray', 'No projects')}`);
+    } else {
+      for (const project of projects) {
+        lines.push(`  - ${this.colorize('cyan', project.name)}`);
+      }
+    }
+
+    this.printLines(lines);
+  }
+
+  printProjects({
+    projects
+  }: {
+    projects: Array<{
+      id: string;
+      name: string;
+      stages: Array<{
+        stage: string;
+        status: string;
+        deploymentIsInProgress: boolean;
+        isErrored: boolean;
+        lastUpdateTime: number;
+        thisMonthCosts: { currencyCode: string; total: number };
+        previousMonthCosts: { currencyCode: string; total: number };
+      }>;
+      undeployedStages: Array<{ name?: string; [key: string]: any }>;
+    }>;
+  }) {
+    if (projects.length === 0) {
+      console.info(this.colorize('gray', 'No projects found.'));
+      return;
+    }
+
+    for (const project of projects) {
+      console.info(this.makeBold(`Project: ${this.colorize('cyan', project.name)}`));
+
+      if (project.stages.length === 0 && project.undeployedStages.length === 0) {
+        console.info(`  ${this.colorize('gray', 'No stages')}`);
+        console.info('');
+        continue;
+      }
+
+      if (project.stages.length > 0) {
+        const header = ['Stage', 'Status', 'Last Updated', 'This Month', 'Prev Month'];
+        const rows = project.stages.map((s) => {
+          let statusDisplay = s.status;
+          if (s.deploymentIsInProgress) {
+            statusDisplay = this.colorize('yellow', 'IN_PROGRESS');
+          } else if (s.isErrored) {
+            statusDisplay = this.colorize('red', 'ERRORED');
+          } else if (s.status?.includes('COMPLETE')) {
+            statusDisplay = this.colorize('green', s.status);
+          }
+
+          const formatCost = (cost: { currencyCode: string; total: number }) =>
+            cost.total > 0 ? `${cost.total.toFixed(2)} ${cost.currencyCode}` : this.colorize('gray', '$0.00');
+
+          return [
+            this.colorize('cyan', s.stage),
+            statusDisplay,
+            s.lastUpdateTime ? new Date(s.lastUpdateTime).toLocaleString() : 'N/A',
+            formatCost(s.thisMonthCosts),
+            formatCost(s.previousMonthCosts)
+          ];
+        });
+        this.printTable({ header, rows });
+      }
+
+      if (project.undeployedStages.length > 0) {
+        console.info(
+          `  ${this.colorize('gray', 'Undeployed stages:')} ${project.undeployedStages.map((s) => s.name).join(', ')}`
+        );
+      }
+
+      console.info('');
+    }
+  }
+
+  printOperations({
+    operations
+  }: {
+    operations: Array<{
+      id: string;
+      command?: string | null;
+      projectName?: string | null;
+      stackName?: string | null;
+      stage?: string | null;
+      region?: string | null;
+      createdAt?: Date | string;
+      startTime?: Date | string | null;
+      endTime?: Date | string | null;
+      success?: boolean | null;
+      inProgress?: boolean | null;
+      description?: string | null;
+    }>;
+  }) {
+    if (operations.length === 0) {
+      console.info(this.colorize('gray', 'No operations found.'));
+      return;
+    }
+
+    const header = ['Command', 'Project', 'Stage', 'Region', 'Status', 'Time'];
+
+    const rows = operations.map((op) => {
+      let status: string;
+      if (op.inProgress) {
+        status = this.colorize('yellow', 'IN_PROGRESS');
+      } else if (op.success === true) {
+        status = this.colorize('green', 'SUCCESS');
+      } else if (op.success === false) {
+        status = this.colorize('red', 'FAILED');
+      } else {
+        status = this.colorize('gray', 'UNKNOWN');
+      }
+
+      const time = op.createdAt ? new Date(op.createdAt).toLocaleString() : 'N/A';
+
+      return [
+        op.command || 'N/A',
+        op.projectName || 'N/A',
+        op.stage ? this.colorize('cyan', op.stage) : 'N/A',
+        op.region || 'N/A',
+        status,
+        time
+      ];
+    });
+
+    this.printTable({ header, rows });
+
+    const failedOps = operations.filter((op) => op.success === false && op.description);
+    if (failedOps.length > 0) {
+      console.info('');
+      console.info(this.makeBold('Error Details:'));
+      for (const op of failedOps) {
+        console.info(`  ${this.colorize('red', `[${op.command}]`)} ${op.projectName}-${op.stage}:`);
+        const descLines = (op.description || '').split('\n').slice(0, 5);
+        for (const line of descLines) {
+          console.info(`    ${this.colorize('gray', line)}`);
+        }
+        if ((op.description || '').split('\n').length > 5) {
+          console.info(`    ${this.colorize('gray', '...(truncated)')}`);
+        }
+      }
+    }
+  }
+
+  printStackDetails({
+    stackName,
+    region,
+    details
+  }: {
+    stackName: string;
+    region: string;
+    details: {
+      stackOutput?: { [key: string]: string };
+      stackInfoMap?: any;
+      resources?: any[];
+      description?: string | null;
+    };
+  }) {
+    const lines: string[] = [];
+
+    lines.push(this.makeBold(`Stack: ${this.colorize('cyan', stackName)}`));
+    lines.push(`Region: ${this.colorize('cyan', region)}`);
+    if (details.description) {
+      lines.push(`Description: ${details.description}`);
+    }
+    lines.push('');
+
+    if (details.stackOutput && Object.keys(details.stackOutput).length > 0) {
+      lines.push(this.makeBold('Stack Outputs:'));
+      for (const [key, value] of Object.entries(details.stackOutput)) {
+        if (key.startsWith('stp')) continue;
+        lines.push(`  ${this.colorize('cyan', key)}: ${value}`);
+      }
+      lines.push('');
+    }
+
+    if (details.stackInfoMap) {
+      lines.push(this.makeBold('Resources (from stackInfoMap):'));
+      const infoMap = details.stackInfoMap;
+      for (const [resourceName, resourceInfo] of Object.entries(infoMap)) {
+        if (typeof resourceInfo === 'object' && resourceInfo !== null) {
+          lines.push(`  ${this.colorize('cyan', resourceName)}:`);
+          const info = resourceInfo as Record<string, any>;
+          for (const [propName, propValue] of Object.entries(info)) {
+            if (typeof propValue === 'string' || typeof propValue === 'number') {
+              lines.push(`    ${propName}: ${propValue}`);
+            }
+          }
+        }
+      }
+      lines.push('');
+    }
+
+    if (details.resources && details.resources.length > 0) {
+      lines.push(this.makeBold('CloudFormation Resources:'));
+      const resourcesSummary = details.resources.slice(0, 20);
+      for (const res of resourcesSummary) {
+        const status = res.ResourceStatus || 'N/A';
+        const statusColor = status.includes('COMPLETE') ? 'green' : status.includes('FAILED') ? 'red' : 'yellow';
+        lines.push(
+          `  ${res.LogicalResourceId || 'N/A'} (${res.ResourceType || 'N/A'}) - ${this.colorize(statusColor, status)}`
+        );
+      }
+      if (details.resources.length > 20) {
+        lines.push(`  ${this.colorize('gray', `...and ${details.resources.length - 20} more resources`)}`);
+      }
+    }
+
+    this.printLines(lines);
   }
 }
 

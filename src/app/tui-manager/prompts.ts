@@ -1,6 +1,5 @@
 import type { TuiSelectOption } from './types';
 import * as clack from '@clack/prompts';
-import { createInterface } from 'node:readline';
 
 export class UserCancelledError extends Error {
   constructor() {
@@ -90,38 +89,17 @@ export class PromptManager {
   }
 
   private async promptSimpleConfirm(config: { message: string; defaultValue?: boolean }): Promise<boolean> {
-    const defaultValue = config.defaultValue ?? true;
-    const suffix = defaultValue ? '(Y/n)' : '(y/N)';
-    const question = `${this.colorize('cyan', '?')} ${config.message} ${this.colorize('gray', suffix)} `;
-
-    const rl = createInterface({ input: process.stdin, output: process.stdout });
-
-    return await new Promise<boolean>((resolve, reject) => {
-      const onCancel = () => {
-        rl.close();
-        clack.cancel('Operation cancelled');
-        reject(new UserCancelledError());
-      };
-
-      rl.on('SIGINT', onCancel);
-      rl.question(question, (answer) => {
-        rl.close();
-        const normalized = answer.trim().toLowerCase();
-        if (!normalized) {
-          resolve(defaultValue);
-          return;
-        }
-        if (normalized === 'y' || normalized === 'yes') {
-          resolve(true);
-          return;
-        }
-        if (normalized === 'n' || normalized === 'no') {
-          resolve(false);
-          return;
-        }
-        resolve(defaultValue);
-      });
+    const result = await clack.confirm({
+      message: config.message,
+      initialValue: config.defaultValue ?? true
     });
+
+    if (clack.isCancel(result)) {
+      clack.cancel('Operation cancelled');
+      throw new UserCancelledError();
+    }
+
+    return result as boolean;
   }
 
   /**
@@ -151,42 +129,23 @@ export class PromptManager {
     options: TuiSelectOption[];
     defaultValue?: string;
   }): Promise<string> {
-    const defaultIndex = config.defaultValue
-      ? config.options.findIndex((opt) => opt.value === config.defaultValue)
-      : -1;
-    const optionsText = config.options
-      .map((opt, index) => {
-        const label = `${index + 1}) ${opt.label}`;
-        const hint = opt.description ? ` ${this.colorize('gray', opt.description)}` : '';
-        const isDefault = index === defaultIndex;
-        return `  ${label}${hint}${isDefault ? this.colorize('gray', ' (default)') : ''}`;
-      })
-      .join('\n');
+    // Use clack select for a proper interactive UI
+    const result = await clack.select({
+      message: config.message,
+      options: config.options.map((opt) => ({
+        value: opt.value,
+        label: opt.label,
+        hint: opt.description
+      })),
+      initialValue: config.defaultValue
+    });
 
-    const rangeHint = `${this.colorize('gray', `Choose 1-${config.options.length}`)}${
-      defaultIndex >= 0 ? this.colorize('gray', ` [default ${defaultIndex + 1}]`) : ''
-    }`;
-
-    const prompt = `${this.colorize('cyan', '?')} ${config.message}\n${optionsText}\n${rangeHint}: `;
-
-    while (true) {
-      const answer = await this.askLine(prompt);
-      const normalized = answer.trim();
-      if (!normalized) {
-        if (defaultIndex >= 0) return config.options[defaultIndex].value;
-        continue;
-      }
-
-      const selectedIndex = Number.parseInt(normalized, 10);
-      if (Number.isFinite(selectedIndex) && selectedIndex >= 1 && selectedIndex <= config.options.length) {
-        return config.options[selectedIndex - 1].value;
-      }
-
-      const matched = config.options.find(
-        (opt) => opt.value.toLowerCase() === normalized.toLowerCase() || opt.label.toLowerCase() === normalized
-      );
-      if (matched) return matched.value;
+    if (clack.isCancel(result)) {
+      clack.cancel('Operation cancelled');
+      throw new UserCancelledError();
     }
+
+    return result as string;
   }
 
   private async promptSimpleText(config: {
@@ -196,72 +155,36 @@ export class PromptManager {
     description?: string;
     defaultValue?: string;
   }): Promise<string> {
-    const description = config.description ? ` ${this.colorize('gray', config.description)}` : '';
-    const placeholder = config.placeholder ? this.colorize('gray', `(${config.placeholder})`) : '';
-    const defaultHint =
-      config.defaultValue !== undefined ? this.colorize('gray', ` [default: ${config.defaultValue}]`) : '';
-    const prompt = `${this.colorize('cyan', '?')} ${config.message}${description} ${placeholder}${defaultHint} `;
-
     if (config.isPassword) {
-      const value = await this.askHidden(prompt);
+      const result = await clack.password({
+        message: config.message,
+        mask: '*'
+      });
+
+      if (clack.isCancel(result)) {
+        clack.cancel('Operation cancelled');
+        throw new UserCancelledError();
+      }
+
+      const value = result as string;
       if (value.trim().length === 0 && config.defaultValue !== undefined) {
         return config.defaultValue;
       }
       return value;
     }
 
-    const value = await this.askLine(prompt);
-    if (value.trim().length === 0 && config.defaultValue !== undefined) {
-      return config.defaultValue;
+    const result = await clack.text({
+      message: config.message,
+      placeholder: config.placeholder,
+      defaultValue: config.defaultValue
+    });
+
+    if (clack.isCancel(result)) {
+      clack.cancel('Operation cancelled');
+      throw new UserCancelledError();
     }
-    return value;
-  }
 
-  private async askLine(prompt: string): Promise<string> {
-    const rl = createInterface({ input: process.stdin, output: process.stdout });
-    return await new Promise<string>((resolve, reject) => {
-      const onCancel = () => {
-        rl.close();
-        clack.cancel('Operation cancelled');
-        reject(new UserCancelledError());
-      };
-
-      rl.on('SIGINT', onCancel);
-      rl.question(prompt, (answer) => {
-        rl.close();
-        resolve(answer);
-      });
-    });
-  }
-
-  private async askHidden(prompt: string): Promise<string> {
-    const rl = createInterface({ input: process.stdin, output: process.stdout });
-    const originalWrite = (rl as unknown as { _writeToOutput?: (text: string) => void })._writeToOutput;
-
-    (rl as unknown as { _writeToOutput?: (text: string) => void })._writeToOutput = (text: string) => {
-      if (text.includes('\n')) {
-        process.stdout.write(text);
-      } else {
-        process.stdout.write('*');
-      }
-    };
-
-    return await new Promise<string>((resolve, reject) => {
-      const onCancel = () => {
-        (rl as unknown as { _writeToOutput?: (text: string) => void })._writeToOutput = originalWrite;
-        rl.close();
-        clack.cancel('Operation cancelled');
-        reject(new UserCancelledError());
-      };
-
-      rl.on('SIGINT', onCancel);
-      rl.question(prompt, (answer) => {
-        (rl as unknown as { _writeToOutput?: (text: string) => void })._writeToOutput = originalWrite;
-        rl.close();
-        process.stdout.write('\n');
-        resolve(answer);
-      });
-    });
+    return result as string;
   }
 
   private handleNonTTY<T>(message: string, defaultValue: T | undefined, formatDefault: () => string): T {

@@ -1,4 +1,4 @@
-import { spinner as clackSpinner } from '@clack/prompts';
+import { log as clackLog, spinner as clackSpinner } from '@clack/prompts';
 import logUpdate from 'log-update';
 import { formatDuration } from './utils';
 
@@ -13,6 +13,10 @@ export type Spinner = {
 
 // Flag to suppress spinner output when DevTui is active
 let _devTuiActive = false;
+// Flag for agent mode - uses plain text output instead of spinners
+let _agentMode = false;
+// Flag for guided mode - uses clack spinner with guide
+let _guidedMode = false;
 
 export const setSpinnerDevTuiActive = (active: boolean) => {
   _devTuiActive = active;
@@ -20,43 +24,121 @@ export const setSpinnerDevTuiActive = (active: boolean) => {
 
 export const isSpinnerDevTuiActive = () => _devTuiActive;
 
+export const setSpinnerAgentMode = (active: boolean) => {
+  _agentMode = active;
+};
+
+export const isSpinnerAgentMode = () => _agentMode;
+
+export const setSpinnerGuidedMode = (active: boolean) => {
+  _guidedMode = active;
+};
+
+export const isSpinnerGuidedMode = () => _guidedMode;
+
+const SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+
 /**
- * Creates a single spinner for standalone operations using @clack/prompts spinner.
- * Uses timer indicator to show elapsed time.
+ * Creates a single spinner for standalone operations.
+ * - In guided mode: uses clack spinner (renders within the guide border)
+ * - Otherwise: uses custom log-update spinner with cyan dots
  * When DevTui is active, spinners are suppressed (no-op).
+ * When agent mode is active, uses plain text output.
  */
 export const createSpinner = (text: string, colorize: (color: string, text: string) => string): Spinner => {
   if (_devTuiActive) {
     return { update: () => {}, success: () => {}, error: () => {} };
   }
 
+  // Agent mode: plain text output without animations
+  if (_agentMode) {
+    const startTime = Date.now();
+    console.log(`[~] ${text}`);
+    return {
+      update: (newText: string) => {
+        console.log(`[~] ${text} - ${newText}`);
+      },
+      success: (options?: { text?: string; details?: string }) => {
+        const duration = formatDuration(Date.now() - startTime);
+        const finalText = options?.text || text;
+        const details = options?.details ? ` ${options.details}` : '';
+        console.log(`[+] ${finalText}${details} (${duration})`);
+      },
+      error: (errorText?: string) => {
+        const duration = formatDuration(Date.now() - startTime);
+        console.log(`[x] ${errorText || `${text} failed`} (${duration})`);
+      }
+    };
+  }
+
+  // Guided mode: use clack spinner with cyan dots (integrates with guide border)
+  if (_guidedMode) {
+    const baseText = text;
+    const cyanFrames = SPINNER_FRAMES.map((frame) => colorize('cyan', frame));
+    const spin = clackSpinner({ frames: cyanFrames, delay: 80 });
+    spin.start(baseText);
+
+    return {
+      update: (newText: string) => {
+        spin.message(`${baseText} ${colorize('gray', newText)}`);
+      },
+      success: (options?: { text?: string; details?: string }) => {
+        const finalText = options?.text || baseText;
+        const details = options?.details ? ` ${colorize('gray', options.details)}` : '';
+        spin.clear();
+        clackLog.message(`${finalText}${details}`, { symbol: colorize('green', '✓') });
+      },
+      error: (errorText?: string) => {
+        spin.clear();
+        clackLog.message(errorText || `${baseText} failed`, { symbol: colorize('red', '✖') });
+      }
+    };
+  }
+
+  // Default: custom log-update spinner with cyan dots
   const baseText = text;
-  const spin = clackSpinner({ indicator: 'timer' });
-  spin.start(baseText);
+  const startTime = Date.now();
+  let currentText = baseText;
+  let frameIndex = 0;
+  let stopped = false;
+
+  const render = () => {
+    if (stopped) return;
+    const frame = colorize('cyan', SPINNER_FRAMES[frameIndex]);
+    const elapsed = colorize('gray', `(${formatDuration(Date.now() - startTime)})`);
+    logUpdate(`${frame} ${currentText} ${elapsed}`);
+  };
+
+  const interval = setInterval(() => {
+    frameIndex = (frameIndex + 1) % SPINNER_FRAMES.length;
+    render();
+  }, 80);
+
+  render();
 
   return {
     update: (newText: string) => {
-      if (_devTuiActive) {
-        spin.clear();
-        return;
-      }
-      spin.message(`${baseText} ${colorize('gray', newText)}`);
+      if (_devTuiActive || stopped) return;
+      currentText = `${baseText} ${colorize('gray', newText)}`;
+      render();
     },
     success: (options?: { text?: string; details?: string }) => {
-      if (_devTuiActive) {
-        spin.clear();
-        return;
-      }
+      if (_devTuiActive || stopped) return;
+      stopped = true;
+      clearInterval(interval);
+      const duration = colorize('yellow', formatDuration(Date.now() - startTime));
       const finalText = options?.text || baseText;
       const details = options?.details ? ` ${colorize('gray', options.details)}` : '';
-      spin.stop(`${finalText}${details}`);
+      logUpdate(`${colorize('green', '✓')} ${finalText}${details} ${duration}`);
+      logUpdate.done();
     },
     error: (errorText?: string) => {
-      if (_devTuiActive) {
-        spin.clear();
-        return;
-      }
-      spin.error(errorText || `${baseText} failed`);
+      if (_devTuiActive || stopped) return;
+      stopped = true;
+      clearInterval(interval);
+      const duration = colorize('yellow', formatDuration(Date.now() - startTime));
+      logUpdate(`${colorize('red', '✖')} ${errorText || `${baseText} failed`} ${duration}`);
+      logUpdate.done();
     }
   };
 };
@@ -73,6 +155,7 @@ type SpinnerState = {
  * Manages multiple spinners running simultaneously.
  * Use this when you have MULTIPLE async operations running in parallel.
  * When DevTui is active, spinners are suppressed (no-op).
+ * When agent mode is active, uses plain text output.
  *
  * @example
  * const multi = new MultiSpinner(colorize);
@@ -89,10 +172,12 @@ export class MultiSpinner {
   private frames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
   private colorize: (color: string, text: string) => string;
   private suppressed: boolean;
+  private agentMode: boolean;
 
   constructor(colorize: (color: string, text: string) => string) {
     this.colorize = colorize;
     this.suppressed = _devTuiActive;
+    this.agentMode = _agentMode;
   }
 
   /** Add a new spinner and start tracking it */
@@ -103,6 +188,27 @@ export class MultiSpinner {
         update: () => {},
         success: () => {},
         error: () => {}
+      };
+    }
+
+    // Agent mode: plain text output without animations
+    if (this.agentMode) {
+      const startTime = Date.now();
+      console.log(`[~] ${text}`);
+      return {
+        update: (newText: string) => {
+          console.log(`[~] ${text} - ${newText}`);
+        },
+        success: (options?: { text?: string; details?: string }) => {
+          const duration = formatDuration(Date.now() - startTime);
+          const finalText = options?.text || text;
+          const details = options?.details ? ` ${options.details}` : '';
+          console.log(`[+] ${finalText}${details} (${duration})`);
+        },
+        error: (errorText?: string) => {
+          const duration = formatDuration(Date.now() - startTime);
+          console.log(`[x] ${errorText || `${text} failed`} (${duration})`);
+        }
       };
     }
 

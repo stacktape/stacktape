@@ -1,17 +1,11 @@
-/**
- * String rendering utilities for errors, next steps, and stack errors.
- * Used by both TTY and non-TTY renderers.
- */
-
 import stringWidth from 'string-width';
-
-// ─── Types ───
 
 export type ErrorDisplayData = {
   errorType: string;
   message: string;
   hints?: string[];
   stackTrace?: string;
+  userStackTrace?: string;
   sentryEventId?: string;
   isExpected?: boolean;
 };
@@ -27,15 +21,6 @@ export type StackError = {
   errorMessage: string;
   hints?: string[];
 };
-
-// ─── Error rendering ───
-
-const BORDER_CHAR = '─';
-const CORNER_TL = '┌';
-const CORNER_TR = '┐';
-const CORNER_BL = '└';
-const CORNER_BR = '┘';
-const VERTICAL = '│';
 
 const ERROR_TYPE_LABELS: Record<string, string> = {
   API_KEY: 'API Key Error',
@@ -114,31 +99,22 @@ export const renderErrorToString = (
   makeBold: (text: string) => string
 ): string => {
   const lines: string[] = [];
-  const boxWidth = 44;
-  const contentWidth = boxWidth - 2;
   const typeLabel = error.isExpected === false ? 'Unexpected Error' : getErrorLabel(error.errorType);
 
-  lines.push(colorize('red', `${CORNER_TL}${BORDER_CHAR.repeat(boxWidth)}${CORNER_TR}`));
-
-  const headerText = `✖ ${typeLabel}`;
-  const headerTextWidth = stringWidth(headerText);
-  const headerPadding = Math.max(0, contentWidth - headerTextWidth);
-  const headerLeftPad = Math.floor(headerPadding / 2);
-  const headerRightPad = headerPadding - headerLeftPad;
-  lines.push(
-    colorize('red', VERTICAL) +
-      ' '.repeat(headerLeftPad + 1) +
-      colorize('red', makeBold(headerText)) +
-      ' '.repeat(headerRightPad + 1) +
-      colorize('red', VERTICAL)
-  );
-
-  lines.push(colorize('red', `${CORNER_BL}${BORDER_CHAR.repeat(boxWidth)}${CORNER_BR}`));
-
+  // Error header without box
+  lines.push('');
+  lines.push(colorize('red', `[x] ${typeLabel}`));
   lines.push('');
   const messageLines = wrapText(error.message, 100);
   for (const msgLine of messageLines) {
     lines.push(msgLine);
+  }
+
+  // User stack trace (for config errors - shows where in user's code the error occurred)
+  if (error.userStackTrace) {
+    lines.push('');
+    lines.push(makeBold('Stack trace in your code:'));
+    lines.push(colorize('cyan', error.userStackTrace));
   }
 
   const hints = error.hints || [];
@@ -150,6 +126,7 @@ export const renderErrorToString = (
     }
   }
 
+  // Internal stack trace
   if (error.stackTrace) {
     lines.push('');
     lines.push(makeBold('Stack trace:'));
