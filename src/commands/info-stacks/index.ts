@@ -5,8 +5,9 @@ import { budgetManager } from '@domain-services/budget-manager';
 import { getStacktapeStackInfoFromTemplateDescription, isStacktapeStackDescription } from '@shared/naming/utils';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { loadUserCredentials } from '../_utils/initialization';
+import { isAgentMode } from '../_utils/agent-mode';
 
-export const commandStackList = async () => {
+export const commandInfoStacks = async () => {
   await loadUserCredentials();
 
   const [stacks] = await Promise.all([awsSdkManager.listStacks(), budgetManager.init()]);
@@ -28,8 +29,13 @@ export const commandStackList = async () => {
       };
     }
   );
+
   if (globalStateManager.invokedFrom === 'cli') {
-    tuiManager.printListStack(result);
+    if (isAgentMode()) {
+      tuiManager.info(JSON.stringify(result, null, 2));
+    } else {
+      tuiManager.printListStack(result);
+    }
   }
 
   return result;
