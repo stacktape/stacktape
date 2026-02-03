@@ -7,14 +7,6 @@ export const awsRegion = z.enum(SUPPORTED_AWS_REGIONS).describe(`#### AWS Region
 ---
 The AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).`);
 
-export const logFormat = z.enum(['fancy', 'normal', 'basic', 'json']).describe(`#### Log Format
----
-The format of logs printed to the console.
-- \`fancy\`: Colorized and dynamically re-rendered logs.
-- \`normal\`: Colorized but not dynamically re-rendered logs.
-- \`basic\`: Simple text only.
-- \`json\`: Logs printed as JSON objects.`);
-
 export const logLevel = z.enum(['info', 'debug', 'error']).describe(`#### Log Level
 ---
 The level of logs to print to the console.
@@ -90,7 +82,7 @@ If \`true\`, automatically confirms prompts during \`deploy\` or \`delete\` oper
 
 export const showSensitiveValues = z.boolean().describe(`#### Show Sensitive Values
 ---
-If \`true\`, includes sensitive values in the output of the \`stack:info\` and \`deploy\` commands. Be cautious when using this flag, as mishandling sensitive data can create security risks.`);
+If \`true\`, includes sensitive values in the output of the \`info:stack\` and \`deploy\` commands. Be cautious when using this flag, as mishandling sensitive data can create security risks.`);
 
 export const hotSwap = z.boolean().describe(`#### Hotswap
 ---
@@ -136,11 +128,31 @@ Specifies which dev mode to use:
 
 export const agent = z.boolean().describe(`#### Agent Mode
 ---
-If \`true\`, runs dev mode with the agent HTTP server for programmatic control and status polling. Use \`--agentPort\` to set the port.`);
+Optimizes CLI output for programmatic/LLM consumption:
+- Forces non-TTY output mode (no spinners, animations, or interactive elements)
+- Automatically confirms operations (equivalent to --autoConfirmOperation)
+- Uses plain text output suitable for parsing
+For dev command: also enables HTTP server for programmatic control.`);
 
 export const agentPort = z.number().describe(`#### Agent Port
 ---
 The port for the agent HTTP server. Providing this option enables agent mode.`);
+
+export const agentChild = z.boolean().describe(`#### Agent Child (internal)
+---
+Internal flag used when spawning the daemon child process. Do not use directly.`);
+
+export const stop = z.boolean().describe(`#### Stop Agent
+---
+Stops a running dev agent daemon. Reads the lock file to find the running agent and sends a stop signal.`);
+
+export const cleanupContainers = z.boolean().describe(`#### Cleanup Containers
+---
+Finds and removes orphaned Stacktape dev containers (containers whose dev agent is no longer running). Use this to clean up containers left behind after a crash or improper shutdown.`);
+
+export const freshDb = z.boolean().describe(`#### Fresh Database
+---
+If \`true\`, deletes existing local database data before starting. Use this to start with a clean database state.`);
 
 export const startTime = z.union([z.number(), z.string()]).describe(`#### Start Time
 ---
@@ -224,6 +236,10 @@ export const starterId = z.string().describe(`#### Starter ID
 ---
 The identifier of the starter project to initialize.`);
 
+export const starterProject = z.boolean().describe(`#### Starter Project
+---
+If \`true\`, initializes from a starter project template instead of running the default wizard flow.`);
+
 export const projectDirectory = z.string().describe(`#### Project Directory
 ---
 The root directory where the project configuration should be generated.`);
@@ -244,18 +260,126 @@ export const newVersion = z.string().describe(`#### New Version
 ---
 The version of Stacktape to install.`);
 
+export const limit = z.number().describe(`#### Limit
+---
+Maximum number of items to return.`);
+
+export const stackName = z.string().describe(`#### Stack Name
+---
+The name of the CloudFormation stack (format: projectName-stage).`);
+
 export const resourcesToSkip = z.array(z.string()).describe(`#### Resources to Skip
 ---
 A list of logical resource IDs to skip during rollback. Use this when a rollback fails because certain resources cannot be restored to their previous state.`);
+
+export const secretName = z.string().describe(`#### Secret Name
+---
+The name of the secret in AWS Secrets Manager.`);
+
+export const secretValue = z.string().describe(`#### Secret Value
+---
+The value to store in the secret. For sensitive values, consider using --secretFile instead.`);
+
+export const secretFile = z.string().describe(`#### Secret File
+---
+Path to a file whose contents will be stored as the secret value.`);
+
+export const forceUpdate = z.boolean().describe(`#### Force Update
+---
+If the secret already exists, update it without prompting for confirmation.`);
+
+export const logsQuery = z.string().describe(`#### Logs Query
+---
+CloudWatch Logs Insights query string. Example: "fields @timestamp, @message | filter @message like /ERROR/ | limit 50"`);
+
+export const metric = z.string().describe(`#### Metric Name
+---
+CloudWatch metric name (e.g., Invocations, Errors, CPUUtilization).`);
+
+export const period = z.number().describe(`#### Metric Period
+---
+Aggregation period in seconds (default: 300).`);
+
+export const stat = z.string().describe(`#### Metric Statistic
+---
+Statistic to retrieve: Sum, Average, Maximum, Minimum, p99 (default: Average).`);
+
+export const alarmState = z.string().describe(`#### Alarm State Filter
+---
+Filter alarms by state: OK, ALARM, or INSUFFICIENT_DATA.`);
+
+export const background = z.boolean().describe(`#### Background Mode
+---
+Start the operation in background and return immediately with connection details.`);
+
+export const execCommand = z.string().describe(`#### Execute Command
+---
+Command to execute in the container session.`);
+
+export const taskArn = z.string().describe(`#### Task ARN
+---
+Specific ECS task ARN to connect to.`);
+
+export const sqlQuery = z.string().describe(`#### SQL Query
+---
+SQL query to execute. Only read-only queries (SELECT, SHOW, DESCRIBE, EXPLAIN) are allowed.`);
+
+export const queryTimeout = z.number().describe(`#### Query Timeout
+---
+Maximum time to wait for query execution in milliseconds (default: 30000).`);
+
+export const sdkService = z.string().describe(`#### AWS SDK Service
+---
+AWS service name (e.g., lambda, dynamodb, s3, logs).`);
+
+export const sdkCommand = z.string().describe(`#### AWS SDK Command
+---
+AWS SDK command name (e.g., ListFunctions, Scan, GetObject).`);
+
+export const sdkInput = z.string().describe(`#### AWS SDK Input
+---
+JSON string containing the command input parameters.`);
+
+export const dbOperation = z.string().describe(`#### Database Operation
+---
+The operation to perform (varies by database type).`);
+
+export const dynamoPk = z.string().describe(`#### DynamoDB Partition Key
+---
+JSON object with partition key name and value (e.g., '{"id": "123"}').`);
+
+export const dynamoSk = z.string().describe(`#### DynamoDB Sort Key
+---
+JSON object with sort key name and value (e.g., '{"timestamp": 12345}').`);
+
+export const dbIndex = z.string().describe(`#### Database Index
+---
+Index name. For DynamoDB: secondary index to query. For OpenSearch: index to search.`);
+
+export const redisKey = z.string().describe(`#### Redis Key
+---
+The key name to operate on.`);
+
+export const redisPattern = z.string().describe(`#### Redis Key Pattern
+---
+Pattern for matching keys (default: *). Supports glob-style patterns.`);
+
+export const redisSection = z.string().describe(`#### Redis Info Section
+---
+Specific section of Redis INFO output (e.g., server, memory, stats).`);
+
+export const documentId = z.string().describe(`#### Document ID
+---
+ID of the document to retrieve (for OpenSearch get operation).`);
 
 // ============ Arg Groups ============
 
 export const universalArgs = {
   profile: profile.optional(),
-  logFormat: logFormat.optional(),
   logLevel: logLevel.optional(),
   help: help.optional(),
-  awsAccount: awsAccount.optional()
+  awsAccount: awsAccount.optional(),
+  agent: agent.optional()
 };
 
 export const stackArgs = {
@@ -286,7 +410,6 @@ export const argAliases = {
   command: 'cmd',
   disableEmulation: 'de',
   portMapping: 'pm',
-  logFormat: 'lf',
   logLevel: 'll',
   filter: 'f',
   startTime: 'st',
@@ -323,6 +446,7 @@ export const argAliases = {
   bastionResource: 'br',
   projectName: 'prj',
   starterId: 'sid',
+  starterProject: 'sp',
   assumeRoleOfResource: 'aror',
   configFormat: 'cf',
   localTunnelingPort: 'ltp',
@@ -336,7 +460,21 @@ export const argAliases = {
   devMode: 'dm',
   agent: 'ag',
   agentPort: 'ap',
-  useAi: 'ai'
+  useAi: 'ai',
+  limit: 'lim',
+  stackName: 'sn',
+  secretName: 'secn',
+  secretValue: 'secv',
+  secretFile: 'secf',
+  forceUpdate: 'fu',
+  query: 'q',
+  metric: 'met',
+  period: 'per',
+  stat: 'st',
+  state: 'sta',
+  background: 'bg',
+  execCommand: 'exec',
+  taskArn: 'ta'
 } as const;
 
 // ============ Combined Args Schema ============
@@ -361,7 +499,6 @@ export const allCliArgsSchema = z.object({
   portMapping: z.array(z.string()).optional(),
   event: z.string().optional(),
   jsonEvent: z.string().optional(),
-  logFormat: logFormat.optional(),
   logLevel: logLevel.optional(),
   startTime: startTime.optional(),
   filter: filter.optional(),
@@ -373,6 +510,7 @@ export const allCliArgsSchema = z.object({
   noCache: noCache.optional(),
   disableDockerRemoteCache: disableDockerRemoteCache.optional(),
   starterId: starterId.optional(),
+  starterProject: starterProject.optional(),
   env: env.optional(),
   scriptName: scriptName.optional(),
   detailed: detailed.optional(),
@@ -402,7 +540,34 @@ export const allCliArgsSchema = z.object({
   devMode: devMode.optional(),
   agent: agent.optional(),
   agentPort: agentPort.optional(),
-  useAi: useAi.optional()
+  agentChild: agentChild.optional(),
+  stop: stop.optional(),
+  cleanupContainers: cleanupContainers.optional(),
+  freshDb: freshDb.optional(),
+  useAi: useAi.optional(),
+  limit: limit.optional(),
+  stackName: stackName.optional(),
+  secretName: secretName.optional(),
+  secretValue: secretValue.optional(),
+  secretFile: secretFile.optional(),
+  forceUpdate: forceUpdate.optional(),
+  query: logsQuery.optional(),
+  metric: metric.optional(),
+  period: period.optional(),
+  stat: stat.optional(),
+  state: alarmState.optional(),
+  background: background.optional(),
+  execCommand: execCommand.optional(),
+  taskArn: taskArn.optional(),
+  operation: dbOperation.optional(),
+  pk: dynamoPk.optional(),
+  sk: dynamoSk.optional(),
+  index: dbIndex.optional(),
+  key: redisKey.optional(),
+  pattern: redisPattern.optional(),
+  section: redisSection.optional(),
+
+  id: documentId.optional()
 });
 
 // Inferred type from Zod schema

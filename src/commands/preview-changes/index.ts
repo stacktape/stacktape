@@ -4,8 +4,9 @@ import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
 import { packagingManager } from '@domain-services/packaging-manager';
 import { templateManager } from '@domain-services/template-manager';
-import { Change } from '@aws-sdk/client-cloudformation';
+import type { Change } from '@aws-sdk/client-cloudformation';
 import { initializeAllStackServices } from '../_utils/initialization';
+import { isAgentMode } from '../_utils/agent-mode';
 
 type ChangeAnalysis = {
   hasDirectChanges: boolean;
@@ -38,9 +39,14 @@ const analyzeChange = (change: Change): ChangeAnalysis => {
   };
 };
 
-const buildChangesOutput = (changes: Change[]): string[] => {
-  const lines: string[] = [];
+type CategorizedChanges = {
+  added: Change[];
+  removed: Change[];
+  modified: Change[];
+  dependencyUpdates: Change[];
+};
 
+const categorizeChanges = (changes: Change[]): CategorizedChanges => {
   const added: Change[] = [];
   const removed: Change[] = [];
   const modified: Change[] = [];
@@ -62,7 +68,72 @@ const buildChangesOutput = (changes: Change[]): string[] => {
     }
   }
 
-  // Added resources
+  return { added, removed, modified, dependencyUpdates };
+};
+
+/**
+ * Build plain text output for agent mode - no colors, simple structure.
+ */
+const buildAgentChangesOutput = (categorized: CategorizedChanges): string[] => {
+  const { added, removed, modified, dependencyUpdates } = categorized;
+  const lines: string[] = [];
+
+  if (added.length > 0) {
+    lines.push(`NEW RESOURCES (${added.length}):`);
+    for (const change of added) {
+      const rc = change.ResourceChange;
+      if (!rc) continue;
+      lines.push(`  + ${rc.LogicalResourceId} (${rc.ResourceType?.replace('AWS::', '')})`);
+    }
+  }
+
+  if (removed.length > 0) {
+    lines.push(`REMOVED RESOURCES (${removed.length}):`);
+    for (const change of removed) {
+      const rc = change.ResourceChange;
+      if (!rc) continue;
+      lines.push(`  - ${rc.LogicalResourceId} (${rc.ResourceType?.replace('AWS::', '')})`);
+    }
+  }
+
+  if (modified.length > 0) {
+    lines.push(`MODIFIED RESOURCES (${modified.length}):`);
+    for (const change of modified) {
+      const rc = change.ResourceChange;
+      if (!rc) continue;
+      const replacement =
+        rc.Replacement === 'True'
+          ? ' [WILL BE REPLACED]'
+          : rc.Replacement === 'Conditional'
+            ? ' [MAY BE REPLACED]'
+            : '';
+      lines.push(`  ~ ${rc.LogicalResourceId} (${rc.ResourceType?.replace('AWS::', '')})${replacement}`);
+      const analysis = analyzeChange(change);
+      if (analysis.directChanges.length > 0) {
+        lines.push(`    Changed: ${analysis.directChanges.join(', ')}`);
+      }
+    }
+  }
+
+  if (dependencyUpdates.length > 0) {
+    lines.push(`DEPENDENCY UPDATES (${dependencyUpdates.length}):`);
+    for (const change of dependencyUpdates) {
+      const rc = change.ResourceChange;
+      if (!rc) continue;
+      lines.push(`  . ${rc.LogicalResourceId} (${rc.ResourceType?.replace('AWS::', '')})`);
+    }
+  }
+
+  return lines;
+};
+
+/**
+ * Build human-friendly output with colors for TTY mode.
+ */
+const buildHumanChangesOutput = (categorized: CategorizedChanges): string[] => {
+  const { added, removed, modified, dependencyUpdates } = categorized;
+  const lines: string[] = [];
+
   if (added.length > 0) {
     lines.push('');
     lines.push(tuiManager.colorize('green', `+ NEW RESOURCES (${added.length})`));
@@ -77,7 +148,6 @@ const buildChangesOutput = (changes: Change[]): string[] => {
     }
   }
 
-  // Removed resources
   if (removed.length > 0) {
     lines.push('');
     lines.push(tuiManager.colorize('red', `- REMOVED RESOURCES (${removed.length})`));
@@ -92,7 +162,6 @@ const buildChangesOutput = (changes: Change[]): string[] => {
     }
   }
 
-  // Modified resources (direct changes)
   if (modified.length > 0) {
     lines.push('');
     lines.push(tuiManager.colorize('yellow', `~ MODIFIED RESOURCES (${modified.length})`));
@@ -119,7 +188,6 @@ const buildChangesOutput = (changes: Change[]): string[] => {
     }
   }
 
-  // Dependency updates (no direct changes, just re-evaluated due to references)
   if (dependencyUpdates.length > 0) {
     lines.push('');
     lines.push(tuiManager.colorize('gray', `· DEPENDENCY UPDATES (${dependencyUpdates.length})`));
@@ -165,25 +233,41 @@ export const commandPreviewChanges = async () => {
   const removed = changes.filter((c) => c.ResourceChange?.Action === 'Remove').length;
   const modified = changes.filter((c) => c.ResourceChange?.Action === 'Modify').length;
 
-  const summary =
-    changes.length === 0
-      ? 'NO CHANGES DETECTED'
-      : `PREVIEW COMPLETE: ${[added > 0 && `${added} new`, removed > 0 && `${removed} removed`, modified > 0 && `${modified} modified`].filter(Boolean).join(', ')}`;
-
   // Stop the TUI before printing changes so output is visible
   await tuiManager.stop();
 
-  if (changes.length > 0) {
-    const lines = buildChangesOutput(changes);
-    console.info('');
-    for (const line of lines) {
-      console.info(line);
-    }
-    console.info('');
-  }
+  const categorized = categorizeChanges(changes);
 
-  console.info(tuiManager.colorize('green', `✓ ${summary}`));
-  console.info(tuiManager.colorize('gray', '─'.repeat(54)));
+  if (isAgentMode()) {
+    // Agent mode: plain structured output
+    if (changes.length === 0) {
+      console.info('NO CHANGES DETECTED');
+    } else {
+      console.info(`SUMMARY: ${added} new, ${removed} removed, ${modified} modified`);
+      const lines = buildAgentChangesOutput(categorized);
+      for (const line of lines) {
+        console.info(line);
+      }
+    }
+  } else {
+    // Human mode: colored output with decorations
+    const summary =
+      changes.length === 0
+        ? 'NO CHANGES DETECTED'
+        : `PREVIEW COMPLETE: ${[added > 0 && `${added} new`, removed > 0 && `${removed} removed`, modified > 0 && `${modified} modified`].filter(Boolean).join(', ')}`;
+
+    if (changes.length > 0) {
+      const lines = buildHumanChangesOutput(categorized);
+      console.info('');
+      for (const line of lines) {
+        console.info(line);
+      }
+      console.info('');
+    }
+
+    console.info(tuiManager.colorize('green', `✓ ${summary}`));
+    console.info(tuiManager.colorize('gray', '─'.repeat(54)));
+  }
 
   return { changes };
 };
