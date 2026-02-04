@@ -256,6 +256,15 @@ const parseAgentReady = (line: string): AgentReadyPayload | null => {
 };
 
 /**
+ * Detect if running as a compiled Bun binary (vs via `bun run script.ts`).
+ * Compiled binaries have execPath pointing to the binary itself, not bun.
+ */
+const isCompiledBinary = (): boolean => {
+  const execPath = process.execPath.toLowerCase();
+  return !execPath.endsWith('bun') && !execPath.endsWith('bun.exe');
+};
+
+/**
  * Spawn the dev agent as a background daemon process.
  *
  * Uses detached spawn with piped stdout. Waits for AGENT_READY message,
@@ -271,12 +280,15 @@ export const spawnAgentDaemon = async (args: {
   const { originalArgs, agentPort, timeoutMs = 180000 } = args;
 
   const childArgs = [...originalArgs, '--agent-child', '--agentPort', String(agentPort)];
-  const execPath = process.argv[0];
-  const scriptPath = process.argv[1];
   const workingDir = globalStateManager.workingDir;
 
+  // For compiled binary: spawn the binary directly with CLI args
+  // For bun run: spawn bun with script path and args
+  // Note: process.execPath is the actual executable path (not argv[0] which is "bun" for compiled binaries)
+  const spawnArgs = isCompiledBinary() ? childArgs : [process.argv[1], ...childArgs];
+
   return new Promise((resolve) => {
-    const child: ChildProcess = spawn(execPath, [scriptPath, ...childArgs], {
+    const child: ChildProcess = spawn(process.execPath, spawnArgs, {
       detached: true,
       stdio: ['ignore', 'pipe', 'pipe'],
       env: { ...process.env, STACKTAPE_AGENT_DAEMON: '1' },

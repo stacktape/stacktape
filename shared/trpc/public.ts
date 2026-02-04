@@ -96,7 +96,16 @@ export type ExchangeTokenForApiKeyInput = {
 
 export type ExchangeTokenForApiKeyResponse = {
   success: boolean;
-  apiKey?: string;
+  apiKeys: {
+    id: string;
+    createdAt: string;
+    updatedAt: string;
+    lastUsed: string;
+    name: string;
+    userId: string;
+    organizationId: string;
+    organizationName: string;
+  }[];
   error?: string;
 };
 

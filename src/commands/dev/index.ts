@@ -320,7 +320,6 @@ export const commandDev = async () => {
     }
 
     console.log('Starting dev agent daemon...');
-    console.log('(This may take several minutes if deploying a new dev stack)');
     console.log('');
     const result = await spawnAgentDaemon({
       originalArgs,
@@ -351,7 +350,7 @@ export const commandDev = async () => {
       console.log('');
       console.log('─'.repeat(60));
       console.log('IMPORTANT: When done, stop the dev agent with:');
-      console.log(`  bun dev dev:stop --agentPort ${port}`);
+      console.log(`  stacktape dev:stop --agentPort ${port}`);
       console.log('─'.repeat(60));
     }
 

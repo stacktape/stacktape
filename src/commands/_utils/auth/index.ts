@@ -63,15 +63,7 @@ const runGoogleAuth = async (): Promise<AuthResult> => {
     return { success: false, error: result.error || 'Google authentication failed' };
   }
 
-  // Exchange token for API key
-  const exchangeResult = await publicApiClient.exchangeTokenForApiKey({ idToken: result.idToken });
-
-  if (!exchangeResult.success || !exchangeResult.apiKey) {
-    return { success: false, error: exchangeResult.error || 'Failed to get API key' };
-  }
-
-  tuiManager.success('Authenticated successfully');
-  return { success: true, apiKey: exchangeResult.apiKey };
+  return getApiKeyFromByExchangingIdToken(result.idToken);
 };
 
 /**
@@ -159,9 +151,25 @@ const runEmailLoginWithEmail = async (email: string): Promise<AuthResult> => {
   return authenticateAndGetApiKey(email, password);
 };
 
-/**
- * Authenticate and exchange token for API key
- */
+const getApiKeyFromByExchangingIdToken = async (idToken: string): Promise<AuthResult> => {
+  const exchangeResult = await publicApiClient.exchangeTokenForApiKey({ idToken });
+
+  if (!exchangeResult.success || !exchangeResult.apiKeys[0]) {
+    tuiManager.outro('Authentication failed. No API key found.');
+    return { success: false, error: exchangeResult.error || 'Failed to get API key' };
+  }
+
+  if (exchangeResult.apiKeys.length > 1) {
+    const apiKey = await tuiManager.promptSelect({
+      message: 'Select the organization you want to use.',
+      options: exchangeResult.apiKeys.map((apiKey) => ({ label: apiKey.organizationName, value: apiKey.id }))
+    });
+    return { success: true, apiKey };
+  }
+
+  return { success: true, apiKey: exchangeResult.apiKeys[0].id };
+};
+
 const authenticateAndGetApiKey = async (email: string, password: string): Promise<AuthResult> => {
   const authResult = await authenticateWithPassword({ email, password });
 
@@ -179,13 +187,5 @@ const authenticateAndGetApiKey = async (email: string, password: string): Promis
     return { success: false, error: 'No ID token received' };
   }
 
-  // Exchange token for API key
-  const exchangeResult = await publicApiClient.exchangeTokenForApiKey({ idToken: authResult.idToken });
-
-  if (!exchangeResult.success || !exchangeResult.apiKey) {
-    return { success: false, error: exchangeResult.error || 'Failed to get API key' };
-  }
-
-  tuiManager.success('Logged in successfully');
-  return { success: true, apiKey: exchangeResult.apiKey };
+  return getApiKeyFromByExchangingIdToken(authResult.idToken);
 };
