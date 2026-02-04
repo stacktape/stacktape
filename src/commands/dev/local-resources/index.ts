@@ -8,6 +8,7 @@ import { ExpectedError } from '@utils/errors';
 import { ensureDir } from 'fs-extra';
 import { devTuiManager } from 'src/app/tui-manager/dev-tui';
 import { createCleanupHook } from '../cleanup-utils';
+import { clearReservedPorts } from './container-helpers';
 import { startLocalDynamoDb } from './dynamodb';
 import { startLocalMysql } from './mysql';
 import { startLocalOpenSearch } from './opensearch';
@@ -356,6 +357,9 @@ export const startLocalResources = async (resourceNames: string[]): Promise<Loca
   });
 
   const results = await Promise.all(startPromises);
+
+  // Clear reserved ports after startup cycle completes (success or failure)
+  clearReservedPorts();
 
   // Throw if any resources failed to start
   if (errors.length > 0) {

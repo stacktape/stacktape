@@ -148,6 +148,12 @@ export class TtyRenderer {
     logUpdate.done();
   }
 
+  /** Clear dynamic content and stop without persisting - used during Ctrl+C to avoid encoding issues */
+  clearAndStop() {
+    this.stopSpinnerInterval();
+    logUpdate.clear();
+  }
+
   private stopSpinnerInterval() {
     if (this.interval) {
       clearInterval(this.interval);
@@ -287,7 +293,10 @@ export class TtyRenderer {
     const phaseNumber = state.phases.findIndex((p) => p.id === phase.id) + 1;
     const phaseName = state.phases.find((p) => p.id === phase.id)?.name || PHASE_NAMES[phase.id] || phase.id;
 
-    if (state.showPhaseHeaders !== false) {
+    const simpleMode = state.showPhaseHeaders === false;
+    const eventIndent = simpleMode ? 0 : 1;
+
+    if (!simpleMode) {
       // Phase header with spinner and timer
       const spinner = this.colorize('cyan', SPINNER_FRAMES[this.spinnerFrame]);
       const elapsed = this.getElapsedTime(phase);
@@ -304,7 +313,7 @@ export class TtyRenderer {
     } else {
       // Regular phase content
       for (const event of phase.events) {
-        lines.push(...this.buildEventOutput(event, 1, true));
+        lines.push(...this.buildEventOutput(event, eventIndent, true));
       }
     }
 
@@ -471,8 +480,10 @@ export class TtyRenderer {
     const lines: string[] = [];
     const phaseNumber = state.phases.findIndex((p) => p.id === phase.id) + 1;
     const phaseName = state.phases.find((p) => p.id === phase.id)?.name || PHASE_NAMES[phase.id] || phase.id;
+    const simpleMode = state.showPhaseHeaders === false;
+    const eventIndent = simpleMode ? 0 : 1;
 
-    if (state.showPhaseHeaders !== false) {
+    if (!simpleMode) {
       // Phase header with status icon and duration
       // Treat 'running' phases committed during finalization as successful (not errored)
       const isSuccess = phase.status === 'success' || phase.status === 'running';
@@ -486,11 +497,11 @@ export class TtyRenderer {
 
     // Special handling for completed deploy phase
     if (phase.id === 'DEPLOY') {
-      lines.push(...this.buildCompletedDeployContent(phase));
+      lines.push(...this.buildCompletedDeployContent(phase, simpleMode));
     } else {
       // Regular events
       for (const event of phase.events) {
-        lines.push(...this.buildEventOutput(event, 1, false));
+        lines.push(...this.buildEventOutput(event, eventIndent, false));
       }
     }
 
@@ -509,9 +520,10 @@ export class TtyRenderer {
     return lines;
   }
 
-  private buildCompletedDeployContent(phase: TuiPhase): string[] {
+  private buildCompletedDeployContent(phase: TuiPhase, simpleMode = false): string[] {
     const lines: string[] = [];
     const deployEvent = getActiveDeployEvent(phase.events);
+    const eventIndent = simpleMode ? 0 : 1;
 
     if (!deployEvent) {
       return lines;
@@ -523,12 +535,12 @@ export class TtyRenderer {
     // For hotswap, show as regular events
     if (isHotswap) {
       for (const event of phase.events) {
-        lines.push(...this.buildEventOutput(event, 1, false));
+        lines.push(...this.buildEventOutput(event, eventIndent, false));
       }
       return lines;
     }
 
-    const completionLines = this.buildDeployCompletionLines(deployEvent, isDelete);
+    const completionLines = this.buildDeployCompletionLines(deployEvent, isDelete, simpleMode);
     const orderedEvents = [...new Map(phase.events.map((event) => [event.id, event])).values()].sort(
       (a, b) => (a.startTime ?? 0) - (b.startTime ?? 0) || a.id.localeCompare(b.id)
     );
@@ -542,7 +554,7 @@ export class TtyRenderer {
           continue;
         }
       }
-      lines.push(...this.buildEventOutput(event, 1, false));
+      lines.push(...this.buildEventOutput(event, eventIndent, false));
     }
 
     if (!completionInserted) {
@@ -552,20 +564,22 @@ export class TtyRenderer {
     return lines;
   }
 
-  private buildDeployCompletionLines(deployEvent: TuiEvent, isDelete: boolean): string[] {
+  private buildDeployCompletionLines(deployEvent: TuiEvent, isDelete: boolean, simpleMode = false): string[] {
     const lines: string[] = [];
     const summaryCounts = parseSummaryCounts(deployEvent.additionalMessage);
     const detailLists = parseDetailLists(deployEvent.additionalMessage);
     const actionVerb = isDelete ? 'Deleted' : 'Deployed';
+    const indent = simpleMode ? '' : '  ';
+    const subIndent = simpleMode ? '  ' : '    ';
 
     const icon = deployEvent.status === 'success' ? this.colorize('green', '✓') : this.colorize('red', '✖');
     const duration = deployEvent.duration ? ` ${this.colorize('yellow', formatDuration(deployEvent.duration))}` : '';
-    lines.push(`  ${icon} ${actionVerb} infrastructure${duration}`);
+    lines.push(`${indent}${icon} ${actionVerb} infrastructure${duration}`);
 
     const totalChanges = summaryCounts.created + summaryCounts.updated + summaryCounts.deleted;
     if (totalChanges > 0) {
       if (isDelete) {
-        lines.push(`    ${summaryCounts.deleted} resources removed`);
+        lines.push(`${subIndent}${summaryCounts.deleted} resources removed`);
       } else {
         const parts: string[] = [];
         if (summaryCounts.created > 0) {
@@ -577,7 +591,7 @@ export class TtyRenderer {
         if (summaryCounts.deleted > 0) {
           parts.push(`${this.colorize('red', `-${summaryCounts.deleted}`)} deleted`);
         }
-        lines.push(`    ${parts.join('  ')}`);
+        lines.push(`${subIndent}${parts.join('  ')}`);
 
         if (detailLists.created && detailLists.created !== 'none') {
           const resources = detailLists.created
@@ -585,7 +599,7 @@ export class TtyRenderer {
             .map((r) => r.trim())
             .filter(Boolean);
           if (resources.length > 0) {
-            lines.push(`    ${this.colorize('gray', 'Created:')} ${this.formatResourceList(resources)}`);
+            lines.push(`${subIndent}${this.colorize('gray', 'Created:')} ${this.formatResourceList(resources)}`);
           }
         }
         if (detailLists.updated && detailLists.updated !== 'none') {
@@ -594,7 +608,7 @@ export class TtyRenderer {
             .map((r) => r.trim())
             .filter(Boolean);
           if (resources.length > 0) {
-            lines.push(`    ${this.colorize('gray', 'Updated:')} ${this.formatResourceList(resources)}`);
+            lines.push(`${subIndent}${this.colorize('gray', 'Updated:')} ${this.formatResourceList(resources)}`);
           }
         }
         if (detailLists.deleted && detailLists.deleted !== 'none') {
@@ -603,7 +617,7 @@ export class TtyRenderer {
             .map((r) => r.trim())
             .filter(Boolean);
           if (resources.length > 0) {
-            lines.push(`    ${this.colorize('gray', 'Deleted:')} ${this.formatResourceList(resources)}`);
+            lines.push(`${subIndent}${this.colorize('gray', 'Deleted:')} ${this.formatResourceList(resources)}`);
           }
         }
       }
@@ -829,8 +843,10 @@ export class NonTtyRenderer {
     const phaseKey = `phase-${phase.id}`;
     const phaseNumber = state.phases.findIndex((p) => p.id === phase.id) + 1;
     const phaseName = state.phases.find((p) => p.id === phase.id)?.name || PHASE_NAMES[phase.id] || phase.name;
+    const simpleMode = state.showPhaseHeaders === false;
+    const eventIndent = simpleMode ? 0 : 1;
 
-    if (phase.status !== 'pending' && !this.printedItems.has(phaseKey) && state.showPhaseHeaders !== false) {
+    if (phase.status !== 'pending' && !this.printedItems.has(phaseKey) && !simpleMode) {
       this.log('');
       this.log(`PHASE ${phaseNumber} • ${phaseName}`);
       this.log('------------------------------------------------------');
@@ -838,7 +854,7 @@ export class NonTtyRenderer {
     }
 
     for (const event of phase.events) {
-      this.renderEvent(event, 1);
+      this.renderEvent(event, eventIndent);
     }
 
     // Warnings

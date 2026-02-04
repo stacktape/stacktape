@@ -10,6 +10,19 @@ export const DEFAULT_PASSWORD = DEV_CONFIG.localResources.defaultPassword;
 export const DEFAULT_PORTS = DEV_CONFIG.localResources.ports;
 
 /**
+ * Track reserved ports during parallel startup to prevent race conditions.
+ * When multiple resources with the same default port start in parallel,
+ * they would otherwise all check if port X is free, all find it free,
+ * then all try to bind to it - causing failures.
+ */
+const reservedPorts = new Set<number>();
+
+/** Clear reserved ports. Call after startup cycle completes. */
+export const clearReservedPorts = (): void => {
+  reservedPorts.clear();
+};
+
+/**
  * Calculate a port offset based on stage name to avoid conflicts between parallel dev modes.
  * Uses a djb2-style hash to spread stages across a port range.
  */
@@ -72,7 +85,10 @@ export const findAvailablePort = async (preferredPort: number): Promise<number> 
   let port = startPort;
 
   for (let i = 0; i < maxAttempts; i++) {
-    if (!(await isPortInUse(port))) {
+    // Check both system port usage AND our internal reservations to prevent race conditions
+    // when multiple resources with the same default port start in parallel
+    if (!reservedPorts.has(port) && !(await isPortInUse(port))) {
+      reservedPorts.add(port);
       return port;
     }
     port++;
@@ -80,6 +96,7 @@ export const findAvailablePort = async (preferredPort: number): Promise<number> 
 
   // Fallback to system-assigned free port
   const [freePort] = await findFreePorts(1);
+  reservedPorts.add(freePort);
   return freePort;
 };
 

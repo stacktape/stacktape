@@ -156,6 +156,15 @@ export const initializeAllStackServices = async ({
 };
 
 export const initializeStackServicesForLocalResolve = async () => {
+  const scriptName = globalStateManager.args.scriptName;
+  tuiManager.setHeader({
+    action: scriptName ? `RUNNING SCRIPT: ${scriptName}` : 'RUNNING SCRIPT',
+    projectName: globalStateManager.args.projectName || 'project',
+    stageName: globalStateManager.stage || 'stage',
+    region: globalStateManager.region || 'region'
+  });
+  eventManager.setPhase('INITIALIZE');
+
   await loadUserCredentials();
   await recordStackOperationStart();
 
@@ -393,6 +402,8 @@ export const loadUserCredentials = async () => {
     )}.`
   });
 };
+
+
 
 export const recordStackOperationStart = async () => {
   const isCommandToBeRecorded = RECORDED_STACKTAPE_COMMANDS.includes(

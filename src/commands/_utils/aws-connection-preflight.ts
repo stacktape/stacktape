@@ -1,6 +1,13 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { existsSync, readFileSync } from 'fs-extra';
+import {
+  CloudFormationClient,
+  CreateStackCommand,
+  DescribeStacksCommand,
+  StackStatus
+} from '@aws-sdk/client-cloudformation';
+import { fromIni, fromEnv } from '@aws-sdk/credential-providers';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
@@ -9,9 +16,6 @@ import { stpErrors } from '@errors';
 import { publicApiClient } from '../../../shared/trpc/public';
 import { openBrowser } from './browser';
 
-/**
- * Detects local AWS credentials from environment variables or credentials file
- */
 const detectLocalAwsCredentials = async (): Promise<{
   hasCredentials: boolean;
   profile?: string;
@@ -47,21 +51,117 @@ const detectLocalAwsCredentials = async (): Promise<{
 };
 
 /**
- * Runs AWS connection flow using local credentials
+ * Runs AWS connection flow using local credentials.
+ * 1. Gets connection parameters from server
+ * 2. Deploys CloudFormation stack using local AWS credentials
+ * 3. Waits for stack completion (stack's custom resource activates the connection)
+ * 4. Polls for connection status
  */
 const runAutoAwsConnection = async (
   organizationId: string,
   localCreds: { profile?: string }
 ): Promise<{ success: boolean; awsAccountId?: string; connectionName?: string; error?: string }> => {
   try {
-    const result = await publicApiClient.createAwsConnectionWithLocalCreds({
+    // 1. Initialize connection on server, get CF stack parameters
+    const { connectionId, stackName, templateUrl, parameters } = await publicApiClient.initAwsConnectionForCli({
       organizationId,
       connectionName: 'aws-account',
-      profile: localCreds.profile,
       connectionMode: 'PRIVILEGED'
     });
 
-    return result;
+    await eventManager.updateEvent({
+      eventType: 'CONNECT_AWS_ACCOUNT',
+      additionalMessage: 'Deploying connection stack...'
+    });
+
+    // 2. Create CloudFormation client with local credentials
+    const credentials =
+      localCreds.profile && localCreds.profile !== 'environment' ? fromIni({ profile: localCreds.profile }) : fromEnv();
+
+    // Stack must be deployed in eu-west-1 (where the Stacktape lambdas are)
+    const cfClient = new CloudFormationClient({ region: 'eu-west-1', credentials });
+
+    // 3. Deploy the CloudFormation stack
+    await cfClient.send(
+      new CreateStackCommand({
+        StackName: stackName,
+        TemplateURL: templateUrl,
+        Parameters: [
+          { ParameterKey: 'StacktapeConnectionId', ParameterValue: parameters.StacktapeConnectionId },
+          { ParameterKey: 'StacktapeConnectionMode', ParameterValue: parameters.StacktapeConnectionMode },
+          {
+            ParameterKey: 'StacktapeReportNotificationLambda',
+            ParameterValue: parameters.StacktapeReportNotificationLambda
+          },
+          {
+            ParameterKey: 'StacktapeHandleConnectionLambda',
+            ParameterValue: parameters.StacktapeHandleConnectionLambda
+          }
+        ],
+        Capabilities: ['CAPABILITY_NAMED_IAM'],
+        OnFailure: 'DELETE'
+      })
+    );
+
+    // 4. Wait for stack creation (with progress updates)
+    const terminalStatuses = new Set([
+      StackStatus.CREATE_COMPLETE,
+      StackStatus.CREATE_FAILED,
+      StackStatus.ROLLBACK_COMPLETE,
+      StackStatus.ROLLBACK_FAILED,
+      StackStatus.DELETE_COMPLETE,
+      StackStatus.DELETE_FAILED
+    ]);
+
+    let stackStatus: StackStatus | undefined;
+    for (let i = 0; i < 60; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+
+      const { Stacks } = await cfClient.send(new DescribeStacksCommand({ StackName: stackName }));
+      stackStatus = Stacks?.[0]?.StackStatus as StackStatus;
+
+      if (i > 0 && i % 5 === 0) {
+        const seconds = i * 3;
+        await eventManager.updateEvent({
+          eventType: 'CONNECT_AWS_ACCOUNT',
+          additionalMessage: `Creating connection stack (${seconds}s)...`
+        });
+      }
+
+      if (stackStatus && terminalStatuses.has(stackStatus as any)) {
+        break;
+      }
+    }
+
+    if (stackStatus !== StackStatus.CREATE_COMPLETE) {
+      return {
+        success: false,
+        error: `Stack creation failed with status: ${stackStatus || 'TIMEOUT'}`
+      };
+    }
+
+    // 5. Poll for connection activation (custom resource should have activated it)
+    await eventManager.updateEvent({
+      eventType: 'CONNECT_AWS_ACCOUNT',
+      additionalMessage: 'Verifying connection...'
+    });
+
+    for (let i = 0; i < 10; i++) {
+      const status = await publicApiClient.getAwsConnectionStatus({ connectionId });
+      if (status.state === 'ACTIVE') {
+        return {
+          success: true,
+          awsAccountId: status.awsAccountId,
+          connectionName: status.name
+        };
+      }
+      if (status.state === 'FAILED') {
+        return { success: false, error: 'Connection activation failed' };
+      }
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+
+    return { success: false, error: 'Connection verification timed out' };
   } catch (error) {
     return {
       success: false,
@@ -70,9 +170,6 @@ const runAutoAwsConnection = async (
   }
 };
 
-/**
- * Polls for AWS connection completion after browser-based setup
- */
 const pollForAwsConnection = async (
   connectionId: string,
   maxAttempts = 90

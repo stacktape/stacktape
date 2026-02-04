@@ -33,6 +33,7 @@ import {
 import { kebabCase } from 'change-case';
 import dayjs from 'dayjs';
 import { createTemporaryMixpanelUser, loadPersistedState, savePersistedState } from './utils';
+import { runAuthFlow } from '../../commands/_utils/auth';
 
 @memoizeGetters
 export class GlobalStateManager {
@@ -156,12 +157,13 @@ export class GlobalStateManager {
     this.apiKey = process.env.STACKTAPE_API_KEY || this.persistedState?.otherDefaults?.apiKey;
     if (!this.apiKey && !commandsNotRequiringApiKey.includes(this.command) && this.invokedFrom !== 'server') {
       if (process.stdout.isTTY) {
-        const apiKey = await tuiManager.promptText({
-          isPassword: true,
-          message: `Your Stacktape API key (available in the ${tuiManager.getLink('apiKeys', 'console')})`
-        });
-        this.apiKey = apiKey;
-        await this.saveApiKey({ apiKey });
+        // Run interactive auth flow (sign up, login, or Google OAuth)
+        const authResult = await runAuthFlow();
+        if (!authResult.success || !authResult.apiKey) {
+          throw stpErrors.e501({ operation: this.command });
+        }
+        this.apiKey = authResult.apiKey;
+        await this.saveApiKey({ apiKey: authResult.apiKey });
       } else {
         throw stpErrors.e501({ operation: this.command });
       }

@@ -168,11 +168,11 @@ export const initUsingAiConfigGen = async (options: InitUsingAiConfigGenOptions 
     const relativePath = relative(cwd, outputPath);
     tuiManager.info('');
     tuiManager.success(`Configuration written to ${tuiManager.prettyFilePath(relativePath)}`);
-    tuiManager.info('');
-    tuiManager.hint(`Next steps:`);
-    tuiManager.info(`  1. Review the generated configuration`);
-    tuiManager.info(`  2. Run ${tuiManager.prettyCommand('deploy --stage dev --region us-east-1')} to deploy`);
-    tuiManager.info('');
+    tuiManager.info(`
+Next steps:
+  1. Review the generated configuration
+  2. Run ${tuiManager.prettyCommand('deploy --stage dev --region us-east-1')} to deploy
+`);
   } catch (error) {
     // Update TUI to show error
     tuiState = {

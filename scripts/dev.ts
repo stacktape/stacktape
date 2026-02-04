@@ -3,7 +3,11 @@ import { dynamicRequire } from '@shared/utils/fs-utils';
 import { logError, logInfo, logWarn } from '@shared/utils/logging';
 import packageJson from '../package.json';
 import { packageHelperLambdas } from './package-helper-lambdas';
-import 'dotenv/config';
+import { config } from 'dotenv';
+
+if (!process.env.SKIP_LOADING_ENV) {
+  config({ path: '.env.local' });
+}
 
 const buildSource = async () => {
   const result = await Bun.build({

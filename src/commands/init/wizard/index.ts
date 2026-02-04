@@ -1,9 +1,11 @@
 import { basename, isAbsolute, join, relative } from 'node:path';
 import { execSync } from 'node:child_process';
+import { stringify } from 'yaml';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { configGenManager, getPhaseDisplayName, type ConfigGenPhaseInfo } from '@utils/config-gen';
 import { getLockFileData } from '@shared/packaging/bundlers/es/utils';
+import { publicApiClient, type StackPriceEstimationResponse } from '@shared/trpc/public';
 import { intro, outro, log, spinner as clackSpinner } from '@clack/prompts';
 import color from 'picocolors';
 import { detectGitInfo, type GitInfo } from '../utils/git-detection';
@@ -123,6 +125,9 @@ export const runInitWizard = async (): Promise<void> => {
   // Show next steps
   displayNextSteps(state);
 
+  // Show cost estimate
+  await displayCostEstimate(state.config!);
+
   outro('Configuration generated successfully!');
 };
 
@@ -132,13 +137,98 @@ export const runInitWizard = async (): Promise<void> => {
 const displayNextSteps = (_state: WizardState) => {
   const lines: string[] = [];
   lines.push(tuiManager.makeBold('Next steps:'));
-  lines.push('');
   lines.push(`  1. Review the generated configuration`);
-  lines.push(`  2. Run ${tuiManager.prettyCommand('stacktape deploy')} to deploy`);
+  lines.push(
+    `  2. To deploy, run ${tuiManager.prettyCommand('deploy')} --projectName ${_state.projectName} --stage {stage} --region {region}`
+  );
   lines.push('');
   lines.push(color.dim('Stacktape will guide you through AWS setup on first deploy.'));
 
   log.message(lines.join('\n'), { withGuide: true });
+};
+
+/**
+ * Display cost estimate for the generated configuration
+ */
+const displayCostEstimate = async (config: StacktapeConfig): Promise<void> => {
+  const spinner = clackSpinner(SPINNER_OPTIONS);
+  spinner.start('Estimating monthly costs');
+
+  try {
+    const configYaml = stringify(config);
+    const result = await publicApiClient.stackPriceEstimation({ stackConfig: configYaml });
+
+    if (!result.success || !result.costs) {
+      spinner.stop(color.dim('Cost estimation unavailable'));
+      return;
+    }
+
+    spinner.stop('Cost estimate');
+    displayCostBreakdown(result);
+  } catch {
+    spinner.stop(color.dim('Cost estimation unavailable'));
+  }
+};
+
+/**
+ * Display formatted cost breakdown
+ */
+const displayCostBreakdown = (result: StackPriceEstimationResponse): void => {
+  if (!result.costs) return;
+
+  const { flatMonthlyCost, resourcesBreakdown } = result.costs;
+  const lines: string[] = [];
+
+  // Display per-resource breakdown
+  const resourceEntries = Object.entries(resourcesBreakdown);
+  if (resourceEntries.length > 0) {
+    for (const [resourceName, info] of resourceEntries) {
+      const monthlyPrice = info.priceInfo.totalMonthlyFlat;
+      if (monthlyPrice > 0) {
+        lines.push(
+          `  ${tuiManager.colorize('cyan', '•')} ${tuiManager.makeBold(resourceName)}: ${formatPrice(monthlyPrice)}/mo`
+        );
+      } else {
+        // Pay-per-use resources
+        const payPerUseItems = info.priceInfo.costBreakdown.filter((item) => item.priceModel === 'pay-per-use');
+        if (payPerUseItems.length > 0) {
+          lines.push(
+            `  ${tuiManager.colorize('cyan', '•')} ${tuiManager.makeBold(resourceName)}: ${color.dim('pay-per-use')}`
+          );
+        }
+      }
+    }
+  }
+
+  // Display total
+  if (lines.length > 0) {
+    lines.push('');
+  }
+
+  if (flatMonthlyCost > 0) {
+    lines.push(`  ${tuiManager.makeBold('Total fixed costs:')} ~${formatPrice(flatMonthlyCost)}/mo`);
+  } else {
+    lines.push(
+      `  ${tuiManager.makeBold('Total fixed costs:')} ${color.green('$0')} ${color.dim('(pay-per-use only)')}`
+    );
+  }
+
+  lines.push(color.dim('  Actual costs depend on usage. See AWS pricing docs for details.'));
+
+  log.message(lines.join('\n'), { withGuide: true });
+};
+
+/**
+ * Format price for display
+ */
+const formatPrice = (price: number): string => {
+  if (price < 0.01) {
+    return color.green('<$0.01');
+  }
+  if (price < 1) {
+    return color.green(`$${price.toFixed(2)}`);
+  }
+  return color.yellow(`$${price.toFixed(2)}`);
 };
 
 // Braille spinner frames (same as tuiManager MultiSpinner)

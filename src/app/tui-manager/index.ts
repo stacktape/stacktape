@@ -183,6 +183,43 @@ class TuiManager {
     // Give time for final render
     await new Promise((resolve) => setTimeout(resolve, 100));
 
+    this.stopInternal();
+  }
+
+  /**
+   * Synchronously stop the TUI - used during interrupt handling (Ctrl+C).
+   * On Windows, skips final render to avoid encoding corruption when console resets.
+   */
+  stopSync() {
+    tuiState.setFinalizing();
+
+    if (this.renderInterval) {
+      clearInterval(this.renderInterval);
+      this.renderInterval = null;
+    }
+
+    if (this.ttyRenderer) {
+      // On interrupt, just clear without trying to render/persist.
+      // This avoids encoding issues on Windows where Ctrl+C resets console state.
+      this.ttyRenderer.clearAndStop();
+      this.ttyRenderer = null;
+    }
+
+    if (this.nonTtyRenderer) {
+      this.nonTtyRenderer.reset();
+      this.nonTtyRenderer = null;
+    }
+
+    if (this.unsubscribe) {
+      this.unsubscribe();
+      this.unsubscribe = null;
+    }
+
+    this._isEnabled = false;
+    this._isPaused = false;
+  }
+
+  private stopInternal() {
     if (this.renderInterval) {
       clearInterval(this.renderInterval);
       this.renderInterval = null;
@@ -413,6 +450,14 @@ class TuiManager {
 
   setHeader(header: TuiDeploymentHeader) {
     tuiState.setHeader(header);
+  }
+
+  /**
+   * Enable simple mode - hides phase headers and shows flat event list.
+   * Useful for commands like script:run that don't need phase-based UI.
+   */
+  setSimpleMode(enabled: boolean) {
+    tuiState.setShowPhaseHeaders(!enabled);
   }
 
   setPhase(phase: DeploymentPhase) {

@@ -100,7 +100,7 @@ export class ApplicationManager {
       return;
     }
     this.isInterrupted = true;
-    tuiManager.stop();
+    tuiManager.stopSync();
     tuiManager.info(`Received ${signal}. Exiting.`);
     if (globalStateManager.invokedFrom === 'cli') {
       await this.reportTelemetryEvent({ outcome: 'USER_INTERRUPTION' });

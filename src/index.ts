@@ -58,7 +58,7 @@ import { commandVersion } from './commands/version';
 import { initAgentMode } from './commands/_utils/agent-mode';
 
 /** Commands that use the full phase-based TUI (deploy progress, phases, etc.) */
-const commandsWithPhaseTui: StacktapeCommand[] = ['deploy', 'delete', 'codebuild:deploy'];
+const commandsWithPhaseTui: StacktapeCommand[] = ['deploy', 'delete', 'codebuild:deploy', 'script:run', 'deployment-script:run'];
 
 export const runCommand = async (opts: StacktapeProgrammaticOptions) => {
   try {
@@ -76,6 +76,11 @@ export const runCommand = async (opts: StacktapeProgrammaticOptions) => {
     // Only start phase-based TUI for deploy/delete commands
     if (commandsWithPhaseTui.includes(globalStateManager.command)) {
       tuiManager.start();
+    }
+
+    // Use simple mode (no phase headers, no indentation) for script commands
+    if (['script:run', 'deployment-script:run'].includes(globalStateManager.command)) {
+      tuiManager.setSimpleMode(true);
     }
 
     const executor = getCommandExecutor(globalStateManager.command);

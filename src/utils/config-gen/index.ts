@@ -3,6 +3,7 @@ import { convertYamlToTypescript } from '@shared/utils/config-converter';
 import { stringifyToYaml } from '@shared/utils/yaml';
 import { writeFile, pathExists } from 'fs-extra';
 import { join } from 'node:path';
+import prettier from 'prettier';
 import type { ConfigGenProgressCallback, ConfigGenResult, ConfigGenPhaseInfo } from './types';
 import {
   listAllFilesInDirectory,
@@ -192,7 +193,9 @@ export class ConfigGenManager {
       filePath = outputPath || join(cwd, 'stacktape.ts');
       // Convert config object to YAML first, then to TypeScript
       const yamlContent = stringifyToYaml(config);
-      content = convertYamlToTypescript(yamlContent);
+      const tsContent = convertYamlToTypescript(yamlContent);
+      // Format with prettier
+      content = await prettier.format(tsContent, { parser: 'typescript', printWidth: 120, singleQuote: true });
     } else {
       filePath = outputPath || join(cwd, 'stacktape.yml');
       content = stringifyToYaml(config);

@@ -102,18 +102,22 @@ export type ExchangeTokenForApiKeyResponse = {
 
 // ============ AWS Connection Types ============
 
-export type CreateAwsConnectionWithLocalCredsInput = {
+export type InitAwsConnectionForCliInput = {
   organizationId: string;
   connectionName: string;
-  profile?: string;
   connectionMode: 'BASIC' | 'PRIVILEGED';
 };
 
-export type CreateAwsConnectionWithLocalCredsResponse = {
-  success: boolean;
-  awsAccountId?: string;
-  connectionName?: string;
-  error?: string;
+export type InitAwsConnectionForCliResponse = {
+  connectionId: string;
+  stackName: string;
+  templateUrl: string;
+  parameters: {
+    StacktapeConnectionId: string;
+    StacktapeConnectionMode: string;
+    StacktapeReportNotificationLambda: string;
+    StacktapeHandleConnectionLambda: string;
+  };
 };
 
 export type CreateAwsConnectionPendingInput = {
@@ -169,6 +173,45 @@ export type CreateGitDeploymentConfigFromCliResponse = {
   id?: string;
 };
 
+// ============ Stack Price Estimation Types ============
+
+export type StackPriceEstimationInput = {
+  stackConfig: string;
+  region?: string;
+};
+
+export type CostBreakdownItem = {
+  name: string;
+  description: string;
+  priceModel: 'flat' | 'pay-per-use';
+  pricePerUnit?: number;
+  unit?: string;
+  adjustedPrice?: number;
+  pricePerMonth?: number | false;
+  pricePerMonthUpper?: number | false;
+  multiplier?: number;
+  upperThresholdMultiplier?: number;
+  unsupportedProduct?: boolean;
+};
+
+export type ResourcePricingInfo = {
+  priceInfo: {
+    totalMonthlyFlat: number;
+    costBreakdown: CostBreakdownItem[];
+  };
+  relatedAwsPricingDocs?: Record<string, string>;
+  underTheHoodLink?: string;
+  customComment?: string;
+};
+
+export type StackPriceEstimationResponse = {
+  success: boolean;
+  costs: {
+    flatMonthlyCost: number;
+    resourcesBreakdown: Record<string, ResourcePricingInfo>;
+  } | null;
+};
+
 type PublicTrpcClient = {
   // Config generation
   startCliConfigGen: {
@@ -188,8 +231,8 @@ type PublicTrpcClient = {
     mutate: (input: ExchangeTokenForApiKeyInput) => Promise<ExchangeTokenForApiKeyResponse>;
   };
   // AWS Connection
-  createAwsConnectionWithLocalCreds: {
-    mutate: (input: CreateAwsConnectionWithLocalCredsInput) => Promise<CreateAwsConnectionWithLocalCredsResponse>;
+  initAwsConnectionForCli: {
+    mutate: (input: InitAwsConnectionForCliInput) => Promise<InitAwsConnectionForCliResponse>;
   };
   createAwsConnectionPending: {
     mutate: (input: CreateAwsConnectionPendingInput) => Promise<CreateAwsConnectionPendingResponse>;
@@ -203,6 +246,10 @@ type PublicTrpcClient = {
   };
   createGitDeploymentConfigFromCli: {
     mutate: (input: CreateGitDeploymentConfigFromCliInput) => Promise<CreateGitDeploymentConfigFromCliResponse>;
+  };
+  // Stack Price Estimation
+  stackPriceEstimation: {
+    mutate: (input: StackPriceEstimationInput) => Promise<StackPriceEstimationResponse>;
   };
 };
 
@@ -283,13 +330,11 @@ export class PublicApiClient {
   // ============ AWS Connection Methods ============
 
   /**
-   * Create AWS connection using local credentials.
-   * This will deploy the CloudFormation stack using the user's local AWS credentials.
+   * Initialize AWS connection for CLI-based deployment.
+   * Returns the parameters needed to deploy the CF stack using local credentials.
    */
-  createAwsConnectionWithLocalCreds = async (
-    input: CreateAwsConnectionWithLocalCredsInput
-  ): Promise<CreateAwsConnectionWithLocalCredsResponse> => {
-    return this.#ensureInitialized().createAwsConnectionWithLocalCreds.mutate(input);
+  initAwsConnectionForCli = async (input: InitAwsConnectionForCliInput): Promise<InitAwsConnectionForCliResponse> => {
+    return this.#ensureInitialized().initAwsConnectionForCli.mutate(input);
   };
 
   /**
@@ -326,6 +371,16 @@ export class PublicApiClient {
     input: CreateGitDeploymentConfigFromCliInput
   ): Promise<CreateGitDeploymentConfigFromCliResponse> => {
     return this.#ensureInitialized().createGitDeploymentConfigFromCli.mutate(input);
+  };
+
+  // ============ Stack Price Estimation Methods ============
+
+  /**
+   * Get cost estimation for a Stacktape configuration.
+   * Returns monthly cost breakdown by resource.
+   */
+  stackPriceEstimation = async (input: StackPriceEstimationInput): Promise<StackPriceEstimationResponse> => {
+    return this.#ensureInitialized().stackPriceEstimation.mutate(input);
   };
 }
 

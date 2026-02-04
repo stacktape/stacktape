@@ -6,6 +6,7 @@ import { getExecutableScriptFunction } from './utils';
 
 export const commandScriptRun = async () => {
   const { scriptName } = globalStateManager.args;
+
   await initializeStackServicesForLocalResolve();
 
   const scriptDefinition = configManager?.scripts?.[scriptName];
