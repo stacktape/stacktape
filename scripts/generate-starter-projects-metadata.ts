@@ -4,7 +4,7 @@ import { logInfo, logSuccess } from '@shared/utils/logging';
 import { getUniqueDuplicates, hasDuplicates } from '@shared/utils/misc';
 import { remove, writeJson } from 'fs-extra';
 import { getAllStarterProjectIds } from './generate-starter-project';
-import { getStarterProjectMetadata } from './starter-projects/utils';
+import { getStarterProjectMetadata, prettierFix } from './starter-projects/utils';
 
 export const generateStarterProjectsMetadata = async ({ distFolderPath }: { distFolderPath?: string }) => {
   logInfo('Generating starter projects metadata...');
@@ -26,6 +26,8 @@ export const generateStarterProjectsMetadata = async ({ distFolderPath }: { dist
   const sorted = metadata.sort((a, b) => a.priority - b.priority);
 
   await writeJson(distPath, sorted, { spaces: 2 });
+
+  await prettierFix({ paths: [distPath] });
 
   logSuccess(`Successfully generated starter projects metadata to ${distPath}`);
   return distPath;

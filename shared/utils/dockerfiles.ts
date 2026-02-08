@@ -303,7 +303,7 @@ export const buildGoArtifactDockerfile = ({ alpine, entryfilePath }: { alpine: b
   if (alpine) {
     baseImage += ':alpine';
   }
-  const lambdaLibraryCommand = 'RUN go get github.com/aws/aws-lambda-go/lambda';
+  const lambdaLibraryCommand = 'RUN go mod tidy && go mod download';
   const buildCommand = `RUN CGO_ENABLED=0 GOOS=linux go build -o bootstrap ${basename(entryfilePath)}`;
 
   return `FROM ${baseImage} AS build

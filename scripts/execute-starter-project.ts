@@ -25,8 +25,7 @@ export const executeStarterProject = async ({
 
   const { projectDistPath } = await generateStarterProject({
     outputDirPath,
-    starterProjectId: starterProjectName,
-    addLinting: args.addLinting || false
+    starterProjectId: starterProjectName
   });
   const configPath = join(projectDistPath, 'stacktape.yml');
 

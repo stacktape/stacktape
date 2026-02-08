@@ -31,6 +31,7 @@ import { getECSHotswapInformation, updateEcsService } from '../_utils/cw-deploym
 import { getLambdaFunctionHotswapInformation, updateFunctionCode } from '../_utils/fn-deployment';
 import { initializeAllStackServices } from '../_utils/initialization';
 import { promptCiCdSetupAfterDeploy } from '../_utils/cicd-setup';
+import { ensureMissingSecretsCreated } from '../_utils/secret-preflight';
 
 export const commandDeploy = async () => {
   await initializeAllStackServices({
@@ -49,6 +50,8 @@ export const commandDeploy = async () => {
   }
 
   validateGuardrails(configManager.guardrails);
+
+  await ensureMissingSecretsCreated();
 
   eventManager.setPhase('BUILD_AND_PACKAGE');
   const [{ packagedWorkloads, abort, cfTemplateDiff }] = await Promise.all([

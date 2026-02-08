@@ -1,4 +1,4 @@
-export const DEFAULT_PYTHON_VERSION: SupportedPythonVersion = 3.9;
+export const DEFAULT_PYTHON_VERSION: SupportedPythonVersion = 3.12;
 export const DEFAULT_RUBY_VERSION: SupportedRubyVersion = 3.3;
 export const DEFAULT_PHP_VERSION: SupportedPhpVersion = 8.3;
 export const DEFAULT_DOTNET_VERSION: SupportedDotnetVersion = 8;

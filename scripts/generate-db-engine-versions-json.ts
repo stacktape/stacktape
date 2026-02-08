@@ -21,10 +21,10 @@ const ALLOWED_RDS_ENGINES: StpRelationalDatabase['engine']['type'][] = [
 ];
 
 const VERSION_THRESHOLDS: Record<number, number> = {
-  18: 5,
-  17: 5,
-  16: 3,
-  15: 7,
+  18: 10,
+  17: 10,
+  16: 10,
+  15: 10,
   14: 12,
   13: 15
 };

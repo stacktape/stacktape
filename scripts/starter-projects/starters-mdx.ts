@@ -10,7 +10,6 @@ export const addReadme = async ({
     mdxDeployment,
     mdxDescription,
     mdxDevMode,
-    mdxPricing,
     mdxStackDescription,
     mdxPrerequisites,
     mdxBeforeDeploy
@@ -42,10 +41,6 @@ stacktape init --starterId ${starterProjectId}
 ${mdxDescription.trim()}
 - This project includes a pre-configured [stacktape.yml configuration](stacktape.yml).
 The configured infrastructure is described in the [stack description section](#stack-description)
-
-## Pricing
-
-${mdxPricing}
 
 ## Prerequisites
 
@@ -129,7 +124,8 @@ ${
   usedResourceTypes.includes('batch-job') ||
   usedResourceTypes.includes('function') ||
   usedResourceTypes.includes('private-service') ||
-  usedResourceTypes.includes('web-service')
+  usedResourceTypes.includes('web-service') ||
+  usedResourceTypes.includes('worker-service')
     ? '- Docker. To install Docker on your system, you can follow [this guide](https://docs.docker.com/get-docker/).'
     : ''
 }${
@@ -255,41 +251,6 @@ ${getGithubActionsDeployMdx()}
 ${getGitlabCiDeployMdx()}`;
 };
 
-const generatePricingMdx = (usedResources: UsedResourceData[]) => {
-  const resourcesWithPricing = [];
-
-  for (const resource of usedResources) {
-    if (resource.type === 'multi-container-workload') {
-      resourcesWithPricing.push('  - **Container workload** (~$0.012/hour, ~$9/month)');
-    }
-    if (resource.type === 'web-service') {
-      resourcesWithPricing.push('  - **Web service** (~$0.012/hour, ~$9/month)');
-    }
-    if (resource.type === 'private-service') {
-      resourcesWithPricing.push('  - **Web service** (~$0.012/hour, ~$9/month)');
-    }
-    if (resource.type === 'relational-database') {
-      resourcesWithPricing.push(
-        '  - **Relational (SQL) database** ($0.017/hour, ~$12.5/month, [free-tier eligible](https://aws.amazon.com/free/?all-free-tier.sort-by=item.additionalFields.SortRank&all-free-tier.sort-order=asc&awsf.Free%20Tier%20Types=*all&awsf.Free%20Tier%20Categories=*all))'
-      );
-    }
-    if (resource.type === 'mongo-db-atlas-cluster') {
-      resourcesWithPricing.push('  - **MongoDb Atlas cluster** ($0.012/hour, ~$9/month)');
-    }
-  }
-
-  const fixedPricingMessage = resourcesWithPricing.length
-    ? `- Fixed price resources:\n\n${resourcesWithPricing.join('\n')}\n`
-    : '';
-
-  const payPerUseMessage = resourcesWithPricing.length
-    ? "- There are also other resources that might incur costs (with pay-per-use pricing). If your load won't get high, these costs will be close to $0."
-    : '- The infrastructure required for this application uses exclusively "serverless", pay-per-use infrastructure. If your load won\'t get high, these costs will be close to $0.';
-
-  return `${fixedPricingMessage}
-${payPerUseMessage}`;
-};
-
 const generateAfterDeployMdx = ({
   isRestApi,
   isSpaWebsite,
@@ -344,13 +305,16 @@ stacktape deploy --hotSwap --stage <<stage>> --region <<region>> --projectName <
 \`\`\``;
 };
 
-const getCwData = (usedResources: UsedResourceData[]) => {
-  const resource = usedResources.find((r) => r.type === 'multi-container-workload');
-  return { resourceName: resource.name, containerName: resource.containerNames[0] };
+const getContainerResourceData = (usedResources: UsedResourceData[]) => {
+  const containerTypes = ['multi-container-workload', 'web-service', 'worker-service', 'private-service'];
+  const resource = usedResources.find((r) => containerTypes.includes(r.type));
+  if (!resource) return null;
+  return { resourceName: resource.name, containerName: resource.containerNames?.[0] };
 };
 
 const getLambdaData = (usedResources: UsedResourceData[]) => {
   const resource = usedResources.find((r) => r.type === 'function');
+  if (!resource) return null;
   return { resourceName: resource.name };
 };
 
@@ -358,18 +322,24 @@ const generateMdxDevMode = ({
   usedResourceTypes,
   usedResources
 }: Pick<StarterProjectMetadata, 'usedResourceTypes' | 'usedResources'>) => {
-  if (usedResourceTypes.includes('multi-container-workload')) {
-    const { containerName, resourceName } = getCwData(usedResources);
-    return `To run a container in the development mode (locally on your machine), you can use the
+  const containerTypes = ['multi-container-workload', 'web-service', 'worker-service', 'private-service'];
+  const hasContainerResource = usedResourceTypes.some((t) => containerTypes.includes(t));
+
+  if (hasContainerResource) {
+    const data = getContainerResourceData(usedResources);
+    if (!data) return '';
+    const { resourceName, containerName } = data;
+    const containerFlag = containerName ? ` --container ${containerName}` : '';
+    return `To run the service in the development mode (locally on your machine), you can use the
 [dev command](https://docs.stacktape.com/cli/commands/dev/).
 
 \`\`\`bash
-stacktape dev --region <<your-region>> --stage <<stage>> --resourceName ${resourceName} --container ${containerName}
+stacktape dev --region <<your-region>> --stage <<stage>> --resourceName ${resourceName}${containerFlag}
 \`\`\`
 
 Stacktape runs the container as closely to the deployed version as possible:
 
-- Maps all of the container ports specified in the \`events\` section to the host machine.
+- Maps container ports to the host machine.
 - Injects parameters referenced in the environment variables by \`$ResourceParam\` and \`$Secret\` directives to the
   running container.
 - Injects credentials of the [assumed role](https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRole.html) to
@@ -385,7 +355,9 @@ The container is rebuilt and restarted, when you either:
 - use the \`--watch\` option and one of your source code files changes`;
   }
   if (usedResourceTypes.includes('function')) {
-    const { resourceName } = getLambdaData(usedResources);
+    const data = getLambdaData(usedResources);
+    if (!data) return '';
+    const { resourceName } = data;
     return `To run functions in the development mode (remotely on AWS), you can use the
 [dev command](https://docs.stacktape.com/cli/commands/dev/). For example, to develop and debug lambda function \`${resourceName}\`, you can use
 
@@ -401,6 +373,7 @@ The function is rebuilt and redeployed, when you either:
 - type \`rs + enter\` to the terminal
 - use the \`--watch\` option and one of your source code files changes`;
   }
+  return '';
 };
 
 const generateMdxStackDescription = ({ projectStackDescription }: { projectStackDescription: string }) => {
@@ -519,7 +492,6 @@ export const getProjectMdx = async (metadata: StarterProjectMetadata, absolutePr
     isStaticWebsite
   } = metadata;
 
-  const mdxPricing = generatePricingMdx(usedResources);
   const mdxStackDescription = generateMdxStackDescription({
     projectStackDescription: stackDescription
   });
@@ -532,7 +504,6 @@ export const getProjectMdx = async (metadata: StarterProjectMetadata, absolutePr
   const mdxDeployment = getDeploymentMdx(metadata);
 
   return {
-    mdxPricing,
     mdxDescription: description,
     mdxStackDescription,
     mdxDeployment,

@@ -185,7 +185,6 @@ Most commands accept these options:
 | \`--configPath\` | \`-cp\` | Path to config file |
 | \`--profile\` | \`-p\` | AWS profile to use |
 | \`--logLevel\` | \`-ll\` | Log verbosity (debug, info, error) |
-| \`--logFormat\` | \`-lf\` | Output format (fancy, normal, basic, json) |
 | \`--help\` | \`-h\` | Show help for a command |
 
 ## Environment Variables

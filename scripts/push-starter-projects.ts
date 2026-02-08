@@ -16,8 +16,7 @@ export const pushStarterProjects = async () => {
   await remove(PUBLISH_STARTER_PROJECTS_DIR_PATH);
   await generateAllStarterProjects({
     outputDirPath: join(PUBLISH_STARTER_PROJECTS_DIR_PATH),
-    mode: 'github',
-    addLinting: true
+    mode: 'github'
   });
   const starterProjects = await readdir(PUBLISH_STARTER_PROJECTS_DIR_PATH);
   logInfo('Pushing to github...');

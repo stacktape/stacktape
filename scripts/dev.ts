@@ -5,7 +5,10 @@ import packageJson from '../package.json';
 import { packageHelperLambdas } from './package-helper-lambdas';
 import { config } from 'dotenv';
 
-if (!process.env.SKIP_LOADING_ENV) {
+const skipPackagingHelperLambdas = Boolean(process.env.SPHL);
+const skipLoadingEnv = Boolean(process.env.SKIP_LOADING_ENV);
+
+if (!skipLoadingEnv) {
   config({ path: '.env.local' });
 }
 
@@ -30,7 +33,7 @@ const buildSource = async () => {
 export const runDev = async () => {
   const [cliDistPath] = await Promise.all([
     buildSource(),
-    packageHelperLambdas({ isDev: true, distFolderPath: DEV_TMP_FOLDER_PATH })
+    !skipPackagingHelperLambdas && packageHelperLambdas({ isDev: true, distFolderPath: DEV_TMP_FOLDER_PATH })
   ]);
 
   logInfo('----- RUN -----');

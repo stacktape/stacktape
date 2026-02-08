@@ -30,6 +30,7 @@ import { getAwsSynchronizedTime } from '@utils/time';
 import { getStacktapeVersion } from '@utils/versioning';
 import { potentiallyPromptBeforeOperation, saveDetailedStackInfoMap } from '../_utils/common';
 import { initializeAllStackServices } from '../_utils/initialization';
+import { ensureMissingSecretsCreated } from '../_utils/secret-preflight';
 
 export const commandCodebuildDeploy = async () => {
   // Configure TUI for codebuild deploy (Initialize, Prepare Pipeline, Deploy - no Build & Package)
@@ -43,6 +44,8 @@ export const commandCodebuildDeploy = async () => {
       commandModifiesStack: true,
       requiresSubscription: true
     });
+
+    await ensureMissingSecretsCreated();
 
     // it is faster to do resource resolving here and get error immediately
     // compared to waiting for entire codebuild deploy to provision and then get the error

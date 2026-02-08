@@ -1,0 +1,1 @@
+import{z as a,A as t,B as r,F as s,y as o}from"./BiZEeSOQ.js";const i={__name:"index",setup(l){const n=new Date().toISOString();return(p,e)=>(o(),a("div",null,[e[0]||(e[0]=t("h1",null,"Nuxt on Stacktape",-1)),t("p",null,"Server-rendered at "+r(s(n)),1)]))}};export{i as default};

@@ -19,7 +19,7 @@ export default antfu(
       '__publish-folder/*',
       '__binary-dist/*',
       'docs/next-env.d.ts',
-      '**/*.md'
+      '**/*.md',
     ],
     regexp: false,
     lessOpinionated: true,
@@ -30,12 +30,12 @@ export default antfu(
         'react-hooks-extra/no-direct-set-state-in-use-effect': ['off'],
         'react-refresh/only-export-components': ['off'],
         'react/no-array-index-key': ['off'],
-        'react-hooks/set-state-in-effect': ['off']
-      }
+        'react-hooks/set-state-in-effect': ['off'],
+      },
     },
     yaml: true,
     plugins: {
-      '@cspell': cspellPlugin
+      '@cspell': cspellPlugin,
     },
     rules: {
       '@cspell/spellchecker': [
@@ -47,8 +47,8 @@ export default antfu(
           checkStrings: true,
           numSuggestions: 3,
           checkIdentifiers: true,
-          autoFix: true
-        }
+          autoFix: true,
+        },
       ],
       'unicorn/prefer-number-properties': 'off',
       'perfectionist/sort-named-imports': 'off',
@@ -64,22 +64,22 @@ export default antfu(
         {
           argsIgnorePattern: '^_',
           varsIgnorePattern: '^_',
-          args: 'after-used'
-        }
+          args: 'after-used',
+        },
       ],
       'antfu/consistent-list-newline': 'off',
       'ts/no-empty-function': ['error', { allow: ['arrowFunctions'] }],
       'n/prefer-global/process': ['error', 'always'],
       'dot-notation': ['off'],
-      'no-case-declarations': ['off']
+      'no-case-declarations': ['off'],
     },
     typescript: {
       overrides: {
         'ts/no-unused-expressions': ['off'],
         'ts/consistent-type-definitions': ['off'],
-        'ts/no-use-before-define': ['off']
-      }
-    }
+        'ts/no-use-before-define': ['off'],
+      },
+    },
   },
-  eslintPluginPrettier
+  eslintPluginPrettier,
 );

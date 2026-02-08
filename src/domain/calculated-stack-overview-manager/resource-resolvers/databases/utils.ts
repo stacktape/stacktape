@@ -650,6 +650,7 @@ export const getDatabaseConnectionString = ({
   definition: StpRelationalDatabase;
 }): IntrinsicFunction => {
   const databaseName = getDatabaseName({ resource: definition });
+  const port = String(resolveDatabasePort({ definition }));
 
   if (
     definition.engine.type === 'sqlserver-ee' ||
@@ -665,7 +666,7 @@ export const getDatabaseConnectionString = ({
         host,
         username: getDbMasterUserName({ resource: definition }),
         password: definition.credentials.masterUserPassword,
-        port: resolveDatabasePort({ definition }),
+        port,
         databaseName
       }
     );
@@ -680,7 +681,7 @@ export const getDatabaseConnectionString = ({
         host,
         username: getDbMasterUserName({ resource: definition }),
         password: definition.credentials.masterUserPassword,
-        port: resolveDatabasePort({ definition }),
+        port,
         databaseName
       }
     );
@@ -689,7 +690,7 @@ export const getDatabaseConnectionString = ({
     host,
     username: getDbMasterUserName({ resource: definition }),
     password: definition.credentials.masterUserPassword,
-    port: resolveDatabasePort({ definition })
+    port
   });
 };
 
@@ -701,6 +702,8 @@ export const getJdbcDatabaseConnectionString = ({
   definition: StpRelationalDatabase;
 }): IntrinsicFunction => {
   const databaseName = getDatabaseName({ resource: definition });
+  const port = String(resolveDatabasePort({ definition }));
+
   if (
     definition.engine.type === 'sqlserver-ee' ||
     definition.engine.type === 'sqlserver-ex' ||
@@ -715,7 +718,7 @@ export const getJdbcDatabaseConnectionString = ({
         host,
         username: getDbMasterUserName({ resource: definition }),
         password: definition.credentials.masterUserPassword,
-        port: resolveDatabasePort({ definition })
+        port
       }
     );
   }
@@ -729,7 +732,7 @@ export const getJdbcDatabaseConnectionString = ({
         host,
         username: getDbMasterUserName({ resource: definition }),
         password: definition.credentials.masterUserPassword,
-        port: resolveDatabasePort({ definition }),
+        port,
         databaseName
       }
     );
@@ -742,7 +745,7 @@ export const getJdbcDatabaseConnectionString = ({
       host,
       username: getDbMasterUserName({ resource: definition }),
       password: definition.credentials.masterUserPassword,
-      port: resolveDatabasePort({ definition }),
+      port,
       databaseName
     }
   );

@@ -98,7 +98,7 @@ export const buildPythonArtifact = async ({
   await progressLogger.startEvent({ eventType: 'BUILD_CODE', description: 'Building code' });
   const dockerfileContents = buildPythonArtifactDockerfile({
     pythonVersion,
-    minify: languageSpecificConfig?.minify ?? true,
+    minify: languageSpecificConfig?.minify ?? false,
     alpine: !requiresGlibcBinaries
   });
 

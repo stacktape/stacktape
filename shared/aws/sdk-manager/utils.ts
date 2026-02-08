@@ -111,6 +111,36 @@ export const automaticUploadFilterPresets: {
       includePattern: 'static/**/*',
       headers: [{ key: 'cache-control', value: 'public, max-age=31536000, immutable' }]
     }
+  ],
+  'astro-static-website': [
+    {
+      includePattern: '**/*.html',
+      headers: [{ key: 'cache-control', value: 'public, max-age=0, s-maxage=31536000, must-revalidate' }]
+    },
+    {
+      includePattern: '_astro/**/*',
+      headers: [{ key: 'cache-control', value: 'public, max-age=31536000, immutable' }]
+    }
+  ],
+  'sveltekit-static-website': [
+    {
+      includePattern: '**/*.html',
+      headers: [{ key: 'cache-control', value: 'public, max-age=0, s-maxage=31536000, must-revalidate' }]
+    },
+    {
+      includePattern: '_app/**/*',
+      headers: [{ key: 'cache-control', value: 'public, max-age=31536000, immutable' }]
+    }
+  ],
+  'nuxt-static-website': [
+    {
+      includePattern: '**/*.html',
+      headers: [{ key: 'cache-control', value: 'public, max-age=0, s-maxage=31536000, must-revalidate' }]
+    },
+    {
+      includePattern: '_nuxt/**/*',
+      headers: [{ key: 'cache-control', value: 'public, max-age=31536000, immutable' }]
+    }
   ]
 };
 

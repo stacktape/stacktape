@@ -7,6 +7,7 @@ import { templateManager } from '@domain-services/template-manager';
 import type { Change } from '@aws-sdk/client-cloudformation';
 import { initializeAllStackServices } from '../_utils/initialization';
 import { isAgentMode } from '../_utils/agent-mode';
+import { ensureMissingSecretsCreated } from '../_utils/secret-preflight';
 
 type ChangeAnalysis = {
   hasDirectChanges: boolean;
@@ -216,6 +217,8 @@ export const commandPreviewChanges = async () => {
     commandRequiresDeployedStack: true,
     loadGlobalConfig: true
   });
+
+  await ensureMissingSecretsCreated();
 
   await packagingManager.packageAllWorkloads({ commandCanUseCache: true });
   await calculatedStackOverviewManager.resolveAllResources();

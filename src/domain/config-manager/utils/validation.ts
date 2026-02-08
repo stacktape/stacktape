@@ -21,6 +21,7 @@ import { validateLambdaConfig } from './lambdas';
 import { validateMultiContainerWorkloadConfig } from './multi-container-workloads';
 import { validateNetworkLoadBalancerConfig } from './network-load-balancers';
 import { validateNextjsWebConfig } from './nextjs-webs';
+import { validateSsrWebConfig } from './ssr-webs';
 import { validateRelationalDatabaseConfig } from './relational-databases';
 import { validateSnsTopicConfig } from './sns-topics';
 import { validateSqsQueueConfig } from './sqs-queues';
@@ -386,6 +387,25 @@ export const runInitialValidations = () => {
   // nextjs-webs
   configManager.nextjsWebs.forEach((resource) => {
     validateNextjsWebConfig({ resource });
+  });
+  // ssr-webs (astro, nuxt, sveltekit, solidstart, tanstack, remix)
+  configManager.astroWebs.forEach((resource) => {
+    validateSsrWebConfig({ resource });
+  });
+  configManager.nuxtWebs.forEach((resource) => {
+    validateSsrWebConfig({ resource });
+  });
+  configManager.sveltekitWebs.forEach((resource) => {
+    validateSsrWebConfig({ resource });
+  });
+  configManager.solidstartWebs.forEach((resource) => {
+    validateSsrWebConfig({ resource });
+  });
+  configManager.tanstackWebs.forEach((resource) => {
+    validateSsrWebConfig({ resource });
+  });
+  configManager.remixWebs.forEach((resource) => {
+    validateSsrWebConfig({ resource });
   });
   // lambdas
   configManager.functions.forEach((resource) => {

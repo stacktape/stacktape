@@ -532,6 +532,24 @@ export class DeployedStackOverviewManager {
         parentResource.resourceType as StpLambdaFunction['configParentResourceType']
       );
     }
+    if (
+      resource.resourceType === 'astro-web' ||
+      resource.resourceType === 'nuxt-web' ||
+      resource.resourceType === 'sveltekit-web' ||
+      resource.resourceType === 'solidstart-web' ||
+      resource.resourceType === 'tanstack-web' ||
+      resource.resourceType === 'remix-web'
+    ) {
+      return awsResourceNames.lambdaRole(
+        stackName,
+        region,
+        getStpNameForResource({
+          nameChain: [...nameChainSplit, 'serverFunction'],
+          parentResourceType: parentResource.resourceType as StpResourceType
+        }),
+        parentResource.resourceType as StpLambdaFunction['configParentResourceType']
+      );
+    }
     throw stpErrors.e122({
       stpResourceName: nameChainSplit.join('.'),
       stpResourceType: resource.resourceType as StpResourceType
@@ -570,7 +588,13 @@ export class DeployedStackOverviewManager {
           'web-service',
           'hosting-bucket',
           'function',
-          'nextjs-web'
+          'nextjs-web',
+          'astro-web',
+          'nuxt-web',
+          'sveltekit-web',
+          'solidstart-web',
+          'tanstack-web',
+          'remix-web'
         ].includes(resource.resourceType)
       ) {
         const urlParams = [
@@ -636,7 +660,13 @@ export class DeployedStackOverviewManager {
           'web-service',
           'hosting-bucket',
           'function',
-          'nextjs-web'
+          'nextjs-web',
+          'astro-web',
+          'nuxt-web',
+          'sveltekit-web',
+          'solidstart-web',
+          'tanstack-web',
+          'remix-web'
         ].includes(resource.resourceType)
       ) {
         const urlParams = [

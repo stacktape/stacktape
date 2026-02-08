@@ -14,7 +14,6 @@ export const generateStarterProject = async ({
   outputDirPath = GENERATED_STARTER_PROJECTS_DIR_PATH,
   install = args.install || false,
   reuseDeps = args.reuseDeps || false,
-  addLinting = args.addLinting || false,
   mode = args.mode || 'app',
   log = false
 }: {
@@ -23,7 +22,6 @@ export const generateStarterProject = async ({
   install?: boolean;
   reuseDeps?: boolean;
   mode?: 'github' | 'app';
-  addLinting?: boolean;
   log?: boolean;
 }) => {
   try {
@@ -42,9 +40,9 @@ export const generateStarterProject = async ({
     if (log) {
       logInfo(`Generating starter project ${starterProjectId} to ${projectOutputPath}...`);
     }
-    const metadata = await prepareStarterProject({ starterProjectId, outputDirPath, mode, addLinting });
+    const metadata = await prepareStarterProject({ starterProjectId, outputDirPath, mode });
     if (log) {
-      logSuccess(`Successfully generated starter projects ${starterProjectId} to ${projectOutputPath}`);
+      logSuccess(`Successfully generated starter project ${starterProjectId} to ${projectOutputPath}`);
     }
 
     if (metadata.projectType === 'es' && install) {
@@ -73,18 +71,15 @@ export const getAllStarterProjectIds = async () => {
 export const generateAllStarterProjects = async ({
   concurrencyLimit = args.cl || Infinity,
   outputDirPath,
-  addLinting = args.addLinting || false,
   mode = args.mode || 'app'
 }: {
   concurrencyLimit?: number;
   outputDirPath?: string;
   mode?: 'github' | 'app';
-  addLinting?: boolean;
 }) => {
   const allStarterProjectsFolderNames = await getAllStarterProjectIds();
   const jobs = allStarterProjectsFolderNames.map(
-    (starterProjectId) => () =>
-      generateStarterProject({ starterProjectId, outputDirPath, addLinting, mode, log: false })
+    (starterProjectId) => () => generateStarterProject({ starterProjectId, outputDirPath, mode, log: false })
   );
 
   logInfo(

@@ -1,25 +1,31 @@
 import { basename, join, sep } from 'node:path';
 import { STARTER_PROJECTS_SOURCE_PATH } from '@shared/naming/project-fs-paths';
 import { exec } from '@shared/utils/exec';
-import { copy, readFile, writeFile, writeJson } from 'fs-extra';
+import { copy, pathExists, pathExistsSync, readFile, writeFile, writeJson } from 'fs-extra';
 import sortBy from 'lodash/sortBy';
 import removeMarkdown from 'markdown-to-text';
 import { parse as parseYaml } from 'yaml';
-import { addEslintPrettier, addTsConfig, adjustPackageJson } from '../../src/commands/init/using-starter-project/utils';
+import { addTsConfig, adjustPackageJson } from '../../src/commands/init/using-starter-project/utils';
 import { addReadme, getProjectMdx } from './starters-mdx';
 
 const IGNORED_FILES = [
   'yarn.lock',
   'package-lock.json',
+  'bun.lockb',
+  'bun.lock',
   '.stacktape',
   '.stacktape-stack-info',
   'node_modules',
   'yarn-error.log',
   '.project',
-  'README.md'
+  'README.md',
+  'db.sqlite3',
+  '__pycache__',
+  '.venv',
+  'venv'
 ];
 
-const prettierFix = ({ paths }: { paths: string[] }) => {
+export const prettierFix = ({ paths }: { paths: string[] }) => {
   return exec(
     'npx',
     ['prettier', ...paths, '--write', '--config', 'scripts/starter-projects/starters-prettierrc.json'],
@@ -32,13 +38,11 @@ const prettierFix = ({ paths }: { paths: string[] }) => {
 export const prepareStarterProject = async ({
   starterProjectId,
   outputDirPath,
-  mode,
-  addLinting = false
+  mode
 }: {
   starterProjectId: string;
   outputDirPath: string;
   mode: 'github' | 'app';
-  addLinting?: boolean;
 }) => {
   const absoluteProjectPath = join(STARTER_PROJECTS_SOURCE_PATH, starterProjectId);
   const metadata: StarterProjectMetadata = await getStarterProjectMetadata({ absoluteProjectPath });
@@ -55,42 +59,33 @@ export const prepareStarterProject = async ({
     addReadme({ distPath: join(outputDirPath, metadata.starterProjectId, 'README.md'), metadata, mode, mdxDescription })
   ]);
 
-  if (metadata.projectType === 'es' && !metadata.hasOwnTsConfig) {
+  const hasTsConfig = pathExistsSync(join(absoluteProjectPath, 'tsconfig.json'));
+  if (metadata.projectType === 'es' && !hasTsConfig && !metadata.hasOwnTsConfig) {
     await addTsConfig({ absoluteProjectPath: distFolderPath, metadata });
   }
-  const shouldAddLinting = addLinting && !metadata.disableLintingOption;
 
   if (metadata.projectType === 'es') {
-    await Promise.all([
-      adjustPackageJson({
-        absoluteProjectPath: distFolderPath,
-        metadata,
-        shouldAddEslintPrettier: shouldAddLinting
-      }),
-      shouldAddLinting && addEslintPrettier({ absoluteProjectPath: distFolderPath, metadata })
-    ]);
+    await adjustPackageJson({ absoluteProjectPath: distFolderPath, metadata });
   }
-  await prettierFix({
-    paths: [`${distFolderPath}/**/*.{js,jsx,ts,tsx,json,yml,md}`, ...(shouldAddLinting ? ['.eslintrc.json'] : [])]
-  });
+
+  // Rewrite dev import path in stacktape.ts to use the published package
+  await rewriteStacktapeTsImport(distFolderPath);
+
+  await prettierFix({ paths: [`${distFolderPath}/**/*.{js,jsx,ts,tsx,json,yml,md}`] });
   return metadata;
 };
 
-const fixedPricingResources = {
-  'multi-container-workload': 9,
-  'private-service': 9,
-  'web-service': 9,
-  'worker-service': 9,
-  'application-load-balancer': 16,
-  'relational-database': 13
-};
-
-const getProjectMonthlyAwsCosts = (resourceTypes: UsedResourceData[]) => {
-  let res = 0;
-  for (const resource of resourceTypes) {
-    res += fixedPricingResources[resource.type] || 0;
+const rewriteStacktapeTsImport = async (distFolderPath: string) => {
+  const tsConfigPath = join(distFolderPath, 'stacktape.ts');
+  if (!(await pathExists(tsConfigPath))) return;
+  const content = await readFile(tsConfigPath, 'utf8');
+  const rewritten = content.replace(
+    /from\s+['"]\.\.\/\.\.\/(__release-npm|__release-npm\/index)['"]/g,
+    "from 'stacktape'"
+  );
+  if (rewritten !== content) {
+    await writeFile(tsConfigPath, rewritten);
   }
-  return res;
 };
 
 export const getStarterProjectMetadata = async ({
@@ -108,21 +103,25 @@ export const getStarterProjectMetadata = async ({
   ]);
   const metadata: RawStarterProjectMetadata = await parseYaml(projectMetadataFileContent);
   const folderName = absoluteProjectPath.split(sep).slice(-1)[0];
-  let projectType: 'es' | 'java' | 'ruby' | 'python' | 'go';
+  let projectType: StarterProjectMetadata['projectType'] = 'other';
   if (metadata.tags.includes('Typescript') || metadata.tags.includes('Javascript')) {
     projectType = 'es';
-  }
-  if (metadata.tags.includes('Python')) {
+  } else if (metadata.tags.includes('Python')) {
     projectType = 'python';
-  }
-  if (metadata.tags.includes('Ruby')) {
+  } else if (metadata.tags.includes('Ruby')) {
     projectType = 'ruby';
-  }
-  if (metadata.tags.includes('Java')) {
+  } else if (metadata.tags.includes('Java')) {
     projectType = 'java';
-  }
-  if (metadata.tags.includes('Golang')) {
+  } else if (metadata.tags.includes('Golang') || metadata.tags.includes('Go')) {
     projectType = 'go';
+  } else if (metadata.tags.includes('.NET') || metadata.tags.includes('C#')) {
+    projectType = 'dotnet';
+  } else if (metadata.tags.includes('Elixir')) {
+    projectType = 'elixir';
+  } else if (metadata.tags.includes('Rust')) {
+    projectType = 'rust';
+  } else if (metadata.tags.includes('Docker')) {
+    projectType = 'docker';
   }
 
   const { usedResources } = await getUsedResources({
@@ -145,7 +144,6 @@ export const getStarterProjectMetadata = async ({
   const hasCognito = metadata.tags.includes('Authentication');
   const isServerSideRenderedWebsite = metadata.tags.includes('Server side rendered website');
   const priority = metadata.priority === undefined ? 100 : metadata.priority;
-  const monthlyAwsCosts = getProjectMonthlyAwsCosts(usedResources);
 
   return {
     ...metadata,
@@ -163,7 +161,6 @@ export const getStarterProjectMetadata = async ({
     hasTypescript,
     hasReact,
     isRestApi,
-    monthlyAwsCosts,
     priority,
     hasCognito,
     description: removeMarkdown(mdxDescription)
