@@ -1,13 +1,9 @@
 ### 1.1 Next.js Web
 
-Application runs in `nextjs-web` resource which requires zero configuration out of the box.
+The app runs serverlessly using the `nextjs-web` resource, which requires zero configuration.
 
-The `nextjs-web` resource uses [OpenNEXT](https://open-next.js.org/) adapter to run the Next app in AWS Lambda Function.
-
-<br/>
-
-Optionally you can rn your NextJS app using Lambda@Edge. Refer to
-[resource docs](https://docs.stacktape.com/compute-resources/next-website/) for more information.
+Behind the scenes, it creates a Lambda function for server-side rendering, an S3 bucket for static assets, and a
+CloudFront CDN for global delivery.
 
 ```yml
 resources:
@@ -16,3 +12,6 @@ resources:
     properties:
       appDirectory: ./
 ```
+
+To connect a database, add a `relational-database` resource and list it in `connectTo`. The connection string is
+automatically injected as an environment variable.

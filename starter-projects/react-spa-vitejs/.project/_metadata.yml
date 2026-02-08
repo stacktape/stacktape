@@ -1,4 +1,4 @@
-name: React SPA with Vite.js
+name: React SPA
 tags:
   - website
   - SPA website
@@ -7,3 +7,4 @@ tags:
   - React
 hasOwnTsConfig: true
 icon: react.svg
+priority: 100

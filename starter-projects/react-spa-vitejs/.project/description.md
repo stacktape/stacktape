@@ -1,4 +1,3 @@
-- simple Single Page Application built using [React.js](https://reactjs.org/) and
-  [Vite.js](https://vitejs.dev/).
-- The project uses a [S3 storage bucket](https://docs.stacktape.com/resources/buckets/) to store the application assets
-  and a [CDN](https://docs.stacktape.com/resources/cdns/) to cache the content at the edge.
+- Single-page application built with [React](https://react.dev/) and [Vite](https://vite.dev/).
+- Hosted on S3 with [CloudFront CDN](https://docs.stacktape.com/resources/cdns/) for global delivery.
+- Supports environment injection at deploy time via `window.STP_INJECTED_ENV` — no rebuild needed to change config.

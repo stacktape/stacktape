@@ -11,6 +11,8 @@ resources:
           entryfilePath: src/scrape-links.ts
           excludeDependencies:
             - puppeteer
+          languageSpecificConfig:
+            disableSourceMaps: true
       events:
         - type: http-api-gateway
           properties:

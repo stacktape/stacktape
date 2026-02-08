@@ -5,7 +5,8 @@ import { createAdapter } from '@socket.io/redis-adapter';
 import { createClient } from 'redis';
 import express from 'express';
 
-const internalIpAddressOfContainer = os.networkInterfaces().eth1[0].address;
+const interfaces = os.networkInterfaces();
+const internalIpAddressOfContainer = Object.values(interfaces).flat().find((i) => i && !i.internal && i.family === 'IPv4')?.address || 'unknown';
 
 // create Socket.io server with express according to https://socket.io/docs/v4/server-initialization/#with-express
 const app = express();
@@ -27,7 +28,8 @@ io.on('connection', (socket) => {
 });
 
 // create Redis pub and sub clients
-const pubClient = createClient({ url: process.env.STP_REDIS_REDIS_URL });
+const redisUrl = process.env.STP_REDIS_CONNECTION_STRING || `redis://${process.env.STP_REDIS_HOST}:${process.env.STP_REDIS_PORT || '6379'}`;
+const pubClient = createClient({ url: redisUrl });
 pubClient.on('error', console.error);
 const subClient = pubClient.duplicate();
 

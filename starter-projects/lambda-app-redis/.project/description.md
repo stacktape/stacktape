@@ -1,2 +1,2 @@
-- simple Lambda-based HTTP endpoint that stores the data in
-  [Upstash Redis](https://docs.stacktape.com/resources/upstash-redis-databases/).
+- simple Lambda-based HTTP endpoint that stores data in
+  [ElastiCache Redis](https://docs.stacktape.com/resources/redis-clusters/).

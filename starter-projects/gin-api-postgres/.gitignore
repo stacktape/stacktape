@@ -1,0 +1,10 @@
+*.exe
+*.dll
+*.so
+*.dylib
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+.stacktape/

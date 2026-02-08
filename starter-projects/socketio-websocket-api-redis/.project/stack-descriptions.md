@@ -15,20 +15,21 @@ resources:
     type: application-load-balancer
 ```
 
-### 1.2 Upstash Redis database
+### 1.2 Redis Cluster
 
-The application uses Upstash serverless Redis database. It is used by
-[Socket.IO adapter](https://socket.io/docs/v4/redis-adapter/) to synchronize when scaling to multiple Socket.IO
-container instances.
+The application uses an in-VPC Redis cluster for session synchronization. It is used by the
+[Socket.IO Redis adapter](https://socket.io/docs/v4/redis-adapter/) to synchronize state when scaling to multiple
+Socket.IO container instances.
 
-In this example, we are configuring redis to use `tls`. You can also configure
-[other properties](https://docs.stacktape.com/resources/upstash-redis-databases/) if desired.
+The cluster runs on a `cache.t3.micro` instance with Redis engine version 7.1. You can also configure
+[other properties](https://docs.stacktape.com/resources/redis-clusters/) if desired.
 
 ```yml
 redis:
-  type: upstash-redis
+  type: redis-cluster
   properties:
-    enableTls: true
+    instanceSize: cache.t3.micro
+    engineVersion: "7.1"
 ```
 
 ### 1.3 Container workload
@@ -42,9 +43,9 @@ Socket.IO server runs inside a container workload with a single container. The w
     Stacktape automatically transpiles and builds the application code with all of its dependencies, builds the Docker
     image, and pushes it to a pre-created image repository on AWS. You can also use
     [other types of packaging](https://docs.stacktape.com/configuration/packaging/#packaging-multi-container-workloads).
-  - **ConnectTo list** - we are adding redis database `redis` into `connectTo` list. By doing this, Stacktape will
-    automatically inject relevant environment variables into the compute resource's runtime (such as redis connection
-    url required for connecting to database)
+  - **ConnectTo list** - we are adding redis cluster `redis` into `connectTo` list. By doing this, Stacktape will
+    automatically inject relevant environment variables into the compute resource's runtime (such as the redis host and
+    port required for connecting to the cluster).
   - Events that reach the container. Load balancer event is configured to forward all incoming connections with path
     `/`(used for load balancer healthcheck) or `/websockets*`(used for websocket connection) to the container's port
     `3000`.

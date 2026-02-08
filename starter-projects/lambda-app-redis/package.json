@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {},
   "dependencies": {
-    "ioredis": "^5.2.3"
+    "ioredis": "^5.9.2"
   },
   "devDependencies": {
     "aws-lambda": "^1.0.7"

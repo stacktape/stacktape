@@ -1,9 +1,3 @@
-providerConfig:
-  upstash:
-    accountEmail: <<your-upstash-account-email>>
-    # Recommended way to store credentials is to use https://docs.stacktape.com/resources/secrets/
-    apiKey: <<your-upstash-api-key>>
-
 resources:
   mainApiGateway:
     type: http-api-gateway
@@ -12,9 +6,11 @@ resources:
         enabled: true
 
   redis:
-    type: upstash-redis
+    type: redis-cluster
     properties:
-      enableTls: true
+      defaultUserPassword: $Secret('redis.password')
+      instanceSize: cache.t3.micro
+      engineVersion: '7.1'
 
   storeKeyValuePair:
     type: function
@@ -23,6 +19,7 @@ resources:
         type: stacktape-lambda-buildpack
         properties:
           entryfilePath: ./src/store-key-value-pair.ts
+      joinDefaultVpc: true
       connectTo:
         - redis
       events:

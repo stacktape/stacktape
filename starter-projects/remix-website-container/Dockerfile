@@ -1,4 +1,4 @@
-FROM node:18-alpine AS base
+FROM node:20-alpine AS base
 
 # Install dependencies only when needed
 FROM base AS deps
@@ -10,22 +10,23 @@ WORKDIR /app
 COPY package.json yarn.lock* package-lock.json* pnpm-lock.yaml* ./
 RUN \
   if [ -f yarn.lock ]; then yarn --production=true --frozen-lockfile; \
-  elif [ -f package-lock.json ]; then npm ci --production; \
-  elif [ -f pnpm-lock.yaml ]; then yarn global add pnpm && pnpm i --frozen-lockfile --prod; \
-  else echo "Lockfile not found." && exit 1; \
+  elif [ -f package-lock.json ]; then npm ci --omit=dev; \
+  elif [ -f pnpm-lock.yaml ]; then corepack enable pnpm && pnpm i --frozen-lockfile --prod; \
+  else npm install --omit=dev; \
   fi
 
 
 # Rebuild the source code only when needed
 FROM base AS builder
+RUN apk add --no-cache libc6-compat
 WORKDIR /app
 COPY . .
 
-RUN \
+RUN rm -rf node_modules && \
   if [ -f yarn.lock ]; then yarn --frozen-lockfile; \
   elif [ -f package-lock.json ]; then npm ci; \
-  elif [ -f pnpm-lock.yaml ]; then yarn global add pnpm && pnpm i --frozen-lockfile; \
-  else echo "Lockfile not found." && exit 1; \
+  elif [ -f pnpm-lock.yaml ]; then corepack enable pnpm && pnpm i --frozen-lockfile; \
+  else npm install; \
   fi
 
 ENV NODE_ENV=production
@@ -33,8 +34,8 @@ ENV NODE_ENV=production
 RUN \
   if [ -f yarn.lock ]; then yarn build; \
   elif [ -f package-lock.json ]; then npm run build; \
-  elif [ -f pnpm-lock.yaml ]; then yarn global add pnpm && pnpm run build; \
-  else echo "Lockfile not found." && exit 1; \
+  elif [ -f pnpm-lock.yaml ]; then pnpm run build; \
+  else npm run build; \
   fi
 
 
@@ -43,7 +44,6 @@ FROM base AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
-
 
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 remix
@@ -55,8 +55,7 @@ COPY --from=deps --chown=remix:remix /app/node_modules ./node_modules
 COPY --from=builder --chown=remix:remix /app/public ./public
 COPY --from=builder --chown=remix:remix /app/build ./build
 
-
-ENV HOSTNAME "0.0.0.0"
+ENV HOSTNAME="0.0.0.0"
 
 EXPOSE 3000
 

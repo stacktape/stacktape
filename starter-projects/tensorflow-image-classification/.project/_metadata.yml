@@ -1,6 +1,7 @@
-name: Tensorflow image classification
+name: GPU Batch Job (TensorFlow)
 tags:
   - Machine learning
   - Tensorflow
   - Python
 icon: tensorflow.svg
+priority: 100

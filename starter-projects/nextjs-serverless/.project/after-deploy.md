@@ -1,1 +1,2 @@
-- Explore your application at **app URL**. The URL is printed to the terminal.
+- Open the **CDN URL** printed to the terminal after deploy to see your app.
+- Test the API route at `<CDN_URL>/api/hello`.

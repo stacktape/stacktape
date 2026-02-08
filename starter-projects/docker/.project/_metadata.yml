@@ -1,3 +1,5 @@
-name: Docker web service
-tags: []
+name: Self-Hosted App (Docker)
+tags:
+  - Docker
 icon: docker.svg
+priority: 1

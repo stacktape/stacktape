@@ -20,6 +20,8 @@ resources:
         type: stacktape-lambda-buildpack
         properties:
           entryfilePath: ./src/main/java/posts/SavePost.java
+          languageSpecificConfig:
+            javaVersion: 17
       memory: 512
       connectTo:
         - mainDynamoDbTable
@@ -37,6 +39,8 @@ resources:
         type: stacktape-lambda-buildpack
         properties:
           entryfilePath: ./src/main/java/posts/GetPosts.java
+          languageSpecificConfig:
+            javaVersion: 17
       memory: 512
       connectTo:
         - mainDynamoDbTable

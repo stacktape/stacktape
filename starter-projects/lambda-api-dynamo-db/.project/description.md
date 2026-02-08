@@ -1,4 +1,4 @@
-- simple Lambda-based HTTP API.
-- The application runs in a [Lambda function](https://docs.stacktape.com/compute-resources/lambda-functions/) and uses
-  [DynamoDb](https://docs.stacktape.com/resources/dynamo-db-tables/) to store the data. To simplify the database access,
-  this project uses [DynamoDb OneTable](https://github.com/sensedeep/dynamodb-onetable).
+- Serverless REST API with [DynamoDB](https://docs.stacktape.com/resources/dynamo-db-tables/) storage using
+  [Hono](https://hono.dev/) as the HTTP router.
+- Runs in a single [Lambda function](https://docs.stacktape.com/compute-resources/lambda-functions/) behind an
+  [HTTP API Gateway](https://docs.stacktape.com/resources/http-api-gateways/). Pay only for requests you receive.

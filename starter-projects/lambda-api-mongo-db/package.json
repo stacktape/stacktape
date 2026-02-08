@@ -3,7 +3,7 @@
   "private": true,
   "scripts": {},
   "dependencies": {
-    "aws4": "^1.11.0",
-    "mongoose": "^6.6.5"
+    "aws4": "^1.13.2",
+    "mongoose": "^9.1.6"
   }
 }

@@ -1,1 +1,1 @@
-- Explore the app by visiting **webBucket -> cdnUrl**. URL was printed into console after the deploy.
+- Open the **CDN URL** printed to the terminal after deploy to see your app.

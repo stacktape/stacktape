@@ -1,14 +1,11 @@
 ### 1.1 Buckets
 
-Buckets offer persistent, scalable storage for any type of object(files).
+Two S3 buckets handle the data pipeline:
 
-In this project we use two buckets:
+- **inputBucket** — upload `.zip` archives of images here to kick off classification.
+- **outputBucket** — the batch job writes classified images here, organized into folders by predicted class.
 
-- **inputBucket** - used for uploading `.zip` file(s) containing pictures that we wish to classify(categorize)
-- **outputBucket** - used by apps batch job to output images categorized into classes.
-
-You can configure [multiple properties](https://docs.stacktape.com/resources/buckets/) on the bucket. In this case, we
-are using the default setup.
+Both use the default [bucket configuration](https://docs.stacktape.com/resources/buckets/).
 
 ```yml
 inputBucket:
@@ -20,29 +17,22 @@ outputBucket:
 
 ### 1.2 Batch job
 
-The classifier application runs in a batch job.
+The classifier runs as a GPU-capable batch job using
+[spot instances](https://docs.stacktape.com/compute-resources/batch-jobs/#spot-instances) for up to 90 % cost savings.
 
-The batch job is configured as follows:
-
-- [Container](https://docs.stacktape.com/compute-resources/batch-jobs/#container) section specifies details of our job
-  container
-  - **Packaging** - determines how the Docker container image is built. In this example, we are using our custom
-    `Dockerfile` based of [tensorflow image](https://hub.docker.com/r/tensorflow/tensorflow/). Stacktape builds the
-    Docker image and pushes it to a pre-created image repository on AWS. You can also use
-    [other types of packaging](https://docs.stacktape.com/configuration/packaging/#packaging-multi-container-workloads).
-- **ConnectTo list** - we are adding buckets `inputBucket` and `outputBucket` into `connectTo` list. By doing this,
-  Stacktape will automatically setup necessary IAM permissions for the batch job's role as well as inject relevant
-  environment variables into the runtime (such as AWS names of the buckets).
-- [Resources](https://docs.stacktape.com/compute-resources/batch-jobs/) assigned to the job. We are providing the number
-  of cpus and the amount of memory the job needs. When job is triggered AWS will automatically spin-up an instance with
-  the required resources on which the job will run. We are also using the `useSpotInstances` property, which configures
-  job to use cheaper [spot instances](https://docs.stacktape.com/compute-resources/batch-jobs/#spot-instances).
-- [Access control](https://docs.stacktape.com/compute-resources/batch-jobs/#accessing-other-resources) - Since our job
-  reads from `inputBucket` and writes to `outputBucket`, it needs permissions to access these resources. We are granting
-  the permissions by listing them in `connectTo` list. To see other ways of controlling access to resources refer to
-  [the docs](https://docs.stacktape.com/compute-resources/batch-jobs/#accessing-other-resources)
-- We are configuring **events** that trigger the job. In this case, we are triggering the batch job if a `zip` file is
-  uploaded to (created in) the `inputBucket`.
+- **S3 event trigger** — an `s3:ObjectCreated` event on the input bucket (filtered to `.zip` suffix) starts the job
+  automatically. No polling, no cron — just upload and go.
+- **Container packaging** — uses a custom `Dockerfile` based on the
+  [TensorFlow image](https://hub.docker.com/r/tensorflow/tensorflow/). Stacktape builds the image and pushes it to a
+  managed ECR repository. You can also use
+  [other packaging types](https://docs.stacktape.com/configuration/packaging/#packaging-multi-container-workloads).
+- **connectTo** — listing `inputBucket` and `outputBucket` in `connectTo` makes Stacktape automatically create the
+  required IAM permissions **and** inject environment variables (bucket names, ARNs) into the container. No manual
+  policy writing needed.
+- **Resources & spot** — `cpu` and `memory` define the instance size AWS provisions on demand. Setting
+  `useSpotInstances: true` opts into spot capacity, cutting costs significantly for fault-tolerant ML workloads.
+- **Swap the model** — while this starter uses TensorFlow + EfficientNet, you can replace it with any ML framework
+  (PyTorch, JAX, etc.) by changing the Dockerfile and source code. The infrastructure stays the same.
 
 ```yml
 classifierJob:

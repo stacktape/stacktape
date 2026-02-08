@@ -7,12 +7,6 @@ scripts:
         - name: LOAD_BALANCER_DOMAIN
           value: $ResourceParam('loadBalancer', 'domain')
 
-providerConfig:
-  upstash:
-    accountEmail: <<your-upstash-account-email>>
-    # Recommended way to store credentials is to use https://docs.stacktape.com/resources/secrets/
-    apiKey: <<your-upstash-api-key>>
-
 resources:
   mainLoadBalancer:
     type: application-load-balancer
@@ -48,6 +42,8 @@ resources:
         maxInstances: 2
 
   redis:
-    type: upstash-redis
+    type: redis-cluster
     properties:
-      enableTls: true
+      defaultUserPassword: $Secret('redis.password')
+      instanceSize: cache.t3.micro
+      engineVersion: '7.1'

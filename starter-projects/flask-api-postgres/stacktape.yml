@@ -1,29 +1,26 @@
 scripts:
-  installPoetry:
+  installUv:
     type: local-script
     properties:
-      executeCommand: curl -sSL https://install.python-poetry.org | python3 -
+      executeCommand: curl -LsSf https://astral.sh/uv/install.sh | sh
   installDependencies:
     type: local-script
     properties:
-      executeCommand: poetry install
+      executeCommand: uv sync
   migrateDb:
     type: local-script
     properties:
       executeCommands:
-        - poetry run flask db stamp head
-        - poetry run flask db migrate
-        - poetry run flask db upgrade
+        - uv run flask db stamp head
+        - uv run flask db migrate
+        - uv run flask db upgrade
       connectTo:
         - mainDatabase
 
 hooks:
   beforeDeploy:
-    # install poetry package manager in CI environment
-    # on local machine, you should install poetry manager manually
-    - scriptName: installPoetry
+    - scriptName: installUv
       skipOnLocal: true
-    # install dependencies
     - scriptName: installDependencies
   afterDeploy:
     - scriptName: migrateDb
@@ -48,10 +45,10 @@ resources:
     type: relational-database
     properties:
       credentials:
-        masterUserPassword: my_secret_password
+        masterUserPassword: $Secret('mainDatabase.password')
       engine:
         type: postgres
         properties:
-          version: '18.2'
+          version: '18.1'
           primaryInstance:
             instanceSize: db.t3.micro

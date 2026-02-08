@@ -1,7 +1,7 @@
 import type { APIGatewayProxyHandler } from 'aws-lambda';
 import Redis from 'ioredis';
 
-const client = new Redis(process.env.STP_REDIS_REDIS_URL);
+const client = new Redis(process.env.STP_REDIS_CONNECTION_STRING);
 
 const handler: APIGatewayProxyHandler = async (event, _context) => {
   try {

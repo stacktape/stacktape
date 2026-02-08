@@ -3,3 +3,19 @@ resources:
     type: nextjs-web
     properties:
       appDirectory: ./
+      # Uncomment to connect a database:
+      # connectTo:
+      #   - database
+
+  # Uncomment to add a PostgreSQL database:
+  # database:
+  #   type: relational-database
+  #   properties:
+  #     credentials:
+  #       masterUserPassword: $Secret('database.password')
+  #     engine:
+  #       type: postgres
+  #       properties:
+  #         version: '16.6'
+  #         primaryInstance:
+  #           instanceSize: db.t3.micro

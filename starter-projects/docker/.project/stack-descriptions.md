@@ -1,43 +1,64 @@
-### 1.1 Bucket
+### 1. Web Service (prebuilt-image)
 
-Hosting bucket contains the built React Single-page application (SPA):
+The `app` resource runs any public Docker image as a managed
+[web service](https://docs.stacktape.com/compute-resources/web-services/) using the `prebuilt-image` packaging type — no
+Dockerfile needed.
 
-- The built app is automatically uploaded into the bucket as a part of the deployment process.
-- [CDN](https://docs.stacktape.com/resources/cdns/) is automatically configured in front of the bucket to deliver your
-  SPA across the world with minimal latency.
-- To ensure that the CDN always serves the newest version of the app, CDN cache is automatically invalidated (flushed)
-  after each deployment.
+To self-host a different tool, swap the `image` property:
 
 ```yml
 resources:
-  webBucket:
-    type: hosting-bucket
+  app:
+    type: web-service
     properties:
-      uploadDirectoryPath: ./dist
-      hostingContentType: single-page-app
+      packaging:
+        type: prebuilt-image
+        properties:
+          # Change this to any Docker image:
+          #   plausible/analytics:v2.1
+          #   metabase/metabase:latest
+          #   n8nio/n8n:latest
+          image: louislam/uptime-kuma:1
 ```
 
-## 2. Application build hook
+### 2. CPU & Memory
 
-To automatically build the application before each deployment, the stacktape configuration contains a
-[hook](https://docs.stacktape.com/configuration/hooks/).
-
-[Hooks](https://docs.stacktape.com/configuration/hooks/) specify the commands or scripts which are executed
-automatically before or after command is executed (i.e every time before the stack is deployed). You can specify
-reusable script in [scripts](https://docs.stacktape.com/configuration/scripts/) section of config and reference it
-inside a hook or inline script/command information directly.
+Resource allocation is configured with `resources`. Increase these values for heavier workloads:
 
 ```yml
-scripts:
-  build:
-    # or "yarn build"
-    executeCommand: npm run build
-
-hooks:
-  beforeDeploy:
-    # build project before deploy
-    - executeNamedScript: build
+resources:
+  cpu: 0.5
+  memory: 1024
 ```
 
-Scripts specified in [scripts](https://docs.stacktape.com/configuration/scripts/) section of config, can be run manually
-anytime using `stp script:run` [command](https://docs.stacktape.com/cli/commands/script-run/).
+### 3. Environment variables
+
+Pass runtime configuration to your container using `environment`. Adjust these to match the image you are deploying:
+
+```yml
+environment:
+  - name: UPTIME_KUMA_PORT
+    value: "3000"
+```
+
+### 4. PostgreSQL database (optional)
+
+A [relational database](https://docs.stacktape.com/resources/relational-databases/) section is included but commented
+out. Uncomment it to provision a managed PostgreSQL instance and connect it to the web service using `connectTo`:
+
+```yml
+# database:
+#   type: relational-database
+#   properties:
+#     credentials:
+#       masterUserPassword: $Secret('db-password', 'my_secret_password')
+#     engine:
+#       type: postgres
+#       properties:
+#         version: '16.6'
+#         primaryInstance:
+#           instanceSize: db.t3.micro
+```
+
+When uncommented, also uncomment the `connectTo` section on the web service so it can reach the database. Connection
+details (host, port, credentials) are automatically injected as environment variables.

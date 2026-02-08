@@ -4,8 +4,8 @@ import (
 	"log"
 	"os"
 
-	"github.com/go-pg/pg/v9"
-	"github.com/go-pg/pg/v9/orm"
+	"github.com/go-pg/pg/v10"
+	"github.com/go-pg/pg/v10/orm"
 )
 
 func Connect() *pg.DB {
@@ -14,36 +14,23 @@ func Connect() *pg.DB {
 		panic(err)
 	}
 
-	opt.OnConnect = func(conn *pg.Conn) error {
-		return CreatePostTable(conn)
-	}
-
 	db := pg.Connect(opt)
 
 	if db == nil {
-		log.Printf("Failed to connect to PotsgreSQL")
+		log.Printf("Failed to connect to PostgreSQL")
 		os.Exit(100)
 	}
 
 	log.Printf("Connected to PostgreSQL")
 
-	return db
-}
-
-func CreatePostTable(conn *pg.Conn) error {
-	opts := orm.CreateTableOptions{
-		IfNotExists: true,
-	}
-
-	createError := conn.CreateTable(&Post{}, &opts)
-
+	createError := db.Model(&Post{}).CreateTable(&orm.CreateTableOptions{IfNotExists: true})
 	if createError != nil {
 		log.Printf("Error while creating Posts table, reason: %v\n", createError)
-		return createError
+	} else {
+		log.Printf("Posts table created")
 	}
 
-	log.Printf("Posts table created")
-	return nil
+	return db
 }
 
 type Post struct {

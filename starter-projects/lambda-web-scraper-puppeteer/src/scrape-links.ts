@@ -1,13 +1,13 @@
 import type { APIGatewayProxyHandlerV2 } from 'aws-lambda';
-import chromium from 'chrome-aws-lambda';
+import chromium from '@sparticuz/chromium';
+import puppeteer from 'puppeteer-core';
 
 const handler: APIGatewayProxyHandlerV2 = async (event, _context) => {
-  const browser = await chromium.puppeteer.launch({
+  const browser = await puppeteer.launch({
     args: chromium.args,
     defaultViewport: chromium.defaultViewport,
-    executablePath: await chromium.executablePath,
-    headless: chromium.headless,
-    ignoreHTTPSErrors: true
+    executablePath: await chromium.executablePath(),
+    headless: chromium.headless
   });
 
   const { url } = event.pathParameters;

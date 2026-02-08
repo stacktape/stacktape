@@ -1,12 +1,34 @@
 resources:
-  webService:
+  app:
     type: web-service
     properties:
       packaging:
-        type: custom-dockerfile
+        type: prebuilt-image
         properties:
-          buildContextPath: ./
-          dockerfilePath: ./Dockerfile
+          # Change this to any Docker image you want to self-host.
+          # Examples:
+          #   louislam/uptime-kuma:1
+          #   plausible/analytics:v2.1
+          #   metabase/metabase:latest
+          image: louislam/uptime-kuma:1
       resources:
-        cpu: 0.25
-        memory: 512
+        cpu: 0.5
+        memory: 1024
+      environment:
+        - name: UPTIME_KUMA_PORT
+          value: '3000'
+      # connectTo:
+      #   - database
+
+  # Uncomment to add a PostgreSQL database:
+  # database:
+  #   type: relational-database
+  #   properties:
+  #     credentials:
+  #       masterUserPassword: $Secret('database.password')
+  #     engine:
+  #       type: postgres
+  #       properties:
+  #         version: '16.6'
+  #         primaryInstance:
+  #           instanceSize: db.t3.micro

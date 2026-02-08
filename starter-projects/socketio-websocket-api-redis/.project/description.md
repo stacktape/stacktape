@@ -1,5 +1,6 @@
-- simple Websocket API built using [Socket.io](https://socket.io/).
-- The application runs in a
-  [container workload](https://docs.stacktape.com/compute-resources/multi-container-workloads/) and uses
-  [Upstash redis](https://docs.stacktape.com/resources/upstash-redis-databases/) to store the session data. The requests
-  are routed using [Application Load Balancer](https://docs.stacktape.com/resources/application-load-balancers/).
+- WebSocket API built with [Socket.io](https://socket.io/) and scaled across multiple containers.
+- Uses a [Redis cluster](https://docs.stacktape.com/resources/redis-clusters/) for session synchronization between
+  container instances, with an
+  [Application Load Balancer](https://docs.stacktape.com/resources/application-load-balancers/) for connection routing.
+- Runs in a [multi-container workload](https://docs.stacktape.com/compute-resources/multi-container-workloads/) with
+  automatic scaling.

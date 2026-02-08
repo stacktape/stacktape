@@ -1,1 +1,2 @@
-- Explore the app by visiting **webBucket -> cdnUrl**. URL was printed into console after the deploy.
+- Open the **Web Service URL** printed to the terminal after deploy.
+- To self-host a different app, change the `image` in `stacktape.yml` and adjust environment variables as needed.

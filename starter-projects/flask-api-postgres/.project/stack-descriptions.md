@@ -93,7 +93,7 @@ automatically download the connection string value and pass it to the script.
 ```yml
 scripts:
   migrateDb:
-    executeCommand: poetry run flask db stamp head && poetry run flask db migrate && poetry run flask db upgrade
+    executeCommand: uv run flask db stamp head && uv run flask db migrate && uv run flask db upgrade
     environment:
       - name: STP_MAIN_DATABASE_CONNECTION_STRING
         value: $ResourceParam('mainDatabase', 'connectionString')

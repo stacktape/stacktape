@@ -1,27 +1,24 @@
 ### 1.1 HTTP API Gateway
 
-API Gateway receives requests and routes them to the container.
+API Gateway receives HTTP requests and routes them to the Lambda function.
 
-For convenience, it has [CORS](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS) allowed.
+[CORS](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS) is enabled for convenience.
 
 ```yml
 resources:
-  mainApiGateway:
+  apiGateway:
     type: http-api-gateway
     properties:
       cors:
         enabled: true
 ```
 
-### 1.2 DynamoDB table
+### 1.2 DynamoDB Table
 
-The application data is stored in a DynamoDB table.
-
-Only the primary key of the table needs to be configured in a minimal setup. You can also configure
-[other properties](https://docs.stacktape.com/resources/dynamo-db-tables/) if desired.
+Serverless NoSQL database for storing posts. Only the primary key needs to be configured.
 
 ```yml
-mainDynamoDbTable:
+postsTable:
   type: dynamo-db-table
   properties:
     primaryKey:
@@ -30,63 +27,28 @@ mainDynamoDbTable:
         type: string
 ```
 
-### 1.3 Functions
+### 1.3 API Function
 
-The core of our application consists of two serverless functions:
+The Hono app runs inside a single Lambda function. The catch-all route pattern (`/{proxy+}`) forwards all HTTP methods
+and paths to the Hono router.
 
-- **savePost function** - saves post into database(DynamoDB)
-- **getPosts function** - get all posts from the database(DynamoDB)
-
-Functions are configured as follows:
-
-- **Packaging** - determines how the lambda artifact is built. The easiest and most optimized way to build the lambda
-  from Typescript/Javascript is using `stacktape-lambda-buildpack`. We only need to configure `entryfilePath`. Stacktape
-  automatically transpiles and builds the application code with all of its dependencies, creates the lambda zip
-  artifact, and uploads it to a pre-created S3 bucket on AWS. You can also use
-  [other types of packaging](https://docs.stacktape.com/configuration/packaging/#packaging-lambda-functions).
-- **ConnectTo list** - we are adding dynamo table `mainDynamoDbTable` into `connectTo` list. By doing this, Stacktape
-  will automatically setup necessary IAM permissions for the function's role as well as inject relevant environment
-  variables into the runtime (such as table name).
-- **Events** - Events determine how is function triggered. In this case, we are triggering the function when an event
-  (HTTP request) is delivered to the HTTP API gateway:
-
-  - if URL path is `/posts` and HTTP method is `POST`, request is delivered to `savePost` function.
-  - if URL path is `/posts` and HTTP method is `GET`, request is delivered to `getPosts` function.
-
-  The event(request) including the request body is passed to the function handler as an argument.
+`connectTo` automatically grants DynamoDB access and injects the table name as an environment variable.
 
 ```yml
-savePost:
+api:
   type: function
   properties:
     packaging:
       type: stacktape-lambda-buildpack
       properties:
-        entryfilePath: ./src/lambdas/save-post.ts
+        entryfilePath: ./src/index.ts
     memory: 512
     connectTo:
-      - mainDynamoDbTable
+      - postsTable
     events:
       - type: http-api-gateway
         properties:
-          httpApiGatewayName: mainApiGateway
-          path: /post
-          method: POST
-
-getPosts:
-  type: function
-  properties:
-    packaging:
-      type: stacktape-lambda-buildpack
-      properties:
-        entryfilePath: ./src/lambdas/get-posts.ts
-    memory: 512
-    connectTo:
-      - mainDynamoDbTable
-    events:
-      - type: http-api-gateway
-        properties:
-          httpApiGatewayName: mainApiGateway
-          path: /posts
-          method: GET
+          httpApiGatewayName: apiGateway
+          path: /{proxy+}
+          method: "*"
 ```

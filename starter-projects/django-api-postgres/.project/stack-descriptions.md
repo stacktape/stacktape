@@ -29,7 +29,6 @@ resources:
           entryfilePath: ./postsproject/asgi.py
           languageSpecificConfig:
             packageManagerFile: ./pyproject.toml
-            packageManager: poetry
       resources:
         cpu: 0.25
         memory: 512
@@ -95,7 +94,7 @@ automatically download the connection string value and pass it to the script.
 ```yml
 scripts:
   migrateDb:
-    executeCommand: poetry run python manage.py makemigrations && poetry run python manage.py migrate
+    executeCommand: uv run python manage.py makemigrations && uv run python manage.py migrate
     environment:
       - name: STP_MAIN_DATABASE_CONNECTION_STRING
         value: $ResourceParam('mainDatabase', 'connectionString')

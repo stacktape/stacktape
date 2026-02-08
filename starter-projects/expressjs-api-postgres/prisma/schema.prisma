@@ -5,7 +5,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgres"
+  provider = "postgresql"
   url      = env("STP_MAIN_DATABASE_CONNECTION_STRING")
 }
 

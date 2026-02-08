@@ -4,11 +4,11 @@
   "private": true,
   "scripts": {},
   "dependencies": {
-    "aws-lambda": "^1.0.7",
-    "chrome-aws-lambda": "^10.1.0",
-    "puppeteer-core": "^19.0.0"
+    "@sparticuz/chromium": "^133.0.0",
+    "puppeteer-core": "^24.37.2"
   },
   "devDependencies": {
-    "puppeteer": "^19.0.0"
+    "@types/aws-lambda": "^8.10.145",
+    "puppeteer": "^24.0.0"
   }
 }

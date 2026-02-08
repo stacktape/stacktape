@@ -27,7 +27,7 @@ resources:
     type: relational-database
     properties:
       credentials:
-        masterUserPassword: my_secret_password
+        masterUserPassword: $Secret('mainDatabase.password')
       engine:
         type: mysql
         properties:

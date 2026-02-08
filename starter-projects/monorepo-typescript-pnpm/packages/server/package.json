@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "scripts": {},
   "dependencies": {
-    "@my-organization/utils": "^0.1.0",
+    "@my-organization/utils": "workspace:*",
     "express": "^4.19.2"
   },
   "devDependencies": {

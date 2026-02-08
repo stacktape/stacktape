@@ -36,10 +36,10 @@ resources:
     type: relational-database
     properties:
       credentials:
-        masterUserPassword: my_secret_password
+        masterUserPassword: $Secret('mainDatabase.password')
       engine:
         type: postgres
         properties:
-          version: '18.2'
+          version: '18.1'
           primaryInstance:
             instanceSize: db.t3.micro

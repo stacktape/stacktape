@@ -1,12 +1,10 @@
-### 1.1 Bucket
+### 1.1 Hosting Bucket
 
-Hosting bucket contains the built React Single-page application (SPA):
+The hosting bucket stores the built SPA and serves it via CloudFront CDN:
 
-- The built app is automatically uploaded into the bucket as a part of the deployment process.
-- [CDN](https://docs.stacktape.com/resources/cdns/) is automatically configured in front of the bucket to deliver your
-  SPA across the world with minimal latency.
-- To ensure that the CDN always serves the newest version of the app, CDN cache is automatically invalidated (flushed)
-  after each deployment.
+- Built assets are uploaded automatically during deployment.
+- CDN cache is invalidated after each deploy to serve the latest version.
+- Environment variables can be injected at deploy time without rebuilding the app.
 
 ```yml
 resources:
@@ -17,27 +15,13 @@ resources:
       hostingContentType: single-page-app
 ```
 
-## 2. Application build hook
+### 1.2 Build Hook
 
-To automatically build the application before each deployment, the stacktape configuration contains a
+The application is built automatically before each deployment using a
 [hook](https://docs.stacktape.com/configuration/hooks/).
 
-[Hooks](https://docs.stacktape.com/configuration/hooks/) specify the commands or scripts which are executed
-automatically before or after command is executed (i.e every time before the stack is deployed). You can specify
-reusable script in [scripts](https://docs.stacktape.com/configuration/scripts/) section of config and reference it
-inside a hook or inline script/command information directly.
-
 ```yml
-scripts:
-  build:
-    # or "yarn build"
-    executeCommand: npm run build
-
 hooks:
   beforeDeploy:
-    # build project before deploy
-    - executeNamedScript: build
+    - scriptName: build
 ```
-
-Scripts specified in [scripts](https://docs.stacktape.com/configuration/scripts/) section of config, can be run manually
-anytime using `stp script:run` [command](https://docs.stacktape.com/cli/commands/script-run/).

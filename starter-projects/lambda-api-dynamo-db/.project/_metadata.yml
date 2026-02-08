@@ -1,4 +1,4 @@
-name: Lambda API with DynamoDb
+name: Lambda API with DynamoDB
 tags:
   - Typescript
   - DynamoDb
