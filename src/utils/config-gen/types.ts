@@ -1,8 +1,9 @@
-import type { CliConfigGenDeployableUnit, CliConfigGenPhase, CliConfigGenRequiredResource } from '@shared/trpc/public';
-
-// ============ Public API Types (from shared client) ============
-
-// ============ Progress Callback Types ============
+import type {
+  CliConfigGenDeployableUnit,
+  CliConfigGenPhase,
+  CliConfigGenRequiredResource,
+  ProductionReadiness
+} from '@shared/trpc/public';
 
 export type ConfigGenPhaseInfo = {
   phase: CliConfigGenPhase;
@@ -18,6 +19,11 @@ export type ConfigGenPhaseInfo = {
 };
 
 export type ConfigGenProgressCallback = (info: ConfigGenPhaseInfo) => void;
+
+export type ConfigGenOptions = {
+  productionReadiness?: ProductionReadiness;
+  onProgress?: ConfigGenProgressCallback;
+};
 
 export type ConfigGenResult = {
   config: StacktapeConfig;

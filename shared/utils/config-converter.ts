@@ -84,6 +84,12 @@ const DEFAULT_CONFIG_PARAMS: GetConfigParams = {
 /** Regex to match directive strings like $Secret('value') or $Param('name', 'default') */
 const DIRECTIVE_REGEX = /^\$([a-z]+)\(.*\)$/i;
 
+/** YAML directive names that differ from SDK export names */
+const DIRECTIVE_YAML_TO_SDK: Record<string, string> = {
+  $Format: '$CfFormat',
+  $StackOutput: '$CfStackOutput'
+};
+
 /** Check if a string is a directive */
 const isDirective = (value: unknown): value is string => {
   return typeof value === 'string' && DIRECTIVE_REGEX.test(value);
@@ -95,11 +101,16 @@ const getDirectiveName = (directive: string): string => {
   return match ? `$${match[1]}` : '';
 };
 
-/** Generate code for a directive (returns the directive as-is, not quoted) */
+/** Generate code for a directive, mapping YAML names to SDK export names */
 const generateDirectiveCode = (directive: string, imports: Set<string>): string => {
-  const name = getDirectiveName(directive);
-  if (name) {
-    imports.add(name);
+  const yamlName = getDirectiveName(directive);
+  if (!yamlName) return directive;
+
+  const sdkName = DIRECTIVE_YAML_TO_SDK[yamlName] || yamlName;
+  imports.add(sdkName);
+
+  if (sdkName !== yamlName) {
+    return directive.replace(yamlName, sdkName);
   }
   return directive;
 };
@@ -187,6 +198,74 @@ const configObjectToYaml = (config: Record<string, unknown>): string => {
   return stringifyToYaml(cleanConfig);
 };
 
+/** Collect resource names referenced in a properties tree (connectTo, *Name fields in events, etc.) */
+const collectResourceRefs = (obj: unknown, resourceNames: Set<string>): Set<string> => {
+  const refs = new Set<string>();
+  const walk = (val: unknown, key?: string) => {
+    if (!val) return;
+    if (Array.isArray(val)) {
+      // connectTo arrays contain direct resource name strings
+      if (key === 'connectTo') {
+        for (const item of val) {
+          if (typeof item === 'string' && resourceNames.has(item)) refs.add(item);
+        }
+      }
+      val.forEach((v) => walk(v));
+      return;
+    }
+    if (typeof val === 'object') {
+      for (const [k, v] of Object.entries(val as Record<string, unknown>)) {
+        // Fields like httpApiGatewayName, sqsQueueName, eventBusName, userPoolName, targetSqsQueueName
+        if (k.endsWith('Name') && typeof v === 'string' && resourceNames.has(v)) {
+          refs.add(v);
+        }
+        walk(v, k);
+      }
+    }
+  };
+  walk(obj);
+  return refs;
+};
+
+/** Topological sort of resources so dependencies (connectTo, *Name refs) come first */
+const topologicalSortResources = (resources: Record<string, Record<string, unknown>>): string[] => {
+  const names = new Set(Object.keys(resources));
+  const deps = new Map<string, Set<string>>();
+  for (const [name, resource] of Object.entries(resources)) {
+    const refs = collectResourceRefs(resource.properties, names);
+    // Also check redrivePolicy.targetSqsQueueName at resource level
+    const allRefs = new Set([...refs, ...collectResourceRefs(resource, names)]);
+    allRefs.delete(name); // no self-refs
+    deps.set(name, allRefs);
+  }
+
+  const sorted: string[] = [];
+  const visited = new Set<string>();
+  const visiting = new Set<string>();
+
+  const visit = (name: string) => {
+    if (visited.has(name)) return;
+    if (visiting.has(name)) {
+      // Circular dependency - just push in original order
+      sorted.push(name);
+      visited.add(name);
+      return;
+    }
+    visiting.add(name);
+    for (const dep of deps.get(name) || []) {
+      visit(dep);
+    }
+    visiting.delete(name);
+    visited.add(name);
+    sorted.push(name);
+  };
+
+  for (const name of Object.keys(resources)) {
+    visit(name);
+  }
+  return sorted;
+};
+
 /**
  * Converts a parsed config object to TypeScript code.
  */
@@ -199,10 +278,13 @@ const configObjectToTypescriptCode = (config: Record<string, unknown>): string =
 
   imports.add('defineConfig');
 
-  // Process resources
+  // Process resources (topologically sorted so connectTo references are declared before use)
   if (config.resources && typeof config.resources === 'object') {
     const resources = config.resources as Record<string, Record<string, unknown>>;
-    for (const [name, resource] of Object.entries(resources)) {
+    const sortedNames = topologicalSortResources(resources);
+
+    for (const name of sortedNames) {
+      const resource = resources[name];
       const resourceType = resource.type as string;
       const className = RESOURCE_TYPE_TO_CLASS[resourceType];
       if (!className) {
@@ -302,6 +384,8 @@ const generatePropsCode = (
   const entries: string[] = [];
 
   for (const [key, value] of Object.entries(props)) {
+    const k = safeKey(key);
+
     // Handle special typed properties
     if (key === 'packaging' && isTypedProperty(value)) {
       const code = generateTypedPropertyCode(
@@ -311,7 +395,7 @@ const generatePropsCode = (
         indent,
         resourceType
       );
-      entries.push(`${key}: ${code}`);
+      entries.push(`${k}: ${code}`);
       continue;
     }
 
@@ -323,7 +407,7 @@ const generatePropsCode = (
         indent,
         resourceType
       );
-      entries.push(`${key}: ${code}`);
+      entries.push(`${k}: ${code}`);
       continue;
     }
 
@@ -340,7 +424,7 @@ const generatePropsCode = (
           }
         }
       }
-      entries.push(`${key}: { ${envEntries.join(', ')} }`);
+      entries.push(`${k}: { ${envEntries.join(', ')} }`);
       continue;
     }
 
@@ -351,45 +435,48 @@ const generatePropsCode = (
         if (typeof ref === 'string') return ref;
         return JSON.stringify(ref);
       });
-      entries.push(`${key}: [${refs.join(', ')}]`);
+      entries.push(`${k}: [${refs.join(', ')}]`);
       continue;
     }
 
     // Handle events array with context-aware mapping
     if (key === 'events' && Array.isArray(value)) {
       const arrayCode = generateArrayCode(value, imports, indent + 1, resourceType);
-      entries.push(`${key}: ${arrayCode}`);
+      entries.push(`${k}: ${arrayCode}`);
       continue;
     }
 
     // Handle nested objects that might have typed properties
     if (value && typeof value === 'object' && !Array.isArray(value)) {
       const nested = generatePropsCode(value as Record<string, unknown>, imports, indent + 1, resourceType);
-      entries.push(`${key}: ${nested}`);
+      entries.push(`${k}: ${nested}`);
       continue;
     }
 
     // Handle arrays with potential typed properties
     if (Array.isArray(value)) {
       const arrayCode = generateArrayCode(value, imports, indent + 1, resourceType);
-      entries.push(`${key}: ${arrayCode}`);
+      entries.push(`${k}: ${arrayCode}`);
       continue;
     }
 
     // Handle directive strings
     if (isDirective(value)) {
-      entries.push(`${key}: ${generateDirectiveCode(value, imports)}`);
+      entries.push(`${k}: ${generateDirectiveCode(value, imports)}`);
       continue;
     }
 
     // Default: stringify
-    entries.push(`${key}: ${generateValueCode(value, imports)}`);
+    entries.push(`${k}: ${generateValueCode(value, imports)}`);
   }
 
   if (entries.length === 0) return '{}';
 
   return `{\n${indentStr}  ${entries.join(`,\n${indentStr}  `)}\n${indentStr}}`;
 };
+
+/** Quote a key if it's not a valid JS identifier */
+const safeKey = (key: string): string => (/^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(key) ? key : JSON.stringify(key));
 
 /** Check if value is a typed property (has type and properties) */
 const isTypedProperty = (value: unknown): boolean => {

@@ -1,9 +1,10 @@
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { configGenManager, getPhaseDisplayName, type ConfigGenPhaseInfo } from '@utils/config-gen';
+import { publicApiClient, type ProductionReadiness, type StackPriceEstimationResponse } from '@shared/trpc/public';
+import { stringify } from 'yaml';
 import { basename, relative, join, isAbsolute } from 'node:path';
-
-// ============ Types ============
+import color from 'picocolors';
 
 type TuiState = {
   phase: string;
@@ -18,14 +19,67 @@ type TuiState = {
 };
 
 type InitUsingAiConfigGenOptions = {
-  /** Pre-selected config format (skips format prompt) */
   configFormat?: 'yaml' | 'typescript';
+  infrastructureType?: ProductionReadiness;
 };
 
-// ============ Main Function ============
+const formatPrice = (price: number): string => {
+  if (price < 0.01) return color.green('<$0.01');
+  if (price < 1) return color.green(`$${price.toFixed(2)}`);
+  return color.yellow(`$${price.toFixed(2)}`);
+};
+
+const formatResourceType = (type: string, resource: any): string => {
+  if (type === 'relational-database') {
+    const engineType = resource?.properties?.engine?.type;
+    if (engineType?.includes('postgres')) return 'Relational database (Postgres)';
+    if (engineType?.includes('mysql')) return 'Relational database (MySQL)';
+    return 'Relational database';
+  }
+
+  if (type === 'hosting-bucket') {
+    const contentType = resource?.properties?.hostingContentType;
+    if (contentType === 'single-page-app') return 'Hosting bucket (SPA)';
+    if (contentType === 'gatsby-static-website') return 'Hosting bucket (Gatsby)';
+    if (contentType === 'static-website') return 'Hosting bucket (Static)';
+    return 'Hosting bucket';
+  }
+
+  const typeLabels: Record<string, string> = {
+    'web-service': 'Web service',
+    'worker-service': 'Worker service',
+    function: 'Function',
+    'nextjs-web': 'Next.js web',
+    'astro-web': 'Astro web',
+    'nuxt-web': 'Nuxt web',
+    'sveltekit-web': 'SvelteKit web',
+    'solidstart-web': 'SolidStart web',
+    'tanstack-web': 'TanStack web',
+    'remix-web': 'Remix web',
+    'redis-cluster': 'Redis cluster',
+    'dynamo-db-table': 'DynamoDB table',
+    'mongo-db-atlas-cluster': 'MongoDB Atlas cluster',
+    'open-search-domain': 'OpenSearch domain',
+    bucket: 'S3 bucket',
+    'sqs-queue': 'SQS queue',
+    'sns-topic': 'SNS topic',
+    bastion: 'Bastion',
+    'web-app-firewall': 'Web application firewall'
+  };
+
+  return typeLabels[type] || type;
+};
+
+const getResourceCostLabel = (costInfo?: { priceInfo: { totalMonthlyFlat: number; costBreakdown: any[] } }): string => {
+  if (!costInfo) return color.dim('-');
+  const monthly = costInfo.priceInfo.totalMonthlyFlat;
+  if (monthly > 0) return `~${formatPrice(monthly)}/mo`;
+  const hasPayPerUse = costInfo.priceInfo.costBreakdown.some((item: any) => item.priceModel === 'pay-per-use');
+  if (hasPayPerUse) return color.dim('pay-per-use');
+  return color.dim('-');
+};
 
 export const initUsingAiConfigGen = async (options: InitUsingAiConfigGenOptions = {}): Promise<void> => {
-  // Determine working directory from --projectDirectory arg or use current directory
   const projectDirectory = globalStateManager.args.projectDirectory;
   const cwd = projectDirectory
     ? isAbsolute(projectDirectory)
@@ -33,7 +87,6 @@ export const initUsingAiConfigGen = async (options: InitUsingAiConfigGenOptions 
       : join(process.cwd(), projectDirectory)
     : process.cwd();
 
-  // Set the working directory for the config generator
   configGenManager.setWorkingDirectory(cwd);
 
   const projectName = basename(cwd);
@@ -41,12 +94,11 @@ export const initUsingAiConfigGen = async (options: InitUsingAiConfigGenOptions 
   tuiManager.info(`Generating Stacktape configuration for ${tuiManager.makeBold(projectName)}...`);
   tuiManager.info('');
 
-  // Check if config already exists (only prompt if in interactive mode)
+  // Check if config already exists
   const existingConfig = await configGenManager.configFileExists();
   if (existingConfig.exists) {
     const relativePath = relative(cwd, existingConfig.path!);
 
-    // If configFormat is pre-specified via CLI, we're in non-interactive mode - auto-overwrite
     if (!options.configFormat) {
       const shouldOverwrite = await tuiManager.promptConfirm({
         message: `A config file already exists at ${tuiManager.prettyFilePath(relativePath)}. Overwrite?`,
@@ -62,7 +114,6 @@ export const initUsingAiConfigGen = async (options: InitUsingAiConfigGenOptions 
     }
   }
 
-  // Initialize TUI state
   let tuiState: TuiState = {
     phase: 'Starting...',
     message: 'Initializing...',
@@ -79,7 +130,6 @@ export const initUsingAiConfigGen = async (options: InitUsingAiConfigGenOptions 
   let lastPhase = tuiState.phase;
   let lastFilesRead = tuiState.filesRead;
 
-  // Progress callback
   const onProgress = (info: ConfigGenPhaseInfo) => {
     tuiState = {
       ...tuiState,
@@ -106,40 +156,30 @@ export const initUsingAiConfigGen = async (options: InitUsingAiConfigGenOptions 
   };
 
   try {
-    // Run config generation
-    const result = await configGenManager.generate(onProgress);
+    const result = await configGenManager.generate(onProgress, {
+      productionReadiness: options.infrastructureType
+    });
 
-    // Update TUI to show completion
     tuiState = { ...tuiState, completed: true, success: true };
     if (isTTY) {
       console.info(tuiManager.colorize('green', '✓ Configuration generated'));
     }
 
-    // Show what was detected
-    tuiManager.info('');
-    tuiManager.success('Analysis complete!');
-    tuiManager.info('');
-
-    if (result.deployableUnits.length > 0) {
-      tuiManager.info('Detected deployable units:');
-      for (const unit of result.deployableUnits) {
-        tuiManager.info(`  ${tuiManager.colorize('cyan', '\u2022')} ${tuiManager.makeBold(unit.name)} (${unit.type})`);
-        if (unit.reason) {
-          tuiManager.info(`    ${tuiManager.colorize('gray', unit.reason)}`);
-        }
+    // Estimate costs before showing results
+    let costEstimation: StackPriceEstimationResponse | null = null;
+    try {
+      if (isTTY) console.info(`${tuiManager.colorize('cyan', '›')} Estimating monthly costs...`);
+      const configYaml = stringify(result.config);
+      const costResult = await publicApiClient.stackPriceEstimation({ stackConfig: configYaml });
+      if (costResult.success && costResult.costs) {
+        costEstimation = costResult;
       }
-      tuiManager.info('');
+      if (isTTY) console.info(tuiManager.colorize('green', '✓ Cost estimation complete'));
+    } catch {
+      if (isTTY) console.info(color.dim('  Cost estimation unavailable'));
     }
 
-    if (result.requiredResources.length > 0) {
-      tuiManager.info('Detected infrastructure:');
-      for (const resource of result.requiredResources) {
-        tuiManager.info(`  ${tuiManager.colorize('cyan', '\u2022')} ${tuiManager.makeBold(resource.type)}`);
-      }
-      tuiManager.info('');
-    }
-
-    // Determine config format (use pre-specified or prompt)
+    // Determine config format
     let format: 'yaml' | 'typescript';
     if (options.configFormat) {
       format = options.configFormat;
@@ -162,10 +202,49 @@ export const initUsingAiConfigGen = async (options: InitUsingAiConfigGenOptions 
       })) as 'yaml' | 'typescript';
     }
 
-    // Write the config file
     const outputPath = await configGenManager.writeConfig(result.config, format);
-
     const relativePath = relative(cwd, outputPath);
+
+    // Show unified resources table with costs
+    tuiManager.info('');
+    const costBreakdown = costEstimation?.costs?.resourcesBreakdown || {};
+    const hasCosts = costEstimation?.costs != null;
+    const configResources = result.config.resources || {};
+
+    type ResourceRow = { name: string; type: string; cost: string };
+    const rows: ResourceRow[] = [];
+
+    for (const [resourceName, resource] of Object.entries(configResources)) {
+      const resourceType = (resource as any)?.type as string | undefined;
+      if (!resourceType) continue;
+      const friendlyType = formatResourceType(resourceType, resource);
+      const costInfo = costBreakdown[resourceName];
+      rows.push({ name: resourceName, type: friendlyType, cost: getResourceCostLabel(costInfo) });
+    }
+
+    if (rows.length > 0) {
+      const header = hasCosts
+        ? [tuiManager.makeBold('Resource'), tuiManager.makeBold('Type'), tuiManager.makeBold('Est. Cost')]
+        : [tuiManager.makeBold('Resource'), tuiManager.makeBold('Type')];
+      const tableRows = rows.map((r) =>
+        hasCosts ? [tuiManager.makeBold(r.name), r.type, r.cost] : [tuiManager.makeBold(r.name), r.type]
+      );
+
+      tuiManager.printTable({ header, rows: tableRows });
+
+      if (hasCosts && costEstimation!.costs) {
+        const { flatMonthlyCost } = costEstimation!.costs;
+        if (flatMonthlyCost > 0) {
+          tuiManager.info(`${tuiManager.makeBold('Estimated total:')} ~${formatPrice(flatMonthlyCost)}/mo`);
+        } else {
+          tuiManager.info(
+            `${tuiManager.makeBold('Estimated total:')} ${color.green('$0')} ${color.dim('(pay-per-use only)')}`
+          );
+        }
+        tuiManager.info(color.dim('Actual costs depend on usage.'));
+      }
+    }
+
     tuiManager.info('');
     tuiManager.success(`Configuration written to ${tuiManager.prettyFilePath(relativePath)}`);
     tuiManager.info(`
@@ -174,7 +253,6 @@ Next steps:
   2. Run ${tuiManager.prettyCommand('deploy --stage dev --region us-east-1')} to deploy
 `);
   } catch (error) {
-    // Update TUI to show error
     tuiState = {
       ...tuiState,
       completed: true,

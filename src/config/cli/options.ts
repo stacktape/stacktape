@@ -196,13 +196,22 @@ export const invalidateCdnCache = z.boolean().describe(`#### Invalidate CDN Cach
 ---
 If \`true\`, invalidates the cache of the CDN connected to the bucket.`);
 
-export const headersPreset = z.enum(['static-website', 'gatsby-static-website', 'single-page-app'])
-  .describe(`#### Headers Preset
+export const headersPreset = z.enum([
+  'static-website',
+  'gatsby-static-website',
+  'single-page-app',
+  'astro-static-website',
+  'sveltekit-static-website',
+  'nuxt-static-website'
+]).describe(`#### Headers Preset
 ---
 Configures HTTP headers of uploaded files based on a selected preset.
 - \`static-website\`: Caches all content on the CDN but never in the browser.
 - \`gatsby-static-website\`: Optimized for static websites built with Gatsby.
-- \`single-page-app\`: Optimized for Single-Page Applications. \`index.html\` is never cached, while all other assets are cached indefinitely.`);
+- \`single-page-app\`: Optimized for Single-Page Applications. \`index.html\` is never cached, while all other assets are cached indefinitely.
+- \`astro-static-website\`: Optimized for Astro static sites. \`_astro/**\` assets are immutable.
+- \`sveltekit-static-website\`: Optimized for SvelteKit static sites. \`_app/**\` assets are immutable.
+- \`nuxt-static-website\`: Optimized for Nuxt static sites. \`_nuxt/**\` assets are immutable.`);
 
 export const bastionResource = z.string().describe(`#### Bastion Resource Name
 ---
@@ -255,6 +264,13 @@ Format (language) used for the generated config. Options are typescript or yaml.
 export const useAi = z.boolean().describe(`#### Use AI
 ---
 If \`true\`, uses AI to automatically analyze your project and generate a Stacktape configuration. The AI will scan your project files, identify deployable units (services, functions, frontends), and create an appropriate configuration.`);
+
+export const infrastructureType = z.enum(['low-cost', 'standard', 'production']).describe(`#### Infrastructure Type
+---
+The infrastructure tier for the generated configuration. Affects resource sizing, scaling, security, and cost:
+- **low-cost**: Minimal resources, single instances, no WAF/VPC. Best for development and experimentation.
+- **standard**: Balanced defaults with serverless databases and moderate scaling. Best for staging and small production workloads.
+- **production**: High-availability setup with Aurora, WAF, VPC, bastions, backups, and deletion protection.`);
 
 export const newVersion = z.string().describe(`#### New Version
 ---
@@ -461,6 +477,7 @@ export const argAliases = {
   agent: 'ag',
   agentPort: 'ap',
   useAi: 'ai',
+  infrastructureType: 'it',
   limit: 'lim',
   stackName: 'sn',
   secretName: 'secn',
@@ -545,6 +562,7 @@ export const allCliArgsSchema = z.object({
   cleanupContainers: cleanupContainers.optional(),
   freshDb: freshDb.optional(),
   useAi: useAi.optional(),
+  infrastructureType: infrastructureType.optional(),
   limit: limit.optional(),
   stackName: stackName.optional(),
   secretName: secretName.optional(),

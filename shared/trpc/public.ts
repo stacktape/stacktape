@@ -16,21 +16,30 @@ export type CliConfigGenNonComputeResource =
   | 'SQL-database'
   | 'Redis'
   | 'ElasticSearch'
-  | 'DynamoDB';
+  | 'DynamoDB'
+  | 'MongoDB'
+  | 'S3'
+  | 'SQS'
+  | 'SNS';
 
 export type CliConfigGenDeployableUnitType =
-  | 'static-frontend'
-  | 'frontend-requiring-build'
+  | 'static-website'
   | 'web-service'
   | 'worker-service'
   | 'lambda-function'
-  | 'next-js-app';
-
-export type CliConfigGenStaticContentType = 'static-website' | 'single-page-app';
+  | 'next-js-app'
+  | 'astro-app'
+  | 'nuxt-app'
+  | 'sveltekit-app'
+  | 'solidstart-app'
+  | 'tanstack-app'
+  | 'remix-app';
 
 export type CliConfigGenDeployableUnit = {
   name: string;
   type: CliConfigGenDeployableUnitType;
+  framework: string;
+  language: string;
   dependencyFilePath: string;
   dockerfilePath: string | null;
   entryfilePath: string | null;
@@ -39,7 +48,6 @@ export type CliConfigGenDeployableUnit = {
   startCommand: string | null;
   buildCommand: string | null;
   reason: string;
-  staticContentType: CliConfigGenStaticContentType | null;
   packageManager?: 'npm' | 'pnpm' | 'yarn' | 'bun' | 'deno';
   envVars?: Array<{ name: string; value: string }>;
   requiredResources?: CliConfigGenNonComputeResource[];
@@ -69,9 +77,12 @@ export type CliConfigGenSession = {
   createdAt: number;
 };
 
+export type ProductionReadiness = 'low-cost' | 'standard' | 'production';
+
 export type StartCliConfigGenInput = {
   fileTree: string;
   allFiles: string[];
+  productionReadiness?: ProductionReadiness;
 };
 
 export type StartCliConfigGenResponse = {

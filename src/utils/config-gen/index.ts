@@ -4,7 +4,7 @@ import { stringifyToYaml } from '@shared/utils/yaml';
 import { writeFile, pathExists } from 'fs-extra';
 import { join } from 'node:path';
 import prettier from 'prettier';
-import type { ConfigGenProgressCallback, ConfigGenResult, ConfigGenPhaseInfo } from './types';
+import type { ConfigGenProgressCallback, ConfigGenResult, ConfigGenPhaseInfo, ConfigGenOptions } from './types';
 import {
   listAllFilesInDirectory,
   getPrettyPrintedFiles,
@@ -59,17 +59,10 @@ export class ConfigGenManager {
     this.#workingDirectory = dir;
   }
 
-  /**
-   * Generate a Stacktape configuration for the working directory.
-   *
-   * @param onProgress - Optional callback for progress updates
-   * @returns The generated configuration and metadata
-   */
-  async generate(onProgress?: ConfigGenProgressCallback): Promise<ConfigGenResult> {
+  async generate(onProgress?: ConfigGenProgressCallback, options?: ConfigGenOptions): Promise<ConfigGenResult> {
     const cwd = this.#workingDirectory;
     this.#cancelled = false;
 
-    // Initialize the API client
     publicApiClient.init();
 
     // Phase 1: Scan local files
@@ -100,7 +93,8 @@ export class ConfigGenManager {
     // Phase 2: Start server session (AI selects files)
     const { sessionId, filesToRead } = await publicApiClient.startCliConfigGen({
       fileTree,
-      allFiles
+      allFiles,
+      productionReadiness: options?.productionReadiness
     });
 
     this.#sessionId = sessionId;

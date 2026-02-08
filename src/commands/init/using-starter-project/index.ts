@@ -5,15 +5,16 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { stpErrors } from '@errors';
 import { fsPaths } from '@shared/naming/fs-paths';
-import { convertYamlToTypescript } from '@shared/utils/config-converter';
+import { publicApiClient, type StackPriceEstimationResponse } from '@shared/trpc/public';
 import { deleteDirectoryContent } from '@shared/utils/fs-utils';
 import { unzip } from '@shared/utils/unzip';
+import { note as clackNote } from '@clack/prompts';
+import color from 'picocolors';
 import {
   createWriteStream,
   ensureDir,
   existsSync,
   move,
-  outputFile,
   pathExists,
   readdir,
   readdirSync,
@@ -22,13 +23,7 @@ import {
   stat,
   statSync
 } from 'fs-extra';
-import {
-  addEslintPrettier,
-  addTsConfig,
-  adjustPackageJson,
-  getAvailableStartersMetadata,
-  promptTargetDirectory
-} from './utils';
+import { addTsConfig, adjustPackageJson, getAvailableStartersMetadata, promptTargetDirectory } from './utils';
 
 export const initUsingStarterProject = async () => {
   const availableStarters = await getAvailableStartersMetadata({
@@ -87,50 +82,21 @@ export const initUsingStarterProject = async () => {
   }
 
   await downloadStarterFromGithub({ githubLink: projectToUse.githubLink, targetDirectory: absoluteProjectPath });
+
+  // Estimate costs from the YAML config (before potentially deleting it)
+  const costEstimation = await fetchCostEstimate(join(absoluteProjectPath, 'stacktape.yml'));
+
   const configFormat = await promptConfigFormat();
-  if (configFormat === 'typescript') {
-    await convertStarterConfigToTypescript({ absoluteProjectPath });
-  }
+  await removeUnusedConfigFile({ absoluteProjectPath, chosenFormat: configFormat });
 
   if (projectToUse.projectType === 'es') {
-    let shouldAddEslintPrettier = false;
-    if (!projectToUse.disableLintingOption) {
-      shouldAddEslintPrettier = true; // await promptAddEslintPrettier();
-    }
-    await adjustPackageJson({ absoluteProjectPath, metadata: projectToUse, shouldAddEslintPrettier });
-    if (shouldAddEslintPrettier) {
-      await addEslintPrettier({ absoluteProjectPath, metadata: projectToUse });
-    }
+    await adjustPackageJson({ absoluteProjectPath, metadata: projectToUse });
     if (!projectToUse.hasOwnTsConfig) {
       await addTsConfig({ absoluteProjectPath, metadata: projectToUse });
     }
   }
 
-  const readmePath = join(absoluteProjectPath, 'README.md');
-
-  tuiManager.success(`Project initialized at ${tuiManager.prettyFilePath(absoluteProjectPath)}.`);
-
-  tuiManager.showNextSteps([
-    {
-      text: 'Navigate to the project directory:',
-      command: `${tuiManager.colorize('yellow', 'cd')} ${targetDirectory}`
-    },
-    {
-      text: 'To deploy your stack from local machine, run:',
-      command: `${tuiManager.prettyCommand('deploy')} ${tuiManager.prettyOption('region')} <<region>> ${tuiManager.prettyOption('stage')} <<stage>>`
-    },
-    {
-      text: 'To deploy your stack from AWS CodeBuild pipeline, run:',
-      command: `${tuiManager.prettyCommand('codebuild:deploy')} ${tuiManager.prettyOption('region')} <<region>> ${tuiManager.prettyOption('stage')} <<stage>>`
-    },
-    {
-      text: 'For next steps and detailed description of the stack, refer to:',
-      links: [
-        `https://github.com/stacktape/stacktape/tree/master/starter-projects/${projectToUse.starterProjectId}`,
-        tuiManager.prettyFilePath(readmePath)
-      ]
-    }
-  ]);
+  displayResult({ targetDirectory, absoluteProjectPath, projectToUse, costEstimation, configFormat });
 };
 
 export const downloadStarterFromGithub = async ({
@@ -207,22 +173,150 @@ const resolveStarterRoot = async ({
 
 const promptConfigFormat = async (): Promise<'typescript' | 'yaml'> => {
   const format = await tuiManager.promptSelect({
-    message: 'What is your preferred config format?',
+    message: 'Config format:',
     options: [
-      { label: 'TypeScript (stacktape.ts)', value: 'typescript' },
-      { label: 'YAML (stacktape.yml)', value: 'yaml' }
+      { label: 'TypeScript (stacktape.ts)', value: 'typescript', description: 'Type-safe with IDE autocompletion' },
+      { label: 'YAML (stacktape.yml)', value: 'yaml', description: 'Simple declarative format' }
     ]
   });
   return format as 'typescript' | 'yaml';
 };
 
-const convertStarterConfigToTypescript = async ({ absoluteProjectPath }: { absoluteProjectPath: string }) => {
-  const yamlPath = join(absoluteProjectPath, 'stacktape.yml');
-  if (!(await pathExists(yamlPath))) {
-    return;
+const removeUnusedConfigFile = async ({
+  absoluteProjectPath,
+  chosenFormat
+}: {
+  absoluteProjectPath: string;
+  chosenFormat: 'typescript' | 'yaml';
+}) => {
+  const fileToRemove =
+    chosenFormat === 'typescript'
+      ? join(absoluteProjectPath, 'stacktape.yml')
+      : join(absoluteProjectPath, 'stacktape.ts');
+  if (await pathExists(fileToRemove)) {
+    await remove(fileToRemove);
   }
-  const yamlContent = await readFile(yamlPath, 'utf8');
-  const tsConfig = convertYamlToTypescript(yamlContent);
-  await outputFile(join(absoluteProjectPath, 'stacktape.ts'), tsConfig);
-  await remove(yamlPath);
+};
+
+const fetchCostEstimate = async (yamlConfigPath: string): Promise<StackPriceEstimationResponse | null> => {
+  try {
+    if (!(await pathExists(yamlConfigPath))) return null;
+    const yamlContent = await readFile(yamlConfigPath, 'utf8');
+    const result = await publicApiClient.stackPriceEstimation({ stackConfig: yamlContent });
+    if (!result.success || !result.costs) return null;
+    return result;
+  } catch {
+    return null;
+  }
+};
+
+const stripAnsi = (str: string): string => {
+  // eslint-disable-next-line no-control-regex
+  return str.replace(/\x1B\[[0-9;]*m/g, '');
+};
+
+const formatPrice = (price: number): string => {
+  if (price < 0.01) return color.green('<$0.01');
+  if (price < 1) return color.green(`$${price.toFixed(2)}`);
+  return color.yellow(`$${price.toFixed(2)}`);
+};
+
+const formatResourceType = (type: string): string => {
+  const typeLabels: Record<string, string> = {
+    'web-service': 'Web service',
+    'worker-service': 'Worker service',
+    function: 'Function',
+    'nextjs-web': 'Next.js web',
+    'astro-web': 'Astro web',
+    'nuxt-web': 'Nuxt web',
+    'sveltekit-web': 'SvelteKit web',
+    'solidstart-web': 'SolidStart web',
+    'tanstack-web': 'TanStack web',
+    'remix-web': 'Remix web',
+    'redis-cluster': 'Redis cluster',
+    'dynamo-db-table': 'DynamoDB table',
+    'mongo-db-atlas-cluster': 'MongoDB Atlas cluster',
+    'relational-database': 'Relational database',
+    'open-search-domain': 'OpenSearch domain',
+    'hosting-bucket': 'Hosting bucket',
+    'http-api-gateway': 'HTTP API Gateway',
+    bucket: 'S3 bucket',
+    'sqs-queue': 'SQS queue',
+    'sns-topic': 'SNS topic',
+    bastion: 'Bastion',
+    'web-app-firewall': 'Web application firewall'
+  };
+  return typeLabels[type] || type;
+};
+
+const getResourceCostLabel = (costInfo?: { priceInfo: { totalMonthlyFlat: number; costBreakdown: any[] } }): string => {
+  if (!costInfo) return color.dim('-');
+  const monthly = costInfo.priceInfo.totalMonthlyFlat;
+  if (monthly > 0) return `~${formatPrice(monthly)}/mo`;
+  const hasPayPerUse = costInfo.priceInfo.costBreakdown.some((item: any) => item.priceModel === 'pay-per-use');
+  if (hasPayPerUse) return color.dim('pay-per-use');
+  return color.dim('-');
+};
+
+const displayResult = ({
+  targetDirectory,
+  absoluteProjectPath,
+  projectToUse,
+  costEstimation,
+  configFormat
+}: {
+  targetDirectory: string;
+  absoluteProjectPath: string;
+  projectToUse: StarterProjectMetadata;
+  costEstimation: StackPriceEstimationResponse | null;
+  configFormat: 'typescript' | 'yaml';
+}) => {
+  const configFile = configFormat === 'typescript' ? 'stacktape.ts' : 'stacktape.yml';
+  const costBreakdown = costEstimation?.costs?.resourcesBreakdown || {};
+  const hasCosts = costEstimation?.costs != null;
+
+  type ResourceRow = { name: string; type: string; cost: string };
+  const rows: ResourceRow[] = [];
+  for (const resource of projectToUse.usedResources) {
+    const friendlyType = formatResourceType(resource.type);
+    const costInfo = costBreakdown[resource.name];
+    rows.push({ name: resource.name, type: friendlyType, cost: getResourceCostLabel(costInfo) });
+  }
+
+  const lines: string[] = [];
+  lines.push(
+    `${color.green('✓')} Project initialized to ${tuiManager.prettyFilePath(absoluteProjectPath)} (${configFile})\n`
+  );
+
+  if (rows.length) {
+    lines.push(tuiManager.makeBold('Resources:'));
+    const nameWidth = Math.max(...rows.map((r) => stripAnsi(r.name).length));
+    const typeWidth = Math.max(...rows.map((r) => stripAnsi(r.type).length));
+    for (const row of rows) {
+      const namePad = ' '.repeat(Math.max(0, nameWidth - stripAnsi(row.name).length));
+      const typePad = ' '.repeat(Math.max(0, typeWidth - stripAnsi(row.type).length));
+      const line = hasCosts
+        ? `  ${tuiManager.makeBold(row.name)}${namePad}  ${row.type}${typePad}  ${row.cost}`
+        : `  ${tuiManager.makeBold(row.name)}${namePad}  ${row.type}`;
+      lines.push(line);
+    }
+  }
+
+  if (hasCosts && costEstimation.costs) {
+    const { flatMonthlyCost } = costEstimation.costs;
+    lines.push(`\n${color.dim('Estimated total costs:')} ~${formatPrice(flatMonthlyCost || 0)}/mo + pay-per-use costs`);
+  }
+
+  const projectName = projectToUse.starterProjectId;
+  const options = `--projectName ${tuiManager.prettyOption(projectName)} --stage ${tuiManager.prettyOption('{stage}')} --region ${tuiManager.prettyOption('{region}')}`;
+
+  lines.push('');
+  lines.push(tuiManager.makeBold('Navigate to the project:'));
+  lines.push(`  ${tuiManager.colorize('yellow', 'cd')} ${targetDirectory}`);
+  lines.push(tuiManager.makeBold(`Run local dev mode ${color.dim('(optional)')}:`));
+  lines.push(`  ${tuiManager.prettyCommand('dev')} ${options}`);
+  lines.push(tuiManager.makeBold('Deploy to AWS:'));
+  lines.push(`  ${tuiManager.prettyCommand('deploy')} ${options}`);
+
+  clackNote(lines.join('\n'), projectToUse.name, { format: (line: string) => line });
 };

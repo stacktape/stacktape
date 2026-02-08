@@ -5,20 +5,18 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { configGenManager, getPhaseDisplayName, type ConfigGenPhaseInfo } from '@utils/config-gen';
 import { getLockFileData } from '@shared/packaging/bundlers/es/utils';
-import { publicApiClient, type StackPriceEstimationResponse } from '@shared/trpc/public';
-import { intro, outro, log, spinner as clackSpinner } from '@clack/prompts';
+import { publicApiClient, type ProductionReadiness, type StackPriceEstimationResponse } from '@shared/trpc/public';
+import { intro, outro, log, spinner as clackSpinner, note as clackNote, S_BAR } from '@clack/prompts';
 import color from 'picocolors';
 import { detectGitInfo, type GitInfo } from '../utils/git-detection';
 import { detectConfigFormat, type ConfigFormat } from '../utils/config-format-detection';
 
 export type WizardState = {
-  // Project info
   cwd: string;
   projectName: string;
   configFormat: ConfigFormat;
+  infrastructureType: ProductionReadiness;
   gitInfo: GitInfo;
-
-  // Generated config
   config: StacktapeConfig | null;
   deployableUnits: any[];
   requiredResources: any[];
@@ -39,11 +37,11 @@ export const runInitWizard = async (): Promise<void> => {
 
   const projectName = basename(cwd);
 
-  // Initialize wizard state
   const state: WizardState = {
     cwd,
     projectName,
     configFormat: 'typescript',
+    infrastructureType: 'standard',
     gitInfo: { provider: null, remoteUrl: null, branch: null, owner: null, repository: null },
     config: null,
     deployableUnits: [],
@@ -98,6 +96,35 @@ export const runInitWizard = async (): Promise<void> => {
   });
   state.configFormat = formatChoice as ConfigFormat;
 
+  // Ask for infrastructure type (or use CLI arg)
+  const cliInfraType = globalStateManager.args.infrastructureType as ProductionReadiness | undefined;
+  if (cliInfraType) {
+    state.infrastructureType = cliInfraType;
+  } else {
+    const infraChoice = await tuiManager.promptSelect({
+      message: 'Infrastructure type:',
+      options: [
+        {
+          label: 'Low-cost',
+          value: 'low-cost',
+          description: 'Minimal resources, serverless where possible'
+        },
+        {
+          label: 'Standard',
+          value: 'standard',
+          description: 'Balanced defaults'
+        },
+        {
+          label: 'Production',
+          value: 'production',
+          description: 'High availability, private networking, WAF, etc.'
+        }
+      ],
+      defaultValue: 'low-cost'
+    });
+    state.infrastructureType = infraChoice as ProductionReadiness;
+  }
+
   // Install stacktape package for TypeScript config
   if (state.configFormat === 'typescript') {
     await installStacktapePackage(cwd);
@@ -105,7 +132,7 @@ export const runInitWizard = async (): Promise<void> => {
 
   // Run AI config generation with per-phase spinners
   try {
-    const result = await runConfigGenerationWithSteps();
+    const result = await runConfigGenerationWithSteps(state.infrastructureType);
     state.config = result.config;
     state.deployableUnits = result.deployableUnits;
     state.requiredResources = result.requiredResources;
@@ -114,120 +141,85 @@ export const runInitWizard = async (): Promise<void> => {
     return;
   }
 
-  // Write the config file
+  // Estimate costs, write config, then display everything in one box
+  const costEstimation = await fetchCostEstimate(state.config!);
+
   state.configPath = await configGenManager.writeConfig(state.config!, state.configFormat);
-  // Path should be relative to where the CLI is running from (process.cwd()), not the project directory
   const relativeConfigPath = relative(process.cwd(), state.configPath) || state.configPath;
 
-  // Show success message and detected resources
-  displayConfigGenerationResult(state, relativeConfigPath);
-
-  // Show next steps
-  displayNextSteps(state);
-
-  // Show cost estimate
-  await displayCostEstimate(state.config!);
-
-  outro('Configuration generated successfully!');
+  console.info(color.gray(S_BAR));
+  displayResult(state, costEstimation, relativeConfigPath);
 };
 
-/**
- * Display next steps after config generation
- */
-const displayNextSteps = (_state: WizardState) => {
+const displayResult = (state: WizardState, costEstimation: StackPriceEstimationResponse | null, configPath: string) => {
+  const costBreakdown = costEstimation?.costs?.resourcesBreakdown || {};
+  const hasCosts = costEstimation?.costs != null;
+  const configResources = state.config?.resources || {};
+
+  type ResourceRow = { name: string; type: string; cost: string };
+  const rows: ResourceRow[] = [];
+
+  // Build rows from the actual generated config resources (preserves definition order)
+  for (const [resourceName, resource] of Object.entries(configResources)) {
+    const resourceType = (resource as any)?.type as string | undefined;
+    if (!resourceType) continue;
+    const friendlyType = formatResourceType(resourceType, resource);
+    const costInfo = costBreakdown[resourceName];
+    rows.push({ name: resourceName, type: friendlyType, cost: getResourceCostLabel(costInfo) });
+  }
+
   const lines: string[] = [];
-  lines.push(tuiManager.makeBold('Next steps:'));
-  lines.push(`  1. Review the generated configuration`);
-  lines.push(
-    `  2. To deploy, run ${tuiManager.prettyCommand('deploy')} --projectName ${_state.projectName} --stage {stage} --region {region}`
-  );
-  lines.push('');
-  lines.push(color.dim('Stacktape will guide you through AWS setup on first deploy.'));
 
-  log.message(lines.join('\n'), { withGuide: true });
+  lines.push(`${color.green('✓')} Configuration successfully generated to ${tuiManager.prettyFilePath(configPath)}\n`);
+
+  // Resource table
+  if (rows.length) {
+    lines.push(tuiManager.makeBold('Identified resources:'));
+    const nameWidth = Math.max(...rows.map((r) => stripAnsi(r.name).length));
+    const typeWidth = Math.max(...rows.map((r) => stripAnsi(r.type).length));
+    for (const row of rows) {
+      const namePad = ' '.repeat(Math.max(0, nameWidth - stripAnsi(row.name).length));
+      const typePad = ' '.repeat(Math.max(0, typeWidth - stripAnsi(row.type).length));
+      const line = hasCosts
+        ? `  ${tuiManager.makeBold(row.name)}${namePad}  ${row.type}${typePad}  ${row.cost}`
+        : `  ${tuiManager.makeBold(row.name)}${namePad}  ${row.type}`;
+      lines.push(line);
+    }
+  }
+
+  // Total cost
+  if (hasCosts && costEstimation.costs) {
+    const { flatMonthlyCost } = costEstimation.costs;
+    lines.push(`\n${color.dim('Estimated total costs:')} ~${formatPrice(flatMonthlyCost || 0)}/mo + pay-per-use costs`);
+  }
+
+  const options = `--projectName ${tuiManager.prettyOption(state.projectName)} --stage ${tuiManager.prettyOption('{stage}')} --region ${tuiManager.prettyOption('{region}')}`;
+  // Next steps
+  lines.push('');
+  lines.push(tuiManager.makeBold(`Run local dev mode ${color.dim('(optional)')}:`));
+  lines.push(`  ${tuiManager.prettyCommand('dev')} ${options}`);
+  lines.push(tuiManager.makeBold('Deploy to AWS:'));
+  lines.push(`  ${tuiManager.prettyCommand('deploy')} ${options}`);
+
+  clackNote(lines.join('\n'), 'Configuration', { format: (line: string) => line });
 };
 
-/**
- * Display cost estimate for the generated configuration
- */
-const displayCostEstimate = async (config: StacktapeConfig): Promise<void> => {
-  const spinner = clackSpinner(SPINNER_OPTIONS);
-  spinner.start('Estimating monthly costs');
-
+const fetchCostEstimate = async (config: StacktapeConfig): Promise<StackPriceEstimationResponse | null> => {
   try {
     const configYaml = stringify(config);
     const result = await publicApiClient.stackPriceEstimation({ stackConfig: configYaml });
-
     if (!result.success || !result.costs) {
-      spinner.stop(color.dim('Cost estimation unavailable'));
-      return;
+      return null;
     }
-
-    spinner.stop('Cost estimate');
-    displayCostBreakdown(result);
+    return result;
   } catch {
-    spinner.stop(color.dim('Cost estimation unavailable'));
+    return null;
   }
 };
 
-/**
- * Display formatted cost breakdown
- */
-const displayCostBreakdown = (result: StackPriceEstimationResponse): void => {
-  if (!result.costs) return;
-
-  const { flatMonthlyCost, resourcesBreakdown } = result.costs;
-  const lines: string[] = [];
-
-  // Display per-resource breakdown
-  const resourceEntries = Object.entries(resourcesBreakdown);
-  if (resourceEntries.length > 0) {
-    for (const [resourceName, info] of resourceEntries) {
-      const monthlyPrice = info.priceInfo.totalMonthlyFlat;
-      if (monthlyPrice > 0) {
-        lines.push(
-          `  ${tuiManager.colorize('cyan', '•')} ${tuiManager.makeBold(resourceName)}: ${formatPrice(monthlyPrice)}/mo`
-        );
-      } else {
-        // Pay-per-use resources
-        const payPerUseItems = info.priceInfo.costBreakdown.filter((item) => item.priceModel === 'pay-per-use');
-        if (payPerUseItems.length > 0) {
-          lines.push(
-            `  ${tuiManager.colorize('cyan', '•')} ${tuiManager.makeBold(resourceName)}: ${color.dim('pay-per-use')}`
-          );
-        }
-      }
-    }
-  }
-
-  // Display total
-  if (lines.length > 0) {
-    lines.push('');
-  }
-
-  if (flatMonthlyCost > 0) {
-    lines.push(`  ${tuiManager.makeBold('Total fixed costs:')} ~${formatPrice(flatMonthlyCost)}/mo`);
-  } else {
-    lines.push(
-      `  ${tuiManager.makeBold('Total fixed costs:')} ${color.green('$0')} ${color.dim('(pay-per-use only)')}`
-    );
-  }
-
-  lines.push(color.dim('  Actual costs depend on usage. See AWS pricing docs for details.'));
-
-  log.message(lines.join('\n'), { withGuide: true });
-};
-
-/**
- * Format price for display
- */
 const formatPrice = (price: number): string => {
-  if (price < 0.01) {
-    return color.green('<$0.01');
-  }
-  if (price < 1) {
-    return color.green(`$${price.toFixed(2)}`);
-  }
+  if (price < 0.01) return color.green('<$0.01');
+  if (price < 1) return color.green(`$${price.toFixed(2)}`);
   return color.yellow(`$${price.toFixed(2)}`);
 };
 
@@ -240,7 +232,7 @@ const SPINNER_OPTIONS = { frames: SPINNER_FRAMES, delay: 80, styleFrame: (frame:
 /**
  * Runs the AI config generation with separate spinner for each phase
  */
-const runConfigGenerationWithSteps = async () => {
+const runConfigGenerationWithSteps = async (productionReadiness?: ProductionReadiness) => {
   let currentSpinner: ReturnType<typeof clackSpinner> | null = null;
   let currentPhase: string | null = null;
 
@@ -289,7 +281,7 @@ const runConfigGenerationWithSteps = async () => {
   };
 
   try {
-    const result = await configGenManager.generate(onProgress);
+    const result = await configGenManager.generate(onProgress, { productionReadiness });
 
     // Add contextual info from result for the last phases
     if (result.deployableUnits.length > 0) {
@@ -339,123 +331,56 @@ const countEnvVarsInConfig = (config: StacktapeConfig): number => {
   return count;
 };
 
-/**
- * Displays the success message and detected resources (deployable units and infrastructure)
- */
-const displayConfigGenerationResult = (state: WizardState, configPath: string) => {
-  // Success message (using process.stdout.write to ensure proper output after spinner)
-  process.stdout.write(
-    `${color.gray('│')}\n${color.green('◆')}  Generated configuration to ${tuiManager.prettyFilePath(configPath)}\n`
-  );
-
-  const lines: string[] = [];
-
-  // Show identified deployable units
-  if (state.deployableUnits.length > 0) {
-    lines.push(tuiManager.makeBold('Identified:'));
-    for (const unit of state.deployableUnits) {
-      const typeLabel = formatDeployableType(unit.type);
-      lines.push(`  ${tuiManager.colorize('cyan', '•')} ${tuiManager.makeBold(unit.name)} - ${typeLabel}`);
-    }
-  }
-
-  // Show infrastructure resources with names from config
-  if (state.requiredResources.length > 0 && state.config?.resources) {
-    if (lines.length > 0) lines.push('');
-    lines.push(tuiManager.makeBold('Infrastructure:'));
-
-    const resources = state.config.resources;
-    for (const requiredResource of state.requiredResources) {
-      // Find the resource in config that matches this type
-      const resourceEntry = Object.entries(resources).find(([, resource]) => {
-        const resourceType = (resource as any)?.type;
-        return matchesResourceType(resourceType, requiredResource.type);
-      });
-
-      if (resourceEntry) {
-        const [resourceName, resource] = resourceEntry;
-        const friendlyType = formatInfrastructureType((resource as any)?.type, resource, requiredResource.type);
-        lines.push(`  ${tuiManager.colorize('cyan', '•')} ${tuiManager.makeBold(resourceName)} - ${friendlyType}`);
-      } else {
-        // Fallback if not found in config
-        lines.push(`  ${tuiManager.colorize('cyan', '•')} ${requiredResource.type}`);
-      }
-    }
-  }
-
-  if (lines.length > 0) {
-    log.message(lines.join('\n'), { withGuide: true });
-  }
+const stripAnsi = (str: string): string => {
+  // eslint-disable-next-line no-control-regex
+  return str.replace(/\x1B\[[0-9;]*m/g, '');
 };
 
-const formatDeployableType = (type: string): string => {
-  const labels: Record<string, string> = {
-    'static-frontend': 'Static frontend',
-    'frontend-requiring-build': 'Frontend (requires build)',
-    'web-service': 'Web service',
-    'worker-service': 'Worker service',
-    'lambda-function': 'Lambda function',
-    'next-js-app': 'Next.js application'
-  };
-  return labels[type] || type;
+const getResourceCostLabel = (costInfo?: { priceInfo: { totalMonthlyFlat: number; costBreakdown: any[] } }): string => {
+  if (!costInfo) return color.dim('-');
+  const monthly = costInfo.priceInfo.totalMonthlyFlat;
+  if (monthly > 0) return `~${formatPrice(monthly)}/mo`;
+  const hasPayPerUse = costInfo.priceInfo.costBreakdown.some((item: any) => item.priceModel === 'pay-per-use');
+  if (hasPayPerUse) return color.dim('pay-per-use');
+  return color.dim('-');
 };
 
-/**
- * Checks if a Stacktape resource type matches a required resource type
- */
-const matchesResourceType = (stacktapeType: string, requiredType: string): boolean => {
-  const typeMapping: Record<string, string[]> = {
-    Postgres: ['relational-database'],
-    MySQL: ['relational-database'],
-    Redis: ['redis-cluster'],
-    DynamoDB: ['dynamo-db-table'],
-    MongoDB: ['mongo-db-atlas-cluster'],
-    Elasticsearch: ['search-cluster'],
-    OpenSearch: ['search-cluster'],
-    S3: ['bucket']
-  };
-  const matchingStacktapeTypes = typeMapping[requiredType] || [];
-  return matchingStacktapeTypes.includes(stacktapeType);
-};
-
-/**
- * Formats infrastructure resource type with engine info if available
- */
-const formatInfrastructureType = (type: string, resource: any, requiredResourceType: string): string => {
+const formatResourceType = (type: string, resource: any): string => {
   if (type === 'relational-database') {
-    const engine = resource?.engine;
-    // Try to get engine type from the engine object
-    const engineType = engine?.type;
-    if (engineType) {
-      if (engineType === 'postgres') {
-        return `Relational database (Postgres)`;
-      }
-      if (engineType === 'mysql') {
-        return `Relational database (MySQL)`;
-      }
-      if (engineType === 'aurora-postgresql' || engineType === 'aurora-postgresql-serverless') {
-        return `Relational database (Aurora PostgreSQL)`;
-      }
-      if (engineType === 'aurora-mysql' || engineType === 'aurora-mysql-serverless') {
-        return `Relational database (Aurora MySQL)`;
-      }
-    }
-    // Fallback to requiredResourceType if engine type not available
-    if (requiredResourceType === 'Postgres') {
-      return `Relational database (Postgres)`;
-    }
-    if (requiredResourceType === 'MySQL') {
-      return `Relational database (MySQL)`;
-    }
+    const engineType = resource?.properties?.engine?.type;
+    if (engineType?.includes('postgres')) return 'Relational database (Postgres)';
+    if (engineType?.includes('mysql')) return 'Relational database (MySQL)';
     return 'Relational database';
   }
 
+  if (type === 'hosting-bucket') {
+    const contentType = resource?.properties?.hostingContentType;
+    if (contentType === 'single-page-app') return 'Hosting bucket (SPA)';
+    if (contentType === 'gatsby-static-website') return 'Hosting bucket (Gatsby)';
+    if (contentType === 'static-website') return 'Hosting bucket (Static)';
+    return 'Hosting bucket';
+  }
+
   const typeLabels: Record<string, string> = {
+    'web-service': 'Web service',
+    'worker-service': 'Worker service',
+    function: 'Function',
+    'nextjs-web': 'Next.js web',
+    'astro-web': 'Astro web',
+    'nuxt-web': 'Nuxt web',
+    'sveltekit-web': 'SvelteKit web',
+    'solidstart-web': 'SolidStart web',
+    'tanstack-web': 'TanStack web',
+    'remix-web': 'Remix web',
     'redis-cluster': 'Redis cluster',
     'dynamo-db-table': 'DynamoDB table',
     'mongo-db-atlas-cluster': 'MongoDB Atlas cluster',
-    'search-cluster': 'Search cluster (OpenSearch)',
-    bucket: 'S3 bucket'
+    'open-search-domain': 'OpenSearch domain',
+    bucket: 'S3 bucket',
+    'sqs-queue': 'SQS queue',
+    'sns-topic': 'SNS topic',
+    bastion: 'Bastion',
+    'web-app-firewall': 'Web application firewall'
   };
 
   return typeLabels[type] || type;

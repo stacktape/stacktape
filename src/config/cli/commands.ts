@@ -27,6 +27,7 @@ import {
   filter,
   headersPreset,
   hotSwap,
+  infrastructureType,
   initializeProjectTo,
   invalidateCdnCache,
   limit,
@@ -472,7 +473,8 @@ Alternative modes:
       templateId: templateId.optional(),
       initializeProjectTo: initializeProjectTo.optional(),
       configFormat: configFormat.optional(),
-      useAi: useAi.optional()
+      useAi: useAi.optional(),
+      infrastructureType: infrastructureType.optional()
     },
     requiredArgs: [] as const
   },
