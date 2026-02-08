@@ -16,7 +16,7 @@ export type LocalResource = {
   error?: string;
 };
 
-export type WorkloadType = 'container' | 'function' | 'hosting-bucket' | 'nextjs-web';
+export type WorkloadType = 'container' | 'function' | 'hosting-bucket' | 'nextjs-web' | 'ssr-web';
 
 export type Workload = {
   name: string;

@@ -25,6 +25,11 @@ import { buildUsingCustomDockerfile } from '@shared/packaging/custom-dockerfile'
 import { buildUsingExternalBuildpack } from '@shared/packaging/external-buildpack';
 import { buildHostingBucket } from '@shared/packaging/hosting-bucket-build';
 import { createNextjsWebArtifacts } from '@shared/packaging/nextjs-web';
+import { createSsrWebArtifacts } from '@shared/packaging/ssr-web-shared';
+import {
+  SSR_WEB_FRAMEWORK_CONFIGS,
+  type SsrWebResourceType
+} from '@domain-services/calculated-stack-overview-manager/resource-resolvers/_utils/ssr-web-shared';
 import { buildUsingNixpacks } from '@shared/packaging/nixpacks';
 import { buildUsingStacktapeEsImageBuildpack } from '@shared/packaging/stacktape-es-image-buildpack';
 import { buildUsingStacktapeEsLambdaBuildpack } from '@shared/packaging/stacktape-es-lambda-buildpack';
@@ -678,7 +683,31 @@ export class PackagingManager {
             });
         });
 
-    // Prepare other packaging jobs (containers, non-Node lambdas, nextjs)
+    // SSR Web packaging jobs (Astro, Nuxt, SvelteKit, SolidStart, TanStack, Remix) - skip in dev mode
+    const ssrWebPackagingJobs = skipContainersAndHosting
+      ? []
+      : [
+          ...configManager.astroWebs.map(
+            (resource) => () => this.packageSsrWeb({ resource, resourceType: 'astro-web', commandCanUseCache })
+          ),
+          ...configManager.nuxtWebs.map(
+            (resource) => () => this.packageSsrWeb({ resource, resourceType: 'nuxt-web', commandCanUseCache })
+          ),
+          ...configManager.sveltekitWebs.map(
+            (resource) => () => this.packageSsrWeb({ resource, resourceType: 'sveltekit-web', commandCanUseCache })
+          ),
+          ...configManager.solidstartWebs.map(
+            (resource) => () => this.packageSsrWeb({ resource, resourceType: 'solidstart-web', commandCanUseCache })
+          ),
+          ...configManager.tanstackWebs.map(
+            (resource) => () => this.packageSsrWeb({ resource, resourceType: 'tanstack-web', commandCanUseCache })
+          ),
+          ...configManager.remixWebs.map(
+            (resource) => () => this.packageSsrWeb({ resource, resourceType: 'remix-web', commandCanUseCache })
+          )
+        ];
+
+    // Prepare other packaging jobs (containers, non-Node lambdas, nextjs, ssr-web)
     const otherPackagingJobs = [
       ...nonNodeLambdas.map(({ name, type, packaging, architecture, runtime }) => {
         return () =>
@@ -694,6 +723,7 @@ export class PackagingManager {
       }),
       ...containerPackagingJobs,
       ...nextjsPackagingJobs,
+      ...ssrWebPackagingJobs,
       ...hostingBucketBuildJobs
     ];
 
@@ -877,12 +907,12 @@ export class PackagingManager {
       parentEventType: 'PACKAGE_ARTIFACTS',
       instanceId: nextjsWebResource.name
     });
-    let environment;
+    let environment: EnvironmentVar[] = [];
     try {
-      environment = await resolveEnvironmentDirectives(nextjsWebResource.environment);
+      environment = (await resolveEnvironmentDirectives(nextjsWebResource.environment)) as EnvironmentVar[];
     } catch {}
     const packagingOutputs = await createNextjsWebArtifacts({
-      environmentVars: environment as any,
+      environmentVars: environment,
       resource: nextjsWebResource,
       cwd: globalStateManager.workingDir,
       distFolderPath: fsPaths.absoluteNextjsBuiltProjectFolderPath({
@@ -965,6 +995,64 @@ export class PackagingManager {
       },
       progressLogger
     });
+    packagingOutputs.forEach((result) => this.#packagedJobs.push({ ...result, skipped: result.outcome === 'skipped' }));
+  };
+
+  packageSsrWeb = async ({
+    resource,
+    resourceType,
+    commandCanUseCache
+  }: {
+    resource: StpAstroWeb | StpNuxtWeb | StpSvelteKitWeb | StpSolidStartWeb | StpTanStackWeb | StpRemixWeb;
+    resourceType: SsrWebResourceType;
+    commandCanUseCache: boolean;
+  }) => {
+    const frameworkConfig = SSR_WEB_FRAMEWORK_CONFIGS[resourceType];
+    let environment: EnvironmentVar[] = [];
+    try {
+      environment = (await resolveEnvironmentDirectives(resource.environment)) as EnvironmentVar[];
+    } catch {}
+
+    const appDirectory = resource.appDirectory || '.';
+    const workingDir = join(globalStateManager.workingDir, appDirectory);
+
+    const packagingOutputs = await createSsrWebArtifacts({
+      resourceName: resource.name,
+      resourceType,
+      serverFunctionName: resource._nestedResources.serverFunction.name,
+      distFolderPath: fsPaths.absoluteSsrWebBuiltProjectFolderPath({
+        invocationId: globalStateManager.invocationId,
+        stpResourceName: resource.name,
+        resourceType
+      }),
+      cwd: globalStateManager.workingDir,
+      buildConfig: {
+        buildCommand: resource.buildCommand || frameworkConfig.defaultBuildCommand,
+        workingDir,
+        serverOutputPath: frameworkConfig.serverOutputPath,
+        staticOutputPath: frameworkConfig.staticOutputPath,
+        handlerFileName: frameworkConfig.handlerPath,
+        staticAssetPrefix: frameworkConfig.staticAssetPrefix,
+        wrapperType: frameworkConfig.wrapperType,
+        buildEnv:
+          frameworkConfig.presetEnvVar && frameworkConfig.presetValue
+            ? { [frameworkConfig.presetEnvVar]: frameworkConfig.presetValue }
+            : undefined
+      },
+      environmentVars: environment,
+      existingDigests: this.#shouldWorkloadUseCache({
+        workloadName: resource._nestedResources.serverFunction.name,
+        commandCanUseCache
+      })
+        ? deploymentArtifactManager.getExistingDigestsForJob(
+            getJobName({
+              workloadName: resource._nestedResources.serverFunction.name,
+              workloadType: 'function'
+            })
+          )
+        : []
+    });
+
     packagingOutputs.forEach((result) => this.#packagedJobs.push({ ...result, skipped: result.outcome === 'skipped' }));
   };
 

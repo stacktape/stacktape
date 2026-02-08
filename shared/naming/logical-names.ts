@@ -181,6 +181,13 @@ export const cfLogicalNames = {
       suffix: { cloudformationResourceType: 'AWS::CloudFront::Function' }
     });
   },
+  ssrWebHostHeaderRewriteFunction(stpResourceName: string, resourceType: string) {
+    return buildCfLogicalName({
+      stpResourceName,
+      specifier: { type: `${resourceType.replace(/-/g, '')}HostHeaderRewrite` },
+      suffix: { cloudformationResourceType: 'AWS::CloudFront::Function' }
+    });
+  },
   openNextAssetReplacerCustomResource(stpResourceName: string) {
     return buildCfLogicalName({
       stpResourceName,

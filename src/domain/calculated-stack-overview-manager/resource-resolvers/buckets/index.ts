@@ -7,6 +7,7 @@ import { templateManager } from '@domain-services/template-manager';
 import { cfEvaluatedLinks } from '@shared/naming/cf-evaluated-links';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import { PARENT_IDENTIFIER_SHARED_GLOBAL } from '@shared/utils/constants';
+import { isCompositeWebResourceType } from '@utils/composite-web-resources';
 import {
   getCachePolicyHash,
   getCdnDefaultDomainCustomResource,
@@ -265,14 +266,14 @@ export const resolveBucket = ({ definition }: { definition: StpBucket }) => {
         stpResourceName: name,
         cdn: true,
         customPrefix:
-          definition.configParentResourceType === 'nextjs-web' &&
+          isCompositeWebResourceType(definition.configParentResourceType) &&
           `${configManager.findImmediateParent({ nameChain: definition.nameChain }).name.toLowerCase()}-${
             globalStateManager.targetStack.stackName
           }`
       });
       calculatedStackOverviewManager.addCfChildResource({
         cfLogicalName: cfLogicalNames.cloudfrontDistribution(
-          (definition.configParentResourceType === 'nextjs-web'
+          (isCompositeWebResourceType(definition.configParentResourceType)
             ? configManager.findImmediateParent({ nameChain: definition.nameChain })
             : definition
           ).name,
@@ -289,7 +290,7 @@ export const resolveBucket = ({ definition }: { definition: StpBucket }) => {
       });
       calculatedStackOverviewManager.addCfChildResource({
         cfLogicalName: cfLogicalNames.customResourceDefaultDomain(
-          definition.configParentResourceType === 'nextjs-web'
+          isCompositeWebResourceType(definition.configParentResourceType)
             ? configManager.findImmediateParent({ nameChain }).name
             : name,
           true
@@ -318,7 +319,7 @@ export const resolveBucket = ({ definition }: { definition: StpBucket }) => {
         allCustomCdnDomains.push(...domains);
         calculatedStackOverviewManager.addCfChildResource({
           cfLogicalName: cfLogicalNames.cloudfrontDistribution(
-            (definition.configParentResourceType === 'nextjs-web'
+            (isCompositeWebResourceType(definition.configParentResourceType)
               ? configManager.findImmediateParent({ nameChain: definition.nameChain })
               : definition
             ).name,
@@ -362,7 +363,7 @@ export const resolveBucket = ({ definition }: { definition: StpBucket }) => {
           nameChain,
           paramValue: GetAtt(
             cfLogicalNames.cloudfrontDistribution(
-              (definition.configParentResourceType === 'nextjs-web'
+              (isCompositeWebResourceType(definition.configParentResourceType)
                 ? configManager.findImmediateParent({ nameChain })
                 : definition
               ).name,
@@ -380,7 +381,7 @@ export const resolveBucket = ({ definition }: { definition: StpBucket }) => {
             cloudfrontDistributions.map((_, idx) =>
               GetAtt(
                 cfLogicalNames.cloudfrontDistribution(
-                  (definition.configParentResourceType === 'nextjs-web'
+                  (isCompositeWebResourceType(definition.configParentResourceType)
                     ? configManager.findImmediateParent({ nameChain })
                     : definition
                   ).name,

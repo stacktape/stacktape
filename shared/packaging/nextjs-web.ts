@@ -7,7 +7,7 @@ import { exec } from '@shared/utils/exec';
 import { dirExists } from '@shared/utils/fs-utils';
 import { raiseError, serialize } from '@shared/utils/misc';
 import { loadFromJavascript, loadFromTypescript } from '@utils/file-loaders';
-import { move, outputFile, readdir, remove, writeFile } from 'fs-extra';
+import { copy, move, outputFile, readdir, remove, writeFile } from 'fs-extra';
 import kleur from 'kleur';
 import { buildUsingCustomArtifact } from './custom-artifact';
 
@@ -68,7 +68,13 @@ export const createNextjsWebArtifacts = async ({
     await remove(configFilePath);
   }
 
-  await move(join(absoluteAppDirectory, '.open-next'), distFolderPath);
+  const openNextDir = join(absoluteAppDirectory, '.open-next');
+  try {
+    await move(openNextDir, distFolderPath);
+  } catch {
+    await copy(openNextDir, distFolderPath);
+    await remove(openNextDir);
+  }
   await progressLogger.finishEvent({ eventType: 'BUILD_NEXTJS_PROJECT' });
 
   await progressLogger.startEvent({ eventType: 'BUNDLING_NEXTJS_FUNCTIONS', description: 'Bundling Nextjs functions' });

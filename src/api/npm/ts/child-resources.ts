@@ -1080,6 +1080,288 @@ export const CHILD_RESOURCES: Record<
     }
   ],
 
+  // ===== ASTRO WEB =====
+  'astro-web': [
+    { logicalName: cfLogicalNames.ssrWebHostHeaderRewriteFunction, resourceType: 'AWS::CloudFront::Function' },
+    { logicalName: cfLogicalNames.bucket, resourceType: 'AWS::S3::Bucket' },
+    { logicalName: cfLogicalNames.bucketPolicy, resourceType: 'AWS::S3::BucketPolicy', conditional: true },
+    {
+      logicalName: cfLogicalNames.cloudfrontOriginAccessIdentity,
+      resourceType: 'AWS::CloudFront::CloudFrontOriginAccessIdentity',
+      conditional: true
+    },
+    {
+      logicalName: cfLogicalNames.cloudfrontCustomCachePolicy,
+      resourceType: 'AWS::CloudFront::CachePolicy',
+      conditional: true
+    },
+    {
+      logicalName: cfLogicalNames.cloudfrontDefaultCachePolicy,
+      resourceType: 'AWS::CloudFront::CachePolicy',
+      conditional: true
+    },
+    {
+      logicalName: cfLogicalNames.cloudfrontCustomOriginRequestPolicy,
+      resourceType: 'AWS::CloudFront::OriginRequestPolicy',
+      conditional: true
+    },
+    {
+      logicalName: cfLogicalNames.cloudfrontDefaultOriginRequestPolicy,
+      resourceType: 'AWS::CloudFront::OriginRequestPolicy',
+      conditional: true
+    },
+    {
+      logicalName: cfLogicalNames.cloudfrontDistribution,
+      resourceType: 'AWS::CloudFront::Distribution',
+      conditional: true
+    },
+    {
+      logicalName: cfLogicalNames.customResourceDefaultDomain,
+      resourceType: 'AWS::CloudFormation::CustomResource',
+      conditional: true
+    },
+    { logicalName: cfLogicalNames.dnsRecord, resourceType: 'AWS::Route53::RecordSet', conditional: true },
+    { logicalName: cfLogicalNames.lambdaRole, resourceType: 'AWS::IAM::Role' },
+    { logicalName: cfLogicalNames.lambda, resourceType: 'AWS::Lambda::Function' },
+    { logicalName: cfLogicalNames.lambdaLogGroup, resourceType: 'AWS::Logs::LogGroup', conditional: true },
+    { logicalName: cfLogicalNames.lambdaUrl, resourceType: 'AWS::Lambda::Url', conditional: true }
+  ],
+
+  // ===== NUXT WEB =====
+  'nuxt-web': [
+    { logicalName: cfLogicalNames.ssrWebHostHeaderRewriteFunction, resourceType: 'AWS::CloudFront::Function' },
+    { logicalName: cfLogicalNames.bucket, resourceType: 'AWS::S3::Bucket' },
+    { logicalName: cfLogicalNames.bucketPolicy, resourceType: 'AWS::S3::BucketPolicy', conditional: true },
+    {
+      logicalName: cfLogicalNames.cloudfrontOriginAccessIdentity,
+      resourceType: 'AWS::CloudFront::CloudFrontOriginAccessIdentity',
+      conditional: true
+    },
+    {
+      logicalName: cfLogicalNames.cloudfrontCustomCachePolicy,
+      resourceType: 'AWS::CloudFront::CachePolicy',
+      conditional: true
+    },
+    {
+      logicalName: cfLogicalNames.cloudfrontDefaultCachePolicy,
+      resourceType: 'AWS::CloudFront::CachePolicy',
+      conditional: true
+    },
+    {
+      logicalName: cfLogicalNames.cloudfrontCustomOriginRequestPolicy,
+      resourceType: 'AWS::CloudFront::OriginRequestPolicy',
+      conditional: true
+    },
+    {
+      logicalName: cfLogicalNames.cloudfrontDefaultOriginRequestPolicy,
+      resourceType: 'AWS::CloudFront::OriginRequestPolicy',
+      conditional: true
+    },
+    {
+      logicalName: cfLogicalNames.cloudfrontDistribution,
+      resourceType: 'AWS::CloudFront::Distribution',
+      conditional: true
+    },
+    {
+      logicalName: cfLogicalNames.customResourceDefaultDomain,
+      resourceType: 'AWS::CloudFormation::CustomResource',
+      conditional: true
+    },
+    { logicalName: cfLogicalNames.dnsRecord, resourceType: 'AWS::Route53::RecordSet', conditional: true },
+    { logicalName: cfLogicalNames.lambdaRole, resourceType: 'AWS::IAM::Role' },
+    { logicalName: cfLogicalNames.lambda, resourceType: 'AWS::Lambda::Function' },
+    { logicalName: cfLogicalNames.lambdaLogGroup, resourceType: 'AWS::Logs::LogGroup', conditional: true },
+    { logicalName: cfLogicalNames.lambdaUrl, resourceType: 'AWS::Lambda::Url', conditional: true }
+  ],
+
+  // ===== SVELTEKIT WEB =====
+  'sveltekit-web': [
+    { logicalName: cfLogicalNames.ssrWebHostHeaderRewriteFunction, resourceType: 'AWS::CloudFront::Function' },
+    { logicalName: cfLogicalNames.bucket, resourceType: 'AWS::S3::Bucket' },
+    { logicalName: cfLogicalNames.bucketPolicy, resourceType: 'AWS::S3::BucketPolicy', conditional: true },
+    {
+      logicalName: cfLogicalNames.cloudfrontOriginAccessIdentity,
+      resourceType: 'AWS::CloudFront::CloudFrontOriginAccessIdentity',
+      conditional: true
+    },
+    {
+      logicalName: cfLogicalNames.cloudfrontCustomCachePolicy,
+      resourceType: 'AWS::CloudFront::CachePolicy',
+      conditional: true
+    },
+    {
+      logicalName: cfLogicalNames.cloudfrontDefaultCachePolicy,
+      resourceType: 'AWS::CloudFront::CachePolicy',
+      conditional: true
+    },
+    {
+      logicalName: cfLogicalNames.cloudfrontCustomOriginRequestPolicy,
+      resourceType: 'AWS::CloudFront::OriginRequestPolicy',
+      conditional: true
+    },
+    {
+      logicalName: cfLogicalNames.cloudfrontDefaultOriginRequestPolicy,
+      resourceType: 'AWS::CloudFront::OriginRequestPolicy',
+      conditional: true
+    },
+    {
+      logicalName: cfLogicalNames.cloudfrontDistribution,
+      resourceType: 'AWS::CloudFront::Distribution',
+      conditional: true
+    },
+    {
+      logicalName: cfLogicalNames.customResourceDefaultDomain,
+      resourceType: 'AWS::CloudFormation::CustomResource',
+      conditional: true
+    },
+    { logicalName: cfLogicalNames.dnsRecord, resourceType: 'AWS::Route53::RecordSet', conditional: true },
+    { logicalName: cfLogicalNames.lambdaRole, resourceType: 'AWS::IAM::Role' },
+    { logicalName: cfLogicalNames.lambda, resourceType: 'AWS::Lambda::Function' },
+    { logicalName: cfLogicalNames.lambdaLogGroup, resourceType: 'AWS::Logs::LogGroup', conditional: true },
+    { logicalName: cfLogicalNames.lambdaUrl, resourceType: 'AWS::Lambda::Url', conditional: true }
+  ],
+
+  // ===== SOLIDSTART WEB =====
+  'solidstart-web': [
+    { logicalName: cfLogicalNames.ssrWebHostHeaderRewriteFunction, resourceType: 'AWS::CloudFront::Function' },
+    { logicalName: cfLogicalNames.bucket, resourceType: 'AWS::S3::Bucket' },
+    { logicalName: cfLogicalNames.bucketPolicy, resourceType: 'AWS::S3::BucketPolicy', conditional: true },
+    {
+      logicalName: cfLogicalNames.cloudfrontOriginAccessIdentity,
+      resourceType: 'AWS::CloudFront::CloudFrontOriginAccessIdentity',
+      conditional: true
+    },
+    {
+      logicalName: cfLogicalNames.cloudfrontCustomCachePolicy,
+      resourceType: 'AWS::CloudFront::CachePolicy',
+      conditional: true
+    },
+    {
+      logicalName: cfLogicalNames.cloudfrontDefaultCachePolicy,
+      resourceType: 'AWS::CloudFront::CachePolicy',
+      conditional: true
+    },
+    {
+      logicalName: cfLogicalNames.cloudfrontCustomOriginRequestPolicy,
+      resourceType: 'AWS::CloudFront::OriginRequestPolicy',
+      conditional: true
+    },
+    {
+      logicalName: cfLogicalNames.cloudfrontDefaultOriginRequestPolicy,
+      resourceType: 'AWS::CloudFront::OriginRequestPolicy',
+      conditional: true
+    },
+    {
+      logicalName: cfLogicalNames.cloudfrontDistribution,
+      resourceType: 'AWS::CloudFront::Distribution',
+      conditional: true
+    },
+    {
+      logicalName: cfLogicalNames.customResourceDefaultDomain,
+      resourceType: 'AWS::CloudFormation::CustomResource',
+      conditional: true
+    },
+    { logicalName: cfLogicalNames.dnsRecord, resourceType: 'AWS::Route53::RecordSet', conditional: true },
+    { logicalName: cfLogicalNames.lambdaRole, resourceType: 'AWS::IAM::Role' },
+    { logicalName: cfLogicalNames.lambda, resourceType: 'AWS::Lambda::Function' },
+    { logicalName: cfLogicalNames.lambdaLogGroup, resourceType: 'AWS::Logs::LogGroup', conditional: true },
+    { logicalName: cfLogicalNames.lambdaUrl, resourceType: 'AWS::Lambda::Url', conditional: true }
+  ],
+
+  // ===== TANSTACK WEB =====
+  'tanstack-web': [
+    { logicalName: cfLogicalNames.ssrWebHostHeaderRewriteFunction, resourceType: 'AWS::CloudFront::Function' },
+    { logicalName: cfLogicalNames.bucket, resourceType: 'AWS::S3::Bucket' },
+    { logicalName: cfLogicalNames.bucketPolicy, resourceType: 'AWS::S3::BucketPolicy', conditional: true },
+    {
+      logicalName: cfLogicalNames.cloudfrontOriginAccessIdentity,
+      resourceType: 'AWS::CloudFront::CloudFrontOriginAccessIdentity',
+      conditional: true
+    },
+    {
+      logicalName: cfLogicalNames.cloudfrontCustomCachePolicy,
+      resourceType: 'AWS::CloudFront::CachePolicy',
+      conditional: true
+    },
+    {
+      logicalName: cfLogicalNames.cloudfrontDefaultCachePolicy,
+      resourceType: 'AWS::CloudFront::CachePolicy',
+      conditional: true
+    },
+    {
+      logicalName: cfLogicalNames.cloudfrontCustomOriginRequestPolicy,
+      resourceType: 'AWS::CloudFront::OriginRequestPolicy',
+      conditional: true
+    },
+    {
+      logicalName: cfLogicalNames.cloudfrontDefaultOriginRequestPolicy,
+      resourceType: 'AWS::CloudFront::OriginRequestPolicy',
+      conditional: true
+    },
+    {
+      logicalName: cfLogicalNames.cloudfrontDistribution,
+      resourceType: 'AWS::CloudFront::Distribution',
+      conditional: true
+    },
+    {
+      logicalName: cfLogicalNames.customResourceDefaultDomain,
+      resourceType: 'AWS::CloudFormation::CustomResource',
+      conditional: true
+    },
+    { logicalName: cfLogicalNames.dnsRecord, resourceType: 'AWS::Route53::RecordSet', conditional: true },
+    { logicalName: cfLogicalNames.lambdaRole, resourceType: 'AWS::IAM::Role' },
+    { logicalName: cfLogicalNames.lambda, resourceType: 'AWS::Lambda::Function' },
+    { logicalName: cfLogicalNames.lambdaLogGroup, resourceType: 'AWS::Logs::LogGroup', conditional: true },
+    { logicalName: cfLogicalNames.lambdaUrl, resourceType: 'AWS::Lambda::Url', conditional: true }
+  ],
+
+  // ===== REMIX WEB =====
+  'remix-web': [
+    { logicalName: cfLogicalNames.ssrWebHostHeaderRewriteFunction, resourceType: 'AWS::CloudFront::Function' },
+    { logicalName: cfLogicalNames.bucket, resourceType: 'AWS::S3::Bucket' },
+    { logicalName: cfLogicalNames.bucketPolicy, resourceType: 'AWS::S3::BucketPolicy', conditional: true },
+    {
+      logicalName: cfLogicalNames.cloudfrontOriginAccessIdentity,
+      resourceType: 'AWS::CloudFront::CloudFrontOriginAccessIdentity',
+      conditional: true
+    },
+    {
+      logicalName: cfLogicalNames.cloudfrontCustomCachePolicy,
+      resourceType: 'AWS::CloudFront::CachePolicy',
+      conditional: true
+    },
+    {
+      logicalName: cfLogicalNames.cloudfrontDefaultCachePolicy,
+      resourceType: 'AWS::CloudFront::CachePolicy',
+      conditional: true
+    },
+    {
+      logicalName: cfLogicalNames.cloudfrontCustomOriginRequestPolicy,
+      resourceType: 'AWS::CloudFront::OriginRequestPolicy',
+      conditional: true
+    },
+    {
+      logicalName: cfLogicalNames.cloudfrontDefaultOriginRequestPolicy,
+      resourceType: 'AWS::CloudFront::OriginRequestPolicy',
+      conditional: true
+    },
+    {
+      logicalName: cfLogicalNames.cloudfrontDistribution,
+      resourceType: 'AWS::CloudFront::Distribution',
+      conditional: true
+    },
+    {
+      logicalName: cfLogicalNames.customResourceDefaultDomain,
+      resourceType: 'AWS::CloudFormation::CustomResource',
+      conditional: true
+    },
+    { logicalName: cfLogicalNames.dnsRecord, resourceType: 'AWS::Route53::RecordSet', conditional: true },
+    { logicalName: cfLogicalNames.lambdaRole, resourceType: 'AWS::IAM::Role' },
+    { logicalName: cfLogicalNames.lambda, resourceType: 'AWS::Lambda::Function' },
+    { logicalName: cfLogicalNames.lambdaLogGroup, resourceType: 'AWS::Logs::LogGroup', conditional: true },
+    { logicalName: cfLogicalNames.lambdaUrl, resourceType: 'AWS::Lambda::Url', conditional: true }
+  ],
+
   // ===== OTHER RESOURCES =====
   'custom-resource-instance': [],
   'custom-resource-definition': [],

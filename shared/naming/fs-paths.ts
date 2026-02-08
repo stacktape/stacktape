@@ -64,6 +64,17 @@ export const fsPaths = {
   }) {
     return `${fsPaths.absoluteBuildFolderPath({ invocationId })}/nextjs/${stpResourceName}`;
   },
+  absoluteSsrWebBuiltProjectFolderPath({
+    invocationId,
+    stpResourceName,
+    resourceType
+  }: {
+    stpResourceName: string;
+    invocationId: string;
+    resourceType: string;
+  }) {
+    return `${fsPaths.absoluteBuildFolderPath({ invocationId })}/${resourceType}/${stpResourceName}`;
+  },
   absoluteInitialCfTemplateFilePath({ invocationId }: { invocationId: string }) {
     return join(fsPaths.absoluteTempFolderPath({ invocationId }), INITIAL_CF_TEMPLATE_FILE_NAME);
   },

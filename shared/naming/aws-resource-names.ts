@@ -102,6 +102,11 @@ export const awsResourceNames = {
       proposedResourceName: `${stackName}-${stpResourceName}-${region}`
     });
   },
+  ssrWebHostHeaderRewriteFunction(stpResourceName: string, stackName: string, resourceType: string) {
+    return buildResourceName({
+      proposedResourceName: `${stackName}-${stpResourceName}-${resourceType}`
+    });
+  },
   // max 64 chars
   // OK as it stands
   lambdaRole(

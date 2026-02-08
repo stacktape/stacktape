@@ -17,7 +17,13 @@ export const LOCALLY_RUN_RESOURCE_TYPES: StpResourceType[] = [
   'worker-service',
   'multi-container-workload',
   'hosting-bucket',
-  'nextjs-web'
+  'nextjs-web',
+  'astro-web',
+  'nuxt-web',
+  'sveltekit-web',
+  'solidstart-web',
+  'tanstack-web',
+  'remix-web'
 ];
 
 /** Check if the current command is 'dev' */

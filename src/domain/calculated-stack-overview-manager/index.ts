@@ -54,6 +54,14 @@ import { resolveContainerWorkloads } from './resource-resolvers/multi-container-
 import { resolveDevContainerWorkloadRoles } from './resource-resolvers/multi-container-workloads/dev-roles';
 import { resolveNetworkLoadBalancers } from './resource-resolvers/network-load-balancers';
 import { resolveNextjsWebs } from './resource-resolvers/nextjs-web';
+import {
+  resolveAstroWebs,
+  resolveNuxtWebs,
+  resolveSvelteKitWebs,
+  resolveSolidStartWebs,
+  resolveTanStackWebs,
+  resolveRemixWebs
+} from './resource-resolvers/ssr-web';
 import { resolveOpenSearchDomains } from './resource-resolvers/open-search';
 import { resolveStackOutputs } from './resource-resolvers/outputs';
 import { resolvePrivateServices } from './resource-resolvers/private-services';
@@ -128,6 +136,12 @@ export class CalculatedStackOverviewManager {
       resolveWebAppFirewalls(),
       resolveDeploymentScripts(),
       resolveNextjsWebs(),
+      resolveAstroWebs(),
+      resolveNuxtWebs(),
+      resolveSvelteKitWebs(),
+      resolveSolidStartWebs(),
+      resolveTanStackWebs(),
+      resolveRemixWebs(),
       resolveEfsFilesystems(),
       resolveDevAgentRole(),
       resolveDebugAgentRole(),

@@ -35,6 +35,7 @@ import { awsResourceNames } from '@shared/naming/aws-resource-names';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import { stacktapeCloudfrontHeaders } from '@shared/naming/stacktape-cloudfront-headers';
 import { shortHash } from '@shared/utils/short-hash';
+import { isCompositeWebResourceType } from '@utils/composite-web-resources';
 import { getApexDomain } from '@utils/domains';
 import { ExpectedError, UnexpectedError } from '@utils/errors';
 import objectHash from 'object-hash';
@@ -1592,7 +1593,7 @@ export const getCloudfrontDnsRecord = (
     AliasTarget: {
       DNSName: GetAtt(
         cfLogicalNames.cloudfrontDistribution(
-          (resource.configParentResourceType === 'nextjs-web'
+          (isCompositeWebResourceType(resource.configParentResourceType)
             ? configManager.findImmediateParent({ nameChain: resource.nameChain })
             : resource
           ).name,
@@ -1632,7 +1633,7 @@ export const getCdnDefaultDomainCustomResource = ({
       targetInfo: {
         domainName: GetAtt(
           cfLogicalNames.cloudfrontDistribution(
-            (resource.configParentResourceType === 'nextjs-web'
+            (isCompositeWebResourceType(resource.configParentResourceType)
               ? configManager.findImmediateParent({ nameChain: resource.nameChain })
               : resource
             ).name,

@@ -14,6 +14,7 @@ import { devTuiManager } from 'src/app/tui-manager/dev-tui';
 import { devTuiState } from 'src/app/tui-manager/dev-tui/state';
 import type { DevTuiState } from 'src/app/tui-manager/dev-tui/types';
 import { initializeStackServicesForDevPhase1, initializeStackServicesForDevPhase2 } from '../_utils/initialization';
+import { ensureMissingSecretsCreated } from '../_utils/secret-preflight';
 import {
   buildAgentReadyMessage,
   deleteAgentLockFile,
@@ -49,7 +50,7 @@ import { registerCredentialCleanupHook } from './utils';
 type DevCompatibleResource = {
   name: string;
   type: string;
-  category: 'container' | 'function' | 'hosting-bucket' | 'nextjs-web';
+  category: 'container' | 'function' | 'hosting-bucket' | 'nextjs-web' | 'ssr-web';
   hostingContentType?: string;
 };
 
@@ -92,7 +93,27 @@ const getDevCompatibleResources = (): DevCompatibleResource[] => {
     type: 'nextjs-web' as const,
     category: 'nextjs-web' as const
   }));
-  return [...containerWorkloads, ...functions, ...hostingBuckets, ...nextjsWebs];
+  const ssrWebs = [
+    ...configManager.astroWebs.map((r) => ({ name: r.name, type: 'astro-web' as const, category: 'ssr-web' as const })),
+    ...configManager.nuxtWebs.map((r) => ({ name: r.name, type: 'nuxt-web' as const, category: 'ssr-web' as const })),
+    ...configManager.sveltekitWebs.map((r) => ({
+      name: r.name,
+      type: 'sveltekit-web' as const,
+      category: 'ssr-web' as const
+    })),
+    ...configManager.solidstartWebs.map((r) => ({
+      name: r.name,
+      type: 'solidstart-web' as const,
+      category: 'ssr-web' as const
+    })),
+    ...configManager.tanstackWebs.map((r) => ({
+      name: r.name,
+      type: 'tanstack-web' as const,
+      category: 'ssr-web' as const
+    })),
+    ...configManager.remixWebs.map((r) => ({ name: r.name, type: 'remix-web' as const, category: 'ssr-web' as const }))
+  ];
+  return [...containerWorkloads, ...functions, ...hostingBuckets, ...nextjsWebs, ...ssrWebs];
 };
 
 /**
@@ -462,6 +483,8 @@ export const commandDev = async () => {
   const metadataSpinner = multiSpinner.add('dev-metadata', 'Loading metadata from AWS');
   await initializeStackServicesForDevPhase2();
   metadataSpinner.success();
+
+  await ensureMissingSecretsCreated();
 
   if (isLegacy) {
     // Legacy mode: require existing deployed stack

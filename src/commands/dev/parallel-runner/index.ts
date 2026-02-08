@@ -27,6 +27,8 @@ import { detectLambdasNeedingTunnels, updateLambdaEnvVarsWithTunnels } from '../
 import { categorizeConnectToResources, getLocalResourceEnvVars, startLocalResources } from '../local-resources';
 import { startHealthMonitoring } from '../local-resources/health-monitor';
 import { startNextjsWebDevServer } from '../nextjs-web';
+import { startSsrWebDevServer } from '../ssr-web';
+import type { SsrWebResourceType } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/_utils/ssr-web-shared';
 import { startTunnel } from '../tunnel-manager';
 import {
   clearCredentialExpiryTimer,
@@ -39,7 +41,7 @@ import {
 } from '../utils';
 import { updateAgentWorkloadStatus } from '../agent-server';
 
-type WorkloadType = 'container' | 'function' | 'hosting-bucket' | 'nextjs-web';
+type WorkloadType = 'container' | 'function' | 'hosting-bucket' | 'nextjs-web' | 'ssr-web';
 
 type WorkloadInfo = {
   name: string;
@@ -293,6 +295,8 @@ export const runParallelWorkloads = async (
       return startHostingBucketWorkload(resource.name, allLocalEnvVars);
     } else if (resource.category === 'nextjs-web') {
       return startNextjsWebWorkload(resource.name, allLocalEnvVars);
+    } else if (resource.category === 'ssr-web') {
+      return startSsrWebWorkload(resource.name, resource.type, allLocalEnvVars);
     }
   });
 
@@ -335,6 +339,24 @@ const getConfigResource = (name: string, type: string): any => {
   }
   if (type === 'nextjs-web') {
     return configManager.nextjsWebs.find((n) => n.name === name);
+  }
+  if (type === 'astro-web') {
+    return configManager.astroWebs.find((r) => r.name === name);
+  }
+  if (type === 'nuxt-web') {
+    return configManager.nuxtWebs.find((r) => r.name === name);
+  }
+  if (type === 'sveltekit-web') {
+    return configManager.sveltekitWebs.find((r) => r.name === name);
+  }
+  if (type === 'solidstart-web') {
+    return configManager.solidstartWebs.find((r) => r.name === name);
+  }
+  if (type === 'tanstack-web') {
+    return configManager.tanstackWebs.find((r) => r.name === name);
+  }
+  if (type === 'remix-web') {
+    return configManager.remixWebs.find((r) => r.name === name);
   }
   return configManager.allContainerWorkloads.find((r) => r.nameChain[0] === name);
 };
@@ -762,6 +784,57 @@ const startNextjsWebWorkload = async (resourceName: string, localEnvVars: Record
 
       const restartResult = await startNextjsWebDevServer({
         name: resourceName,
+        localWorkloadEnvVars: localEnvVars
+      });
+
+      if (!inRebuildPhase && useDevTui && restartResult.status === 'ready') {
+        devTuiManager.setWorkloadStatus(resourceName, 'running', { url: restartResult.url });
+      }
+    }
+  });
+};
+
+const startSsrWebWorkload = async (
+  resourceName: string,
+  resourceType: string,
+  localEnvVars: Record<string, string>
+): Promise<void> => {
+  const useDevTui = devTuiManager.running;
+
+  if (useDevTui) {
+    devTuiManager.setWorkloadStatus(resourceName, 'starting', { statusMessage: 'Starting dev server...' });
+  }
+
+  await startSsrWebDevServer({
+    name: resourceName,
+    resourceType: resourceType as SsrWebResourceType,
+    localWorkloadEnvVars: localEnvVars
+  });
+
+  state.workloads.set(resourceName, {
+    name: resourceName,
+    type: 'ssr-web',
+    resourceType,
+    sourceFiles: [],
+    envVars: localEnvVars,
+    rebuild: async () => {
+      const inRebuildPhase = devTuiManager.inRebuildPhase;
+
+      if (inRebuildPhase) {
+        devTuiManager.setRebuildStep(resourceName, 'stopping');
+      } else if (useDevTui) {
+        devTuiManager.setWorkloadStatus(resourceName, 'starting', { statusMessage: 'Restarting...' });
+      } else {
+        tuiManager.info(`[${resourceName}] Restarting dev server...`);
+      }
+
+      if (inRebuildPhase) {
+        devTuiManager.setRebuildStep(resourceName, 'starting');
+      }
+
+      const restartResult = await startSsrWebDevServer({
+        name: resourceName,
+        resourceType: resourceType as SsrWebResourceType,
         localWorkloadEnvVars: localEnvVars
       });
 

@@ -207,6 +207,12 @@ export const RESOURCE_DEFAULTS: { [_resourceType in StpResourceType]: Partial<St
     instanceSize: 't3.micro'
   },
   'nextjs-web': {},
+  'astro-web': {},
+  'nuxt-web': {},
+  'sveltekit-web': {},
+  'solidstart-web': {},
+  'tanstack-web': {},
+  'remix-web': {},
   'open-search-domain': {},
   'efs-filesystem': {},
   'network-load-balancer': {}

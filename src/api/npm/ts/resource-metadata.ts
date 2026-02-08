@@ -110,6 +110,12 @@ export const REFERENCEABLE_PARAMS: Record<string, Array<{ name: string; descript
     { name: 'id', description: 'EFS ID' }
   ],
   'nextjs-web': [{ name: 'url', description: 'Website URL' }],
+  'astro-web': [{ name: 'url', description: 'Website URL' }],
+  'nuxt-web': [{ name: 'url', description: 'Website URL' }],
+  'sveltekit-web': [{ name: 'url', description: 'Website URL' }],
+  'solidstart-web': [{ name: 'url', description: 'Website URL' }],
+  'tanstack-web': [{ name: 'url', description: 'Website URL' }],
+  'remix-web': [{ name: 'url', description: 'Website URL' }],
   'multi-container-workload': [{ name: 'logGroupArn', description: 'Log group ARN' }],
   'sqs-queue': [
     { name: 'arn', description: 'Queue ARN' },

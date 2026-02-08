@@ -24,6 +24,7 @@ import { cfEvaluatedLinks } from '@shared/naming/cf-evaluated-links';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import { tagNames } from '@shared/naming/tag-names';
 import { PARENT_IDENTIFIER_SHARED_GLOBAL } from '@shared/utils/constants';
+import { isCompositeWebResourceType } from '@utils/composite-web-resources';
 import { getAugmentedEnvironment } from '@utils/environment';
 import { ExpectedError } from '@utils/errors';
 import { resolveAlarmsForResource } from '../_utils/alarms';
@@ -768,12 +769,14 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
         stpResourceName: name,
         cdn: true,
         customPrefix:
-          configParentResourceType === 'nextjs-web' &&
+          isCompositeWebResourceType(configParentResourceType) &&
           `${configManager.findImmediateParent({ nameChain }).name.toLowerCase()}-${globalStateManager.targetStack.stackName}`
       });
       calculatedStackOverviewManager.addCfChildResource({
         cfLogicalName: cfLogicalNames.cloudfrontDistribution(
-          configParentResourceType === 'nextjs-web' ? configManager.findImmediateParent({ nameChain }).name : name,
+          isCompositeWebResourceType(configParentResourceType)
+            ? configManager.findImmediateParent({ nameChain }).name
+            : name,
           0
         ),
         nameChain,
@@ -787,7 +790,9 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
       });
       calculatedStackOverviewManager.addCfChildResource({
         cfLogicalName: cfLogicalNames.customResourceDefaultDomain(
-          configParentResourceType === 'nextjs-web' ? configManager.findImmediateParent({ nameChain }).name : name,
+          isCompositeWebResourceType(configParentResourceType)
+            ? configManager.findImmediateParent({ nameChain }).name
+            : name,
           true
         ),
         nameChain,
@@ -817,7 +822,9 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
         allCustomCdnDomains.push(...domains);
         calculatedStackOverviewManager.addCfChildResource({
           cfLogicalName: cfLogicalNames.cloudfrontDistribution(
-            configParentResourceType === 'nextjs-web' ? configManager.findImmediateParent({ nameChain }).name : name,
+            isCompositeWebResourceType(configParentResourceType)
+              ? configManager.findImmediateParent({ nameChain }).name
+              : name,
             cloudfrontDistributionIndex
           ),
           nameChain,
@@ -858,7 +865,7 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
           nameChain,
           paramValue: GetAtt(
             cfLogicalNames.cloudfrontDistribution(
-              (configParentResourceType === 'nextjs-web'
+              (isCompositeWebResourceType(configParentResourceType)
                 ? configManager.findImmediateParent({ nameChain })
                 : lambdaProps
               ).name,
@@ -876,7 +883,7 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
             cloudfrontDistributions.map((_, idx) =>
               GetAtt(
                 cfLogicalNames.cloudfrontDistribution(
-                  (configParentResourceType === 'nextjs-web'
+                  (isCompositeWebResourceType(configParentResourceType)
                     ? configManager.findImmediateParent({ nameChain })
                     : lambdaProps
                   ).name,
