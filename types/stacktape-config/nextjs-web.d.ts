@@ -1,10 +1,10 @@
 /**
- * #### A resource for deploying and hosting Next.js applications.
+ * #### Deploy a Next.js app with SSR on AWS Lambda, static assets on S3, and a CloudFront CDN.
  *
  * ---
  *
- * This resource is purpose-built for Next.js and runs your application's server-side logic in AWS Lambda or Lambda@Edge.
- * It seamlessly integrates your Next.js application with other resources in your infrastructure.
+ * Handles ISR (Incremental Static Regeneration), image optimization, and middleware out of the box.
+ * Optionally deploy to Lambda@Edge for lower latency or enable response streaming.
  */
 interface NextjsWeb {
   type: 'nextjs-web';
@@ -14,130 +14,74 @@ interface NextjsWeb {
 
 interface NextjsWebProps extends ResourceAccessProps {
   /**
-   * #### The root directory of your Next.js application.
-   *
-   * ---
-   *
-   * This should be the path to the directory containing your `next.config.js` file.
-   * If you are using a monorepo, this will be the path to your Next.js workspace. Otherwise, it's typically `./`.
+   * #### Directory containing your `next.config.js`. For monorepos, point to the Next.js workspace.
    */
   appDirectory: string;
   /**
-   * #### Overrides for the server-side Lambda function.
-   *
-   * ---
-   *
-   * Use this to customize the memory, timeout, or other properties of the Lambda function that handles server-side rendering.
+   * #### Customize the SSR Lambda function (memory, timeout, VPC, logging).
    */
   serverLambda?: NextjsServerLambdaProperties;
   /**
-   * #### The number of server-side Lambda instances to keep warm.
+   * #### Number of Lambda instances to keep warm (pre-initialized) to reduce cold starts.
    *
    * ---
    *
-   * To mitigate cold starts and improve response times, you can keep a specified number of Lambda instances "warm" (pre-initialized).
-   * This is done by a separate "warmer" function that periodically invokes the server-side function.
-   *
-   * > **Note:** This feature is not available when using Lambda@Edge (`useEdgeLambda: true`).
+   * A separate "warmer" function periodically pings the SSR Lambda. Not available with `useEdgeLambda: true`.
    *
    * @default 0
    */
   warmServerInstances?: number;
   /**
-   * #### Deploys the server-side function to Lambda@Edge.
+   * #### Run SSR at CloudFront edge locations for lower latency worldwide.
    *
    * ---
    *
-   * When enabled, your server-side rendering logic will run at AWS edge locations, closer to your users, which can significantly reduce latency.
-   *
-   * **Trade-offs:**
-   * - Slower deployment times compared to a standard regional Lambda.
-   * - The "warming" feature (`warmServerInstances`) is not supported.
+   * **Trade-offs:** Slower deploys, no `warmServerInstances`, no response streaming.
    *
    * @default false
    */
   useEdgeLambda?: boolean;
   /**
-   * #### A custom build command for your Next.js application.
-   *
-   * ---
-   *
-   * If you have a custom build process, you can specify the command here.
+   * #### Override the default `next build` command.
    */
   buildCommand?: string;
   /**
-   * #### Dev server configuration for local development.
-   *
-   * ---
-   *
-   * Configures the dev server process for local development. Used by the `dev` command.
-   *
-   * If not specified, defaults to `next dev` in the app directory.
+   * #### Dev server config for `stacktape dev`. Defaults to `next dev`.
    */
   dev?: {
     /**
-     * #### The dev server command to execute.
-     *
-     * ---
-     *
-     * Examples:
-     * - `next dev`
-     * - `npm run dev`
+     * #### Dev server command (e.g., `npm run dev`).
      *
      * @default "next dev"
      */
     command?: string;
   };
   /**
-   * #### Sets custom headers for static files.
-   *
-   * ---
-   *
-   * This allows you to define headers, such as `Cache-Control` or `Content-Type`, for files that match a specified pattern.
+   * #### Set custom headers (e.g., `Cache-Control`) for static files matching a pattern.
    */
   fileOptions?: DirectoryUploadFilter[];
   /**
-   * #### A list of environment variables to inject into the server-side function.
-   *
-   * ---
-   *
-   * This is useful for providing configuration details, such as API keys or database connection strings, to your server-side rendering logic.
+   * #### Environment variables for the SSR function. Use `$ResourceParam()` or `$Secret()` for dynamic values.
    */
   environment?: EnvironmentVar[];
   /**
-   * #### Attaches custom domains to your Next.js application.
+   * #### Attach custom domains with auto-managed DNS records and TLS certificates.
    *
    * ---
    *
-   * Stacktape can automatically manage DNS records and TLS certificates for your custom domains.
-   *
-   * When you attach a custom domain, Stacktape will:
-   * - Create the necessary DNS records in Route 53 to point your domain to the application.
-   * - Provision and manage a free, auto-renewing AWS Certificate Manager (ACM) TLS certificate for HTTPS.
-   *
-   * > **Prerequisite:** You must have a hosted zone for your domain in your AWS account.
-   * > For more details, see the [Stacktape documentation on domains](https://docs.stacktape.com/other-resources/domains-and-certificates/#adding-domain).
+   * **Prerequisite:** A Route 53 hosted zone for your domain must exist in your AWS account.
    */
   customDomains?: DomainConfiguration[];
   /**
-   * #### The name of a `web-app-firewall` to protect your application.
-   *
-   * ---
-   *
-   * A web application firewall (WAF) can help protect your application from common web-based attacks.
-   * For more information, see the [Stacktape documentation on web application firewalls](https://docs.stacktape.com/security-resources/web-app-firewalls/).
+   * #### Name of a `web-app-firewall` resource to protect this app. Firewall `scope` must be `cdn`.
    */
   useFirewall?: string;
   /**
-   * #### Enables response streaming for the server-side function.
+   * #### Stream SSR responses for faster Time to First Byte and up to 20 MB response size (vs 6 MB default).
    *
    * ---
    *
-   * **Benefits:**
-   * - Improves Time to First Byte (TTFB) for faster page loads.
-   * - Increases the maximum response size to 20MB (from the standard 6MB).
-   *
-   * > **Note:** This is an experimental feature and is not compatible with Lambda@Edge (`useEdgeLambda: true`).
+   * Not compatible with `useEdgeLambda: true`.
    *
    * @default false
    */
@@ -164,49 +108,27 @@ type StpNextjsWeb = NextjsWeb['properties'] & {
 
 interface NextjsServerLambdaProperties {
   /**
-   * #### The amount of memory (in MB) allocated to the server-side function.
-   *
-   * ---
-   *
-   * This setting also influences the amount of CPU power your function receives.
-   * The value must be between 128 MB and 10,240 MB.
+   * #### Memory in MB (128–10,240). CPU scales proportionally — 1,769 MB = 1 vCPU.
    *
    * @default 1024
    */
   memory?: number;
   /**
-   * #### The maximum execution time for the server-side function, in seconds.
-   *
-   * ---
-   *
-   * The maximum allowed timeout is 30 seconds.
+   * #### Max execution time in seconds. Max: 30.
    *
    * @default 30
    */
   timeout?: number;
   /**
-   * #### Configures the logging behavior for the server-side function.
-   *
-   * ---
-   *
-   * Function logs (`stdout` and `stderr`) are automatically sent to a CloudWatch log group.
-   *
-   * You can view logs in two ways:
-   *   - Through the AWS CloudWatch console. Use the `stacktape stack-info` command to get a direct link.
-   *   - Using the `stacktape logs` command to stream logs directly to your terminal.
+   * #### Logging config. Logs are sent to CloudWatch. View with `stacktape logs` or in the AWS console.
    */
   logging?: LambdaFunctionLogging;
   /**
-   * #### Connects the server-side function to your stack's default Virtual Private Cloud (VPC).
+   * #### Connect to VPC resources (databases, Redis). **Warning:** function loses direct internet access.
    *
    * ---
    *
-   * Connecting to a VPC is necessary to access resources within that VPC, such as relational databases or Redis clusters.
-   *
-   * > **Important:** When a function joins a VPC, it loses direct internet access.
-   *
-   * If your function needs to access S3 or DynamoDB, Stacktape automatically creates VPC endpoints to ensure connectivity.
-   * For more details, see the [Stacktape VPCs documentation](https://docs.stacktape.com/user-guides/vpcs).
+   * S3 and DynamoDB remain accessible via auto-created VPC endpoints.
    */
   joinDefaultVpc?: boolean;
 }

@@ -3,11 +3,11 @@ type DeploymentNotificationUserIntegration = MsTeamsIntegration | SlackIntegrati
 interface DeploymentNotificationDefinition {
   integration: DeploymentNotificationUserIntegration;
   /**
-   * #### Disables notifications for stages other than those specified in this list.
+   * #### Only send notifications for these stages. If omitted, notifications are sent for all stages.
    */
   forStages: string[];
   /**
-   * #### Disables notifications for services other than those specified in this list.
+   * #### Only send notifications for these services. If omitted, notifications are sent for all services.
    */
   forServices: string[];
 }

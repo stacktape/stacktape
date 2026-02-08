@@ -1,9 +1,5 @@
 /**
- * #### Redis cluster
- *
- * ---
- *
- * A fully managed, Redis-compatible in-memory data store with sub-millisecond latency.
+ * #### In-memory data store for caching, sessions, queues, and real-time data. Sub-millisecond latency.
  */
 interface RedisCluster {
   type: 'redis-cluster';
@@ -20,73 +16,57 @@ type StpRedisCluster = RedisCluster['properties'] & {
 
 interface RedisClusterProps {
   /**
-   * #### Enables sharding for the cluster.
+   * #### Split data across multiple shards for horizontal scaling.
    *
    * ---
    *
-   * Sharding allows you to scale your Redis cluster horizontally by splitting the data across multiple shards.
-   * Each shard is managed by its own cluster, which includes a primary instance and a specified number of replicas.
-   * You can increase or decrease the number of shards without interrupting the cluster.
-   * Routing and re-balancing are handled automatically by AWS.
+   * Each shard has its own primary + replicas. Routing is automatic.
    *
-   * > **Limitations:**
-   * > - Sharding can only be enabled when the cluster is first created.
-   * > - You cannot change the number of replica nodes (`numReplicaNodes`) after a sharded cluster has been created.
-   * > - `numReplicaNodes` must be at least `1` for sharded clusters.
-   *
-   * For more details, see the [AWS documentation](https://docs.stacktape.com/resources/redis-clusters/#sharded-cluster).
+   * > **Must be set at creation time** — can't be added later.
+   * > Requires `numReplicaNodes >= 1`. Replica count can't be changed after creation.
    */
   enableSharding?: boolean;
   /**
-   * #### The number of shards for the cluster.
-   *
-   * ---
-   *
-   * This property is only effective when `enableSharding` is `true`.
-   *
+   * #### Number of shards (only with `enableSharding: true`).
    * @default 1
    */
   numShards?: number;
   /**
-   * #### The number of replica nodes in the cluster.
+   * #### Read replicas per shard. Increases read throughput and availability.
    *
    * ---
    *
-   * Adding replica nodes (read replicas) provides two main benefits:
-   * 1.  **Increased read throughput:** Read requests are distributed across the replicas.
-   * 2.  **Increased availability:** If the primary node fails, a replica can be promoted to take its place.
-   *
-   * Load balancing between replicas is handled automatically by AWS.
-   * For sharded clusters, this property specifies the number of replicas for each shard.
-   *
-   * > **Note:** You cannot change this value for a sharded cluster after it has been created.
+   * If the primary fails and `enableAutomaticFailover` is on, a replica takes over.
+   * Can't be changed after creation for sharded clusters.
    *
    * @default 0
    */
   numReplicaNodes?: number;
   /**
-   * #### Enables automatic failover of the cluster's primary instance.
+   * #### Auto-promote a replica to primary if the primary node fails.
    *
    * ---
    *
-   * When enabled, a replica will automatically be promoted to primary if the original primary node fails.
-   * `numReplicaNodes` must be at least `1` to use this feature.
-   * On sharded clusters, automatic failover is always enabled and cannot be disabled.
+   * Requires `numReplicaNodes >= 1`. Always enabled for sharded clusters.
    *
-   * > **Important:** If you want to enable automatic failover, you must first deploy the cluster with at least one replica, and then enable failover in a subsequent deployment.
-   * > Similarly, to disable automatic failover, you must first disable it and then remove the replicas in a separate deployment.
+   * > Deploy replicas first, then enable failover in a separate deployment.
    */
   enableAutomaticFailover?: boolean;
   /**
-   * #### The instance size for every node in the cluster.
+   * #### The size of each Redis node. Affects memory, performance, and cost.
    *
    * ---
    *
-   * This applies to both primary and replica nodes.
-   * Different instance sizes offer varying amounts of memory and network performance.
-   * You can change the instance size without interrupting the cluster or losing data.
+   * **Quick guide:**
+   * - **`cache.t4g.micro`** (~$0.016/hr, 0.5 GB): Development, testing, low-traffic apps.
+   * - **`cache.t4g.small`** (~$0.032/hr, 1.37 GB): Small production apps, session stores.
+   * - **`cache.m7g.large`** (~$0.15/hr, 6.38 GB): Production workloads with moderate data.
+   * - **`cache.r7g.large`** (~$0.20/hr, 13.07 GB): Large datasets, memory-heavy caching.
    *
-   * For a detailed list of available instance types, see the [AWS pricing page](https://aws.amazon.com/elasticache/pricing/).
+   * **Families:** `t` = burstable (cheap, variable). `m` = general purpose. `r` = memory-optimized.
+   * Suffix `g` = ARM/Graviton (better price-performance).
+   *
+   * This size applies to every node (primary + replicas). You can change it later without data loss.
    */
   instanceSize:
     | 'cache.t3.micro'
@@ -150,88 +130,58 @@ interface RedisClusterProps {
     | 'cache.r4.8xlarge'
     | 'cache.r4.16xlarge';
   /**
-   * #### Configures the logging behavior and format.
-   *
-   * ---
-   *
-   * The [slow log](https://redis.io/commands/slowlog) is sent to a dedicated CloudWatch log group.
-   * By default, logs are retained for 180 days.
-   *
-   * You can access your logs in two ways:
-   * 1.  **AWS CloudWatch Console:** Use the `stacktape stack-info` command to get a direct link to the log group.
-   * 2.  **Stacktape CLI:** Use the [`stacktape logs` command](https://docs.stacktape.com/cli/commands/logs/) to view logs in your terminal.
+   * #### Slow query logging. Sent to CloudWatch; view with `stacktape logs`.
    */
   logging?: RedisLogging;
   /**
-   * #### The retention period for automated backups, in days.
-   *
-   * ---
-   *
-   * - When set to `0`, automatic backups are disabled.
-   * - This retention period does not apply to manual backups created in the AWS console or via the API.
-   *
+   * #### Days to keep automated daily backups. Set to 0 to disable.
    * @default 0
    */
   automatedBackupRetentionDays?: number;
   /**
-   * #### The port on which the Redis cluster will listen for connections.
-   *
+   * #### Port the cluster listens on.
    * @default 6379
    */
   port?: number;
   /**
-   * #### The password for the default cluster user.
+   * #### Cluster password. 16-128 chars, printable ASCII only. Cannot contain `/`, `"`, or `@`.
    *
    * ---
    *
-   * Redis clusters are password-protected, and all communication is encrypted in transit.
-   * It is recommended to use [secrets](/resources/secrets/) to manage this password instead of hardcoding it.
-   *
-   * **Password Constraints:**
-   * - Must contain only printable ASCII characters.
-   * - Must be between 16 and 128 characters long.
-   * - Cannot contain the following characters: `/`, `"`, or `@`.
+   * All traffic is encrypted in transit. Use `$Secret()` instead of hardcoding:
+   * ```yaml
+   * defaultUserPassword: $Secret('redis.password')
+   * ```
    */
   defaultUserPassword: string;
   /**
-   * #### Configures which resources and hosts can access your cluster.
+   * #### Network access control: `vpc` (default) or `scoping-workloads-in-vpc` (most restrictive).
    */
   accessibility?: RedisAccessibility;
   /**
-   * #### The Redis engine version to use.
-   *
-   * ---
-   *
+   * #### Redis engine version.
    * @default "6.2"
    */
   engineVersion?: '7.1' | '7.0' | '6.2' | '6.0';
   /**
-   * #### Dev Mode Configuration
-   *
-   * ---
-   *
-   * Configures how this Redis cluster behaves during `stacktape dev` mode.
-   * By default, Redis runs locally using Docker. Set `dev.remote: true` to connect to the deployed AWS Redis cluster instead.
+   * #### Dev mode: runs locally in Docker by default. Set `remote: true` to use the deployed cluster.
    */
   dev?: DevModeConfig;
 }
 
 interface RedisLogging extends LogForwardingBase {
   /**
-   * #### Disables the collection of [slow logs](https://redis.io/commands/slowlog-get) to CloudWatch.
-   *
+   * #### Disable slow query logging.
    * @default false
    */
   disabled?: boolean;
   /**
-   * #### The format for the logs.
-   *
+   * #### Log format.
    * @default json
    */
   format?: 'text' | 'json';
   /**
-   * #### The number of days to retain logs in the CloudWatch log group.
-   *
+   * #### How many days to keep logs.
    * @default 90
    */
   retentionDays?: 1 | 3 | 5 | 7 | 14 | 30 | 60 | 90 | 120 | 150 | 180 | 365 | 400 | 545 | 731 | 1827 | 3653;
@@ -239,20 +189,15 @@ interface RedisLogging extends LogForwardingBase {
 
 interface RedisAccessibility {
   /**
-   * #### The accessibility mode for this cluster.
+   * #### Who can connect to this cluster.
    *
    * ---
    *
-   * The following modes are supported:
+   * - **`vpc`** (default): Any resource in the same VPC (functions with `joinDefaultVpc: true`, containers, batch jobs).
+   * - **`scoping-workloads-in-vpc`**: Only resources that list this cluster in their `connectTo`.
    *
-   * - **`vpc`**: The cluster can only be accessed from resources within your VPC. This includes any [function](https://docs.stacktape.com/compute-resources/lambda-functions) (with `joinDefaultVpc: true`), [batch job](https://docs.stacktape.com/compute-resources/batch-jobs), or [container workload](https://docs.stacktape.com/compute-resources/multi-container-workloads) in your stack.
-   *
-   * - **`scoping-workloads-in-vpc`**: Similar to `vpc` mode, but more restrictive. In addition to being in the same VPC, resources must have the necessary security group permissions to access the cluster. For functions, batch jobs, and container services, these permissions can be granted using the `connectTo` property in their respective configurations.
-   *
-   * Redis clusters do not support public IP addresses, so you cannot connect to them directly from your local machine.
-   * You can use a bastion host to access the cluster, and native support for bastion hosts will be available in Stacktape soon.
-   *
-   * To learn more about VPCs, see the [VPC documentation](https://docs.stacktape.com/user-guides/vpcs/).
+   * Redis clusters don't have public IPs — you can't connect from your local machine directly.
+   * Use a bastion host for local access.
    *
    * @default vpc
    */

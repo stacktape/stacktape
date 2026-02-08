@@ -1,9 +1,10 @@
 /**
- * #### A serverless Redis database from Upstash.
+ * #### Serverless Redis by Upstash — pay-per-request with no idle costs.
  *
  * ---
  *
- * Upstash Redis is designed for low-latency data storage and caching at the edge, making it ideal for serverless and globally distributed applications.
+ * Perfect for Lambda-based apps where a traditional Redis cluster would be wasteful.
+ * Accessible over HTTPS (REST API) or standard Redis protocol. Great for caching, sessions, rate limiting.
  */
 interface UpstashRedis {
   type: 'upstash-redis';
@@ -20,12 +21,11 @@ type StpUpstashRedis = UpstashRedis['properties'] & {
 
 interface UpstashRedisProps {
   /**
-   * #### Enables automatic eviction of keys when the memory limit is reached.
+   * #### Auto-remove old keys when memory is full. Prioritizes keys with TTL set. Enable for cache use cases.
    *
    * ---
    *
-   * When enabled, Redis will remove keys to free up memory for new data.
-   * It uses an eviction policy that prioritizes removing keys with an expiration set.
+   * Without eviction, writes fail once the memory limit is reached. Enable this for caching workloads.
    *
    * @default false
    */

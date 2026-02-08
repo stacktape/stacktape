@@ -1,10 +1,11 @@
 /**
- * #### State Machine
+ * #### Visual workflow engine for orchestrating Lambda functions, API calls, and other AWS services.
  *
  * ---
  *
- * A state machine allows you to orchestrate and coordinate multiple compute resources to create complex workflows.
- * It is defined using the [Amazon States Language](https://states-language.net/spec.html).
+ * Define multi-step workflows with branching, retries, parallel execution, and error handling —
+ * all without writing orchestration code. Pay per state transition (~$0.025/1,000 transitions).
+ * Defined using [Amazon States Language (ASL)](https://states-language.net/spec.html).
  */
 interface StateMachine {
   type: 'state-machine';
@@ -14,11 +15,7 @@ interface StateMachine {
 
 interface StateMachineProps {
   /**
-   * #### The definition of the state machine.
-   *
-   * ---
-   *
-   * This is written in the [Amazon States Language](https://states-language.net/spec.html).
+   * #### The workflow definition in [Amazon States Language (ASL)](https://states-language.net/spec.html).
    */
   definition: StateMachineDefinition;
 }

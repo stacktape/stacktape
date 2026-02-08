@@ -1,19 +1,18 @@
 interface SlackIntegrationProps {
   /**
-   * #### The ID of the channel, direct message, multi-person direct message, or group.
+   * #### The Slack channel or DM ID to send notifications to.
    *
    * ---
    *
-   * To get the conversation ID for a channel, navigate to the channel and click on its name.
-   * The ID is located at the bottom of the **About** tab.
+   * To find the ID: open the channel, click its name, and look at the bottom of the **About** tab.
    */
   conversationId: string;
   /**
-   * #### The Bot User OAuth Token.
+   * #### Bot User OAuth Token for your Slack app. Store as `$Secret()` for security.
    *
    * ---
    *
-   * You can get an access token by following the first two steps in [this Slack guide](https://slack.dev/node-slack-sdk/getting-started).
+   * Create a Slack app, add the `chat:write` scope, install it to your workspace, then copy the Bot User OAuth Token.
    */
   accessToken: string;
 }
@@ -25,11 +24,11 @@ interface SlackIntegration {
 
 interface MsTeamsIntegrationProps {
   /**
-   * #### The URL that allows Stacktape to send a notification to the associated channel.
+   * #### Incoming Webhook URL for the MS Teams channel. Store as `$Secret()` for security.
    *
    * ---
    *
-   * You can get this URL by following [this guide](https://docs.microsoft.com/en-us/microsoftteams/platform/webhooks-and-connectors/how-to/add-incoming-webhook#create-incoming-webhook-1).
+   * Create an Incoming Webhook connector in your Teams channel settings to get this URL.
    */
   webhookUrl: string;
 }

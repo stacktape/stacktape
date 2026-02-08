@@ -1,11 +1,10 @@
 /**
- * #### Event Bus
+ * #### Central event bus for decoupling services. Publish events and trigger functions, queues, or batch jobs.
  *
  * ---
  *
- * An event bus that receives events from your applications. Other services can be configured to react to events on the bus. It simplifies building event-driven architectures by decoupling event producers and consumers.
- *
- * For more information, see the [AWS documentation on Amazon EventBridge](https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-event-buses.html).
+ * Use to build event-driven architectures where producers and consumers are independent.
+ * Functions, batch jobs, and other resources can subscribe to specific event patterns.
  */
 interface EventBus {
   type: 'event-bus';
@@ -15,44 +14,23 @@ interface EventBus {
 
 interface EventBusProps {
   /**
-   * #### Partner Event Source
-   *
-   * ---
-   *
-   * The name of the partner event source to associate with this event bus. This is only required if you are creating a partner event bus to receive events from a third-party SaaS partner.
-   *
-   * For more details, refer to the [AWS documentation on partner event buses](https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-partner-event-buses.html).
+   * #### Partner event source name. Only needed for receiving events from third-party SaaS integrations.
    */
   eventSourceName?: string;
   /**
-   * #### Event Archiving
-   *
-   * ---
-   *
-   * Configures event archiving, allowing you to store and replay past events. This is useful for testing, debugging, or recovering from errors.
+   * #### Archive events to store and replay them later. Useful for debugging, testing, or error recovery.
    */
   archivation?: EventBusArchivation;
 }
 
 interface EventBusArchivation {
   /**
-   * #### Enable Archiving
-   *
-   * ---
-   *
-   * If `true`, events sent to this event bus will be archived.
-   *
-   * Note: Disabling the archive will result in its deletion.
-   *
+   * #### Enable event archiving. Disabling deletes the archive.
    * @default false
    */
   enabled: boolean;
   /**
-   * #### Retention Period
-   *
-   * ---
-   *
-   * The number of days to retain archived events. Default is indefinitely.
+   * #### Days to keep archived events. Omit to keep indefinitely.
    */
   retentionDays?: number;
 }

@@ -2,63 +2,43 @@ type AlarmUserIntegration = MsTeamsIntegration | SlackIntegration | EmailIntegra
 
 interface AlarmDefinitionBase {
   /**
-   * #### Specifies the time window for evaluating the metric to determine if the alarm should be triggered.
+   * #### How long and how often to evaluate the metric before triggering.
    *
    * ---
    *
-   * Defines the duration and frequency of metric evaluation.
+   * Controls the evaluation window (period), how many periods to look at, and how many must breach
+   * the threshold to fire the alarm. Useful for filtering out short spikes.
    */
   evaluation?: AlarmEvaluation;
   /**
-   * #### Defines where to send notifications when the alarm is triggered.
-   *
-   * ---
-   *
-   * You can specify a list of integrations, such as Slack, MS Teams, or email.
+   * #### Where to send notifications when the alarm fires — Slack, MS Teams, or email.
    */
   notificationTargets?: AlarmUserIntegration[];
   /**
-   * #### Custom description for the alarm
-   * ---
-   * - If custom description is specified, it is used in the alarm notification message
-   * - Custom description is also used in the alarm description in the AWS console (If not provided, Stacktape generates default description.)
+   * #### Custom alarm description used in notification messages and the AWS console.
    */
   description?: string;
 }
 
 interface AlarmDefinition extends AlarmDefinitionBase {
   /**
-   * #### A descriptive name for the alarm.
-   *
-   * ---
-   *
-   * For example, `lambda-error-notifier`.
+   * #### A unique name for this alarm (e.g., `api-error-rate`, `db-cpu-high`).
    */
   name: string;
   /**
-   * #### Defines the specific metric and threshold that will trigger the alarm.
+   * #### The metric and threshold that fires this alarm.
    *
    * ---
    *
-   * - `type` specifies the metric to monitor (e.g., CPU utilization, error rate).
-   * - `properties` define the resource to monitor, the threshold, and other optional settings.
-   * - New trigger types are added regularly. If you need a specific one, feel free to open an [issue on GitHub](https://github.com/stacktape/stacktape/issues).
+   * `type` selects what to monitor (error rate, CPU, latency, etc.) and `properties` set the threshold.
    */
   trigger: AlarmTrigger;
   /**
-   * #### An optional list of service names to which this alarm applies.
-   *
-   * ---
-   *
-   * If you provide a list of service names, this alarm will only be active for those services. If omitted, it applies to all services.
+   * #### Only activate this alarm for these services. If omitted, applies to all services.
    */
   forServices?: string[];
   /**
-   * #### An optional list of stage names to which this alarm applies.
-   *
-   * ---
-   *
-   * If you provide a list of stage names (e.g., `production`, `staging`), this alarm will only be active for those stages. If omitted, it applies to all stages.
+   * #### Only activate this alarm for these stages (e.g., `production`). If omitted, applies to all stages.
    */
   forStages?: string[];
 }
@@ -123,37 +103,28 @@ type AlarmTriggerType = AlarmTrigger['type'];
 
 interface AlarmEvaluation {
   /**
-   * #### The duration (in seconds) of a single evaluation period.
-   *
-   * ---
-   *
-   * This value determines how long to collect data for a single data point. It must be a multiple of 60.
+   * #### Duration of one evaluation period in seconds. Must be a multiple of 60.
    *
    * @default 60
    */
   period?: number;
   /**
-   * #### The number of most recent periods to evaluate.
+   * #### How many recent periods to evaluate. Prevents alarms from firing on short spikes.
    *
    * ---
    *
-   * The alarm is triggered only if the condition is met for a specified number of these periods (`breachedPeriods`).
-   * This helps prevent alarms from being triggered by temporary spikes.
-   *
-   * For example, a sudden, short-lived spike in CPU utilization might not be a problem.
-   * However, if the CPU utilization stays high for several consecutive periods, it could indicate an issue that requires attention.
+   * Example: set to `5` with `breachedPeriods: 3` — the alarm fires only if the threshold is breached
+   * in at least 3 of the last 5 periods.
    *
    * @default 1
    */
   evaluationPeriods?: number;
   /**
-   * #### The number of periods (within `evaluationPeriods`) that must breach the threshold to trigger the alarm.
+   * #### How many periods (within `evaluationPeriods`) must breach the threshold to fire the alarm.
    *
    * ---
    *
-   * This allows you to configure the alarm's sensitivity. For example, if you set `evaluationPeriods` to 5 and `breachedPeriods` to 3, the alarm will only trigger if the metric exceeds the threshold in at least 3 of the 5 most recent periods.
-   *
-   * This value must be less than or equal to `evaluationPeriods`.
+   * Must be ≤ `evaluationPeriods`.
    *
    * @default 1
    */
@@ -162,16 +133,12 @@ interface AlarmEvaluation {
 
 interface SqsQueueNotEmptyTrigger {
   /**
-   * #### Type of the trigger.
+   * #### Fires when the SQS queue has unprocessed messages.
    *
    * ---
    *
-   * Triggers an alarm if the SQS queue is not empty.
-   * A queue is considered empty if all of the following metrics are 0 for the evaluation period:
-   *   - `ApproximateNumberOfMessagesVisible`
-   *   - `ApproximateNumberOfMessagesNotVisible`
-   *   - `NumberOfMessagesReceived`
-   *   - `NumberOfMessagesSent`
+   * The queue is considered "not empty" if any of these are non-zero: visible messages,
+   * in-flight messages, messages received, or messages sent.
    */
   type: 'sqs-queue-not-empty';
 }
@@ -183,13 +150,12 @@ interface SqsQueueReceivedMessagesCountTrigger {
 
 interface SqsQueueReceivedMessagesCountTriggerProps extends TriggerWithCustomComparison, TriggerWithCustomStatFunction {
   /**
-   * #### The threshold for the number of messages received.
+   * #### Fires when received message count crosses this threshold.
    *
    * ---
    *
-   * Triggers an alarm when the number of messages received from an SQS queue crosses the defined threshold.
-   * By default, it's triggered if the **average** number of received messages (based on the `NumberOfMessagesReceived` metric) over the evaluation period is **greater than** the `thresholdCount`.
-   * You can customize the behavior using the `statistic` and `comparisonOperator` properties.
+   * Default: fires if **average** messages received per period > `thresholdCount`.
+   * Customize with `statistic` and `comparisonOperator`.
    */
   thresholdCount: number;
 }
@@ -201,12 +167,11 @@ interface ApplicationLoadBalancerErrorRateTrigger {
 
 interface ApplicationLoadBalancerErrorRateTriggerProps extends TriggerWithCustomComparison {
   /**
-   * #### The error rate percentage that triggers the alarm.
+   * #### Fires when 4xx/5xx error rate exceeds this percentage.
    *
    * ---
    *
-   * The error rate is the percentage of total requests that result in a 4xx or 5xx HTTP status code.
-   * For example, a value of 5 means the alarm will trigger if more than 5% of requests result in an error.
+   * Example: `5` fires the alarm if more than 5% of requests return errors.
    */
   thresholdPercent: number;
 }
@@ -218,20 +183,19 @@ interface ApplicationLoadBalancerUnhealthyTargetsTrigger {
 
 interface ApplicationLoadBalancerUnhealthyTargetsTriggerProps extends TriggerWithCustomComparison {
   /**
-   * #### The percentage of unhealthy targets that triggers the alarm.
+   * #### Fires when the percentage of unhealthy targets exceeds this value.
    *
    * ---
    *
-   * An Application Load Balancer routes traffic to multiple targets (e.g., containers). This alarm triggers if the percentage of unhealthy targets exceeds the specified threshold.
-   * If the load balancer has multiple target groups, the alarm will trigger if *any* of them breach the threshold.
+   * If the load balancer has multiple target groups, the alarm fires if *any* group breaches the threshold.
    */
   thresholdPercent: number;
   /**
-   * #### Limits alarm to monitor health of only the specified target container services
+   * #### Only monitor health of these target container services. If omitted, monitors all targets.
+   *
    * ---
-   * - By specifying this property, only the containers of target container services that are specified are monitored for health.
-   * - Only services that are actually targeted by the load balancer can be part of the list.
-   * - If not specified, all targeted container services are monitored.
+   *
+   * Only services actually targeted by the load balancer can be listed.
    */
   onlyIncludeTargets?: string[];
 }
@@ -243,12 +207,7 @@ interface HttpApiGatewayErrorRateTrigger {
 
 interface HttpApiGatewayErrorRateTriggerProps extends TriggerWithCustomComparison {
   /**
-   * #### The error rate percentage that triggers the alarm.
-   *
-   * ---
-   *
-   * The error rate is the percentage of total requests that result in a 4xx or 5xx HTTP status code.
-   * For example, a value of 5 means the alarm will trigger if more than 5% of requests result in an error.
+   * #### Fires when 4xx/5xx error rate exceeds this percentage.
    */
   thresholdPercent: number;
 }
@@ -260,13 +219,11 @@ interface HttpApiGatewayLatencyTrigger {
 
 interface HttpApiGatewayLatencyTriggerProps extends TriggerWithCustomComparison, TriggerWithCustomStatFunction {
   /**
-   * #### The latency in milliseconds that triggers the alarm.
+   * #### Fires when request-to-response latency exceeds this value (ms).
    *
    * ---
    *
-   * Latency is the time from when API Gateway receives a request to when it sends a response.
-   * By default, the alarm triggers if the **average** latency over the evaluation period is **greater than** the `thresholdMilliseconds`.
-   * You can customize the behavior using the `statistic` and `comparisonOperator` properties.
+   * Default: fires if **average** latency > threshold. Customize with `statistic` and `comparisonOperator`.
    */
   thresholdMilliseconds: number;
 }
@@ -278,12 +235,7 @@ interface LambdaErrorRateTrigger {
 
 interface LambdaErrorRateTriggerProps extends TriggerWithCustomComparison {
   /**
-   * #### The error rate percentage that triggers the alarm.
-   *
-   * ---
-   *
-   * The error rate is the percentage of Lambda invocations that result in an error.
-   * For example, a value of 1 means the alarm will trigger if more than 1% of invocations fail.
+   * #### Fires when the percentage of failed Lambda invocations exceeds this value.
    */
   thresholdPercent: number;
 }
@@ -295,12 +247,11 @@ interface LambdaDurationTrigger {
 
 interface LambdaDurationTriggerProps extends TriggerWithCustomComparison, TriggerWithCustomStatFunction {
   /**
-   * #### The execution duration in milliseconds that triggers the alarm.
+   * #### Fires when Lambda execution time exceeds this value (ms).
    *
    * ---
    *
-   * By default, the alarm triggers if the **average** execution time over the evaluation period is **greater than** the `thresholdMilliseconds`.
-   * You can customize the behavior using the `statistic` and `comparisonOperator` properties.
+   * Default: fires if **average** duration > threshold. Customize with `statistic` and `comparisonOperator`.
    */
   thresholdMilliseconds: number;
 }
@@ -312,12 +263,11 @@ interface RelationalDatabaseFreeMemoryTrigger {
 
 interface RelationalDatabaseFreeMemoryTriggerProps extends TriggerWithCustomComparison, TriggerWithCustomStatFunction {
   /**
-   * #### The minimum amount of free memory (in MB) before the alarm is triggered.
+   * #### Fires when free memory drops below this value (MB).
    *
    * ---
    *
-   * By default, the alarm triggers if the **average** available free memory over the evaluation period is **lower than** the `thresholdMB`.
-   * You can customize the behavior using the `statistic` and `comparisonOperator` properties.
+   * Default: fires if **average** free memory < threshold. Customize with `statistic` and `comparisonOperator`.
    */
   thresholdMB: number;
 }
@@ -329,13 +279,7 @@ interface RelationalDatabaseReadLatencyTrigger {
 
 interface RelationalDatabaseReadLatencyTriggerProps extends TriggerWithCustomComparison, TriggerWithCustomStatFunction {
   /**
-   * #### The read latency in seconds that triggers the alarm.
-   *
-   * ---
-   *
-   * Read latency is the average amount of time taken for a read I/O operation.
-   * By default, the alarm triggers if the **average** read latency over the evaluation period is **greater than** the `thresholdSeconds`.
-   * You can customize the behavior using the `statistic` and `comparisonOperator` properties.
+   * #### Fires when average read I/O latency exceeds this value (seconds).
    */
   thresholdSeconds: number;
 }
@@ -349,13 +293,7 @@ interface RelationalDatabaseWriteLatencyTriggerProps
   extends TriggerWithCustomComparison,
     TriggerWithCustomStatFunction {
   /**
-   * #### The write latency in seconds that triggers the alarm.
-   *
-   * ---
-   *
-   * Write latency is the average amount of time taken for a write I/O operation.
-   * By default, the alarm triggers if the **average** write latency over the evaluation period is **greater than** the `thresholdSeconds`.
-   * You can customize the behavior using the `statistic` and `comparisonOperator` properties.
+   * #### Fires when average write I/O latency exceeds this value (seconds).
    */
   thresholdSeconds: number;
 }
@@ -369,12 +307,7 @@ interface RelationalDatabaseCPUUtilizationTriggerProps
   extends TriggerWithCustomComparison,
     TriggerWithCustomStatFunction {
   /**
-   * #### The CPU utilization percentage that triggers the alarm.
-   *
-   * ---
-   *
-   * By default, the alarm triggers if the **average** CPU utilization over the evaluation period is **greater than** the `thresholdPercent`.
-   * You can customize the behavior using the `statistic` and `comparisonOperator` properties.
+   * #### Fires when CPU utilization exceeds this percentage.
    */
   thresholdPercent: number;
 }
@@ -386,12 +319,11 @@ interface RelationalDatabaseFreeStorageTrigger {
 
 interface RelationalDatabaseFreeStorageTriggerProps extends TriggerWithCustomComparison, TriggerWithCustomStatFunction {
   /**
-   * #### The minimum amount of free storage (in MB) before the alarm is triggered.
+   * #### Fires when free disk space drops below this value (MB).
    *
    * ---
    *
-   * By default, the alarm triggers if the **minimum** available storage space over the evaluation period is **lower than** the `thresholdMB`.
-   * You can customize the behavior using the `statistic` and `comparisonOperator` properties.
+   * Default: fires if **minimum** free storage < threshold.
    */
   thresholdMB: number;
 }
@@ -405,30 +337,14 @@ interface RelationalDatabaseConnectionCountTriggerProps
   extends TriggerWithCustomComparison,
     TriggerWithCustomStatFunction {
   /**
-   * #### The number of database connections that triggers the alarm.
-   *
-   * ---
-   *
-   * By default, the alarm triggers if the **average** number of database connections over the evaluation period is **greater than** the `thresholdCount`.
-   * You can customize the behavior using the `statistic` and `comparisonOperator` properties.
+   * #### Fires when the number of active database connections exceeds this value.
    */
   thresholdCount: number;
 }
 
 interface TriggerWithCustomStatFunction {
   /**
-   * #### The statistic to apply to the metric data points.
-   *
-   * ---
-   *
-   * Supported statistics:
-   * - **avg**: The average of the metric values.
-   * - **sum**: The sum of the metric values.
-   * - **p90**: The 90th percentile. 90% of the data points are lower than this value.
-   * - **p95**: The 95th percentile. 95% of the data points are lower than this value.
-   * - **p99**: The 99th percentile. 99% of the data points are lower than this value.
-   * - **min**: The lowest value from the data points.
-   * - **max**: The highest value from the data points.
+   * #### How to aggregate metric values within each period: `avg`, `sum`, `min`, `max`, `p90`, `p95`, `p99`.
    *
    * @default avg
    */
@@ -436,15 +352,9 @@ interface TriggerWithCustomStatFunction {
 }
 interface TriggerWithCustomComparison {
   /**
-   * #### The arithmetic operation to use when comparing the specified statistic and threshold.
+   * #### How to compare the metric value against the threshold.
    *
-   * ---
-   *
-   * Supported operators:
-   * - `GreaterThanThreshold`
-   * - `GreaterThanOrEqualToThreshold`
-   * - `LessThanThreshold`
-   * - `LessThanOrEqualToThreshold`
+   * @default GreaterThanThreshold
    */
   comparisonOperator?: ComparisonOperator;
 }

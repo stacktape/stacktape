@@ -1,10 +1,10 @@
 /**
- * #### Private Service
+ * #### Always-on container with a private endpoint, reachable only from other resources in your stack.
  *
  * ---
  *
- * A continuously running container with a private endpoint that is only accessible from within your private network (VPC).
- * It provides an easy setup for scaling, health checks, and other properties.
+ * Use for internal APIs, microservices, or gRPC servers that shouldn't be publicly accessible.
+ * Other containers in the same stack can reach it by name (e.g., `http://myService:3000`).
  */
 interface PrivateService {
   type: 'private-service';
@@ -21,43 +21,22 @@ interface PrivateServiceProps extends SimpleServiceContainer {
   //  */
   // alias?: string;
   /**
-   * #### The port on which the service is available to other resources in the stack.
-   *
-   * ---
-   *
-   * The port is injected into the container's runtime as the `PORT` environment variable.
-   *
-   * > If `loadBalancing` is set to `service-connect` (the default), connections are only possible from other container-based resources (e.g., web services, worker services, multi-container workloads).
-   *
+   * #### Port this service listens on. Injected as the `PORT` env var.
    * @default 3000
    */
   port?: number;
   /**
-   * #### The Service Connect protocol type.
-   *
-   * ---
-   *
-   * If you specify this parameter, AWS is able to capture protocol-specific metrics for the service (e.g., HTTP 5xx responses).
+   * #### Protocol for metrics collection. Set to enable protocol-specific metrics (e.g., HTTP 5xx tracking).
    */
   protocol?: 'http' | 'http2' | 'grpc';
   /**
-   * #### Configures the load balancing mechanism to use.
+   * #### How traffic reaches this service from other resources.
    *
    * ---
    *
-   * Supported types are `service-connect` and `application-load-balancer`.
-   *
-   * - **`service-connect`**:
-   *   - Distributes traffic evenly to available containers.
-   *   - Connections are only possible from other container-based resources in the stack.
-   *   - Supports any TCP protocol.
-   *   - This option is significantly cheaper, costing only ~$0.50 per month for a private Cloud Map DNS namespace.
-   *
-   * - **`application-load-balancer`**:
-   *   - Distributes traffic to available containers in a round-robin fashion.
-   *   - Supports the HTTP protocol only.
-   *   - Uses a pricing model that combines a flat hourly charge (~$0.0252/hour) with usage-based charges for LCUs (Load Balancer Capacity Units) (~$0.08/hour).
-   *   - Eligible for the AWS Free Tier. For more details, see the [AWS pricing documentation](https://aws.amazon.com/elasticloadbalancing/pricing/).
+   * - **`service-connect`** (default, ~$0.50/mo): Direct container-to-container. Cheapest option.
+   *   Only reachable from other container-based resources in the stack.
+   * - **`application-load-balancer`** (~$18/mo): HTTP load balancer. Reachable from any VPC resource.
    *
    * @default service-connect
    */

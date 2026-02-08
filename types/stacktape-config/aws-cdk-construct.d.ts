@@ -1,11 +1,10 @@
 /**
- * #### AWS CDK Construct
+ * #### Embed an AWS CDK construct directly in your Stacktape stack.
  *
  * ---
  *
- * Allows you to deploy a custom AWS CDK construct as part of your Stacktape stack. This is useful for integrating existing CDK code or for resources not yet supported by Stacktape.
- *
- * For more information on AWS CDK, refer to the [official AWS CDK documentation](https://docs.aws.amazon.com/cdk/v2/guide/home.html).
+ * Escape hatch for resources not natively supported by Stacktape. Write a CDK construct class
+ * in TypeScript/JavaScript and Stacktape will synthesize and deploy it as part of your stack.
  */
 interface AwsCdkConstruct {
   type: 'aws-cdk-construct';
@@ -22,33 +21,30 @@ type StpAwsCdkConstruct = AwsCdkConstruct['properties'] & {
 
 interface AwsCdkConstructProps {
   /**
-   * #### Entry File Path
+   * #### Path to the file containing your CDK construct class.
    *
    * ---
    *
-   * The path to the file containing the CDK construct.
-   *
-   * Supported file extensions are `.js` and `.ts`.
+   * Supports `.js` and `.ts` files. The file must export a class that extends `Construct` from `aws-cdk-lib`.
    */
   entryfilePath: string;
   /**
-   * #### Export Name
+   * #### Name of the exported construct class from the entry file.
    *
    * ---
    *
-   * The name of the exported construct class from the `entryfilePath`.
-   *
-   * If not provided, Stacktape will use the `default` export.
+   * Must match the exact export name. Use this when the file has multiple exports or uses named exports.
    *
    * @default "default"
    */
   exportName?: string;
   /**
-   * #### Construct Properties
+   * #### Custom props passed to the construct's constructor.
    *
    * ---
    *
-   * An object passed as props to the construct's constructor. This allows you to configure the construct with custom values.
+   * This object is forwarded as the third argument (`props`) to your construct class. Use `$ResourceParam()` and `$Secret()`
+   * directives here to pass dynamic values from other resources in your stack.
    */
   constructProperties?: any;
 }

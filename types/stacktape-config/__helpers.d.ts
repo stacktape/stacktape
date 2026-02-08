@@ -1,6 +1,12 @@
 type StacktapeResourceDefinition =
   | HostingBucket
   | NextjsWeb
+  | AstroWeb
+  | NuxtWeb
+  | SvelteKitWeb
+  | SolidStartWeb
+  | TanStackWeb
+  | RemixWeb
   | StacktapeWorkloadDefinition
   | RelationalDatabase
   | ApplicationLoadBalancer
@@ -50,6 +56,12 @@ type StpResource = (
   | StpHostingBucket
   | StpWebAppFirewall
   | StpNextjsWeb
+  | StpAstroWeb
+  | StpNuxtWeb
+  | StpSvelteKitWeb
+  | StpSolidStartWeb
+  | StpTanStackWeb
+  | StpRemixWeb
   | StpHelperLambdaFunction
   | StpHelperEdgeLambdaFunction
   | StpOpenSearchDomain
@@ -71,18 +83,20 @@ type Tracing = 'Active' | 'PassThrough';
  *
  * ---
  *
- * Configures how this resource behaves during `stacktape dev` mode.
+ * Controls whether this resource runs locally or connects to the deployed AWS version
+ * during `stacktape dev`.
  */
 interface DevModeConfig {
   /**
-   * #### Use Remote Resource
+   * #### Use the deployed AWS resource instead of a local emulation.
    *
    * ---
    *
-   * If `true`, connects to the deployed AWS resource instead of running a local emulation during dev mode.
+   * By default, databases, Redis, and DynamoDB run locally in Docker during dev mode.
+   * Set to `true` to connect to the real deployed resource instead (must be deployed first).
    *
-   * By default, databases (RDS, Aurora), Redis clusters, and DynamoDB tables run locally during dev mode.
-   * Set this to `true` to use the deployed AWS resource instead.
+   * Useful when local emulation doesn't match production behavior closely enough,
+   * or when you need to work with real data.
    *
    * @default false
    */
@@ -111,29 +125,33 @@ type CustomTaggingScheduledRuleInput = {
 
 interface DomainConfiguration {
   /**
-   * #### Domain Name
+   * #### Your domain name (e.g., `mydomain.com` or `api.mydomain.com`).
    *
    * ---
    *
-   * The fully qualified domain name (e.g., `mydomain.com`, `api.mydomain.com`). Do not include the protocol (`https://`).
+   * Don't include the protocol (`https://`). The domain must have a Route53 hosted zone
+   * in your AWS account, with your registrar's nameservers pointing to it.
+   *
+   * Stacktape automatically creates a DNS record and provisions a free TLS certificate.
    */
   domainName: string;
   /**
-   * #### Custom Certificate ARN
+   * #### Use your own TLS certificate instead of the auto-generated one.
    *
    * ---
    *
-   * The ARN of a custom ACM certificate to use for this domain.
-   *
-   * By default, Stacktape automatically generates and manages certificates for your domains. If you prefer to use a custom certificate from your AWS account, provide its ARN here.
+   * Provide the ARN of an ACM certificate from your AWS account.
+   * Only needed if you have specific certificate requirements (e.g., EV/OV certs).
+   * By default, Stacktape provisions and renews free certificates automatically.
    */
   customCertificateArn?: string;
   /**
-   * #### Disable DNS Record Creation
+   * #### Skip DNS record creation for this domain.
    *
    * ---
    *
-   * If `true`, Stacktape will not create a DNS record for this domain. This is useful if you want to manage DNS records manually.
+   * Set to `true` if you manage DNS records yourself (e.g., through Cloudflare or another DNS provider).
+   * Stacktape will still provision the TLS certificate but won't touch your DNS.
    *
    * @default false
    */
@@ -199,15 +217,18 @@ type StpResourceScopableByConnectTo =
   | StpResourceScopableByConnectToAffectingRole;
 
 /**
- * #### Resource Overrides
+ * #### Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
  *
  * ---
  *
- * Overrides properties of the underlying CloudFormation resources that Stacktape creates.
+ * Use dot-notation paths to override specific properties on any child resource.
+ * Find resource logical IDs with `stacktape stack-info --detailed`.
  *
- * Child resources are identified by their CloudFormation logical ID (e.g., `MyBucketBucket`). You can find these IDs by running `stacktape stack:info --detailed`.
- *
- * For a list of properties that can be overridden, refer to the [AWS CloudFormation documentation](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-template-resource-type-ref.html).
+ * ```yaml
+ * overrides:
+ *   MyDbInstance:
+ *     Properties.StorageEncrypted: true
+ * ```
  */
 type ResourceOverrides = {
   [cfLogicalName: string]: { [resourcePath: string]: any };
@@ -215,88 +236,64 @@ type ResourceOverrides = {
 
 interface Hooks {
   /**
-   * #### Before Deploy
-   *
-   * ---
-   *
-   * A list of scripts to execute before the `deploy` and `codebuild:deploy` commands. When using `codebuild:deploy`, these hooks run in the CodeBuild environment, not on your local machine.
+   * #### Scripts to run before deploying. Common use: build frontend, lint code.
    */
   beforeDeploy?: NamedScriptLifecycleHook[];
   /**
-   * #### After Deploy
-   *
-   * ---
-   *
-   * A list of scripts to execute after the `deploy` and `codebuild:deploy` commands. When using `codebuild:deploy`, these hooks run in the CodeBuild environment, not on your local machine.
+   * #### Scripts to run after deploying. Common use: run database migrations, seed data.
    */
   afterDeploy?: NamedScriptLifecycleHook[];
   /**
-   * #### Before Delete
+   * #### Scripts to run before deleting the stack. Common use: export data, clean up external resources.
    *
    * ---
    *
-   * A list of scripts to execute before the `delete` command. These hooks only run if you provide the `--configPath` and `--stage` options when running the command.
+   * Only runs when `--configPath` and `--stage` are provided to the delete command.
    */
   beforeDelete?: NamedScriptLifecycleHook[];
   /**
-   * #### After Delete
+   * #### Scripts to run after deleting the stack.
    *
    * ---
    *
-   * A list of scripts to execute after the `delete` command. These hooks only run if you provide the `--configPath` and `--stage` options when running the command.
+   * Only runs when `--configPath` and `--stage` are provided to the delete command.
    */
   afterDelete?: NamedScriptLifecycleHook[];
   /**
-   * #### Before Bucket Sync
-   *
-   * ---
-   *
-   * A list of scripts to execute before the `bucket:sync` command.
+   * #### Scripts to run before syncing bucket contents.
    */
   beforeBucketSync?: NamedScriptLifecycleHook[];
   /**
-   * #### After Bucket Sync
-   *
-   * ---
-   *
-   * A list of scripts to execute after the `bucket:sync` command.
+   * #### Scripts to run after syncing bucket contents.
    */
   afterBucketSync?: NamedScriptLifecycleHook[];
   /**
-   * #### Before Dev
-   *
-   * ---
-   *
-   * A list of scripts to execute before the `dev` command.
+   * #### Scripts to run before starting dev mode.
    */
   beforeDev?: NamedScriptLifecycleHook[];
   /**
-   * #### After Dev
-   *
-   * ---
-   *
-   * A list of scripts to execute after the `dev` command.
+   * #### Scripts to run after dev mode exits.
    */
   afterDev?: NamedScriptLifecycleHook[];
 }
 
 interface LifecycleHookBase {
   /**
-   * #### Skip on CI
+   * #### Skip this hook in CI/CD environments (CodeBuild, GitHub Actions, GitLab CI).
    *
    * ---
    *
-   * If `true`, this hook will not run in a CI/CD environment (e.g., AWS CodeBuild, GitHub Actions, GitLab CI). This is useful for hooks that should only run locally.
+   * Useful for hooks that only make sense locally (e.g., opening a browser, interactive prompts).
    *
    * @default false
    */
   skipOnCI?: boolean;
   /**
-   * #### Skip on Local
+   * #### Skip this hook when running locally; only run in CI/CD.
    *
    * ---
    *
-   * If `true`, this hook will only run in a CI/CD environment and will be skipped during local execution.
+   * Useful for CI-only tasks (e.g., uploading test reports, notifying Slack).
    *
    * @default false
    */
@@ -537,6 +534,12 @@ interface ScriptEnvProps {
    * - `private-service`
    * - `multi-container-workload`
    * - `nextjs-web`
+   * - `astro-web`
+   * - `nuxt-web`
+   * - `sveltekit-web`
+   * - `solidstart-web`
+   * - `tanstack-web`
+   * - `remix-web`
    */
   assumeRoleOfResource?: string;
 }
@@ -606,78 +609,87 @@ interface DirectiveDefinition {
 
 interface DeploymentConfig {
   /**
-   * #### Enable Termination Protection
+   * #### Prevents accidental stack deletion. Must be disabled before you can delete.
    *
    * ---
    *
-   * If `true`, protects the stack from accidental deletion. You must disable this protection before you can delete the stack.
+   * Recommended for production stacks. To delete a protected stack, first deploy with
+   * `terminationProtection: false`, then run the delete command.
    *
    * @default false
    */
   terminationProtection?: boolean;
   /**
-   * << Description missing. Will be provided soon. >>
+   * #### IAM role for CloudFormation to assume during create/update/delete operations.
+   *
+   * ---
+   *
+   * Use this when your deploy user has limited permissions and CloudFormation needs
+   * a more privileged role to manage resources. The role is persisted across deployments
+   * and reused for delete/rollback even if removed from config later.
    */
   cloudformationRoleArn?: Arn;
   /**
-   * #### Rollback Alarms
+   * #### Alarms that trigger automatic rollback if they fire during deployment.
    *
    * ---
    *
-   * A list of alarms that will trigger a rollback if they enter the `ALARM` state during a stack deployment.
+   * Specify alarm names (from `alarms` section) or ARNs. The alarm must already exist -
+   * a newly created alarm only takes effect on the *next* deployment.
    *
-   * You can specify an alarm by its name (if defined in the `alarms` section) or by its ARN.
-   *
-   * > An alarm must exist before the deployment starts to be used as a rollback trigger. If you specify a newly created alarm, it will only be used in subsequent deployments.
+   * Use with `monitoringTimeAfterDeploymentInMinutes` to keep watching after deploy completes.
    */
   triggerRollbackOnAlarms?: string[];
   /**
-   * #### Post-Deployment Monitoring Time
+   * #### How long (in minutes) to monitor rollback alarms after deployment completes.
    *
    * ---
    *
-   * The amount of time (in minutes) that CloudFormation should monitor the stack and rollback alarms after a deployment.
-   *
-   * If a rollback alarm is triggered or the update is canceled during this period, the stack will be rolled back.
+   * If an alarm fires during this window, the stack rolls back automatically.
+   * Only useful when `triggerRollbackOnAlarms` is configured.
    *
    * @default 0
    */
   monitoringTimeAfterDeploymentInMinutes?: number;
   /**
-   * #### Disable Auto-Rollback
+   * #### Keep the stack in a failed state instead of rolling back on deployment failure.
    *
    * ---
    *
-   * If `true`, disables automatic rollback on deployment failure.
-   *
-   * - **With auto-rollback (default):** If a deployment fails, the stack is automatically rolled back to the last known good state.
-   * - **Without auto-rollback:** If a deployment fails, the stack remains in the `UPDATE_FAILED` state. You can then either fix the issues and redeploy or manually roll back using the `stacktape rollback` command.
+   * Useful for debugging: inspect what went wrong, then fix and redeploy
+   * (or run `stacktape rollback` manually). By default, failed deployments
+   * auto-rollback to the last working state.
    *
    * @default false
    */
   disableAutoRollback?: boolean;
   /**
-   * << Description missing. Will be provided soon. >>
-   */
-  publishEventsToArn?: Arn[];
-  /**
-   * #### Previous Versions to Keep
+   * #### SNS topic ARNs to receive CloudFormation stack events during deployment.
    *
    * ---
    *
-   * The number of previous deployment artifact versions (functions, images, templates) to keep.
+   * Useful for monitoring deployments in external systems (Slack, PagerDuty, etc.).
+   */
+  publishEventsToArn?: Arn[];
+  /**
+   * #### How many old deployment artifacts (Lambda bundles, container images) to keep.
+   *
+   * ---
+   *
+   * Older versions are cleaned up automatically. Lower values save storage costs,
+   * higher values make it easier to roll back to previous versions.
    *
    * @default 10
    */
   previousVersionsToKeep?: number;
   /**
-   * #### Disable S3 Transfer Acceleration
+   * #### Disable faster uploads via S3 Transfer Acceleration.
    *
    * ---
    *
-   * If `true`, disables the use of S3 Transfer Acceleration for uploading deployment artifacts.
-   *
-   * S3 Transfer Acceleration can improve upload times and security by routing uploads through the nearest AWS edge location. It may incur minor additional costs.
+   * Transfer Acceleration routes uploads through the nearest AWS edge location
+   * for faster deploys, especially from distant regions. Adds a small cost per GB.
+   * Automatically disabled in regions where it's not available.
    *
    * @default false
    */
@@ -686,96 +698,98 @@ interface DeploymentConfig {
 
 interface StackConfig {
   /**
-   * #### Stack Outputs
+   * #### Custom values to display and save after each deployment.
    *
    * ---
    *
-   * A list of custom outputs for your stack, such as API Gateway URLs, database endpoints, or resource ARNs. These outputs are often dynamically generated by AWS and are only known after deployment.
+   * Use outputs to surface dynamic values like API URLs, database endpoints, or resource ARNs
+   * that are only known after deployment. Outputs are:
+   * - Printed in the terminal after deploy
+   * - Saved to the stack info JSON file
+   * - Optionally exported for cross-stack references (via `export: true`)
    */
   outputs?: StackOutput[];
   /**
-   * #### Stack Tags
+   * #### Tags applied to every AWS resource in this stack.
    *
    * ---
    *
-   * A list of tags to apply to the stack. These tags are propagated to all supported AWS resources created in the stack and can help with cost allocation and resource management. You can specify a maximum of 45 tags.
+   * Useful for cost tracking, access control, and organization. Stacktape automatically
+   * adds `projectName`, `stage`, and `stackName` tags — your custom tags are merged on top.
+   *
+   * Max 45 tags.
    */
   tags?: CloudformationTag[];
   /**
-   * #### Disable Stack Info Saving
+   * #### Stop saving stack info to a local file after each deployment.
    *
    * ---
    *
-   * If `true`, disables saving information about the deployed stack to a local file after each deployment.
-   *
-   * By default, stack information is saved to `.stacktape-stack-info/<<stack-name>>.json`.
+   * By default, Stacktape saves resource details and custom outputs to
+   * `.stacktape-stack-info/{stackName}.json` after every deploy.
    *
    * @default false
    */
   disableStackInfoSaving?: boolean;
   /**
-   * #### Stack Info Directory
+   * #### Directory for the stack info JSON file.
    *
    * ---
    *
-   * The directory where information about deployed stacks will be saved.
+   * Relative to the project root.
    *
    * @default ".stacktape-stack-info/"
    */
   stackInfoDirectory?: string;
   /**
-   * #### VPC configuration
-   *
-   * ---
-   *
-   * Configure VPC settings including VPC reuse and NAT Gateway configuration for private subnets.
+   * #### VPC configuration: reuse an existing VPC or configure NAT Gateways.
    */
   vpc?: VpcSettings;
 }
 
 interface VpcReuseConfig {
   /**
-   * #### Project name of target stack
+   * #### Project name of the stack whose VPC you want to share.
+   *
    * ---
-   * - Project name of the target stack (stack in which the VPC is created).
-   * - Must be used together with `stage`.
-   * - Cannot be used together with `vpcId`.
+   *
+   * Must be used together with `stage`. Cannot be combined with `vpcId`.
    */
   projectName?: string;
   /**
-   * #### Stage of target stack
+   * #### Stage of the stack whose VPC you want to share.
+   *
    * ---
-   * - The stage of the target stack (stack in which the VPC is created).
-   * - Must be used together with `projectName`.
-   * - Cannot be used together with `vpcId`.
+   *
+   * Must be used together with `projectName`. Cannot be combined with `vpcId`.
    */
   stage?: string;
   /**
-   * #### VPC ID
+   * #### Direct VPC ID to reuse (e.g., `vpc-1234567890abcdef0`).
+   *
    * ---
-   * - Direct VPC ID to reuse (e.g., `vpc-1234567890abcdef0`).
-   * - Cannot be used together with `projectName` and `stage`.
-   * - The VPC must have at least 3 public subnets. Public subnets are identified by having a route to an Internet Gateway (0.0.0.0/0 -> igw-*) in their associated route table.
+   *
+   * Use this to connect to a VPC not managed by Stacktape. Cannot be combined
+   * with `projectName`/`stage`.
+   *
+   * The VPC must use a private CIDR range (10.x, 172.16-31.x, or 192.168.x)
+   * and have at least 3 public subnets (subnets with a route to an Internet Gateway).
    */
   vpcId?: string;
 }
 
 interface NatSettings {
   /**
-   * #### Number of availability zones for NAT Gateway deployment.
+   * #### How many availability zones get a NAT Gateway (~$32/month each).
    *
    * ---
    *
-   * Controls how many availability zones will have a dedicated NAT Gateway for high availability.
+   * - **1**: Cheapest, but no redundancy if that AZ goes down.
+   * - **2**: Balanced cost and availability.
+   * - **3**: Highest availability.
    *
-   * - **1 AZ:** Single NAT Gateway (lowest cost, but no redundancy if that AZ fails)
-   * - **2 AZs:** NAT Gateways in two zones (balanced cost and availability)
-   * - **3 AZs:** NAT Gateways in three zones (highest availability and cost)
-   *
-   * Higher numbers provide better fault tolerance but increase costs proportionally.
-   *
-   * Each NAT Gateway receives a static Elastic IP address that persists across deployments,
-   * allowing you to whitelist these IP addresses in external services (e.g., third-party APIs, databases, payment gateways).
+   * Each NAT Gateway gets a static Elastic IP that persists across deployments —
+   * useful for IP whitelisting with external services.
    *
    * @default 2
    */
@@ -784,18 +798,15 @@ interface NatSettings {
 
 interface VpcSettings {
   /**
-   * #### Reuse VPC from another stack or use existing VPC.
+   * #### Share a VPC with another Stacktape stack or use an existing VPC.
    *
    * ---
    *
-   * If this property is set, resources will be created in the VPC of the specified existing stack or the provided VPC ID.
+   * Useful when this stack needs to access VPC-protected resources (databases, Redis)
+   * from another stack. By default, each stack gets its own VPC.
    *
-   * Reusing a VPC is helpful when services in this stack are tightly coupled with services in another stack
-   * (e.g., if this stack needs to access VPC-protected resources from another stack).
-   *
-   * > **Note:** It is recommended to specify this property when creating a new stack. If you add this property to an already deployed stack, updating may cause resources to be replaced and data to be lost.
-   *
-   * By default, each stack has its own dedicated VPC.
+   * > **Important:** Set this when first creating the stack. Adding it to an already
+   * > deployed stack can cause resources to be replaced and **data to be lost**.
    */
   reuseVpc?: VpcReuseConfig;
 
@@ -804,68 +815,59 @@ interface VpcSettings {
    *
    * ---
    *
-   * Configures NAT Gateways that provide internet access for workloads deployed in private subnets.
-   *
-   * This configuration only applies when you have workloads using the `usePrivateSubnetsWithNAT` option.
+   * Only applies when you have workloads using `usePrivateSubnetsWithNAT: true`.
+   * Controls how many availability zones get a NAT Gateway (affects cost and redundancy).
    */
   nat?: NatSettings;
 }
 
 interface BudgetControl {
   /**
-   * #### Budget Limit
+   * #### Monthly spending limit in USD.
    *
    * ---
    *
-   * The total cost (in USD) that you want to track with this budget. Notification thresholds are calculated as a percentage of this limit.
+   * Notification thresholds are calculated as a percentage of this amount.
+   * Resets at the start of each calendar month.
    */
   limit: number;
   /**
-   * #### Budget Notifications
+   * #### Email alerts when spending approaches the limit.
    *
    * ---
    *
-   * A list of notifications to send when a budget threshold is met.
-   *
-   * Notifications are sent via email and can be triggered based on either actual or forecasted spend. You can configure up to 5 notifications per stack.
+   * Each notification fires at a percentage threshold of the `limit`, based on
+   * actual or forecasted spend. Max 5 notifications.
    */
   notifications?: BudgetNotification[];
 }
 
 interface BudgetNotification {
   /**
-   * #### Budget Type
+   * #### Whether to alert on actual or forecasted spend.
    *
    * ---
    *
-   * Determines whether the notification is based on `ACTUAL` or `FORECASTED` spend.
+   * - `ACTUAL` — fires when you've already spent past the threshold.
+   * - `FORECASTED` — fires when AWS predicts you'll exceed the threshold by month-end.
    *
-   * - `ACTUAL`: Based on the costs you have already incurred this month.
-   * - `FORECASTED`: Based on a prediction of your total spend for the month.
-   *
-   * > **Note:** AWS requires about 5 weeks of usage data to generate accurate forecasts. Forecast-based notifications will not be triggered until sufficient historical data is available.
+   * Forecasts need ~5 weeks of usage data before they work.
    *
    * @default "ACTUAL"
    */
   budgetType?: 'ACTUAL' | 'FORECASTED';
   /**
-   * #### Threshold Percentage
+   * #### Percentage of the budget limit that triggers this alert.
    *
    * ---
    *
-   * The percentage of the budget limit at which the notification should be triggered.
-   *
-   * For example, if the `limit` is $200 and `thresholdPercentage` is 80, the notification will be sent when the spend exceeds $160.
+   * Example: limit = $200, threshold = 80 → alert fires at $160.
    *
    * @default 100
    */
   thresholdPercentage?: number;
   /**
-   * #### Email Recipients
-   *
-   * ---
-   *
-   * A list of email addresses that will receive the notification. You can specify up to 10 recipients.
+   * #### Email addresses that receive the alert. Max 10.
    */
   emails: string[];
 }
@@ -895,35 +897,23 @@ interface BudgetNotification {
 
 interface StackOutput {
   /**
-   * #### Output Name
-   *
-   * ---
-   *
-   * The name of the stack output.
+   * #### Name of the output (used as the key in terminal and stack info file).
    */
   name: string;
   /**
-   * #### Output Value
-   *
-   * ---
-   *
-   * The value of the stack output.
+   * #### Value to output. Typically a directive like `$ResourceParam('myApi', 'url')`.
    */
   value: string;
   /**
-   * #### Output Description
-   *
-   * ---
-   *
-   * A human-readable description of the stack output.
+   * #### Human-readable description shown alongside the output.
    */
   description?: string;
   /**
-   * #### Export Output
+   * #### Make this output available to other CloudFormation stacks.
    *
    * ---
    *
-   * If `true`, exports the stack output so it can be referenced by other stacks using the [`$CfStackOutput` directive](https://docs.stacktape.com/configuration/directives#cf-stack-output).
+   * Exported outputs can be referenced from other stacks using `$CfStackOutput()`.
    *
    * @default false
    */
@@ -934,329 +924,233 @@ interface StackOutput {
 // We allow for only specifying Resource property and other values we will set with defaults.
 interface StpIamRoleStatement {
   /**
-   * #### Statement ID (Sid)
-   *
-   * ---
-   *
-   * An optional identifier for the statement. For more information, see the [AWS documentation](https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies.html#policies-introduction).
+   * #### Optional identifier for this statement (for readability).
    */
   Sid?: string;
   /**
-   * #### Effect
-   *
-   * ---
-   *
-   * Specifies whether the statement results in an `Allow` or `Deny`. For more information, see the [AWS documentation](https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies.html#policies-introduction).
+   * #### Whether to allow or deny the specified actions.
    *
    * @default "Allow"
    */
   Effect?: string;
   /**
-   * #### Action
-   *
-   * ---
-   *
-   * A list of actions that the statement allows or denies (e.g., `s3:GetObject`). For more information, see the [AWS documentation](https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies.html#policies-introduction).
+   * #### AWS actions to allow or deny (e.g., `s3:GetObject`, `sqs:SendMessage`).
    */
   Action?: string[];
   /**
-   * #### Condition
-   *
-   * ---
-   *
-   * Specifies the conditions under which the statement is in effect. For more information, see the [AWS documentation](https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies.html#policies-introduction).
+   * #### Conditions under which this statement applies (e.g., IP restrictions, tag-based access).
    */
   Condition?: any;
   /**
-   * #### Resource
-   *
-   * ---
-   *
-   * A list of resources to which the actions apply. For more information, see the [AWS documentation](https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies.html#policies-introduction).
+   * #### ARNs of the AWS resources this statement applies to. Use `"*"` for all resources.
    */
   Resource: string[];
 }
 
 interface EnvironmentVar {
   /**
-   * #### Variable Name
-   *
-   * ---
-   *
-   * The name of the environment variable.
+   * #### Environment variable name (e.g., `DATABASE_URL`, `API_KEY`).
    */
   name: string;
   /**
-   * #### Variable Value
-   *
-   * ---
-   *
-   * The value of the environment variable. Numbers and booleans will be converted to strings.
+   * #### Environment variable value. Numbers and booleans are converted to strings.
    */
   value: string | boolean | number;
 }
 
 interface CloudformationTag {
   /**
-   * #### Tag Name
-   *
-   * ---
-   *
-   * The name of the tag. It must be between 1 and 128 characters and can contain Unicode letters, digits, whitespace, and the characters `_`, `.`, `/`, `=`, `+`, `-`.
+   * #### Tag name (1-128 characters).
    */
   name: string;
   /**
-   * #### Tag Value
-   *
-   * ---
-   *
-   * The value of the tag. It must be between 1 and 256 characters.
+   * #### Tag value (1-256 characters).
    */
   value: string;
 }
 
 interface CfStackPolicyStatement {
   /**
-   * #### Effect
-   *
-   * ---
-   *
-   * Specifies whether the statement results in an `Allow` or `Deny`. For more information, see the [AWS documentation](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/protect-stack-resources.html).
+   * #### Whether to allow or deny the specified update actions.
    */
   Effect?: 'Allow' | 'Deny';
   /**
-   * #### Action
-   *
-   * ---
-   *
-   * A list of actions that the policy allows or denies (e.g., `Update:Modify`, `Update:Delete`). For more information, see the [AWS documentation](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/protect-stack-resources.html).
+   * #### Update actions to allow or deny on the specified resources.
    */
   Action?: ('Update:Modify' | 'Update:Replace' | 'Update:Delete' | 'Update:*')[];
   /**
-   * #### Condition
-   *
-   * ---
-   *
-   * Specifies the conditions under which the policy is in effect. For more information, see the [AWS documentation](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/protect-stack-resources.html).
+   * #### Conditions under which this policy statement applies.
    */
   Condition?: any;
   /**
-   * #### Resource
-   *
-   * ---
-   *
-   * A list of resources to which the policy applies. For more information, see the [AWS documentation](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/protect-stack-resources.html).
+   * #### Logical resource IDs this policy applies to. Use `"*"` for all resources.
    */
   Resource: string[];
   /**
-   * #### Principal
-   *
-   * ---
-   *
-   * The principal to whom the policy applies. For more information, see the [AWS documentation](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/protect-stack-resources.html).
+   * #### Must be `"*"` (applies to all callers). Required by CloudFormation.
    */
   Principal: '*';
 }
 
 interface ResourceAccessProps {
   /**
-   * #### Connect To
+   * #### Give this resource access to other resources in your stack.
    *
    * ---
    *
-   * Configures access to other resources in your stack and AWS services. By specifying resources here, Stacktape automatically:
-   * - Configures IAM role permissions.
-   * - Sets up security group rules to allow network traffic.
-   * - Injects environment variables with connection details into the compute resource.
+   * List the names of resources this workload needs to communicate with. Stacktape automatically:
+   * - **Grants IAM permissions** (e.g., S3 read/write, SQS send/receive)
+   * - **Opens network access** (security group rules for databases, Redis)
+   * - **Injects environment variables** with connection details: `STP_[RESOURCE_NAME]_[PARAM]`
    *
-   * Environment variables are named `STP_[RESOURCE_NAME]_[VARIABLE_NAME]` (e.g., `STP_MY_DATABASE_CONNECTION_STRING`).
+   * Example: `connectTo: ["myDatabase", "myBucket"]` gives this workload full access to both
+   * resources and injects `STP_MY_DATABASE_CONNECTION_STRING`, `STP_MY_BUCKET_NAME`, etc.
    *
    * ---
    *
-   * #### Granted Permissions and Injected Variables:
+   * #### What each resource type provides:
    *
-   * **`Bucket`**
-   * - **Permissions:** List, create, get, delete, and tag objects.
-   * - **Variables:** `NAME`, `ARN`
+   * **`Bucket`** — read/write/delete objects → `NAME`, `ARN`
    *
-   * **`DynamoDbTable`**
-   * - **Permissions:** Get, put, update, delete, scan, and query items; describe table stream.
-   * - **Variables:** `NAME`, `ARN`, `STREAM_ARN`
+   * **`DynamoDbTable`** — CRUD + scan/query → `NAME`, `ARN`, `STREAM_ARN`
    *
-   * **`MongoDbAtlasCluster`**
-   * - **Permissions:** Allows connection to clusters with `accessibilityMode` set to `scoping-workloads-in-vpc`. Creates a temporary user for secure, credential-less access.
-   * - **Variables:** `CONNECTION_STRING`
+   * **`RelationalDatabase`** — network access + connection details → `CONNECTION_STRING`, `HOST`, `PORT`.
+   * Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.
    *
-   * **`RelationalDatabase`**
-   * - **Permissions:** Allows connection to databases with `accessibilityMode` set to `scoping-workloads-in-vpc`.
-   * - **Variables:** `CONNECTION_STRING`, `JDBC_CONNECTION_STRING`, `HOST`, `PORT`. For Aurora clusters, `READER_CONNECTION_STRING`, `READER_JDBC_CONNECTION_STRING`, and `READER_HOST` are also included.
+   * **`MongoDbAtlasCluster`** — temporary credential-less access → `CONNECTION_STRING`
    *
-   * **`RedisCluster`**
-   * - **Permissions:** Allows connection to clusters with `accessibilityMode` set to `scoping-workloads-in-vpc`.
-   * - **Variables:** `HOST`, `READER_HOST`, `PORT`
+   * **`RedisCluster`** — network access → `HOST`, `READER_HOST`, `PORT`
    *
-   * **`EventBus`**
-   * - **Permissions:** Publish events.
-   * - **Variables:** `ARN`
+   * **`Function`** — invoke permission → `ARN`
    *
-   * **`Function`**
-   * - **Permissions:** Invoke the function, including via its URL if enabled.
-   * - **Variables:** `ARN`
+   * **`BatchJob`** — submit/list/terminate → `JOB_DEFINITION_ARN`, `STATE_MACHINE_ARN`
    *
-   * **`BatchJob`**
-   * - **Permissions:** Submit, list, describe, and terminate jobs; manage state machine executions.
-   * - **Variables:** `JOB_DEFINITION_ARN`, `STATE_MACHINE_ARN`
+   * **`EventBus`** — publish events → `ARN`
    *
-   * **`UserAuthPool`**
-   * - **Permissions:** Full control over the user pool (`cognito-idp:*`).
-   * - **Variables:** `ID`, `CLIENT_ID`, `ARN`
+   * **`UserAuthPool`** — full control → `ID`, `CLIENT_ID`, `ARN`
    *
-   * **`SnsTopic`**
-   * - **Permissions:** Confirm, list, publish, and manage subscriptions.
-   * - **Variables:** `ARN`, `NAME`
+   * **`SqsQueue`** — send/receive/delete → `ARN`, `NAME`, `URL`
    *
-   * **`SqsQueue`**
-   * - **Permissions:** Send, receive, delete, and purge messages.
-   * - **Variables:** `ARN`, `NAME`, `URL`
+   * **`SnsTopic`** — publish/subscribe → `ARN`, `NAME`
    *
-   * **`UpstashKafkaTopic`**
-   * - **Variables:** `TOPIC_NAME`, `TOPIC_ID`, `USERNAME`, `PASSWORD`, `TCP_ENDPOINT`, `REST_URL`
+   * **`UpstashRedis`** → `HOST`, `PORT`, `PASSWORD`, `REST_TOKEN`, `REST_URL`, `REDIS_URL`
    *
-   * **`UpstashRedis`**
-   * - **Variables:** `HOST`, `PORT`, `PASSWORD`, `REST_TOKEN`, `REST_URL`, `REDIS_URL`
+   * **`PrivateService`** → `ADDRESS`
    *
-   * **`PrivateService`**
-   * - **Variables:** `ADDRESS`
-   *
-   * **`aws:ses` (Macro)**
-   * - **Permissions:** Full permissions for AWS SES (`ses:*`).
+   * **`aws:ses`** — full SES email sending permissions
    */
   connectTo?: string[];
   /**
-   * #### Custom IAM Role Statements
+   * #### Raw IAM policy statements for permissions not covered by `connectTo`.
    *
    * ---
    *
-   * A list of raw AWS IAM role statements to append to the resource's role, allowing for fine-grained permission control.
+   * Added as a separate policy alongside auto-generated permissions. Use this for
+   * accessing AWS services directly (e.g., Rekognition, Textract, Bedrock).
    */
   iamRoleStatements?: StpIamRoleStatement[];
 }
 
 interface SimpleServiceContainer extends ResourceAccessProps {
   /**
-   * #### Container Packaging
-   *
-   * ---
-   *
-   * Configures the container image for the service.
+   * #### Configures the container image for the service.
    */
   packaging: ContainerWorkloadContainerPackaging;
   /**
-   * #### Environment Variables
+   * #### Environment variables injected into the container at runtime.
    *
    * ---
    *
-   * A list of environment variables to inject into the container at runtime. This is often used to provide configuration details, such as database URLs or secrets.
+   * Use for configuration like API keys, feature flags, or secrets.
+   * Variables from `connectTo` (e.g., `STP_MY_DATABASE_CONNECTION_STRING`) are added automatically.
    */
   environment?: EnvironmentVar[];
   /**
-   * #### Logging Configuration
+   * #### Logging configuration.
    *
    * ---
    *
-   * Configures the logging behavior for the service container.
-   *
-   * Container logs (from `stdout` and `stderr`) are automatically sent to a CloudWatch log group and retained for 180 days by default. You can view logs in the AWS CloudWatch console or by using the [`stacktape logs` command](https://docs.stacktape.com/cli/commands/logs/).
+   * Container output (`stdout`/`stderr`) is automatically sent to CloudWatch and retained for 90 days.
+   * View logs with `stacktape logs` or in the Stacktape Console.
    */
   logging?: ContainerWorkloadContainerLogging;
   /**
-   * #### Resource Allocation
+   * #### CPU, memory, and compute engine for the container.
    *
    * ---
    *
-   * Configures the CPU, memory, and underlying compute engine for the service container.
-   *
-   * You can choose between two compute engines:
-   * - **Fargate:** A serverless engine that abstracts away server management. To use Fargate, specify `cpu` and `memory` without `instanceTypes`.
-   * - **EC2:** Provides direct control over the underlying virtual servers. To use EC2, specify the desired `instanceTypes`.
+   * Two compute engines:
+   * - **Fargate** (default): Serverless — just specify `cpu` and `memory`.
+   * - **EC2**: Specify `instanceTypes` for more control and potentially lower cost.
    */
   resources: ContainerWorkloadResourcesConfig;
   /**
-   * #### Scaling Configuration
+   * #### Auto-scaling: add/remove container instances based on demand.
    *
    * ---
    *
-   * Configures horizontal scaling by adding or removing container instances based on demand. Incoming requests are automatically distributed across all available containers.
+   * Traffic is automatically distributed across all running containers.
    */
   scaling?: ContainerWorkloadScaling;
   /**
-   * #### Internal Health Check
+   * #### Health check that auto-replaces unhealthy containers.
    *
    * ---
    *
-   * Configures an internal health check to monitor the container's status. If a container fails the health check, it is automatically terminated and replaced with a new one.
+   * If a container fails the health check, it's terminated and replaced automatically.
    */
   internalHealthCheck?: ContainerHealthCheck;
   /**
-   * #### Stop Timeout
+   * #### Seconds to wait for graceful shutdown before force-killing the container.
    *
    * ---
    *
-   * The amount of time (in seconds) to wait before a container is forcefully killed if it does not exit gracefully.
-   *
-   * When a container is stopped, it receives a `SIGTERM` signal. If it doesn't exit within the timeout period, it receives a `SIGKILL` signal. This allows for graceful shutdown and cleanup. The timeout must be between 2 and 120 seconds.
+   * The container receives `SIGTERM` first, then `SIGKILL` after this timeout. Must be 2-120.
    *
    * @default 2
    */
   stopTimeout?: number;
   /**
-   * #### Enable Remote Sessions
+   * #### Allow SSH-like access to running containers for debugging.
    *
    * ---
    *
-   * If `true`, allows you to start an interactive shell session inside a running container using the `stacktape container:session` command.
-   *
-   * This uses AWS ECS Exec and SSM Session Manager for secure connections. It runs a small agent alongside your application, which consumes a minimal amount of CPU and memory. This is useful for debugging and inspecting deployed containers.
+   * Enables `stacktape container:session` to open an interactive shell inside the container.
+   * Adds a small SSM agent that uses minimal CPU/memory.
    *
    * @default false
    */
   enableRemoteSessions?: boolean;
   /**
-   * #### Volume Mounts
+   * #### Persistent EFS volumes shared across containers and restarts.
    *
    * ---
    *
-   * A list of volumes to attach to the container for persistent storage.
-   *
-   * Currently, only EFS (Elastic File System) volumes are supported. Volumes can be shared across multiple containers and persist even if the container is stopped or replaced.
+   * Data stored in EFS volumes persists even when containers are replaced.
+   * Multiple containers can mount the same volume. All data is encrypted in transit.
    */
   volumeMounts?: ContainerEfsMount[];
   /**
-   * #### Sidecar Containers
+   * #### Helper containers that run alongside the main container.
    *
    * ---
    *
-   * A list of helper containers that run alongside the main service container to provide additional functionality.
-   *
-   * - **`run-on-init`:** Runs to completion before the main service container starts. Ideal for setup tasks like database migrations.
-   * - **`always-running`:** Runs for the entire lifecycle of the service container. Ideal for supporting services like logging, monitoring, or debugging agents.
-   *
-   * `always-running` containers can communicate with the main container via `localhost` on its exposed ports.
+   * - **`run-on-init`**: Runs to completion before the main container starts (e.g., database migrations).
+   * - **`always-running`**: Runs for the entire lifecycle (e.g., log forwarders, monitoring agents).
+   *   Can reach the main container via `localhost`.
    */
   sideContainers?: ServiceHelperContainer[];
   /**
-   * #### Deploys the service in private subnets with internet access through NAT Gateway.
+   * #### Deploy in private subnets with a static outbound IP via NAT Gateway.
    *
    * ---
    *
-   * When the service is in a private subnet, it does not have public IP and direct internet access.
-   * Instead, all outbound internet traffic is routed through a NAT Gateway.
+   * The container won't have a public IP. All outbound traffic routes through a NAT Gateway,
+   * giving you a static IP you can whitelist in external services (APIs, payment gateways, etc.).
    *
-   * You can assign a static public IP address to the NAT Gateway and configure high availability using `stackConfig.vpcSettings`.
-   * This allows you to whitelist your service's IP address in external services (e.g., third-party APIs, databases, payment gateways).
+   * Configure the number of NAT Gateways in `stackConfig.vpc.nat`.
    *
-   * **Cost considerations:**
-   * - NAT Gateways incur additional AWS charges for both the gateway itself and data processing
+   * **Adds cost:** NAT Gateway ~$32/month + data processing fees.
    *
    * @default false
    */
@@ -1265,14 +1159,12 @@ interface SimpleServiceContainer extends ResourceAccessProps {
 
 interface ServiceHelperContainer extends ContainerWorkloadContainerBase {
   /**
-   * #### Container Type
+   * #### When and how this sidecar container runs.
    *
    * ---
    *
-   * The type of the helper container.
-   *
-   * - **`run-on-init`:** Runs to completion before the main service container starts. The main container will wait for this container to exit with a code of 0. Ideal for setup tasks like database migrations.
-   * - **`always-running`:** Runs for the entire lifecycle of the service container. Ideal for supporting services like logging or monitoring agents.
+   * - **`run-on-init`**: Must exit with code 0 before the main container starts. Use for migrations or setup.
+   * - **`always-running`**: Runs alongside the main container for its entire lifetime. If it crashes, the whole task fails.
    */
   containerType: 'run-on-init' | 'always-running';
 }

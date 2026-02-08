@@ -1,9 +1,9 @@
 /**
- * #### SQS Queue
+ * #### Message queue for decoupling services. Producers send messages, consumers process them at their own pace.
  *
  * ---
  *
- * A fully managed message queuing service that enables you to decouple and scale microservices, distributed systems, and serverless applications.
+ * Fully managed, serverless, pay-per-message. Use for background processing, task queues, or buffering between services.
  */
 interface SqsQueue {
   type: 'sqs-queue';
@@ -13,110 +13,100 @@ interface SqsQueue {
 
 interface SqsQueueProps {
   /**
-   * #### The amount of time that each message delivery is delayed.
+   * #### Delay (in seconds) before new messages become visible to consumers. Range: 0–900.
    *
    * ---
    *
-   * Specifies the time in seconds (0-900) for which the delivery of all messages in the queue is delayed.
+   * Useful for introducing a buffer, e.g., waiting for related data to be available before processing.
    *
    * @default 0
    */
   delayMessagesSecond?: number;
   /**
-   * #### The maximum size of a message, in bytes.
+   * #### Maximum message size in bytes. Range: 1,024 (1 KB) to 262,144 (256 KB).
    *
    * ---
    *
-   * You can specify an integer value from 1,024 bytes (1 KiB) to 262,144 bytes (256 KiB).
+   * Messages larger than this limit are rejected. For payloads over 256 KB, store the data in S3 and send the reference.
    *
    * @default 262144
    */
   maxMessageSizeBytes?: number;
   /**
-   * #### The number of seconds that the queue retains a message.
+   * #### How long unprocessed messages stay in the queue before being deleted. Range: 60s to 1,209,600s (14 days).
    *
    * ---
    *
-   * You can specify an integer value from 60 seconds (1 minute) to 1,209,600 seconds (14 days).
+   * Default is 4 days (345,600s). Increase if consumers might fall behind or be temporarily offline.
    *
    * @default 345600
    */
   messageRetentionPeriodSeconds?: number;
   /**
-   * #### Enables long polling for receiving messages from the queue.
+   * #### Seconds the queue waits for messages before returning an empty response. Range: 0–20.
    *
    * ---
    *
-   * Long polling reduces the number of empty responses by allowing Amazon SQS to wait until a message is available in the queue before sending a response.
-   * This can help reduce the cost of using SQS by minimizing the number of `ReceiveMessage` API calls.
+   * Set to `1`–`20` to enable long polling, which reduces costs by making fewer API calls.
+   * With short polling (`0`), the consumer gets an immediate (often empty) response and must poll again.
    *
-   * This value specifies the duration (in seconds) that the `ReceiveMessage` call waits for a message to arrive.
-   * If set to `0` (the default), short polling is used.
-   *
-   * For more details on the differences between short and long polling, see the [AWS documentation](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-short-and-long-polling.html#sqs-short-long-polling-differences).
+   * Recommended: `20` for most workloads — it's the most cost-effective.
    *
    * @default 0
    */
   longPollingSeconds?: number;
   /**
-   * #### The length of time that a message will be unavailable after it is delivered from the queue.
+   * #### How long (seconds) a message is hidden from other consumers after being received. Range: 0–43,200 (12 hours).
    *
    * ---
    *
-   * When a consumer receives a message, it remains in the queue but is made invisible to other consumers for the duration of the visibility timeout.
-   * This prevents the message from being processed multiple times. The consumer is responsible for deleting the message from the queue after it has been successfully processed.
+   * After a consumer picks up a message, it must delete it before this timeout expires — otherwise it becomes
+   * visible again and can be processed by another consumer (duplicate processing).
    *
-   * The visibility timeout can be set from 0 to 43,200 seconds (12 hours).
-   *
-   * For more information, see the [AWS documentation on visibility timeout](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-visibility-timeout.html).
+   * Set this higher than your expected processing time. If your tasks take 2 minutes, use at least 150 seconds.
    *
    * @default 30
    */
   visibilityTimeoutSeconds?: number;
   /**
-   * #### If `true`, creates a FIFO (First-In-First-Out) queue.
+   * #### Creates a FIFO queue that guarantees message order and exactly-once delivery.
    *
    * ---
    *
-   * FIFO queues are designed for applications where the order of operations and events is critical and duplicates cannot be tolerated.
+   * Use when processing order matters (e.g., financial transactions, sequential workflows).
+   * FIFO queues have lower throughput (~300 msg/s without batching, ~3,000 with) compared to standard queues.
    *
-   * When using a FIFO queue, each message must have a `MessageDeduplicationId`, or `contentBasedDeduplication` must be enabled.
-   *
-   * For more information, see the [AWS documentation on FIFO queues](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/FIFO-queues.html).
+   * Requires either `contentBasedDeduplication: true` or a `MessageDeduplicationId` on each message.
    *
    * @default false
    */
   fifoEnabled?: boolean;
   /**
-   * #### If `true`, enables high-throughput mode for the FIFO queue.
+   * #### Enables high-throughput mode for FIFO queues (up to ~70,000 msg/s per queue).
    *
    * ---
    *
-   * High throughput is achieved by partitioning messages based on their `MessageGroupId`.
-   * Messages with the same `MessageGroupId` are always processed in order.
-   *
-   * `fifoEnabled` must be `true` to use this feature.
-   *
-   * For more information, see the [AWS documentation on high-throughput FIFO queues](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/high-throughput-fifo.html).
+   * Messages are partitioned by `MessageGroupId` — order is guaranteed within each group but not across groups.
+   * Requires `fifoEnabled: true`.
    */
   fifoHighThroughput?: boolean;
   /**
-   * #### If `true`, enables content-based deduplication for the FIFO queue.
+   * #### Automatically deduplicates messages based on their content (SHA-256 hash of the body).
    *
    * ---
    *
-   * During the deduplication interval, the queue treats messages with the same content as duplicates and delivers only one copy.
-   * Deduplication is based on the `MessageDeduplicationId`. If you do not provide one, Amazon SQS will generate a SHA-256 hash of the message body to use as the `MessageDeduplicationId`.
-   *
-   * `fifoEnabled` must be `true` to use this feature.
+   * Within the 5-minute deduplication window, identical messages are delivered only once.
+   * Saves you from having to generate a unique `MessageDeduplicationId` for each message.
+   * Requires `fifoEnabled: true`.
    */
   contentBasedDeduplication?: boolean;
   /**
-   * #### Configures a redrive policy for automatically moving messages that fail processing to a dead-letter queue.
+   * #### Moves messages that fail processing too many times to a dead-letter queue for inspection.
    *
    * ---
    *
-   * Messages are sent to the dead-letter queue after they have been retried `maxReceiveCount` times.
+   * After `maxReceiveCount` failed attempts, the message is automatically moved to a separate queue
+   * so you can investigate and reprocess it. Prevents poison messages from blocking the queue.
    */
   redrivePolicy?: SqsQueueRedrivePolicy;
   /**
@@ -136,11 +126,12 @@ interface SqsQueueProps {
    */
   disabledGlobalAlarms?: string[];
   /**
-   * #### Adds policy statements to the SQS queue policy.
+   * #### Custom access-control statements added to the queue's resource policy.
    *
    * ---
    *
-   * These statements are added on top of the policy statements automatically inferred by Stacktape.
+   * These are merged with policies Stacktape auto-generates. Use to grant cross-account access or allow
+   * specific AWS services (e.g., SNS) to send messages to this queue.
    */
   policyStatements?: SqsQueuePolicyStatement[];
   /**
@@ -155,42 +146,25 @@ interface SqsQueueProps {
 
 interface SqsQueuePolicyStatement {
   /**
-   * #### The effect of the statement.
-   *
-   * ---
-   *
-   * For more details, see the [AWS documentation](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-basic-examples-of-sqs-policies.html).
+   * #### `Allow` or `Deny` access for the specified actions and principal.
    */
   Effect: string;
   /**
-   * #### A list of actions allowed or denied by the statement.
-   *
-   * ---
-   *
-   * Actions must start with `sqs:`.
-   * For a list of available actions, see the [AWS documentation](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-api-permissions-reference.html).
+   * #### SQS actions to allow or deny. E.g., `["sqs:SendMessage"]` or `["sqs:*"]`.
    */
   Action: string[];
   /**
-   * #### The circumstances under which the statement grants permissions.
-   *
-   * ---
-   *
-   * For more details, see the [AWS documentation](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-basic-examples-of-sqs-policies.html).
+   * #### Optional conditions for when this statement applies (e.g., restrict by source ARN or IP range).
    */
   Condition?: any;
   /**
-   * #### The principal (user, role, or service) to which you are allowing or denying access.
-   *
-   * ---
-   *
-   * For more details, see the [AWS documentation](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-basic-examples-of-sqs-policies.html).
+   * #### Who gets access: AWS account ID, IAM ARN, or `"*"` for everyone. E.g., `{ "Service": "sns.amazonaws.com" }`.
    */
   Principal: any;
 }
 
 /**
- * #### Delivers messages to an SQS queue when an event matching a specified pattern is received by an event bus.
+ * #### Routes events from an EventBridge event bus to this queue when they match a specified pattern.
  */
 interface SqsQueueEventBusIntegration {
   type: 'event-bus';
@@ -202,32 +176,30 @@ interface SqsQueueEventBusIntegration {
 
 interface SqsQueueEventBusIntegrationProps extends EventBusIntegrationProps {
   /**
-   * #### The message group ID to use for FIFO queues.
+   * #### Message group ID for FIFO queues. Required when the target queue has `fifoEnabled: true`.
    *
    * ---
    *
-   * This parameter is required for FIFO queues and is used to group messages together.
-   * Messages with the same message group ID are processed in order within that group.
-   * For more information, see the [AWS documentation on FIFO queues](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/FIFO-queues.html).
+   * Messages in the same group are processed in strict order. Different groups can be processed in parallel.
    */
   messageGroupId?: string;
 }
 
 interface SqsQueueRedrivePolicy {
   /**
-   * #### The name of the SQS queue in your Stacktape configuration where failed messages will be sent.
+   * #### Name of another `sqs-queue` in your config to use as the dead-letter queue.
    */
   targetSqsQueueName?: string;
   /**
-   * #### The ARN of the SQS queue where failed messages will be sent.
+   * #### ARN of an external SQS queue to use as the dead-letter queue. Use when the DLQ is in another stack or account.
    */
   targetSqsQueueArn?: string;
   /**
-   * #### The number of times a message is delivered to the source queue before being moved to the dead-letter queue.
+   * #### How many times a message can be received (and fail) before being moved to the dead-letter queue.
    *
    * ---
    *
-   * When the `ReceiveCount` for a message exceeds this value, Amazon SQS moves the message to the target queue.
+   * A typical starting value is `3`–`5`. Set lower for fast-failing workloads, higher for retryable transient errors.
    */
   maxReceiveCount: number;
 }

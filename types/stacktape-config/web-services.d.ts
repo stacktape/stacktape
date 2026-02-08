@@ -1,10 +1,10 @@
 /**
- * #### Web Service
+ * #### A container running 24/7 with a public HTTPS URL.
  *
  * ---
  *
- * A continuously running container with a public endpoint (URL) that is accessible from the internet.
- * It includes TLS/SSL out of the box and provides easy configuration for scaling, health checks, and other properties.
+ * Use for APIs, web apps, and any service that needs to be always-on and reachable from the internet.
+ * Includes TLS/SSL, auto-scaling, health checks, and zero-downtime deployments.
  */
 interface WebService {
   type: 'web-service';
@@ -14,117 +14,59 @@ interface WebService {
 
 interface WebServiceProps extends SimpleServiceContainer {
   /**
-   * #### Configures CORS (Cross-Origin Resource Sharing) for this service.
+   * #### CORS settings. Overrides any CORS headers from your application.
    *
    * ---
    *
-   * If CORS is configured using this property, any CORS headers returned from your application will be ignored and replaced.
-   *
-   * > This property is only effective if the `loadBalancing` type is `http-api-gateway` (the default).
+   * Only works with `http-api-gateway` load balancing (the default).
    */
   cors?: HttpApiCorsConfig;
   /**
-   * #### Attaches custom domains to this Web Service.
+   * #### Custom domains (e.g., `api.example.com`). Stacktape auto-creates DNS records and TLS certificates.
    *
    * ---
    *
-   * Stacktape allows you to connect custom domains to various resources, including Web Services, HTTP API Gateways, Application Load Balancers, and Buckets with CDNs.
-   *
-   * When you connect a custom domain, Stacktape automatically:
-   *
-   * - **Creates DNS records:** A DNS record is created to point your domain name to the resource.
-   * - **Adds TLS certificates:** If the resource uses HTTPS, Stacktape issues and attaches a free, AWS-managed TLS certificate, handling TLS termination for you.
-   *
-   * If you want to use your own certificates, you can configure `customCertificateArns`.
-   *
-   * > To manage a custom domain, it must first be added to your AWS account as a [hosted zone](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/AboutHZWorkingWith.html), and your domain registrar's name servers must point to it.
-   * > For more details, see the [Adding a domain guide](https://docs.stacktape.com/other-resources/domains-and-certificates/#adding-domain).
+   * Your domain must be added as a Route53 hosted zone in your AWS account first.
    */
   customDomains?: DomainConfiguration[];
   /**
-   * #### Configures the entry point used for distributing traffic to containers.
+   * #### How traffic reaches your containers. Affects pricing, features, and protocol support.
    *
    * ---
    *
-   * The following entry point types are supported:
+   * - **`http-api-gateway`** (default): Pay-per-request (~$1/million requests). Best for most apps.
+   *   Cheapest at low traffic, but costs grow with volume.
    *
-   * - **`http-api-gateway`** (default):
-   *   - Distributes traffic to available containers randomly.
-   *   - Uses a pay-per-use pricing model (~$1 per million requests).
-   *   - Ideal for most workloads, but an `application-load-balancer` may be more cost-effective if you exceed ~500,000 requests per day.
+   * - **`application-load-balancer`**: Flat ~$18/month + usage. Required for gradual deployments
+   *   (`deployment`), firewalls (`useFirewall`), and WebSocket support.
+   *   More cost-effective above ~500k requests/day. AWS Free Tier eligible.
    *
-   * - **`application-load-balancer`**:
-   *   - Distributes traffic to available containers in a round-robin fashion.
-   *   - Uses a pricing model that combines a flat hourly charge (~$0.0252/hour) with usage-based charges for LCUs (Load Balancer Capacity Units) (~$0.08/hour).
-   *   - Eligible for the AWS Free Tier. For more details, see the [AWS pricing documentation](https://aws.amazon.com/elasticloadbalancing/pricing/).
-   *
-   * - **`network-load-balancer`**:
-   *   - Supports TCP and TLS protocols.
-   *   - Uses the same pricing model as the `application-load-balancer`.
-   *   - Also eligible for the AWS Free Tier.
+   * - **`network-load-balancer`**: For non-HTTP traffic (TCP/TLS) like MQTT, game servers, or custom protocols.
+   *   Requires explicit `ports` configuration. Does not support CDN, firewall, or gradual deployments.
    */
   loadBalancing?: WebServiceHttpApiGatewayLoadBalancing | WebServiceAlbLoadBalancing | WebServiceNlbLoadBalancing;
   /**
-   * #### Configures an AWS CloudFront CDN (Content Delivery Network) in front of your Web Service.
-   *
-   * ---
-   *
-   * A CDN is a globally distributed network of edge locations that caches responses from your Web Service, bringing content closer to your users.
-   *
-   * Using a CDN can:
-   * - Reduce latency and improve load times.
-   * - Lower bandwidth costs.
-   * - Decrease the amount of traffic hitting your origin (the Web Service containers).
-   * - Enhance security.
-   *
-   * The CDN caches responses from the origin at the edge for a specified amount of time.
+   * #### Put a CDN (CloudFront) in front of this service for caching and lower latency worldwide.
    */
   cdn?: CdnConfiguration;
   /**
-   * #### Additional alarms associated with this resource.
-   *
-   * ---
-   *
-   * These alarms will be merged with any alarms configured globally in the [console](https://console.stacktape.com/alarms).
+   * #### Alarms for this service (merged with global alarms from the Stacktape Console).
    */
   alarms?: (HttpApiGatewayAlarm | ApplicationLoadBalancerAlarm)[];
   /**
-   * #### Disables globally configured alarms for this resource.
-   *
-   * ---
-   *
-   * Provide a list of alarm names as configured in the [console](https://console.stacktape.com/alarms).
+   * #### Global alarm names to exclude from this service.
    */
   disabledGlobalAlarms?: string[];
   /**
-   * #### Configures the deployment behavior of the Web Service.
+   * #### Gradual traffic shifting for safe deployments (canary, linear, or all-at-once).
    *
    * ---
    *
-   * This allows you to safely update your service in a live environment by gradually shifting traffic to the new version.
-   * This gives you the opportunity to monitor the workload during the update and quickly roll back in case of any issues.
-   *
-   * The following deployment strategies are supported:
-   * - **`Canary10Percent5Minutes`**: Shifts 10% of traffic, then the remaining 90% five minutes later.
-   * - **`Canary10Percent15Minutes`**: Shifts 10% of traffic, then the remaining 90% fifteen minutes later.
-   * - **`Linear10PercentEvery1Minute`**: Shifts 10% of traffic every minute until all traffic is shifted.
-   * - **`Linear10PercentEvery3Minutes`**: Shifts 10% of traffic every three minutes until all traffic is shifted.
-   * - **`AllAtOnce`**: Shifts all traffic to the updated service at once.
-   *
-   * You can use Lambda function hooks to validate or abort the deployment.
-   *
-   * > This feature requires the `loadBalancing` type to be set to `application-load-balancer`.
+   * Requires `loadBalancing` type `application-load-balancer`.
    */
   deployment?: ContainerWorkloadDeploymentConfig;
   /**
-   * #### The name of the `web-app-firewall` resource to use for this Web Service.
-   *
-   * ---
-   *
-   * A `web-app-firewall` can protect your resources from common web exploits that could affect availability, compromise security, or consume excessive resources.
-   * The firewall works by filtering malicious requests before they reach your application.
-   *
-   * For more information, see the [firewall documentation](https://docs.stacktape.com/security-resources/web-app-firewalls/).
+   * #### Name of a `web-app-firewall` resource to protect this service from common web exploits.
    */
   useFirewall?: string;
 }
@@ -155,26 +97,17 @@ interface WebServiceAlbLoadBalancing {
 
 interface WebServiceAlbLoadBalancingProps {
   /**
-   * #### The path on which the Load Balancer performs health checks.
-   *
-   * ---
-   *
+   * #### Path the load balancer pings to check container health.
    * @default /
    */
   healthcheckPath?: string;
   /**
-   * #### The interval (in seconds) for how often the health check is performed.
-   *
-   * ---
-   *
+   * #### Seconds between health checks.
    * @default 5
    */
   healthcheckInterval?: number;
   /**
-   * #### The timeout (in seconds) after which the health check is considered failed.
-   *
-   * ---
-   *
+   * #### Seconds before a health check is considered failed.
    * @default 4
    */
   healthcheckTimeout?: number;
@@ -187,49 +120,27 @@ interface WebServiceNlbLoadBalancing {
 
 interface WebServiceNlbLoadBalancingProps {
   /**
-   * #### The path on which the Load Balancer performs health checks.
-   *
-   * ---
-   *
-   * This only takes effect if `healthcheckProtocol` is set to `HTTP`.
-   *
+   * #### Health check path (only used when `healthCheckProtocol` is `HTTP`).
    * @default /
    */
   healthcheckPath?: string;
   /**
-   * #### The interval (in seconds) for how often the health check is performed.
-   *
-   * ---
-   *
-   * Must be between 5 and 300.
-   *
+   * #### Seconds between health checks (5-300).
    * @default 5
    */
   healthcheckInterval?: number;
   /**
-   * #### The timeout (in seconds) after which the health check is considered failed.
-   *
-   * ---
-   *
-   * Must be between 2 and 120.
-   *
+   * #### Seconds before a health check is considered failed (2-120).
    * @default 4
    */
   healthcheckTimeout?: number;
   /**
-   * #### The protocol the Load Balancer uses when performing health checks on targets.
-   *
-   * ---
-   *
+   * #### Health check protocol: `TCP` (port check) or `HTTP` (path check).
    * @default TCP
    */
   healthCheckProtocol?: 'HTTP' | 'TCP';
   /**
-   * #### The port the Load Balancer uses when performing health checks on targets.
-   *
-   * ---
-   *
-   * By default, this uses the same port that receives traffic from the Load Balancer.
+   * #### Health check port. Defaults to the traffic port.
    */
   healthCheckPort?: number;
   ports: WebServiceNlbLoadBalancingPort[];
@@ -237,26 +148,16 @@ interface WebServiceNlbLoadBalancingProps {
 
 interface WebServiceNlbLoadBalancingPort {
   /**
-   * #### The port number exposed by the Load Balancer.
-   *
-   * ---
-   *
+   * #### Public port exposed by the load balancer.
    */
   port: number;
   /**
-   * #### The protocol to be used for the Load Balancer.
-   *
-   * ---
-   *
+   * #### Protocol: `TLS` (encrypted) or `TCP` (raw).
    * @default TLS
    */
   protocol?: 'TCP' | 'TLS';
   /**
-   * #### The port number on the container that will receive traffic from the Load Balancer.
-   *
-   * ---
-   *
-   * Defaults to the same port number specified in the `port` property.
+   * #### Port on the container that receives the traffic. Defaults to `port`.
    */
   containerPort?: number;
 }

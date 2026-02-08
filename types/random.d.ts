@@ -540,11 +540,23 @@ type ResourcePropsFromConfig<T extends StpResourceType> = T extends 'application
                                                         ? StpWebAppFirewall // []
                                                         : T extends 'nextjs-web'
                                                           ? StpNextjsWeb // []
-                                                          : T extends 'open-search-domain'
-                                                            ? StpOpenSearchDomain // []
-                                                            : T extends 'efs-filesystem'
-                                                              ? StpEfsFilesystem
-                                                              : never;
+                                                          : T extends 'astro-web'
+                                                            ? StpAstroWeb
+                                                            : T extends 'nuxt-web'
+                                                              ? StpNuxtWeb
+                                                              : T extends 'sveltekit-web'
+                                                                ? StpSvelteKitWeb
+                                                                : T extends 'solidstart-web'
+                                                                  ? StpSolidStartWeb
+                                                                  : T extends 'tanstack-web'
+                                                                    ? StpTanStackWeb
+                                                                    : T extends 'remix-web'
+                                                                      ? StpRemixWeb
+                                                                      : T extends 'open-search-domain'
+                                                                        ? StpOpenSearchDomain // []
+                                                                        : T extends 'efs-filesystem'
+                                                                          ? StpEfsFilesystem
+                                                                          : never;
 
 type StarterProjectDeploymentType = 'local-machine' | 'github' | 'gitlab';
 type StarterProjectInstallDepsType = SupportedEsPackageManager | 'bundler' | 'poetry' | 'none';

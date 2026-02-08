@@ -1,9 +1,10 @@
 /**
- * #### Application Load Balancer
+ * #### HTTP/HTTPS load balancer with flat ~$18/month pricing. Required for WebSockets, firewalls, and gradual deployments.
  *
  * ---
  *
- * A fully managed, Application (L7) Load Balancer that routes HTTP and HTTPS requests to other resources.
+ * Routes requests to containers or Lambda functions based on path, host, headers, or query params.
+ * More cost-effective than API Gateway above ~500k requests/day. AWS Free Tier eligible.
  */
 interface ApplicationLoadBalancer {
   type: 'application-load-balancer';
@@ -13,90 +14,37 @@ interface ApplicationLoadBalancer {
 
 interface ApplicationLoadBalancerProps {
   /**
-   * #### Configures the accessibility of the Load Balancer.
-   *
-   * ---
-   *
-   * - `internet`: The Load Balancer is accessible from the internet.
-   * - `internal`: The Load Balancer is only accessible from within the same VPC network.
-   *
-   * To learn more about VPCs, see the [Stacktape documentation](https://docs.stacktape.com/user-guides/vpcs).
-   *
+   * #### `internet` (public) or `internal` (VPC-only). Internal ALBs are not reachable from the internet.
    * @default internet
    */
   interface?: 'internet' | 'internal';
   /**
-   * #### Configures custom domains for this Load Balancer.
+   * #### Custom domains. Stacktape auto-creates DNS records and TLS certificates.
    *
    * ---
    *
-   * Stacktape allows you to connect your custom domain names to various resources, including Web Services, HTTP API Gateways, Application Load Balancers, and Buckets with CDNs.
-   *
-   * When you connect a custom domain, Stacktape automatically:
-   *
-   * - **Creates DNS records:** A DNS record is created to point your domain name to the resource.
-   * - **Adds TLS certificates:** If you are using HTTPS, Stacktape issues and attaches a free, AWS-managed TLS certificate to the resource, handling TLS termination for you.
-   *
-   * If you want to use your own certificates, you can configure `customCertificateArns` on the listener.
-   *
-   * > To manage a custom domain, it must first be added to your AWS account as a [hosted zone](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/AboutHZWorkingWith.html), and your domain registrar's name servers must point to it.
-   * > For more details, see the [Adding a domain guide](https://docs.stacktape.com/other-resources/domains-and-certificates/#adding-domain).
+   * Your domain must be added as a Route53 hosted zone in your AWS account first.
+   * Use `customCertificateArns` on listeners if you want to bring your own certificates.
    */
   customDomains?: string[];
   /**
-   * #### Configures custom listeners for this Load Balancer.
-   *
-   * ---
-   *
-   * Listeners define the port and protocol that the Load Balancer uses to accept incoming traffic.
-   *
-   * If you do not specify any listeners, two are created by default:
-   * - An HTTPS listener on port 443 (all traffic is routed here).
-   * - An HTTP listener on port 80 (which automatically redirects to the HTTPS listener).
+   * #### Custom listeners (port + protocol). Defaults to HTTPS on 443 + HTTP on 80 (redirecting to HTTPS).
    */
   listeners?: ApplicationLoadBalancerListener[];
   /**
-   * #### Configures an AWS CloudFront CDN (Content Delivery Network) in front of your Application Load Balancer.
-   *
-   * ---
-   *
-   * A CDN is a globally distributed network of edge locations that caches responses from your Application Load Balancer, bringing content closer to your users.
-   *
-   * Using a CDN can:
-   * - Reduce latency and improve load times.
-   * - Lower bandwidth costs.
-   * - Decrease the amount of traffic hitting your origin.
-   * - Enhance security.
-   *
-   * The "origin" is the resource (in this case, the Application Load Balancer) that the CDN is attached to.
-   * The CDN has its own URL endpoint.
+   * #### Put a CDN (CloudFront) in front of this load balancer for caching and lower latency worldwide.
    */
   cdn?: ApplicationLoadBalancerCdnConfiguration;
   /**
-   * #### Additional alarms associated with this resource.
-   *
-   * ---
-   *
-   * These alarms will be merged with any alarms configured globally in the [console](https://console.stacktape.com/alarms).
+   * #### Alarms for this load balancer (merged with global alarms from the Stacktape Console).
    */
   alarms?: ApplicationLoadBalancerAlarm[];
   /**
-   * #### Disables globally configured alarms for this resource.
-   *
-   * ---
-   *
-   * Provide a list of alarm names as configured in the [console](https://console.stacktape.com/alarms).
+   * #### Global alarm names to exclude from this load balancer.
    */
   disabledGlobalAlarms?: string[];
   /**
-   * #### The name of the `web-app-firewall` resource to use for this Load Balancer.
-   *
-   * ---
-   *
-   * A `web-app-firewall` can protect your resources from common web exploits that could affect availability, compromise security, or consume excessive resources.
-   * The firewall works by filtering malicious requests before they reach your application.
-   *
-   * For more information, see the [firewall documentation](https://docs.stacktape.com/security-resources/web-app-firewalls/).
+   * #### Name of a `web-app-firewall` resource to protect this load balancer from common web exploits.
    */
   useFirewall?: string;
 }
@@ -118,45 +66,23 @@ interface StpResolvedLoadBalancerReference
 
 interface ApplicationLoadBalancerListener {
   /**
-   * #### The protocol for the listener.
-   *
-   * ---
-   *
-   * If you use `HTTPS`, the listener needs an SSL/TLS certificate. This can be configured in two ways:
-   * 1.  **Automatic:** Configure `customDomains` to have Stacktape automatically generate and manage the certificate.
-   * 2.  **Manual:** Configure `customCertificateArns` to use your own certificate, referenced by its ARN (Amazon Resource Name).
+   * #### Listener protocol. `HTTPS` requires a TLS certificate (auto-created with `customDomains` or via `customCertificateArns`).
    */
   protocol: 'HTTP' | 'HTTPS';
   /**
-   * #### The port number on which the listener is accessible.
-   *
-   * ---
-   *
-   * By default, `HTTPS` connections use port `443`, and `HTTP` connections use port `80`.
+   * #### Port this listener accepts traffic on (e.g., 443 for HTTPS, 80 for HTTP).
    */
   port: number;
   /**
-   * #### Used to configure custom SSL/TLS certificates.
-   *
-   * ---
-   *
-   * This is not necessary if you specify `customDomains` or if you are not using the `HTTPS` protocol for this listener.
+   * #### ARNs of your own ACM certificates. Not needed if using `customDomains` (Stacktape creates certs automatically).
    */
   customCertificateArns?: string[];
   /**
-   * #### Limits listener accessibility to specific IP addresses.
-   *
-   * ---
-   *
-   * By default, all IP addresses are whitelisted.
+   * #### Restrict access to specific IP addresses/CIDRs. Default: all IPs allowed.
    */
   whitelistIps?: string[];
   /**
-   * #### Configures the listener's behavior for requests that do not match any integration.
-   *
-   * ---
-   *
-   * Currently, the only supported default action is `redirect`.
+   * #### Action for requests that don't match any integration. Currently supports `redirect` only.
    */
   defaultAction?: LbRedirect;
 }
@@ -184,73 +110,37 @@ interface LbRedirect {
 
 interface LbRedirectProperties {
   /**
-   * #### The absolute path to redirect to.
-   *
-   * ---
-   *
-   * - Must start with a leading `/`.
-   * - Should not be percent-encoded.
+   * #### Redirect path (must start with `/`). Use `#{path}` to reuse the original path.
    */
   path?: string;
   /**
-   * #### The query parameters for the redirect.
-   *
-   * ---
-   *
-   * - Should be URL-encoded where necessary, but not percent-encoded.
-   * - Do not include the leading `?`, as it is added automatically.
+   * #### Query string for the redirect (without leading `?`). Use `#{query}` to preserve the original.
    */
   query?: string;
   /**
-   * #### The port for the redirect.
-   *
-   * ---
-   *
-   * You can specify a value from 1 to 65535 or `#{port}`.
+   * #### Redirect port (1-65535). Use `#{port}` to keep the original.
    */
   port?: number;
   /**
-   * #### The hostname for the redirect.
-   *
-   * ---
-   *
-   * Should not be percent-encoded.
+   * #### Redirect hostname. Use `#{host}` to keep the original.
    */
   host?: string;
   /**
-   * #### The protocol for the redirect.
-   *
-   * ---
-   *
-   * - Must be `HTTP`, `HTTPS`, or `#{protocol}`.
-   * - You cannot redirect from `HTTPS` to `HTTP`.
+   * #### Redirect protocol. Cannot redirect HTTPS to HTTP.
    */
   protocol?: 'HTTP' | 'HTTPS';
   /**
-   * #### The HTTP redirect code.
-   *
-   * ---
-   *
-   * - Use `HTTP_301` for a permanent redirect.
-   * - Use `HTTP_302` for a temporary redirect.
+   * #### `HTTP_301` (permanent) or `HTTP_302` (temporary) redirect.
    */
   statusCode: 'HTTP_301' | 'HTTP_302';
 }
 interface ApplicationLoadBalancerCdnConfiguration extends CdnConfiguration {
   /**
-   * #### The listener port to which CDN traffic will be forwarded.
-   *
-   * ---
-   *
-   * You must specify this if the Load Balancer uses custom listeners.
+   * #### Listener port for CDN traffic. Only needed if using custom listeners.
    */
   listenerPort?: number;
   /**
-   * #### The origin domain name used for forwarding to the Load Balancer.
-   *
-   * ---
-   *
-   * This is only necessary if the Load Balancer has no `customDomains` attached and the listener uses `customCertificateArns`.
+   * #### Explicit origin domain. Only needed if the ALB has no `customDomains` and uses `customCertificateArns`.
    */
   originDomainName?: string;
 }

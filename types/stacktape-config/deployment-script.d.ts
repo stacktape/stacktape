@@ -1,10 +1,10 @@
 /**
- * #### A resource that executes a script as part of your deployment process.
+ * #### Run a script during deploy or delete — database migrations, seed data, cleanup tasks.
  *
  * ---
  *
- * The script is executed in a Lambda function during a `deploy` or `delete` operation.
- * This is useful for tasks like database migrations, seeding data, or other setup or teardown operations.
+ * Executes as a Lambda function. Use `after:deploy` to run migrations after resources are ready,
+ * or `before:delete` for cleanup. Can also be triggered manually with `stacktape deployment-script:run`.
  */
 interface DeploymentScript {
   type: 'deployment-script';
@@ -24,93 +24,40 @@ type StpDeploymentScript = DeploymentScript['properties'] & {
 
 interface DeploymentScriptProps extends ResourceAccessProps {
   /**
-   * #### Configures when the script is triggered.
-   *
-   * ---
-   *
-   * - `after:deploy`: Executes after all resources in the stack have been successfully deployed. If the script fails, the entire deployment will be rolled back.
-   * - `before:delete`: Executes before the stack's resources begin to be deleted. If the script fails, the deletion process will still proceed.
-   *
-   * You can also trigger the script manually using the `stacktape deployment-script:run` command.
+   * #### When to run: `after:deploy` (fails → rollback) or `before:delete` (fails → deletion continues).
    */
   trigger: 'after:deploy' | 'before:delete';
   /**
-   * #### Configures how your script is packaged and deployed.
-   *
-   * ---
-   *
-   * Stacktape supports two packaging methods:
-   * - `stacktape-lambda-buildpack`: Stacktape automatically builds and packages your code from a specified source file. This is the recommended and simplest approach.
-   * - `custom-artifact`: You provide a path to a pre-built deployment package (e.g., a zip file). Stacktape will handle the upload.
-   *
-   * Your deployment packages are stored in an S3 bucket managed by Stacktape.
+   * #### How the script code is packaged. Use `stacktape-lambda-buildpack` for auto-bundling.
    */
   packaging: LambdaPackaging;
   /**
-   * #### The runtime environment for the script's Lambda function.
-   *
-   * ---
-   *
-   * Stacktape automatically detects the programming language and selects the latest appropriate runtime. For example, `.ts` and `.js` files will use a recent Node.js runtime.
-   * For a full list of available runtimes, see the [AWS Lambda runtimes documentation](https://docs.aws.amazon.com/lambda/latest/dg/lambda-runtimes.html).
+   * #### Lambda runtime. Auto-detected from file extension if not specified.
    */
   runtime?: LambdaRuntime;
   /**
-   * #### A list of environment variables to inject into the script's execution environment.
-   *
-   * ---
-   *
-   * This is useful for providing configuration details, such as database connection strings or secrets.
+   * #### Environment variables injected at runtime. Use `$ResourceParam()` or `$Secret()` for dynamic values.
    */
   environment?: EnvironmentVar[];
   /**
-   * #### A map of parameters to pass to the script's handler function.
-   *
-   * ---
-   *
-   * This allows you to pass structured data to your script.
-   *
-   * > **Note:** You cannot pass secrets using this property. Use `environment` variables for secrets.
+   * #### Structured data passed to the handler function as the event payload. Not for secrets — use `environment`.
    */
   parameters?: { [name: string]: any };
   /**
-   * #### The amount of memory (in MB) to allocate to the script's Lambda function.
-   *
-   * ---
-   *
-   * This setting also influences the amount of CPU power the function receives.
-   * The value must be between 128 MB and 10,240 MB.
+   * #### Memory in MB (128–10,240). CPU scales proportionally — 1,769 MB = 1 vCPU.
    */
   memory?: number;
   /**
-   * #### The maximum execution time for the script, in seconds.
-   *
-   * ---
-   *
-   * If the script runs longer than this, it will be terminated. The maximum allowed timeout is 900 seconds (15 minutes).
-   *
+   * #### Max execution time in seconds. Max: 900 (15 minutes).
    * @default 10
    */
   timeout?: number;
   /**
-   * #### Connects the script's Lambda function to your stack's default Virtual Private Cloud (VPC).
-   *
-   * ---
-   *
-   * This is necessary to access resources within the VPC, such as relational databases.
-   *
-   * > **Important:** When a function joins a VPC, it loses direct internet access.
-   *
-   * For more details, see the [Stacktape VPCs documentation](https://docs.stacktape.com/user-guides/vpcs/).
+   * #### Connect to VPC resources (databases, Redis). **Warning:** function loses direct internet access.
    */
   joinDefaultVpc?: boolean;
   /**
-   * #### The size (in MB) of the function's `/tmp` directory.
-   *
-   * ---
-   *
-   * This provides ephemeral storage for your function. The size can be between 512 MB and 10,240 MB.
-   *
+   * #### Ephemeral `/tmp` storage in MB (512–10,240).
    * @default 512
    */
   storage?: number;

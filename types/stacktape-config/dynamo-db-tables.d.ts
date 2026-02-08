@@ -1,9 +1,10 @@
 /**
- * #### DynamoDB Table
+ * #### Serverless NoSQL database with single-digit millisecond reads/writes at any scale.
  *
  * ---
  *
- * A fully managed, serverless, and highly available key-value and document database that delivers single-digit millisecond performance at any scale.
+ * No servers to manage, no capacity planning needed (in on-demand mode). Pay per read/write.
+ * Great for user profiles, session data, IoT data, and any key-value or document workload.
  */
 interface DynamoDbTable {
   type: 'dynamo-db-table';
@@ -20,243 +21,161 @@ type StpDynamoTable = DynamoDbTable['properties'] & {
 
 interface DynamoDbTableProps {
   /**
-   * #### Configures the primary key for the table.
+   * #### The primary key that uniquely identifies each item.
    *
    * ---
    *
-   * The primary key uniquely identifies each item in the table. Two types of primary keys are supported:
+   * - **Simple key**: Just a `partitionKey` (e.g., `userId`).
+   * - **Composite key**: `partitionKey` + `sortKey` (e.g., `userId` + `createdAt`).
    *
-   * - **Simple primary key**: Composed of one attribute, the `partitionKey`.
-   * - **Composite primary key**: Composed of two attributes, the `partitionKey` and the `sortKey`.
-   *
-   * The primary key cannot be modified after the table is created, and each item in the table must include the primary key attribute(s).
-   *
-   * For more details, see the [AWS documentation on primary keys](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/HowItWorks.CoreComponents.html#HowItWorks.CoreComponents.PrimaryKey).
+   * > **Cannot be changed after creation.** Every item must include the primary key attribute(s).
    */
   primaryKey: DynamoDbTablePrimaryKey;
   /**
-   * #### Configures the read and write throughput capabilities of the table.
+   * #### Fixed-capacity mode with predictable pricing. Omit for on-demand (pay-per-request) mode.
    *
    * ---
    *
-   * - **Provisioned mode**: If you specify `provisionedThroughput`, you must set the read and write capacity for your table. This can provide cost predictability but may not handle unpredictable loads.
-   * - **On-demand mode**: If `provisionedThroughput` is not configured, the table runs in on-demand mode, and you pay only for what you use.
-   *
-   * For more details on the differences between these modes, see the [AWS documentation](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/HowItWorks.ReadWriteCapacityMode.html).
+   * - **On-demand** (default, no config): Pay per read/write. Best for unpredictable or variable traffic.
+   * - **Provisioned**: Set fixed read/write capacity. Cheaper at steady, predictable load. Can auto-scale.
    */
   provisionedThroughput?: DynamoDbProvisionedThroughput;
   /**
-   * #### Enables continuous backups with point-in-time recovery.
+   * #### Enable continuous backups with point-in-time recovery (restore to any second in the last 35 days).
    *
    * ---
    *
-   * Point-in-time recovery allows you to restore a table to any point in time within the last 35 days.
-   * The recovery process always restores the data to a new table.
-   *
-   * Enabling this feature may result in additional charges. For more details, see the [AWS DynamoDB pricing page](https://aws.amazon.com/dynamodb/pricing/on-demand/#DynamoDB_detailed_feature_pricing).
+   * Restores always create a new table. Adds ~20% to storage cost.
    */
   enablePointInTimeRecovery?: boolean;
   /**
-   * #### Enables streaming of item changes and configures the stream type.
+   * #### Stream item changes to trigger functions or batch jobs in real time.
    *
    * ---
    *
-   * The stream type determines what information is written to the stream when an item in the table is modified.
-   * Streams can be consumed by [functions](https://docs.stacktape.com/compute-resources/lambda-functions/#dynamo-db-stream-event) and [batch jobs](https://docs.stacktape.com/compute-resources/batch-jobs/#dynamo-db-event).
-   *
-   * Allowed values are:
-   * - `KEYS_ONLY`: Only the key attributes of the modified item are written to the stream.
-   * - `NEW_IMAGE`: The entire item, as it appears after it was modified, is written to the stream.
-   * - `OLD_IMAGE`: The entire item, as it appeared before it was modified, is written to the stream.
-   * - `NEW_AND_OLD_IMAGES`: Both the new and old images of the item are written to the stream.
+   * - `KEYS_ONLY`: Only key attributes of the changed item.
+   * - `NEW_IMAGE`: The full item after the change.
+   * - `OLD_IMAGE`: The full item before the change.
+   * - `NEW_AND_OLD_IMAGES`: Both before and after — useful for change tracking and auditing.
    */
   streamType?: 'KEYS_ONLY' | 'NEW_IMAGE' | 'OLD_IMAGE' | 'NEW_AND_OLD_IMAGES';
   /**
-   * #### A list of global secondary indexes for this table.
+   * #### Additional indexes for querying by attributes other than the primary key.
    *
    * ---
    *
-   * By default, you can only query items in a DynamoDB table based on primary key attributes.
-   * Global secondary indexes allow you to perform queries using a variety of different attributes.
-   *
-   * For more details, see the [AWS documentation on secondary indexes](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/GSI.html).
+   * Without indexes, you can only query by primary key. Add a secondary index to query by
+   * any attribute (e.g., query orders by `status` or users by `email`).
    */
   secondaryIndexes?: DynamoDbTableGlobalSecondaryIndex[];
   /**
-   * #### Dev Mode Configuration
-   *
-   * ---
-   *
-   * Configures how this DynamoDB table behaves during `stacktape dev` mode.
-   * By default, DynamoDB runs locally using Docker. Set `dev.remote: true` to connect to the deployed AWS DynamoDB table instead.
+   * #### Dev mode: runs locally in Docker by default. Set `remote: true` to use the deployed table.
    */
   dev?: DevModeConfig;
 }
 
 interface DynamoDbTablePrimaryKey {
   /**
-   * #### Specifies the partition key for the table.
-   *
-   * ---
-   *
-   * If a table has only a `partitionKey` and no `sortKey`, no two items can have the same partition key.
-   * DynamoDB uses the partition key's value as input to an internal hash function, which determines the partition (physical storage) where the item is stored.
+   * #### The main key attribute (e.g., `userId`, `orderId`). Must be unique if no sort key is used.
    */
   partitionKey: DynamoDbAttribute;
   /**
-   * #### Specifies the sort key for the table.
+   * #### Optional second key for composite keys. Enables range queries and multiple items per partition key.
    *
    * ---
    *
-   * Using a `sortKey` provides additional flexibility when querying data.
-   * In a table with a `partitionKey` and a `sortKey`, multiple items can have the same partition key, but they must have different sort key values.
-   * All items with the same partition key are stored together, sorted by the sort key value.
+   * E.g., partition key `userId` + sort key `createdAt` lets you query all items for a user sorted by date.
    */
   sortKey?: DynamoDbAttribute;
 }
 
 interface DynamoDbTableGlobalSecondaryIndex {
   /**
-   * #### The name of the index.
+   * #### Name of the index (used when querying).
    */
   name: string;
   /**
-   * #### Specifies the partition key for the index.
-   *
-   * ---
-   *
-   * DynamoDB uses the partition key's value as input to an internal hash function, which determines the partition where the item is stored.
+   * #### Partition key for this index — the attribute you'll query by.
    */
   partitionKey: DynamoDbAttribute;
   /**
-   * #### Specifies the sort key for the index.
-   *
-   * ---
-   *
-   * Using a `sortKey` provides additional flexibility when querying data.
-   * In an index with a `partitionKey` and a `sortKey`, multiple items can have the same partition key, but they must have different sort key values.
+   * #### Optional sort key for range queries within a partition.
    */
   sortKey?: DynamoDbAttribute;
   /**
-   * #### A list of attributes that are copied from the table into the global secondary index.
+   * #### Extra attributes to copy into the index. Only projected attributes are available when querying.
    *
    * ---
    *
-   * When querying a secondary index, you can only access attributes that are projected into it.
-   * By default, the table's primary key (partition key and sort key) is projected into the index.
+   * The table's primary key is always projected. List additional attributes you need in query results.
    */
   projections?: string[];
 }
 
 interface DynamoDbAttribute {
   /**
-   * #### The name of the attribute that will be used as a key.
+   * #### Attribute name (e.g., `userId`, `email`, `createdAt`).
    */
   name: string;
   /**
-   * #### The type of the attribute that will be used as a key.
+   * #### Attribute data type: `string`, `number`, or `binary`.
    */
   type: 'string' | 'number' | 'binary';
 }
 
 interface DynamoDbProvisionedThroughput {
   /**
-   * #### The number of read units available per second.
+   * #### Read capacity units per second. 1 unit = one 4 KB strongly consistent read (or two eventually consistent).
    *
    * ---
    *
-   * Each read unit represents either:
-   * - One strongly consistent read
-   * - Two eventually consistent reads
-   *
-   * This applies to items up to 4 KB in size. Reading larger items will consume additional read capacity units.
-   * If you exceed the provisioned read capacity, you will receive a `ThrottlingException`.
+   * Requests exceeding this limit get throttled. Use `readScaling` to auto-adjust.
    */
   readUnits: number;
   /**
-   * #### The number of write units available per second.
+   * #### Write capacity units per second. 1 unit = one 1 KB write.
    *
    * ---
    *
-   * One write unit represents one write per second for an item up to 1 KB in size.
-   * Writing larger items will consume additional write capacity units.
-   * If you exceed the provisioned write capacity, you will receive a `ThrottlingException`.
+   * Requests exceeding this limit get throttled. Use `writeScaling` to auto-adjust.
    */
   writeUnits: number;
   /**
-   * #### Auto-scaling configuration for write units.
-   *
-   * ---
-   *
-   * Even in provisioned mode, you can configure throughput to scale based on load.
-   * The table throughput scales up or down once the specified thresholds are met.
-   *
-   * For more details, see [this detailed AWS article](https://aws.amazon.com/blogs/database/amazon-dynamodb-auto-scaling-performance-and-cost-optimization-at-any-scale/).
+   * #### Auto-scale write capacity based on actual usage. Scales up/down between min and max units.
    */
   writeScaling?: DynamoDbWriteScaling;
   /**
-   * #### Auto-scaling configuration for read units.
-   *
-   * ---
-   *
-   * Even in provisioned mode, you can configure throughput to scale based on load.
-   * The table throughput scales up or down once the specified thresholds are met.
-   *
-   * For more details, see [this detailed AWS article](https://aws.amazon.com/blogs/database/amazon-dynamodb-auto-scaling-performance-and-cost-optimization-at-any-scale/).
+   * #### Auto-scale read capacity based on actual usage. Scales up/down between min and max units.
    */
   readScaling?: DynamoDbReadScaling;
 }
 
 interface DynamoDbWriteScaling {
   /**
-   * #### The minimum number of provisioned write units per second.
-   *
-   * ---
-   *
-   * The available write units will never scale down below this threshold.
+   * #### Minimum write units. Capacity never scales below this.
    */
   minUnits: number;
   /**
-   * #### The maximum number of provisioned write units per second that the table can scale up to.
-   *
-   * ---
-   *
-   * The available write units will never scale up above this threshold.
+   * #### Maximum write units. Capacity never scales above this.
    */
   maxUnits: number;
   /**
-   * #### The target utilization percentage for scaling.
-   *
-   * ---
-   *
-   * If the table's consumed write capacity exceeds (or falls below) your target utilization for a sustained period, the provisioned capacity will be increased (or decreased).
+   * #### Target utilization percentage (e.g., 70). Scales up when usage exceeds this, down when it drops.
    */
   keepUtilizationUnder: number;
 }
 
 interface DynamoDbReadScaling {
   /**
-   * #### The minimum number of provisioned read units per second.
-   *
-   * ---
-   *
-   * The available read units will never scale down below this threshold.
+   * #### Minimum read units. Capacity never scales below this.
    */
   minUnits: number;
   /**
-   * #### The maximum number of provisioned read units per second that the table can scale up to.
-   *
-   * ---
-   *
-   * The available read units will never scale up above this threshold.
+   * #### Maximum read units. Capacity never scales above this.
    */
   maxUnits: number;
   /**
-   * #### The target utilization percentage for scaling.
-   *
-   * ---
-   *
-   * If the table's consumed read capacity exceeds (or falls below) your target utilization for a sustained period, the provisioned capacity will be increased (or decreased).
+   * #### Target utilization percentage (e.g., 70). Scales up when usage exceeds this, down when it drops.
    */
   keepUtilizationUnder: number;
 }

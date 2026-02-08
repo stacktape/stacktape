@@ -7,9 +7,6 @@
  */
 interface ContainerWorkloadLoadBalancerIntegration {
   type: 'application-load-balancer';
-  /**
-   * #### Properties of the integration
-   */
   properties: ContainerWorkloadLoadBalancerIntegrationProps;
 }
 
@@ -36,9 +33,6 @@ interface ApplicationLoadBalancerIntegration {
    * You can route requests based on HTTP method, path, headers, query parameters, and source IP address.
    */
   type: 'application-load-balancer';
-  /**
-   * #### Properties of the integration
-   */
   properties: ApplicationLoadBalancerIntegrationProps;
 }
 
@@ -168,9 +162,6 @@ interface ContainerWorkloadHttpApiIntegrationProps extends HttpApiIntegrationPro
  */
 interface ContainerWorkloadHttpApiIntegration {
   type: 'http-api-gateway';
-  /**
-   * #### Properties of the integration
-   */
   properties: ContainerWorkloadHttpApiIntegrationProps;
 }
 
@@ -179,9 +170,6 @@ interface ContainerWorkloadHttpApiIntegration {
  */
 interface ContainerWorkloadInternalIntegration {
   type: 'workload-internal';
-  /**
-   * #### Properties of the integration
-   */
   properties: ContainerWorkloadInternalIntegrationProps;
 }
 
@@ -197,9 +185,6 @@ interface ContainerWorkloadInternalIntegrationProps {
  */
 interface ContainerWorkloadServiceConnectIntegration {
   type: 'service-connect';
-  /**
-   * #### Properties of the integration
-   */
   properties: ContainerWorkloadServiceConnectIntegrationProps;
 }
 
@@ -232,9 +217,6 @@ interface ContainerWorkloadServiceConnectIntegrationProps {
  */
 interface KafkaTopicIntegration {
   type: 'kafka-topic';
-  /**
-   * #### Properties of the integration
-   */
   properties: KafkaTopicIntegrationProps;
 }
 
@@ -358,15 +340,10 @@ interface KafkaMTLSAuthProps {
  *
  * ---
  *
- * Amazon SNS is a fully managed messaging service for both application-to-application (A2A) and application-to-person (A2P) communication.
- *
- * To add a custom SNS topic to your stack, define it as a [CloudFormation resource](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-sns-topic.html) in the `cloudformationResources` section of your configuration.
+ * SNS is a pub/sub messaging service. Reference a topic from your stack's `snsTopics` or use an external ARN.
  */
 interface SnsIntegration {
   type: 'sns';
-  /**
-   * #### Properties of the integration
-   */
   properties: SnsIntegrationProps;
 }
 
@@ -389,13 +366,11 @@ interface SnsIntegrationProps {
    */
   snsTopicArn?: string;
   /**
-   * #### A filter policy to apply to incoming messages.
+   * #### Filter messages by attributes so only relevant ones trigger the function.
    *
    * ---
    *
-   * This allows you to filter messages based on their attributes, so the function is only triggered for relevant messages.
-   * If you need to filter based on the message content, consider using an EventBridge event bus instead.
-   * For more details on filter policies, see the [AWS documentation](https://docs.aws.amazon.com/sns/latest/dg/sns-subscription-filter-policies.html).
+   * Uses SNS subscription filter policy syntax. For content-based filtering, use EventBridge instead.
    */
   filterPolicy?: any;
   /**
@@ -425,22 +400,14 @@ interface SnsOnDeliveryFailure {
  *
  * ---
  *
- * Messages are processed in batches. A single function invocation can receive multiple messages.
+ * Messages are processed in batches. The function fires when `batchSize` is reached,
+ * `maxBatchWindowSeconds` expires, or the 6 MB payload limit is hit.
  *
- * > A single SQS queue should only be consumed by one function. If you need multiple consumers for the same message (a "fan-out" pattern), use an SNS topic or an EventBridge event bus.
- *
- * To add a custom SQS queue, define it as a [CloudFormation resource](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-sqs-queues.html) in the `cloudformationResources` section.
- *
- * The function is triggered when:
- * - The batch window (`maxBatchWindowSeconds`) expires.
- * - The maximum batch size (`batchSize`) is reached.
- * - The maximum payload size (6 MB) is reached.
+ * **Important:** A single SQS queue should only have one consumer function. For fan-out (multiple
+ * consumers for the same message), use an SNS topic or EventBridge event bus instead.
  */
 interface SqsIntegration {
   type: 'sqs';
-  /**
-   * #### Properties of the integration
-   */
   properties: SqsIntegrationProps;
 }
 
@@ -487,20 +454,12 @@ interface SqsIntegrationProps {
  *
  * ---
  *
- * Kinesis is suitable for real-time data streaming and processing. Records are processed in batches.
- * For a comparison with SQS, see the [AWS documentation](https://aws.amazon.com/kinesis/data-streams/faqs/).
- *
- * To add a custom Kinesis stream, define it as a [CloudFormation resource](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-kinesis-stream.html) in the `cloudformationResources` section.
- *
- * You can consume messages in two ways:
- * - **Directly**: Polls each shard once per second. Read throughput is shared with other consumers.
- * - **Stream Consumer**: Provides a dedicated connection to each shard for higher throughput and lower latency.
+ * Records are processed in batches. Two consumption modes:
+ * - **Direct**: Polls each shard ~1/sec, throughput shared with other consumers.
+ * - **Stream Consumer** (`autoCreateConsumer`): Dedicated connection per shard — higher throughput, lower latency.
  */
 interface KinesisIntegration {
   type: 'kinesis-stream';
-  /**
-   * #### Properties of the integration
-   */
   properties: KinesisIntegrationProps;
 }
 
@@ -607,19 +566,15 @@ interface DestinationOnFailure {
 }
 
 /**
- * #### Triggers a function when item-level changes occur in a DynamoDB table.
+ * #### Triggers a function when items are created, updated, or deleted in a DynamoDB table.
  *
  * ---
  *
- * DynamoDB Streams capture a time-ordered sequence of modifications to items in a table.
- * Records are processed in batches.
- * To use this, you must enable streams on your DynamoDB table. For more information, see the [DynamoDB table documentation](https://docs.stacktape.com/resources/dynamo-db-tables/#item-change-streaming).
+ * Records are processed in batches. You must enable streams on the DynamoDB table first
+ * (set `streaming` in your `dynamoDbTables` config).
  */
 interface DynamoDbIntegration {
   type: 'dynamo-db-stream';
-  /**
-   * #### Properties of the integration
-   */
   properties: DynamoDbIntegrationProps;
 }
 
@@ -683,17 +638,10 @@ interface DynamoDbIntegrationProps {
   bisectBatchOnFunctionError?: boolean;
 }
 /**
- * #### Triggers a function when a specified event occurs in an S3 bucket.
- *
- * ---
- *
- * For a list of supported event types, see the [AWS documentation](https://docs.aws.amazon.com/AmazonS3/latest/userguide/notification-how-to-event-types-and-destinations.html#supported-notification-event-types).
+ * #### Triggers a function when files are created, deleted, or restored in an S3 bucket.
  */
 interface S3Integration {
   type: 's3';
-  /**
-   * #### Properties of the integration
-   */
   properties: S3IntegrationProps;
 }
 
@@ -741,19 +689,16 @@ interface S3FilterRule {
 }
 
 /**
- * #### Triggers a function on a recurring schedule.
+ * #### Triggers a function on a recurring schedule (cron jobs, periodic tasks).
  *
  * ---
  *
- * You can define schedules using two formats:
- * - **Rate expressions**: Run at a regular interval (e.g., `rate(5 minutes)`). See the [AWS documentation on rate expressions](https://docs.aws.amazon.com/AmazonCloudWatch/latest/events/ScheduledEvents.html#RateExpressions).
- * - **Cron expressions**: Run at specific times (e.g., `cron(0 18 ? * MON-FRI *)`). See the [AWS documentation on cron expressions](https://docs.aws.amazon.com/AmazonCloudWatch/latest/events/ScheduledEvents.html#CronExpressions).
+ * Two formats:
+ * - **Rate**: `rate(5 minutes)`, `rate(1 hour)`, `rate(7 days)`
+ * - **Cron**: `cron(0 18 ? * MON-FRI *)` (6-field AWS cron, all times UTC)
  */
 interface ScheduleIntegration {
   type: 'schedule';
-  /**
-   * #### Properties of the integration
-   */
   properties: ScheduleIntegrationProps;
 }
 
@@ -820,9 +765,6 @@ interface ScheduleIntegrationProps {
 
 interface AlarmIntegration {
   type: 'cloudwatch-alarm';
-  /**
-   * #### Properties of the integration
-   */
   properties: AlarmIntegrationProps;
 }
 
@@ -837,17 +779,14 @@ interface AlarmIntegrationProps {
 }
 
 /**
- * #### Triggers a function when a new log record is added to a CloudWatch log group.
+ * #### Triggers a function when new log records appear in a CloudWatch log group.
  *
  * ---
  *
- * > **Note:** The event payload is BASE64-encoded and gzipped. You will need to decode and decompress it in your function to access the log data.
+ * **Note:** The event payload is base64-encoded and gzipped — you must decode and decompress it in your handler.
  */
 interface CloudwatchLogIntegration {
   type: 'cloudwatch-log';
-  /**
-   * #### Properties of the integration
-   */
   properties: CloudwatchLogIntegrationProps;
 }
 
@@ -869,68 +808,35 @@ interface CloudwatchLogIntegrationProps {
 
 interface EventBusIntegrationPattern {
   /**
-   * #### A filter for the `version` field of the event.
-   *
-   * ---
-   *
-   * For more details on event patterns, see the [AWS EventBridge documentation](https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-event-patterns.html).
+   * #### Filter by event version.
    */
   version?: any;
   /**
-   * #### A filter for the `detail-type` field of the event.
-   *
-   * ---
-   *
-   * For more details on event patterns, see the [AWS EventBridge documentation](https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-event-patterns.html).
+   * #### Filter by event detail-type (e.g., `["OrderPlaced"]`). This is the primary field for routing custom events.
    */
   'detail-type'?: any;
   /**
-   * #### A filter for the `source` field of the event.
-   *
-   * ---
-   *
-   * For more details on event patterns, see the [AWS EventBridge documentation](https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-event-patterns.html).
+   * #### Filter by event source (e.g., `["my-app"]` or `["aws.ec2"]` for AWS service events).
    */
   source?: any;
   /**
-   * #### A filter for the `account` field of the event.
-   *
-   * ---
-   *
-   * For more details on event patterns, see the [AWS EventBridge documentation](https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-event-patterns.html).
+   * #### Filter by AWS account ID.
    */
   account?: any;
   /**
-   * #### A filter for the `region` field of the event.
-   *
-   * ---
-   *
-   * For more details on event patterns, see the [AWS EventBridge documentation](https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-event-patterns.html).
+   * #### Filter by AWS region.
    */
   region?: any;
   /**
-   * #### A filter for the `resources` field of the event.
-   *
-   * ---
-   *
-   * For more details on event patterns, see the [AWS EventBridge documentation](https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-event-patterns.html).
+   * #### Filter by resource ARNs.
    */
   resources?: any;
   /**
-   * #### A filter for the `detail` field of the event.
-   *
-   * ---
-   *
-   * The `detail` field contains the main payload of the event as a JSON object. You can create complex matching rules based on its contents.
-   * For more details on event patterns, see the [AWS EventBridge documentation](https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-event-patterns.html).
+   * #### Filter by event payload content. Supports nested matching, prefix/suffix, numeric comparisons.
    */
   detail?: any;
   /**
-   * #### A filter for the `replay-name` field of the event.
-   *
-   * ---
-   *
-   * For more details on event patterns, see the [AWS EventBridge documentation](https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-event-patterns.html).
+   * #### Filter by replay name (only present on replayed events).
    */
   'replay-name'?: any;
 }
@@ -956,9 +862,6 @@ interface EventInputTransformer {
 
 interface IotIntegration {
   type: 'iot';
-  /**
-   * #### Properties of the integration
-   */
   properties: IotIntegrationProps;
 }
 
@@ -974,17 +877,14 @@ interface IotIntegrationProps {
 }
 
 /**
- * #### Triggers a function when a request is made to an HTTP API Gateway.
+ * #### Triggers a function when an HTTP API Gateway receives a matching request.
  *
  * ---
  *
- * Routes are selected based on the most specific match. For more details on route evaluation, see the [AWS documentation](https://docs.aws.amazon.com/apigateway/latest/developerguide/http-api-develop-routes.html#http-api-develop-routes.evaluation).
+ * Routes are matched by specificity — exact paths take priority over wildcard paths.
  */
 interface HttpApiIntegration {
   type: 'http-api-gateway';
-  /**
-   * #### Properties of the integration
-   */
   properties: HttpApiIntegrationProps;
 }
 
@@ -1040,9 +940,6 @@ interface HttpApiIntegrationProps {
  */
 interface EventBusIntegration {
   type: 'event-bus';
-  /**
-   * #### Properties of the integration
-   */
   properties: EventBusIntegrationProps;
 }
 
@@ -1162,9 +1059,6 @@ interface EventBusOnDeliveryFailure {
  */
 interface ContainerWorkloadNetworkLoadBalancerIntegration {
   type: 'network-load-balancer';
-  /**
-   * #### Properties of the integration
-   */
   properties: ContainerWorkloadNetworkLoadBalancerIntegrationProps;
 }
 

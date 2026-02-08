@@ -1,10 +1,10 @@
 /**
- * #### Hosting Bucket
+ * #### Host a static website (React, Vue, Astro, etc.) on S3 + CloudFront CDN.
  *
  * ---
  *
- * A resource designed to host your static website or other static content.
- * It combines the power of an S3 Bucket (for storing data) and a CloudFront CDN (for distributing it globally).
+ * Combines S3 storage with a global CDN for fast, cheap, and scalable static site hosting.
+ * Includes build step, custom domains, caching presets, and environment injection.
  */
 interface HostingBucket {
   type: 'hosting-bucket';
@@ -14,207 +14,131 @@ interface HostingBucket {
 
 interface HostingBucketProps {
   /**
-   * #### The path to the directory to upload.
+   * #### Path to the build output directory (e.g., `dist`, `build`, `out`).
    *
    * ---
    *
-   * This should be the path to the directory containing the content you want to host, such as the output directory of your website's build process.
-   *
-   * The contents of this folder will be uploaded to the bucket during the `deploy`, `codebuild:deploy`, or `bucket:sync` commands.
+   * This folder's contents are uploaded to the bucket on every deploy.
    */
   uploadDirectoryPath: string;
   /**
-   * #### Build configuration for the hosting bucket.
+   * #### Build command that produces the files to upload (e.g., `npm run build`).
    *
    * ---
    *
-   * Configures the build process that produces the files to upload. The build runs during the packaging phase, in parallel with other packaging jobs.
-   *
-   * Supports common frontend build tools like Vite, Webpack, Angular CLI, Vue CLI, Create React App, and SvelteKit.
-   * Build output is parsed to display meaningful information (e.g., bundle size) in the deployment logs.
+   * Runs during the packaging phase, in parallel with other resources. Bundle size is shown in deploy logs.
    */
   build?: HostingBucketBuild;
   /**
-   * #### Dev server configuration for the hosting bucket.
+   * #### Dev server command for local development (e.g., `npm run dev`, `vite`).
    *
    * ---
    *
-   * Configures the dev server process for local development. Used by the `dev` command.
-   *
-   * Example commands:
-   * - `npm run dev`
-   * - `vite`
-   * - `webpack serve`
+   * Used by `stacktape dev`.
    */
   dev?: HostingBucketBuild;
   /**
-   * #### Glob patterns for files to be excluded from the upload.
-   *
-   * ---
-   *
-   * These patterns are relative to the `uploadDirectoryPath`.
+   * #### Glob patterns for files to skip during upload (relative to `uploadDirectoryPath`).
    */
   excludeFilesPatterns?: string[];
   /**
-   * #### Configures HTTP headers of uploaded files and CDN behavior based on the content type.
+   * #### Optimizes caching and routing for your type of frontend app.
    *
    * ---
    *
-   * Supported content types:
+   * - **`single-page-app`**: For React, Vue, Angular, or any SPA built with Vite/Webpack.
+   *   Enables client-side routing (e.g., `/about` serves `index.html`). HTML is never browser-cached;
+   *   hashed assets (`.js`, `.css`) are cached forever.
    *
-   * - **`static-website`**:
-   *   - Sets the `Cache-Control` header to `public, max-age=0, s-maxage=31536000, must-revalidate` for all uploaded files.
-   *   - This setup caches all content on the CDN but never in the browser.
+   * - **`static-website`** (default): For multi-page static sites. All files are CDN-cached
+   *   but never browser-cached, so users always see the latest content after a deploy.
    *
-   * - **`gatsby-static-website`**:
-   *   - Optimizes headers for static websites built with [Gatsby](https://www.gatsbyjs.com/), following their [caching recommendations](https://www.gatsbyjs.com/docs/caching/).
+   * - **`astro-static-website`** / **`sveltekit-static-website`** / **`nuxt-static-website`**:
+   *   Framework-specific presets that cache hashed build assets (`_astro/`, `_app/`, `_nuxt/`)
+   *   indefinitely while keeping HTML fresh.
    *
-   * - **`single-page-app`**:
-   *   - Optimizes headers for [Single-Page Applications](https://en.wikipedia.org/wiki/Single-page_application).
-   *   - `html` files are never cached to ensure users always get the latest content after a deployment.
-   *   - All other assets (e.g., `.js`, `.css`) are cached indefinitely. You should **always** add a content hash to your filenames to ensure users receive new versions after updates. For more details, see the documentation for your bundler (e.g., [webpack](https://webpack.js.org/guides/caching/)).
-   *   - Sets up the necessary CDN redirects for a single-page app.
+   * - **`gatsby-static-website`**: Gatsby-specific caching following their recommendations.
    *
-   * @default static-website
+   * You can override any preset's behavior using `fileOptions`.
+   *
+   * @default "static-website"
    */
   hostingContentType?: SupportedHeaderPreset;
   /**
-   * #### Attaches custom domains to this hosting bucket.
+   * #### Custom domains (e.g., `www.example.com`). Stacktape auto-creates DNS records and TLS certificates.
    *
    * ---
    *
-   * When you connect a custom domain, Stacktape automatically:
-   *
-   * - **Creates DNS records:** A DNS record is created to point your domain name to the resource.
-   * - **Adds TLS certificates:** Stacktape issues and attaches a free, AWS-managed TLS certificate to handle HTTPS.
-   *
-   * > To manage a custom domain, it must first be added to your AWS account as a [hosted zone](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/AboutHZWorkingWith.html), and your domain registrar's name servers must point to it.
-   * > For more details, see the [Adding a domain guide](https://docs.stacktape.com/other-resources/domains-and-certificates/#adding-domain).
+   * Your domain must be added as a Route53 hosted zone in your AWS account first.
    */
   customDomains?: DomainConfiguration[];
   /**
-   * #### Disables URL normalization.
-   *
-   * ---
-   *
-   * URL normalization is enabled by default and is useful for serving HTML files from a bucket with clean URLs (without the `.html` extension).
-   *
+   * #### Disable clean URL normalization (e.g., `/about` → `/about.html`).
    * @default false
    */
   disableUrlNormalization?: boolean;
   /**
-   * #### Configures Edge function triggers.
+   * #### Run edge functions on CDN requests/responses (URL rewrites, auth, A/B testing).
    *
    * ---
    *
-   * You can associate an `edge-lambda-function` with this hosting bucket to be executed at different stages:
-   *
-   * - `onRequest`: Executed when the CDN receives a request from a client, before checking the cache and before the request is forwarded to the hosting bucket.
-   * - `onResponse`: Executed before returning a response to the client.
-   *
-   * **Potential Use Cases:**
-   * - Generating an immediate HTTP response without checking the cache or forwarding to the bucket.
-   * - Modifying the request (e.g., rewriting the URL or headers) before forwarding to the bucket.
+   * - `onRequest`: Before cache lookup and before forwarding to the bucket.
+   * - `onResponse`: Before returning the response to the client.
    */
   edgeFunctions?: EdgeFunctionsConfig;
   /**
-   * #### The custom error document URL.
-   *
-   * ---
-   *
-   * This document is requested if the original request to the origin returns a `404` error code.
-   *
-   * Example: `/error.html`
+   * #### Page to show for 404 errors (e.g., `/error.html`).
    */
   errorDocument?: string;
   /**
-   * #### The custom index document served for requests to the root path (`/`).
-   *
-   * ---
-   *
+   * #### Page served for requests to `/`.
    * @default /index.html
    */
   indexDocument?: string;
   /**
-   * #### Injects referenced parameters into all HTML files in the `uploadDirectoryPath`.
+   * #### Inject deploy-time values into HTML files as `window.STP_INJECTED_ENV.VARIABLE_NAME`.
    *
    * ---
    *
-   * These parameters can be accessed by any JavaScript script using `window.STP_INJECTED_ENV.VARIABLE_NAME`.
-   * This is useful for automatically referencing parameters that are only known after deployment, such as the URL of an API Gateway or the ID of a User Pool.
+   * Useful for making API URLs, User Pool IDs, and other dynamic values
+   * available to your frontend JavaScript without rebuilding.
    */
   injectEnvironment?: EnvironmentVar[];
   /**
-   * #### Injects referenced parameters into `.env` files within the specified directory.
+   * #### Write deploy-time values to a `.env` file in the specified directory.
    *
    * ---
    *
-   * Writes the injected environment variables to a file named `.env`.
-   * If the file already exists, the new variables will be merged with the existing ones.
+   * Merges with existing `.env` content if the file already exists.
    */
   writeDotenvFilesTo?: string;
   /**
-   * #### The name of the `web-app-firewall` resource to use to protect this hosting bucket.
-   *
-   * ---
-   *
-   * A `web-app-firewall` can protect your resources from common web exploits that could affect availability, compromise security, or consume excessive resources.
-   *
-   * For more information, see the [firewall documentation](https://docs.stacktape.com/security-resources/web-app-firewalls/).
-   *
-   * > **Note:** Because this resource uses a CDN, the `scope` of the `web-app-firewall` must be set to `cdn`.
+   * #### Name of a `web-app-firewall` resource to protect this site. Must have `scope: cdn`.
    */
   useFirewall?: string;
   /**
-   * #### Allows you to manually set headers (e.g., `Cache-Control`, `Content-Type`) for files that match a filter pattern.
+   * #### Set HTTP headers (e.g., `Cache-Control`) for files matching specific patterns.
    */
   fileOptions?: DirectoryUploadFilter[];
   /**
-   * #### Redirects specific requests to a different origin.
+   * #### Route specific URL patterns to different origins (e.g., `/api/*` → a Lambda function).
    *
    * ---
    *
-   * Each incoming request to the CDN is evaluated against a list of route rewrites. If the request path matches a rewrite's path pattern, it is sent to the configured route.
-   * Route rewrites are evaluated in order, and the first match determines where the request will be sent.
-   *
-   * If no match is found, the request is sent to the default origin (the hosting bucket).
-   *
-   * **Example Use Cases:**
-   * - Serving static content from the bucket while routing dynamic paths to a Lambda function.
-   * - Caching `.jpg` files for a longer duration than other file types.
+   * Evaluated in order; first match wins. Unmatched requests go to the bucket.
    */
   routeRewrites?: CdnRouteRewrite[];
 }
 
 type WriteEnvFilesFormat = 'dotenv';
 
-/**
- * #### Build configuration for hosting bucket.
- *
- * ---
- *
- * Defines how to build frontend assets before uploading them to the bucket.
- */
 interface HostingBucketBuild {
   /**
-   * #### The command to execute.
-   *
-   * ---
-   *
-   * Examples:
-   * - `npm run build`
-   * - `bun run build`
-   * - `vite build`
-   * - `webpack --mode production`
+   * #### Command to run (e.g., `npm run build`, `vite build`, `npm run dev`).
    */
   command: string;
   /**
-   * #### The working directory for the command.
-   *
-   * ---
-   *
-   * Relative to the project root. Defaults to the project root.
-   *
+   * #### Working directory for the command (relative to project root).
    * @default "."
    */
   workingDirectory?: string;

@@ -1,9 +1,10 @@
 /**
- * #### MongoDB Atlas Cluster
+ * #### Managed MongoDB database (Atlas) deployed into your AWS account and managed within your stack.
  *
  * ---
  *
- * A fully managed MongoDB Atlas cluster that is automatically deployed to your AWS account and managed within your stack.
+ * Document database with flexible schemas — great for content management, user profiles, catalogs, and apps
+ * where your data model evolves. Starts at M2 (shared, ~$9/month) or M10 (dedicated, ~$57/month).
  */
 interface MongoDbAtlasCluster {
   type: 'mongo-db-atlas-cluster';
@@ -12,23 +13,11 @@ interface MongoDbAtlasCluster {
 
 interface MongoDbAtlasClusterProps {
   /**
-   * #### The size of the disk, in GB.
-   *
-   * ---
-   *
-   * By default, all M10+ clusters automatically scale their storage. You can disable this behavior by configuring the `autoScaling` properties.
-   *
-   * > This property is not available for shared clusters (M2 and M5). For M10+ clusters, the default disk size depends on the instance size.
-   * > For more details, see the [MongoDB Atlas documentation](https://docs.atlas.mongodb.com/reference/faq/storage/).
+   * #### Disk size in GB. Not available for shared tiers (M2/M5). M10+ auto-scales storage by default.
    */
   diskSizeGB?: number;
   /**
-   * #### Configures the resources for each data-bearing node in the cluster.
-   *
-   * ---
-   *
-   * This includes memory, default storage, and IOPS specifications.
-   * For a list of available cluster tiers, see the [MongoDB Atlas documentation](https://docs.atlas.mongodb.com/reference/amazon-aws/#cluster-configuration-options).
+   * #### Instance size. M2/M5 = shared (cheapest). M10+ = dedicated (more features, auto-scaling, backups).
    */
   clusterTier:
     | 'M2'
@@ -61,135 +50,72 @@ interface MongoDbAtlasClusterProps {
     | 'M700'
     | 'M700 Low-CPU (R700)';
   /**
-   * #### The major version of the MongoDB engine.
-   *
-   * ---
-   *
-   * Available versions are `5.0`, `6.0`, and `7.0`.
-   *
+   * #### MongoDB engine version.
    * @default "7.0"
    */
   version?: '5.0' | '6.0' | '7.0';
   /**
-   * #### The number of shards for the cluster.
-   *
-   * ---
-   *
-   * If you configure more than one shard, the cluster will run in sharded mode, which distributes data across multiple machines to enable horizontal scaling.
-   * Sharded mode is only available for cluster tiers M30 and higher.
-   *
-   * For more details on sharding, see the [MongoDB documentation](https://www.mongodb.com/basics/sharding).
-   *
+   * #### Number of shards. More than 1 enables sharded mode for horizontal scaling. Requires M30+.
    * @default 1
    */
   numShards?: number;
   /**
-   * #### Configures additional nodes for your cluster.
-   *
-   * ---
-   *
-   * Increasing the number of nodes can lead to better redundancy and performance.
-   * By default, each cluster has three data-bearing nodes that are electable to become the primary.
+   * #### Node count configuration: electable, read-only, and analytics nodes. Default: 3 electable nodes.
    */
   replication?: MongoDbReplication;
   /**
-   * #### Enables backups for the cluster.
-   *
-   * ---
-   *
-   * Backups are copies of your data that provide a safety measure in the event of data loss.
-   * The default snapshot time is every day at 18:00 UTC.
-   * This feature is only available for M10+ clusters.
-   *
-   * Snapshots are also automatically taken for M2/M5 clusters but have different properties. For more details, see the [M2 and M5 backup documentation](https://docs.atlas.mongodb.com/backup-restore-cluster/#m2---m5-snapshots).
-   *
-   * MongoDB Cloud Backup incurs additional charges. For more details, see the [MongoDB Cloud Backup pricing documentation](https://docs.atlas.mongodb.com/billing/cluster-configuration-costs/#cloud-backups).
+   * #### Enable daily snapshots (18:00 UTC). M10+ only — M2/M5 get automatic snapshots with different rules.
    */
   enableBackups?: boolean;
   /**
-   * #### Enables point-in-time recovery.
-   *
-   * ---
-   *
-   * This feature enables Continuous Cloud Backups, which replay the oplog (a history of ordered logical writes) to allow you to restore a cluster to a specific point in time within the last 7 days.
-   * It is only available for M10+ clusters and requires `enableBackups` to be `true`.
-   *
-   * Continuous Cloud Backup incurs additional charges. For more details, see the [MongoDB Continuous Cloud Backup pricing documentation](https://docs.atlas.mongodb.com/billing/cluster-configuration-costs/#continuous-cloud-backups).
+   * #### Restore to any second within the last 7 days. Requires `enableBackups: true` and M10+.
    */
   enablePointInTimeRecovery?: boolean;
   /**
-   * #### Configures the BI (Business Intelligence) Connector.
-   *
-   * ---
-   *
-   * The BI Connector allows SQL-based access to your data but can be CPU and memory-intensive.
-   * Enabling the BI Connector on `M10` and `M20` cluster tiers may cause performance degradation.
+   * #### BI Connector for SQL-based access to MongoDB data. CPU-intensive — may degrade M10/M20 performance.
    */
   biConnector?: MongoDbBiConnector;
   /**
-   * #### Configures the scaling behavior of the cluster.
+   * #### Auto-scale tier and/or storage based on CPU/memory usage. Set min/max tier to control costs.
    *
    * ---
    *
-   * You can configure your cluster to automatically scale its tier, storage capacity, or both, based on usage.
-   * To control costs, you can select a range of cluster tiers to which your cluster can scale.
-   *
-   * A cluster is scaled **up** (to the next tier) if:
-   * - Average CPU utilization has exceeded 75% for the past hour.
-   * - Memory utilization has exceeded 75% for the past hour.
-   *
-   * A cluster is scaled **down** (to a lower tier) if:
-   * - The average CPU and memory utilization over the past 24 hours is below 50%.
-   * - The cluster has not been scaled down (manually or automatically) in the past 24 hours.
+   * Scales up when CPU or memory exceeds 75% for 1 hour. Scales down when both are below 50% for 24 hours.
    */
   autoScaling?: MongoDbAutoScaling;
   /**
-   * #### Creates and configures a MongoDB Atlas `atlasAdmin` user.
+   * #### Admin user for direct database access (e.g., from your local machine or admin tools).
    *
    * ---
    *
-   * This allows you to create an admin user with [administrative access privileges](https://docs.atlas.mongodb.com/security-add-mongodb-users/#mongodb-atlasrole-Atlas-admin).
-   *
-   * While not required for accessing the cluster from your compute resources, creating an admin user is useful for performing administrative tasks or connecting to the cluster from a local machine.
+   * Not required for app-to-database access via `connectTo` — that's handled automatically.
    */
   adminUserCredentials?: MongoDbAdminUserCredentials;
 }
 
 interface MongoDbReplication {
   /**
-   * #### The number of analytics nodes.
-   *
-   * ---
-   *
-   * Analytics nodes are read-only nodes designed for long-running queries.
-   * Using analytics nodes avoids impacting the performance of your operational compute resources.
-   * They work well with the `biConnector` when the read preference is set to `analytics`.
+   * #### Read-only nodes for long-running analytics queries. Prevents impact on primary workload performance.
    */
   numAnalyticsNodes?: number;
   /**
-   * #### The number of electable nodes.
-   *
-   * ---
-   *
-   * Electable nodes can become the primary node, and adding more improves the redundancy and availability of the cluster.
-   *
+   * #### Nodes that can become primary. More = better redundancy. Must be odd.
    * @default 3
    */
   numElectableNodes?: 3 | 5 | 7;
   /**
-   * #### The number of read-only nodes.
+   * #### Read-only replica nodes for scaling read throughput.
    */
   numReadOnlyNodes?: number;
 }
 
 interface MongoDbBiConnector {
   /**
-   * #### Configures the type of node to which the BI Connector will connect.
+   * #### Which node type the BI Connector reads from. Use `analytics` to avoid impacting production queries.
    */
   readPreference?: 'primary' | 'secondary' | 'analytics';
   /**
-   * #### Enables the BI Connector.
-   *
+   * #### Enable the BI Connector for SQL-based access.
    * @default false
    */
   enabled: boolean;
@@ -197,7 +123,7 @@ interface MongoDbBiConnector {
 
 interface MongoDbAutoScaling {
   /**
-   * #### The minimum cluster tier to scale down to.
+   * #### Lowest tier the cluster can scale down to. Prevents unexpected cost increases from always scaling up.
    */
   minClusterTier?:
     | 'M10'
@@ -226,7 +152,7 @@ interface MongoDbAutoScaling {
     | 'M400_NVME'
     | 'M700 Low-CPU (R700)';
   /**
-   * #### The maximum cluster tier to scale up to.
+   * #### Highest tier the cluster can scale up to. Set a ceiling to control maximum costs.
    */
   maxClusterTier?:
     | 'M10'
@@ -255,20 +181,11 @@ interface MongoDbAutoScaling {
     | 'M400_NVME'
     | 'M700 Low-CPU (R700)';
   /**
-   * #### Disables disk size scaling.
-   *
-   * ---
-   *
-   * When disk scaling is enabled, cluster storage automatically increases when disk space usage reaches 90%, aiming for 70% disk utilization.
-   * Cluster storage is never automatically scaled down.
+   * #### Prevent automatic disk expansion. By default, storage grows when usage hits 90%. Storage never scales down.
    */
   disableDiskScaling?: boolean;
   /**
-   * #### Disables the scale-down of the cluster tier.
-   *
-   * ---
-   *
-   * When scale-down is disabled, the cluster can only scale up to a higher tier.
+   * #### Prevent automatic scale-down. The cluster can only scale up, never back down to a smaller tier.
    */
   disableScaleDown?: boolean;
 }
@@ -323,31 +240,25 @@ type StpAtlasMongoGeneralTierClusterInstanceSize = Subtype<
 
 interface MongoDbAtlasAccessibility {
   /**
-   * #### Configures the accessibility mode for this database.
+   * #### Network access mode.
    *
    * ---
    *
-   * The following modes are supported:
-   *
-   * - **`internet`**: The least restrictive mode. The database can be accessed from anywhere on the internet.
-   * - **`vpc`**: The database can only be accessed from resources within your VPC. This includes any [function](https://docs.stacktape.com/compute-resources/lambda-functions) (with `joinDefaultVpc: true`), [batch job](https://docs.stacktape.com/compute-resources/batch-jobs), or [container workload](https://docs.stacktape.com/compute-resources/multi-container-workloads) in your stack, provided they have the required credentials. IP addresses configured in `whitelistedIps` can also access the database.
-   * - **`scoping-workloads-in-vpc`**: Similar to `vpc` mode, but more restrictive. In addition to being in the same VPC, resources must have the necessary security group permissions to access the cluster. For functions, batch jobs, and container services, these permissions can be granted using the `connectTo` property in their respective configurations. IP addresses configured in `whitelistedIps` can also access the cluster.
-   * - **`whitelisted-ips-only`**: The cluster can only be accessed from the IP addresses and CIDR blocks listed in `whitelistedIps`.
-   *
-   * To learn more about VPCs, see the [VPC documentation](https://docs.stacktape.com/user-guides/vpcs/).
+   * - **`internet`**: Accessible from anywhere (credentials still required).
+   * - **`vpc`**: Only from resources in your VPC + any `whitelistedIps`.
+   * - **`scoping-workloads-in-vpc`**: Like `vpc`, but also requires security-group access via `connectTo`.
+   * - **`whitelisted-ips-only`**: Only from IP addresses listed in `whitelistedIps`.
    *
    * @default internet
    */
   accessibilityMode: 'internet' | 'vpc' | 'scoping-workloads-in-vpc' | 'whitelisted-ips-only';
   /**
-   * #### A list of IP addresses or IP ranges (in CIDR format) that are allowed to access the cluster.
+   * #### IP addresses or CIDR ranges allowed to access the cluster (e.g., your office IP).
    *
    * ---
    *
-   * The behavior of this property varies based on the `accessibilityMode`:
-   * - **`internet`**: This property has no effect, as the database is accessible from anywhere.
-   * - **`vpc`** and **`scoping-workloads-in-vpc`**: These IP addresses can be used to allow access from specific locations outside of the VPC (e.g., your office IP address).
-   * - **`whitelisted-ips-only`**: These are the only addresses that can access the database.
+   * No effect in `internet` mode. In `vpc`/`scoping-workloads-in-vpc`, adds access for IPs outside the VPC.
+   * In `whitelisted-ips-only`, these are the only IPs that can connect.
    */
   whitelistedIps?: string[];
 }

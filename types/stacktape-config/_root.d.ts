@@ -14,97 +14,111 @@ interface StacktapeConfig {
    */
   serviceName?: string;
   /**
-   * #### Configuration for 3rd-party service providers.
+   * #### Credentials and settings for 3rd-party services (MongoDB Atlas, Upstash).
+   *
+   * ---
+   *
+   * Required only if you use `mongo-db-atlas-cluster` or `upstash-redis` resources in your stack.
    */
   providerConfig?: {
     mongoDbAtlas?: MongoDbAtlasProvider;
     upstash?: UpstashProvider;
   };
   /**
-   * #### Defines variables that can be used throughout the configuration.
+   * #### Reusable values you can reference anywhere in the config with `$Var().variableName`.
    *
    * ---
    *
-   * Variables can be accessed using the `$Var().{variable-name}` directive.
-   * They are useful when you want to reuse the same value for multiple properties.
+   * Useful for avoiding repetition. For example, define a shared environment name
+   * and reference it in multiple resources.
    *
-   * Example: `dbAddress: $ResourceParam('myDatabase', 'host')`
+   * ```yaml
+   * variables:
+   *   appPort: 3000
+   * # Then use: $Var().appPort
+   * ```
    */
   variables?: { [variableName: string]: any };
   /**
-   * #### Configures a monthly budget and notifications for the stack.
+   * #### Set a monthly spending limit and get email alerts when costs approach it.
    *
    * ---
    *
-   * Budget control allows you to monitor your spending and configure email notifications when cost thresholds are met.
-   * The budget is reset at the beginning of each calendar month.
+   * The budget resets at the start of each calendar month. You can configure alerts
+   * based on actual spend or AWS-forecasted spend.
+   *
+   * > Not available in all regions (e.g., `ap-east-1`, `af-south-1`).
    */
   budgetControl?: BudgetControl;
   /**
-   * #### Configures hooks to be executed before or after specified commands.
+   * #### Run scripts automatically before/after deploy, delete, or dev commands.
    *
    * ---
    *
-   * Hooks are used to automatically execute scripts from the `scripts` section.
+   * Each hook references a script defined in the `scripts` section.
+   * Common uses: run database migrations after deploy, build frontend before deploy,
+   * clean up resources after delete.
    */
   hooks?: Hooks;
   /**
-   * #### A list of script definitions.
+   * #### Custom shell commands or code you can run manually or as lifecycle hooks.
    *
    * ---
    *
-   * Scripts allow you to specify and execute custom logic. Defining scripts in your Stacktape configuration offers several benefits:
-   * - They are easily reusable by all members of your team.
-   * - They can be executed automatically as part of lifecycle [hooks](https://docs.stacktape.com/configuration/hooks/) (e.g., before/after `deploy`/`delete`) or manually using the [`script:run` command](https://docs.stacktape.com/cli/commands/script-run/).
-   * - You can use the `connectTo` property to easily inject environment variables for connecting to your stack's resources.
-   * - You can leverage bastion scripts and tunneling to access resources that are only available within a VPC.
+   * Use `connectTo` in a script to auto-inject database URLs, API keys, etc. as environment variables.
+   * Run scripts with `stacktape script:run --scriptName myScript` or attach them to `hooks`.
    *
-   * There are three types of scripts:
-   * 1.  **`local-script`**: Executed locally on the same machine where the Stacktape command is run.
-   * 2.  **`local-script-with-bastion-tunneling`**: Same as `local-script`, but connections to resources in the `connectTo` list are tunneled through a bastion host, allowing you to access VPC-only resources.
-   * 3.  **`bastion-script`**: Executed on the bastion host itself.
+   * **Script types:**
+   * - **`local-script`**: Runs on your machine (or CI). Good for migrations, builds, seed scripts.
+   * - **`local-script-with-bastion-tunneling`**: Runs locally but tunnels connections to VPC-only
+   *   resources (e.g., private databases) through a bastion host.
+   * - **`bastion-script`**: Runs remotely on the bastion host inside your VPC.
    *
-   * Scripts can be either shell commands or files written in JavaScript, TypeScript, or Python.
+   * Scripts can be shell commands or JS/TS/Python files.
    */
   scripts?: { [scriptName: string]: LocalScript | BastionScript | LocalScriptWithBastionTunneling };
   /**
-   * #### Configures custom, user-defined directives for use in this configuration.
+   * #### Register custom functions that dynamically compute config values at deploy time.
    *
    * ---
    *
-   * Directives can be used to dynamically configure certain aspects of your stack.
+   * Define a directive by pointing to a JS/TS/Python file, then use it anywhere in the config
+   * like a built-in directive (`$MyDirective()`). Useful for fetching external data,
+   * computing dynamic values, or conditional logic.
    */
   directives?: DirectiveDefinition[];
   /**
-   * #### Configures deployment-related aspects for this stack.
+   * #### Advanced deployment settings: rollback behavior, termination protection, artifact retention.
+   *
+   * ---
+   *
+   * Most projects don't need to change these. Useful for production stacks where you want
+   * extra safety (termination protection, rollback alarms) or cost control (artifact cleanup).
    */
   deploymentConfig?: DeploymentConfig;
   /**
-   * #### Configures other, uncategorized aspects of this stack.
+   * #### Stack-wide settings: custom outputs, tags, VPC configuration, and stack info saving.
    */
   stackConfig?: StackConfig;
   /**
-   * #### The infrastructure resources that make up your stack.
+   * #### Your app's infrastructure: APIs, databases, containers, functions, buckets, and more.
    *
    * ---
    *
-   * Each resource consists of multiple underlying AWS resources.
-   * To see all resources in this stack, including their underlying CloudFormation resources, use the `stacktape stack-info --detailed` command.
-   * Each resource specified here counts towards your resource limit.
+   * Each entry is a named resource (e.g., `myApi`, `myDatabase`). Stacktape creates and manages
+   * the underlying AWS resources for you. Use `stacktape stack-info --detailed` to inspect them.
    */
   resources: { [resourceName: string]: StacktapeResourceDefinition };
   /**
-   * #### Raw CloudFormation resources that will be deployed in this stack.
+   * #### Escape hatch: add raw AWS CloudFormation resources alongside Stacktape-managed ones.
    *
    * ---
    *
-   * These resources will be merged with the resources managed by Stacktape.
-   * Each CloudFormation resource consists of a logical name and its definition.
+   * For advanced use cases where Stacktape doesn't have a built-in resource type.
+   * These are merged into the CloudFormation template as-is. Use `stacktape stack-info --detailed`
+   * to check existing logical names and avoid conflicts.
    *
-   * To avoid logical name conflicts, you can see all logical names for resources deployed by Stacktape using the `stacktape stack-info --detailed` command.
-   * Resources specified here do not count towards your resource limit.
-   *
-   * For a list of all supported AWS CloudFormation resources, see the [AWS documentation](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-template-resource-type-ref.html).
+   * Does not count towards your resource limit.
    */
   cloudformationResources?: { [resourceName: string]: CloudformationResource };
 }

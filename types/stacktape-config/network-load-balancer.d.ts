@@ -1,9 +1,10 @@
 /**
- * #### Network Load Balancer
+ * #### TCP/TLS load balancer for non-HTTP traffic (MQTT, game servers, custom protocols).
  *
  * ---
  *
- * A fully managed, Network (L4) Load Balancer that routes TCP or UDP traffic to other resources.
+ * Handles millions of connections with ultra-low latency. Use when you need raw TCP/TLS
+ * instead of HTTP routing. Does not support CDN, firewall, or gradual deployments.
  */
 interface NetworkLoadBalancer {
   type: 'network-load-balancer';
@@ -13,43 +14,20 @@ interface NetworkLoadBalancer {
 
 interface NetworkLoadBalancerProps {
   /**
-   * #### Configures the accessibility of the Load Balancer.
-   *
-   * ---
-   *
-   * - `internet`: The Load Balancer is accessible from the internet.
-   * - `internal`: The Load Balancer is only accessible from within the same VPC network.
-   *
-   * To learn more about VPCs, see the [Stacktape documentation](https://docs.stacktape.com/user-guides/vpcs).
-   *
+   * #### `internet` (public) or `internal` (VPC-only).
    * @default internet
    */
   interface?: 'internet' | 'internal';
   /**
-   * #### Configures custom domains for this Load Balancer.
+   * #### Custom domains. Stacktape auto-creates DNS records and TLS certificates for TLS listeners.
    *
    * ---
    *
-   * Stacktape allows you to connect your custom domain names to various resources, including Web Services, HTTP API Gateways, Application Load Balancers, and Buckets with CDNs.
-   *
-   * When you connect a custom domain, Stacktape automatically:
-   *
-   * - **Creates DNS records:** A DNS record is created to point your domain name to the resource.
-   * - **Adds TLS certificates:** If your listeners use TLS, Stacktape issues and attaches a free, AWS-managed TLS certificate to the resource, handling TLS termination for you.
-   *
-   * If you want to use your own certificates, you can configure `customCertificateArns` on the listener.
-   *
-   * > To manage a custom domain, it must first be added to your AWS account as a [hosted zone](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/AboutHZWorkingWith.html), and your domain registrar's name servers must point to it.
-   * > For more details, see the [Adding a domain guide](https://docs.stacktape.com/other-resources/domains-and-certificates/#adding-domain).
+   * Your domain must be added as a Route53 hosted zone in your AWS account first.
    */
   customDomains?: string[];
   /**
-   * #### Configures custom listeners for this Load Balancer.
-   *
-   * ---
-   *
-   * Listeners define the port and protocol that the Load Balancer uses to accept incoming traffic.
-   * Traffic routed to a listener is then forwarded to a target resource based on the integrations.
+   * #### Listeners define which ports and protocols (TCP/TLS) this load balancer accepts traffic on.
    */
   listeners: NetworkLoadBalancerListener[];
   // /**
@@ -92,36 +70,19 @@ type StpNetworkLoadBalancer = NetworkLoadBalancer['properties'] & {
 
 interface NetworkLoadBalancerListener {
   /**
-   * #### The protocol for the listener.
-   *
-   * ---
-   *
-   * If you use `TLS`, the listener needs an SSL/TLS certificate. This can be configured in two ways:
-   * 1.  **Automatic:** Configure `customDomains` to have Stacktape automatically generate and manage the certificate.
-   * 2.  **Manual:** Configure `customCertificateArns` to use your own certificate, referenced by its ARN (Amazon Resource Name).
+   * #### `TCP` (raw) or `TLS` (encrypted). TLS requires a certificate (auto-created with `customDomains` or via `customCertificateArns`).
    */
   protocol: 'TCP' | 'TLS';
   /**
-   * #### The port number on which the listener is accessible.
-   *
-   * ---
-   *
+   * #### Port this listener accepts traffic on.
    */
   port: number;
   /**
-   * #### Used to configure custom SSL/TLS certificates.
-   *
-   * ---
-   *
-   * This is not necessary if you specify `customDomains` or if you are not using the `TLS` protocol for this listener.
+   * #### ARNs of your own ACM certificates. Not needed if using `customDomains` or TCP protocol.
    */
   customCertificateArns?: string[];
   /**
-   * #### Limits listener accessibility to specific IP addresses.
-   *
-   * ---
-   *
-   * By default, all IP addresses are whitelisted.
+   * #### Restrict access to specific IP addresses/CIDRs. Default: all IPs allowed.
    */
   whitelistIps?: string[];
 }

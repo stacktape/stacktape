@@ -1,9 +1,10 @@
 /**
- * #### Simple Notification Service (SNS) Topic
+ * #### Pub/sub messaging: publish once, deliver to many subscribers (Lambda, SQS, email, SMS, HTTP).
  *
  * ---
  *
- * A managed messaging service for application-to-application (A2A) and application-to-person (A2P) communication. It allows you to send messages (notifications) to a large number of subscribers, including other services, applications, and end-users.
+ * Serverless, pay-per-message. Use when one event needs to trigger multiple actions — e.g., order placed
+ * triggers email confirmation + inventory update + analytics. Subscribers are configured on the subscriber side.
  */
 interface SnsTopic {
   type: 'sns-topic';
@@ -13,39 +14,26 @@ interface SnsTopic {
 
 interface SnsTopicProps {
   /**
-   * #### SMS Display Name
-   *
-   * ---
-   *
-   * The name that appears as the sender when you send SMS messages to subscribers.
+   * #### Sender name shown on SMS messages sent to subscribers (e.g., "MyApp"). Max 11 characters.
    */
   smsDisplayName?: string;
   /**
-   * #### Enable FIFO (First-In-First-Out)
+   * #### Guarantees message order and exactly-once delivery. Use for financial transactions, sequential workflows.
    *
    * ---
    *
-   * Enables FIFO (First-In-First-Out) for this topic.
-   *
-   * FIFO topics ensure that messages are processed in the exact order they are sent and that no duplicate messages are delivered. This is useful for applications where order and uniqueness are critical, such as financial transactions or inventory updates.
-   *
-   * When `fifoEnabled` is `true`, either `contentBasedDeduplication` must be enabled, or every message must include a unique `MessageDeduplicationId`.
-   *
-   * For more details, refer to the [AWS documentation on FIFO topics](https://docs.aws.amazon.com/sns/latest/dg/sns-fifo-topics.html).
+   * FIFO topics can only deliver to FIFO SQS queues (not email, SMS, or HTTP).
+   * Requires either `contentBasedDeduplication: true` or a unique `MessageDeduplicationId` per message.
    *
    * @default false
    */
   fifoEnabled?: boolean;
   /**
-   * #### Enable Content-Based Deduplication
+   * #### Automatically deduplicates messages based on content (SHA-256 hash) within a 5-minute window.
    *
    * ---
    *
-   * Enables content-based deduplication. This helps prevent sending duplicate messages.
-   *
-   * SNS will automatically generate a unique ID based on the message content and use it to detect and discard duplicate messages sent within a 5-minute interval.
-   *
-   * This property can only be used when `fifoEnabled` is `true`.
+   * Saves you from generating a unique deduplication ID for each message. Requires `fifoEnabled: true`.
    *
    * @default false
    */

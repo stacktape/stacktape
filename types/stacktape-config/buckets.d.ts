@@ -1,9 +1,9 @@
 /**
- * #### Storage Bucket
+ * #### S3 storage bucket for files, images, backups, or any binary data.
  *
  * ---
  *
- * A durable and highly available object storage service with pay-per-use pricing.
+ * Pay only for what you store and transfer. Highly durable (99.999999999%).
  */
 interface Bucket {
   type: 'bucket';
@@ -11,31 +11,29 @@ interface Bucket {
   overrides?: ResourceOverrides;
 }
 
-type SupportedHeaderPreset = 'gatsby-static-website' | 'static-website' | 'single-page-app';
+type SupportedHeaderPreset =
+  | 'gatsby-static-website'
+  | 'static-website'
+  | 'single-page-app'
+  | 'astro-static-website'
+  | 'sveltekit-static-website'
+  | 'nuxt-static-website';
 
 interface DirectoryUpload {
   /**
-   * #### The path to the directory that should be uploaded to the bucket.
+   * #### Path to the local directory to upload (relative to project root).
    *
    * ---
    *
-   * After the sync is finished, the contents of your bucket will mirror the contents of the local folder.
-   * The path is relative to your current working directory.
-   *
-   * > **Warning:** Any existing contents of the bucket will be deleted and replaced with the contents of the local directory.
-   * > You should not use a bucket with `directoryUpload` enabled for application-generated or user-generated content.
+   * The bucket will mirror this directory exactly — existing files not in the directory are deleted.
    */
   directoryPath: string;
   /**
-   * #### Allows you to set properties of files (objects) during the upload.
+   * #### Set HTTP headers or tags on files matching specific patterns.
    */
   fileOptions?: DirectoryUploadFilter[];
   /**
-   * #### Glob patterns for files to be excluded from the upload.
-   *
-   * ---
-   *
-   * These patterns are relative to the `directoryPath`.
+   * #### Glob patterns for files to skip during upload (relative to `directoryPath`).
    */
   excludeFilesPatterns?: string[];
   // /**
@@ -47,38 +45,20 @@ interface DirectoryUpload {
   //  */
   // includeFiles?: string[];
   /**
-   * #### Configures HTTP headers of uploaded files to be optimized for a selected preset.
+   * #### Preset for HTTP caching headers, optimized for your frontend framework.
    *
    * ---
    *
-   * Available presets:
+   * - **`single-page-app`**: HTML never cached, hashed assets cached forever. For React/Vue/Angular SPAs.
+   * - **`static-website`**: CDN-cached, never browser-cached. For generic static sites.
+   * - **`astro-static-website`** / **`sveltekit-static-website`** / **`nuxt-static-website`**: Framework-specific
+   *   caching (hashed build assets cached forever, HTML always fresh).
    *
-   * - **`static-website`**:
-   *   - Sets the `Cache-Control` header to `public, max-age=0, s-maxage=31536000, must-revalidate` for all uploaded files.
-   *   - This setup caches all content on the CDN but never in the browser.
-   *
-   * - **`gatsby-static-website`**:
-   *   - Optimizes headers for static websites built with [Gatsby](https://www.gatsbyjs.com/), following their [caching recommendations](https://www.gatsbyjs.com/docs/caching/).
-   *
-   * - **`single-page-app`**:
-   *   - Optimizes headers for [Single-Page Applications](https://en.wikipedia.org/wiki/Single-page_application).
-   *   - `html` files are never cached to ensure users always get the latest content after a deployment.
-   *   - All other assets (e.g., `.js`, `.css`) are cached indefinitely. You should **always** add a content hash to your filenames to ensure users receive new versions after updates.
-   *
-   * You can override these presets using custom `filters`.
-   *
-   * > When `headersPreset` is used, `cdn.invalidateAfterDeploy` must also be configured.
+   * Override individual files with `fileOptions`.
    */
   headersPreset?: SupportedHeaderPreset;
   /**
-   * #### Disables S3 Transfer Acceleration.
-   *
-   * ---
-   *
-   * S3 Transfer Acceleration improves the upload times of your directory contents by uploading objects to the nearest AWS edge location and routing them to the bucket through the AWS backbone network.
-   *
-   * This feature incurs a small additional cost.
-   *
+   * #### Disable faster uploads via S3 Transfer Acceleration. Saves a small per-GB cost.
    * @default false
    */
   disableS3TransferAcceleration?: boolean;
@@ -97,92 +77,56 @@ interface KeyValuePair {
 
 interface DirectoryUploadFilter {
   /**
-   * #### A glob pattern that specifies which files should be handled by this filter.
-   *
-   * ---
-   *
-   * The pattern is relative to the `directoryPath`.
+   * #### Glob pattern for files this rule applies to (e.g., `**/*.html`, `assets/**`).
    */
   includePattern: string;
   /**
-   * #### A glob pattern that specifies which files should be excluded from this filter, even if they match the `includePattern`.
-   *
-   * ---
-   *
-   * The pattern is relative to the `directoryPath`.
+   * #### Glob pattern for files to exclude even if they match `includePattern`.
    */
   excludePattern?: string;
   /**
-   * #### Configures HTTP headers for files (objects) that match this filter.
-   *
-   * ---
-   *
-   * If you are using a CDN, these headers will be forwarded to the client.
-   * This can be used to implement a custom HTTP caching strategy for your static content.
+   * #### HTTP headers (e.g., `Cache-Control`) for matching files. Forwarded through CDN to the browser.
    */
   headers?: KeyValuePair[];
   /**
-   * #### Tags to apply to the files that match this filter.
-   *
-   * ---
-   *
-   * Tags help you categorize your objects and can be used to filter objects when using `lifecycleRules`.
-   *
-   * For more details on object tagging, see the [AWS documentation](https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-tagging.html).
-   *
-   * > A single file (object) can have only one tag with the same key.
+   * #### Tags for matching files. Can be used to target files with `lifecycleRules`.
    */
   tags?: KeyValuePair[];
 }
 
 interface BucketProps {
   /**
-   * #### Allows you to upload a specified directory to the bucket on every deployment.
+   * #### Sync a local directory to this bucket on every deploy.
    *
    * ---
    *
-   * After the upload is finished, the contents of your bucket will mirror the contents of the local folder.
-   * Files are uploaded using parallel, multipart uploads.
-   *
-   * > **Warning:** Any existing contents of the bucket will be deleted and replaced with the contents of the local directory.
-   * > You should not use `directoryUpload` for buckets with application-generated or user-generated content.
+   * > **Warning:** Replaces all existing bucket contents. Don't use for buckets
+   * > with user-uploaded or application-generated files.
    */
   directoryUpload?: DirectoryUpload;
   /**
-   * #### Configures the accessibility of the bucket.
+   * #### Who can read/write to this bucket: `private` (default), `public-read`, or `public-read-write`.
    */
   accessibility?: BucketAccessibility;
   /**
-   * #### Configures CORS (Cross-Origin Resource Sharing) HTTP headers for the bucket.
-   *
-   * ---
-   *
-   * Web browsers use CORS to block websites from making requests to a different origin (server) than the one they are served from.
+   * #### CORS settings for browser-based access to the bucket.
    */
   cors?: BucketCorsConfig;
   /**
-   * #### Enables versioning of objects in the bucket.
-   *
-   * ---
-   *
-   * When enabled, the bucket will keep multiple variants of an object.
-   * This can help you recover objects from accidental deletion or overwrites.
+   * #### Keep previous versions of overwritten/deleted objects. Helps recover from mistakes.
    */
   versioning?: boolean;
   /**
-   * #### Enables encryption of the objects stored in this bucket.
-   *
-   * ---
-   *
-   * Objects are encrypted using the AES-256 algorithm.
+   * #### Encrypt stored objects at rest (AES-256).
    */
   encryption?: boolean;
   /**
-   * #### Configures how objects are stored throughout their lifecycle.
+   * #### Auto-delete or move objects to cheaper storage classes over time.
    *
    * ---
    *
-   * Lifecycle rules are used to transition objects to different storage classes or delete old objects.
+   * Use to control storage costs: expire old files, archive infrequently accessed data,
+   * or clean up incomplete uploads.
    */
   lifecycleRules?: (
     | Expiration
@@ -192,31 +136,13 @@ interface BucketProps {
     | AbortIncompleteMultipartUpload
   )[];
   /**
-   * #### Enables sending bucket events to the default EventBridge bus.
-   *
-   * ---
-   *
-   * When enabled, an event is sent to the default event bus whenever certain actions occur in your bucket (e.g., an object is created or deleted).
-   *
-   * For a full list of all bucket events, see the [AWS documentation](https://docs.aws.amazon.com/AmazonS3/latest/userguide/EventBridge.html).
+   * #### Send events (object created, deleted, etc.) to EventBridge for event-driven workflows.
    *
    * @default false
    */
   enableEventBusNotifications?: boolean;
   /**
-   * #### Configures an AWS CloudFront CDN (Content Delivery Network) in front of your bucket.
-   *
-   * ---
-   *
-   * A CDN is a globally distributed network of edge locations that caches responses from your bucket, bringing content closer to your users.
-   *
-   * Using a CDN can:
-   * - Reduce latency and improve load times.
-   * - Lower bandwidth costs.
-   * - Decrease the amount of traffic hitting your origin.
-   * - Enhance security.
-   *
-   * The "origin" is the resource (in this case, the bucket) that the CDN is attached to.
+   * #### Put a CDN (CloudFront) in front of this bucket for faster downloads and lower bandwidth costs.
    */
   cdn?: BucketCdnConfiguration;
 }
@@ -224,7 +150,16 @@ interface BucketProps {
 type StpBucket = Bucket['properties'] & {
   name: string;
   type: Bucket['type'];
-  configParentResourceType: Bucket['type'] | HostingBucket['type'] | NextjsWeb['type'];
+  configParentResourceType:
+    | Bucket['type']
+    | HostingBucket['type']
+    | NextjsWeb['type']
+    | AstroWeb['type']
+    | NuxtWeb['type']
+    | SvelteKitWeb['type']
+    | SolidStartWeb['type']
+    | TanStackWeb['type']
+    | RemixWeb['type'];
   nameChain: string[];
 };
 
@@ -283,15 +218,11 @@ interface BucketCdnConfiguration extends CdnConfiguration {
 
 interface LifecycleRuleBase {
   /**
-   * #### The prefix of the objects to which the lifecycle rule is applied.
+   * #### Only apply this rule to objects with this key prefix (e.g., `logs/`, `uploads/`).
    */
   prefix?: string;
   /**
-   * #### The tags of the objects to which the lifecycle rule is applied.
-   *
-   * ---
-   *
-   * For more details on tagging objects, see the [AWS documentation](https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-tagging.html).
+   * #### Only apply this rule to objects with these tags.
    */
   tags?: KeyValuePair[];
 }
@@ -303,11 +234,7 @@ interface Expiration {
 
 interface ExpirationProps extends LifecycleRuleBase {
   /**
-   * #### The number of days after which an object is considered expired.
-   *
-   * ---
-   *
-   * This is relative to the date the object was uploaded.
+   * #### Delete objects this many days after upload.
    */
   daysAfterUpload: number;
 }
@@ -319,12 +246,7 @@ interface NonCurrentVersionExpiration {
 
 interface NonCurrentVersionExpirationProps extends LifecycleRuleBase {
   /**
-   * #### The number of days after which a non-current version of an object becomes expired.
-   *
-   * ---
-   *
-   * This is relative to the date the object became a non-current version.
-   * This rule is only effective if the bucket has versioning enabled.
+   * #### Delete old versions this many days after they become non-current. Requires `versioning: true`.
    */
   daysAfterVersioned: number;
 }
@@ -336,23 +258,18 @@ interface ClassTransition {
 
 interface ClassTransitionProps extends LifecycleRuleBase {
   /**
-   * #### The number of days after which an object is transitioned to another storage class.
-   *
-   * ---
-   *
-   * This is relative to the date the object was uploaded.
-   * Depending on how often you need to access your objects, transitioning them to another storage class can lead to significant cost savings.
+   * #### Move objects to a cheaper storage class this many days after upload.
    */
   daysAfterUpload: number;
   /**
-   * #### The storage class to which to transition the object.
+   * #### Target storage class. Cheaper classes have higher retrieval costs/latency.
    *
    * ---
    *
-   * By default, all objects are in the `STANDARD` (general purpose) class.
-   * Depending on your access patterns, you can transition objects to a different storage class to save costs.
-   *
-   * For more details on storage classes, see the [AWS documentation](https://aws.amazon.com/s3/storage-classes/).
+   * - `STANDARD_IA` / `ONEZONE_IA`: Infrequent access, instant retrieval.
+   * - `INTELLIGENT_TIERING`: AWS auto-moves between tiers based on access patterns.
+   * - `GLACIER`: Archive, minutes to hours for retrieval.
+   * - `DEEP_ARCHIVE`: Cheapest, 12+ hours for retrieval.
    */
   storageClass: 'DEEP_ARCHIVE' | 'GLACIER' | 'INTELLIGENT_TIERING' | 'ONEZONE_IA' | 'STANDARD_IA';
 }
@@ -364,20 +281,11 @@ interface NonCurrentVersionClassTransition {
 
 interface NonCurrentVersionClassTransitionProps extends LifecycleRuleBase {
   /**
-   * #### The number of days after which a non-current version of an object is transitioned to another storage class.
-   *
-   * ---
-   *
-   * This is relative to the date the object became a non-current version.
-   * Depending on how often you need to access your objects, transitioning them to another storage class can lead to significant cost savings.
+   * #### Move old versions to a cheaper storage class this many days after becoming non-current.
    */
   daysAfterVersioned: number;
   /**
-   * #### The storage class to which to transition the object.
-   *
-   * ---
-   *
-   * For more details on storage classes and transitions, see the [AWS documentation](https://docs.aws.amazon.com/AmazonS3/latest/userguide/lifecycle-transition-general-considerations.html).
+   * #### Target storage class for non-current versions.
    */
   storageClass: 'DEEP_ARCHIVE' | 'GLACIER' | 'INTELLIGENT_TIERING' | 'ONEZONE_IA' | 'STANDARD_IA';
 }
@@ -389,69 +297,41 @@ interface AbortIncompleteMultipartUpload {
 
 interface AbortIncompleteMultipartUploadProps extends LifecycleRuleBase {
   /**
-   * #### The number of days after which an incomplete multipart upload is aborted and its parts are deleted.
-   *
-   * ---
-   *
-   * This is relative to the start of the multipart upload.
+   * #### Clean up incomplete multipart uploads after this many days. Prevents storage waste.
    */
   daysAfterInitiation: number;
 }
 
 interface BucketCorsConfig {
   /**
-   * #### Enables CORS (Cross-Origin Resource Sharing) HTTP headers for the bucket.
-   *
-   * ---
-   *
-   * If you enable CORS without specifying any rules, a default rule with the following configuration is used:
-   * - `allowedMethods`: `GET`, `PUT`, `HEAD`, `POST`, `DELETE`
-   * - `allowedOrigins`: `*`
-   * - `allowedHeaders`: `Authorization`, `Content-Length`, `Content-Type`, `Content-MD5`, `Date`, `Expect`, `Host`, `x-amz-content-sha256`, `x-amz-date`, `x-amz-security-token`
+   * #### Enable CORS. When `true` with no rules, uses permissive defaults (`*` origins, all methods).
    */
   enabled: boolean;
   /**
-   * #### A list of CORS rules.
-   *
-   * ---
-   *
-   * When the bucket receives a preflight request from a browser, it evaluates the CORS configuration and uses the first rule that matches the request to enable a cross-origin request.
-   * For a rule to match, the following conditions must be met:
-   *
-   * - The request's `Origin` header must match one of the `allowedOrigins`.
-   * - The request method (e.g., `GET`, `PUT`) or the `Access-Control-Request-Method` header must be one of the `allowedMethods`.
-   * - Every header listed in the request's `Access-Control-Request-Headers` header must match one of the `allowedHeaders`.
+   * #### Custom CORS rules. First matching rule wins for each preflight request.
    */
   corsRules?: BucketCorsRule[];
 }
 
 interface BucketCorsRule {
   /**
-   * #### The origins to accept cross-domain requests from.
-   *
-   * ---
-   *
-   * An origin is a combination of a scheme (protocol), hostname (domain), and port.
+   * #### Allowed origins (e.g., `https://example.com`). Use `*` for any.
    */
   allowedOrigins?: string[];
   /**
-   * #### The allowed HTTP headers.
-   *
-   * ---
-   *
-   * Each header name in the `Access-Control-Request-Headers` header of a preflight request must match an entry in this list.
+   * #### Allowed request headers.
    */
   allowedHeaders?: string[];
   /**
-   * #### The allowed HTTP methods.
+   * #### Allowed HTTP methods.
    */
   allowedMethods?: ('GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD' | '*')[];
   /**
-   * #### The response headers that should be made available to scripts running in the browser in response to a cross-origin request.
+   * #### Response headers accessible to browser JavaScript.
    */
   exposedResponseHeaders?: string[];
   /**
-   * #### The time (in seconds) that the browser can cache the response for a preflight request.
+   * #### How long (seconds) browsers can cache preflight responses.
    */
   maxAge?: number;
 }

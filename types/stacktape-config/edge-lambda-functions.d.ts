@@ -1,10 +1,10 @@
 /**
- * #### A specialized Lambda function that runs at AWS edge locations, close to your users.
+ * #### Lambda function that runs at CDN edge locations for request/response manipulation.
  *
  * ---
  *
- * Edge Lambda functions are designed to be executed by a Content Delivery Network (CDN) in response to CDN events.
- * They allow you to customize the content delivered through the CDN, enabling things like header manipulation, URL rewrites, and A/B testing.
+ * Runs on CloudFront events (viewer request, origin request, etc.) to modify headers, rewrite URLs,
+ * implement A/B testing, or add auth checks at the edge. Referenced from CDN `edgeFunctions` config.
  */
 interface EdgeLambdaFunction {
   type: 'edge-lambda-function';
@@ -14,24 +14,11 @@ interface EdgeLambdaFunction {
 
 interface EdgeLambdaFunctionProps {
   /**
-   * #### Configures how your code is packaged and deployed.
-   *
-   * ---
-   *
-   * Stacktape supports two packaging methods:
-   * - `stacktape-lambda-buildpack`: Stacktape automatically builds and packages your code from a specified source file. This is the recommended and simplest approach.
-   * - `custom-artifact`: You provide a path to a pre-built deployment package (e.g., a zip file). Stacktape will handle the upload.
-   *
-   * Your deployment packages are stored in an S3 bucket managed by Stacktape.
+   * #### How the function code is packaged and deployed.
    */
   packaging: LambdaPackaging;
   /**
-   * #### The runtime environment for the function.
-   *
-   * ---
-   *
-   * Stacktape automatically detects the programming language and selects an appropriate runtime.
-   * Edge Lambda functions support a specific set of runtimes.
+   * #### Lambda runtime. Auto-detected from file extension. Edge functions support Node.js and Python only.
    */
   runtime?:
   | 'nodejs24.x'
@@ -45,78 +32,31 @@ interface EdgeLambdaFunctionProps {
   | 'python3.9'
   | 'python3.8';
   /**
-   * #### The amount of memory (in MB) allocated to the function.
-   *
-   * ---
-   *
-   * The maximum memory depends on when the function is triggered in the CDN lifecycle:
-   * - `onRequest` or `onResponse` (viewer-facing events): 128 MB
-   * - `onOriginRequest` or `onOriginResponse` (origin-facing events): 10,240 MB
-   *
-   * For more details, see the [CDN documentation](https://docs.stacktape.com/other-resources/cdns/#edge-lambda-functions).
-   *
+   * #### Memory in MB. Max depends on event type: viewer events = 128 MB, origin events = 10,240 MB.
    * @default 128
    */
   memory?: number;
   /**
-   * #### The maximum execution time for the function, in seconds.
-   *
-   * ---
-   *
-   * The maximum timeout depends on when the function is triggered in the CDN lifecycle:
-   * - `onRequest` or `onResponse` (viewer-facing events): 5 seconds
-   * - `onOriginRequest` or `onOriginResponse` (origin-facing events): 30 seconds
-   *
-   * For more details, see the [CDN documentation](https://docs.stacktape.com/other-resources/cdns/#edge-lambda-functions).
-   *
+   * #### Max execution time in seconds. Viewer events: max 5s. Origin events: max 30s.
    * @default 3
    */
   timeout?: number;
 
   /**
-   * #### Grants the function access to other resources in your stack.
+   * #### Grant access to other resources in your stack (IAM permissions only — no env vars or VPC access).
    *
    * ---
    *
-   * By listing resources here, Stacktape automatically configures the necessary IAM permissions and security group rules.
-   * It also injects environment variables with connection details into the function's runtime.
-   *
-   * > **Note:** Environment variable injection is not supported for Edge Lambda functions.
-   * > Also, Edge Lambda functions cannot connect to resources within a VPC.
-   *
-   * **Supported Resources:**
-   *
-   * - **Bucket**: Grants permissions to list, create, get, and delete objects.
-   * - **DynamoDB table**: Grants permissions for item manipulation and table scanning/querying.
-   * - **MongoDB Atlas cluster**: Allows secure, credential-less access to the cluster.
-   * - **Relational database**: Allows connections to the database.
-   * - **Redis cluster**: Allows connections to the Redis cluster.
-   * - **Event bus**: Grants permission to publish events.
-   * - **Function**: Grants permission to invoke another function.
-   * - **Batch job**: Grants permissions to manage batch jobs.
-   * - **User auth pool**: Grants full control over a Cognito User Pool.
-   * - **Upstash Kafka topic**: Provides connection details.
-   * - **Upstash Redis**: Provides connection details.
-   * - **aws:ses**: Grants full permissions to Amazon Simple Email Service (SES).
+   * Edge Lambda functions **cannot** use environment variables or connect to VPC resources.
+   * `connectTo` only sets up IAM permissions (e.g., S3 bucket access, DynamoDB, SES).
    */
   connectTo?: string[];
   /**
-   * #### A list of raw AWS IAM role statements to add to the function's execution role.
-   *
-   * ---
-   *
-   * Use this for fine-grained control over the function's permissions.
+   * #### Custom IAM policy statements for fine-grained AWS permissions beyond what `connectTo` provides.
    */
   iamRoleStatements?: StpIamRoleStatement[];
   /**
-   * #### Configures the logging behavior for the function.
-   *
-   * ---
-   *
-   * Function logs (`stdout` and `stderr`) are sent to CloudWatch log groups.
-   *
-   * > **Important:** Since Edge Lambda functions run in multiple AWS regions, logs are delivered to a log group in the region where the function was executed.
-   * > You can use the `stacktape stack-info` command to get links to the log groups in each region.
+   * #### Logging config. Logs are sent to CloudWatch **in the region where the function executed** (not your stack region).
    */
   logging?: LambdaFunctionLogging;
 }

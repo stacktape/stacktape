@@ -19,12 +19,7 @@ interface EsLanguageSpecificConfig {
    */
   tsConfigPath?: string;
   /**
-   * #### Emits TypeScript decorator metadata in the final bundle.
-   *
-   * ---
-   *
-   * This is required by frameworks like NestJS and ORMs like TypeORM.
-   * It's disabled by default as it can increase build times.
+   * #### Emit TypeScript decorator metadata. Required by NestJS, TypeORM, and similar frameworks.
    */
   emitTsDecoratorMetadata?: boolean;
   /**
@@ -38,15 +33,11 @@ interface EsLanguageSpecificConfig {
    */
   dependenciesToExcludeFromBundle?: string[];
   /**
-   * #### The output module format for the compiled code.
+   * #### Output module format: `cjs` (CommonJS) or `esm` (ES Modules, enables top-level `await`).
    *
    * ---
    *
-   * - `cjs` (CommonJS): The standard module system for Node.js.
-   * - `esm` (ECMAScript Modules): The modern standard for JavaScript modules. Allows features like top-level `await`.
-   *
-   * > **Note:** Many Node.js dependencies do not yet support ES modules.
-   * > Using `esm` may also affect the quality of stack traces for errors.
+   * **Note:** Some npm packages don't support ESM. ESM may also produce less readable stack traces.
    *
    * @default 'cjs'
    */
@@ -58,20 +49,15 @@ interface EsLanguageSpecificConfig {
    */
   nodeVersion?: 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24;
   /**
-   * #### Disables the generation of source maps.
-   *
-   * ---
-   *
-   * Disabling source maps can reduce the size of your deployment package, but it will make it more difficult to debug errors in production, as stack traces will not map back to your original source code.
+   * #### Skip generating source maps. Reduces package size but makes production errors harder to debug.
    */
   disableSourceMaps?: boolean;
   /**
-   * #### Outputs source maps to a specified directory.
+   * #### Save source maps to a local directory instead of uploading them to AWS.
    *
    * ---
    *
-   * If you use this option, source maps will not be uploaded to AWS, and stack traces in CloudWatch logs will not be correctly mapped.
-   * This is useful if you plan to upload source maps to an external error tracking service like Sentry.
+   * Useful for uploading to external error tracking (Sentry, Datadog, etc.). CloudWatch stack traces won't be mapped.
    */
   outputSourceMapsTo?: string;
   /**
@@ -111,25 +97,16 @@ interface PyLanguageSpecificConfig {
    */
   pythonVersion?: SupportedPythonVersion;
   /**
-   * #### The Python web server gateway interface to use.
+   * #### Python server type: `WSGI` (Flask, Django) or `ASGI` (FastAPI, Starlette).
    *
    * ---
    *
-   * > This property is only for the `stacktape-image-buildpack`.
-   *
-   * You can choose between `WSGI` (for frameworks like Flask or Django) and `ASGI` (for frameworks like FastAPI).
-   * The server will automatically bind to the port specified by the `PORT` environment variable.
-   *
-   * To use this, you must specify the application variable in your `entryfilePath` (e.g., `my_app/main.py:app`).
+   * Only for `stacktape-image-buildpack`. Auto-binds to the `PORT` env var.
+   * Set `entryfilePath` to `module/file.py:app` (e.g., `app/main.py:app`).
    */
   runAppAs?: SupportedPythonRunAppAs;
   /**
-   * #### Minifies the Python code.
-   *
-   * ---
-   *
-   * If enabled, Stacktape will minify the Python code using `pyminify`.
-   * This can reduce the size of the deployment package, but it will make it more difficult to debug errors in production, as stack traces will not map back to your original source code.
+   * #### Minify Python code to reduce package size. Makes production stack traces harder to read.
    *
    * @default true
    */
@@ -206,12 +183,12 @@ type SupportedDotnetVersion = 6 | 8;
 
 interface StpBuildpackSharedProps {
   /**
-   * #### The path to the entry point of your application, relative to your Stacktape configuration file.
+   * #### Path to your app's entry point, relative to the Stacktape config file.
    *
    * ---
    *
-   * Stacktape will attempt to bundle your code and its dependencies into a single file.
-   * If a dependency cannot be bundled (e.g., it relies on binary executables), it will be installed and included in the deployment package separately.
+   * For JS/TS: code is bundled into a single file. Dependencies with native binaries are installed separately.
+   * For Python: use `module/file.py:app` format when using `runAppAs` (WSGI/ASGI).
    */
   entryfilePath: string;
   /**
@@ -600,13 +577,11 @@ interface StpBuildpackBjImagePackagingProps extends StpBuildpackSharedProps {
     | DotnetLanguageSpecificConfig
     | RubyLanguageSpecificConfig;
   /**
-   * #### Builds the image with support for glibc-based binaries.
+   * #### Use glibc instead of musl (Alpine default). Enable if native dependencies require glibc.
    *
    * ---
    *
-   * By default, Stacktape uses Alpine-based Docker images, which use `musl` instead of `glibc`.
-   * Enable this option if your application has native dependencies that require `glibc`.
-   * This will result in a larger container image.
+   * Results in a larger image. Common packages needing this: `sharp`, `canvas`, `bcrypt`, `puppeteer`.
    */
   requiresGlibcBinaries?: boolean;
   /**

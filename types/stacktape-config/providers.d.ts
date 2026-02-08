@@ -4,17 +4,15 @@ interface MongoDbAtlasProvider {
    *
    * ---
    *
-   * You can get API keys for your organization by following the [guide in the docs](https://docs.stacktape.com/user-guides/mongo-db-atlas-credentials/).
+   * Create API keys in the MongoDB Atlas console under Organization Settings > API Keys.
    */
   publicKey?: string;
   /**
-   * #### Your MongoDB Atlas private API key.
+   * #### Your MongoDB Atlas private API key. Store as `$Secret()` for security.
    *
    * ---
    *
-   * You can get API keys for your organization by following the [guide in the docs](https://docs.stacktape.com/user-guides/mongo-db-atlas-credentials/).
-   *
-   * For security reasons, you should store your credentials as secrets. For more details, see the [secrets guide](https://docs.stacktape.com/resources/secrets/).
+   * Create API keys in the MongoDB Atlas console under Organization Settings > API Keys.
    */
   privateKey?: string;
   /**
@@ -22,18 +20,16 @@ interface MongoDbAtlasProvider {
    *
    * ---
    *
-   * You can get the organization ID for your organization by following the [guide in the docs](https://docs.stacktape.com/user-guides/mongo-db-atlas-credentials/).
+   * Found in the MongoDB Atlas console under Organization Settings.
    */
   organizationId?: string;
   /**
-   * #### Configures the connectivity settings of the MongoDB Atlas project.
+   * #### Network connectivity settings for all MongoDB Atlas clusters in this stack.
    *
    * ---
    *
-   * If your stack contains a MongoDB Atlas cluster, Stacktape will automatically create a MongoDB Atlas Project for it.
-   * All MongoDB Atlas clusters in your stack will be deployed within this project.
-   *
-   * Network connectivity to clusters is configured at the project level, so the accessibility settings defined here will apply to all MongoDB Atlas clusters in your stack.
+   * Stacktape auto-creates a MongoDB Atlas Project for your clusters. These accessibility settings
+   * apply at the project level — all clusters in the stack share the same network config.
    */
   accessibility?: MongoDbAtlasAccessibility;
 }
@@ -51,19 +47,15 @@ interface MongoDbAtlasApiCredentials {
 
 interface UpstashProvider {
   /**
-   * #### The email address associated with your Upstash account.
-   *
-   * ---
-   *
-   * All database operations (create, update, delete) will be performed on behalf of this account.
+   * #### Email address of your Upstash account.
    */
   accountEmail: string;
   /**
-   * #### The API key associated with your Upstash account or team.
+   * #### API key for your Upstash account. Store as `$Secret()` for security.
    *
    * ---
    *
-   * You can create an API key in the [Upstash console](https://console.upstash.com/account/api).
+   * Create an API key in the Upstash console under Account > API Keys.
    */
   apiKey: string;
 }

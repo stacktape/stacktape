@@ -1,11 +1,10 @@
 /**
- * #### Custom resource definition
+ * #### Lambda-backed provisioning logic for resources not natively supported by Stacktape/CloudFormation.
  *
  * ---
  *
- * Defines the provisioning logic for a custom resource.
- * This allows you to create resources that are not natively supported by AWS CloudFormation or to provision services from other cloud providers.
- * The logic is implemented in an AWS Lambda function that is executed during `create`, `update`, and `delete` events.
+ * Your Lambda function runs on stack create, update, and delete events to manage external resources
+ * (third-party APIs, SaaS services, custom infrastructure). Pair with `custom-resource-instance` to use.
  */
 interface CustomResourceDefinition {
   type: 'custom-resource-definition';
@@ -14,12 +13,7 @@ interface CustomResourceDefinition {
 }
 
 /**
- * #### Custom resource instance
- *
- * ---
- *
- * Creates an instance of a `custom-resource-definition`.
- * This is useful for creating resources that are not natively supported by AWS CloudFormation or for provisioning services from other providers.
+ * #### An instance of a `custom-resource-definition`. Pass properties to the backing Lambda function.
  */
 interface CustomResourceInstance {
   type: 'custom-resource-instance';
@@ -29,66 +23,34 @@ interface CustomResourceInstance {
 
 interface CustomResourceInstanceProps {
   /**
-   * #### The name of the `custom-resource-definition` to use.
+   * #### Name of the `custom-resource-definition` in your config that provides the backing Lambda.
    */
   definitionName: string;
   /**
-   * #### Properties passed to the custom resource instance.
-   *
-   * ---
-   *
-   * These properties will be accessible to the custom resource Lambda function during execution.
+   * #### Key-value pairs passed to the Lambda function during create/update/delete events.
    */
   resourceProperties: { [name: string]: any };
 }
 interface CustomResourceDefinitionProps extends ResourceAccessProps {
   /**
-   * #### The deployment package for the custom resource's Lambda function.
-   *
-   * ---
-   *
-   * Custom resources are managed by a Lambda function that is executed during `create`, `update`, and `delete` events.
-   * This property configures the code and dependencies for that function.
+   * #### How the Lambda function code is packaged and deployed.
    */
   packaging: LambdaPackaging;
   /**
-   * #### Environment variables for the custom resource's Lambda function.
-   *
-   * ---
-   *
-   * These variables are injected into the function's runtime environment.
-   * They are often used to provide information about other parts of your infrastructure, such as database connection strings or API keys.
+   * #### Environment variables injected into the Lambda function. Use `$ResourceParam()` for dynamic values.
    */
   environment?: EnvironmentVar[];
   /**
-   * #### The runtime environment for the custom resource's Lambda function.
-   *
-   * ---
-   *
-   * Stacktape automatically detects the function's language and uses the latest corresponding runtime.
-   * For example, it will use `nodejs22.x` for `.js` and `.ts` files.
-   * For a list of available runtimes, see the [AWS Lambda runtimes documentation](https://docs.aws.amazon.com/lambda/latest/dg/lambda-runtimes.html).
+   * #### Lambda runtime. Auto-detected from file extension if not specified.
    */
   runtime?: LambdaRuntime;
   /**
-   * #### The maximum execution time for the custom resource's Lambda function, in seconds.
-   *
-   * ---
-   *
-   * The maximum allowed time is 900 seconds.
-   *
+   * #### Max execution time in seconds. Max: 900.
    * @default 10
    */
   timeout?: number;
   /**
-   * #### The amount of memory available to the custom resource's Lambda function, in MB.
-   *
-   * ---
-   *
-   * - Must be between 128 MB and 10,240 MB, in 1-MB increments.
-   * - The amount of available CPU power is proportional to the memory.
-   * - A function with 1,797 MB of memory has the equivalent of 1 vCPU.
-   * - The maximum number of vCPUs is 6 (at 10,240 MB of memory).
+   * #### Memory in MB (128–10,240). CPU scales proportionally — 1,769 MB = 1 vCPU.
    */
   memory?: number;
 }

@@ -4,11 +4,7 @@ type StageRestrictionGuardrail = {
   type: 'stage-restriction';
   properties: {
     /**
-     * #### Allowed Stages
-     *
-     * ---
-     *
-     * A list of stages (e.g., `production`, `staging`) where this stack is allowed to be deployed. If the deployment stage is not in this list, the deployment will be blocked.
+     * #### Stages where this stack can be deployed (e.g., `["production", "staging"]`). Others are blocked.
      */
     allowedStages?: string[];
   };
@@ -18,11 +14,7 @@ type RegionRestrictionGuardrail = {
   type: 'region-restriction';
   properties: {
     /**
-     * #### Allowed Regions
-     *
-     * ---
-     *
-     * A list of AWS regions where this stack is allowed to be deployed. If the deployment region is not in this list, the deployment will be blocked.
+     * #### AWS regions where this stack can be deployed (e.g., `["eu-west-1", "us-east-1"]`). Others are blocked.
      */
     allowedRegions?: AWSRegion[];
   };

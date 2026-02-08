@@ -1,9 +1,11 @@
 /**
- * #### EFS Filesystem
+ * #### Shared file storage that multiple containers can read/write simultaneously.
  *
  * ---
  *
- * A fully managed, elastic, and scalable file storage service for use with AWS cloud services.
+ * Persistent, elastic (grows/shrinks automatically), and accessible from any container in your stack
+ * via `volumeMounts`. Use for shared uploads, CMS media, ML model files, or anything that needs to
+ * survive container restarts. Pay only for storage used (~$0.30/GB/month for standard access).
  */
 interface EfsFilesystem {
   type: 'efs-filesystem';
@@ -13,44 +15,29 @@ interface EfsFilesystem {
 
 interface EfsFilesystemProps {
   /**
-   * #### Enables automatic backups for the EFS filesystem.
-   *
-   * ---
-   *
-   * - Uses AWS Backup with a default daily backup schedule and a 35-day retention period.
-   * - Backups are incremental, meaning only changed, added, or removed files are copied after the initial backup.
-   * - Data from all storage classes (Standard, Infrequent Access, and Archive) is backed up without incurring data access charges.
-   * - Restored data is always placed in the Standard storage class.
-   * - The default backup plan and vault are automatically created and managed by AWS.
+   * #### Enable daily automatic backups with 35-day retention. Incremental (only changes are copied).
    */
   backupEnabled?: boolean;
 
   /**
-   * #### Determines how throughput is managed for the filesystem.
+   * #### How throughput scales with your workload.
    *
    * ---
    *
-   * - **`elastic`** (Recommended): Best for unpredictable or spiky workloads, such as web apps or CI/CD pipelines. It is ideal for workloads that use high throughput for 5% of the time or less, and it automatically scales up and down based on demand.
-   *
-   * - **`provisioned`**: Best for steady, predictable workloads that require high throughput more than 5% of the time, such as media streaming or production databases. This mode requires setting `provisionedThroughputInMibps`.
-   *
-   * - **`bursting`**: Scales with storage size, providing a baseline of 50 KiB/s per GiB of storage. This mode is suitable for small development environments and team file shares, but you may hit performance limits if burst credits are depleted.
+   * - **`elastic`** (recommended): Auto-scales throughput. Best for spiky workloads (web apps, CI/CD).
+   * - **`provisioned`**: Fixed throughput you set via `provisionedThroughputInMibps`. Best for steady high-throughput workloads.
+   * - **`bursting`**: Throughput scales with storage size (50 KiB/s per GiB). Can run out of burst credits.
    *
    * @default elastic
    */
   throughputMode?: 'elastic' | 'provisioned' | 'bursting';
 
   /**
-   * #### The desired throughput in MiB/s when using `provisioned` mode.
+   * #### Guaranteed throughput in MiB/s. Required when `throughputMode` is `provisioned`.
    *
    * ---
    *
-   * - Required when `throughputMode` is set to `provisioned`.
-   * - Must be a value greater than 0.
-   * - Additional fees are charged based on the provisioned throughput.
-   * - This value can be modified at any time to adjust performance.
-   *
-   * Example: `100` means 100 MiB/s of guaranteed throughput.
+   * E.g., `100` = 100 MiB/s. Additional fees apply based on the provisioned amount. Can be changed anytime.
    */
   provisionedThroughputInMibps?: number;
 }

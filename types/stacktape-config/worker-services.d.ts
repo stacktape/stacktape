@@ -1,10 +1,9 @@
 /**
- * #### Worker Service
+ * #### Always-on container with no public URL. For background workers, queue processors, and internal tasks.
  *
  * ---
  *
- * A continuously running container that is inaccessible from the internet.
- * Ideal for background jobs and processing tasks.
+ * Runs 24/7 inside your VPC. Not reachable from the internet. Can connect to databases, queues, and other resources.
  */
 interface WorkerService {
   type: 'worker-service';
