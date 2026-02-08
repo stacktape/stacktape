@@ -1,0 +1,14 @@
+resources:
+  scheduledTask:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/handler.ts
+      memory: 512
+      timeout: 300
+      events:
+        - type: schedule
+          properties:
+            scheduleRate: rate(1 hour)

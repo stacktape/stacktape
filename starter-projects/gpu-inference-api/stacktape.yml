@@ -1,0 +1,44 @@
+resources:
+  apiGateway:
+    type: http-api-gateway
+    properties:
+      cors:
+        enabled: true
+
+  outputBucket:
+    type: bucket
+
+  inferenceJob:
+    type: batch-job
+    properties:
+      container:
+        packaging:
+          type: custom-dockerfile
+          properties:
+            buildContextPath: ./job
+      resources:
+        cpu: 4
+        memory: 16000
+        gpu: 1
+      useSpotInstances: true
+      retryConfig:
+        attempts: 2
+      connectTo:
+        - outputBucket
+
+  triggerInference:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/trigger.ts
+      memory: 512
+      connectTo:
+        - inferenceJob
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: apiGateway
+            path: /infer
+            method: POST

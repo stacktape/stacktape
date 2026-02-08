@@ -1,0 +1,12 @@
+name: Nuxt Serverless
+tags:
+  - website
+  - Server side rendered website
+  - Typescript
+  - Nuxt.js
+  - Vue
+  - Lambda
+icon: nuxt.svg
+priority: 0
+hasOwnTsConfig: true
+disableLintingOption: true

@@ -1,0 +1,15 @@
+name: Next.js SaaS with Auth & Postgres
+tags:
+  - website
+  - Server side rendered website
+  - REST API
+  - Typescript
+  - Next.js
+  - React
+  - Prisma
+  - Postgres
+  - Authentication
+  - Lambda
+icon: nextjs-circle.svg
+priority: 0
+hasOwnTsConfig: true

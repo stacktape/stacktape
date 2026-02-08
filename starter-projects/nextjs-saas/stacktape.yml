@@ -1,0 +1,50 @@
+scripts:
+  generatePrismaClient:
+    type: local-script
+    properties:
+      executeCommand: npx prisma generate
+  migrateDb:
+    type: local-script
+    properties:
+      executeCommand: npx prisma db push --skip-generate
+      connectTo:
+        - database
+
+hooks:
+  beforeDeploy:
+    - scriptName: generatePrismaClient
+  afterDeploy:
+    - scriptName: migrateDb
+
+resources:
+  web:
+    type: nextjs-web
+    properties:
+      appDirectory: ./
+      connectTo:
+        - database
+        - authPool
+
+  database:
+    type: relational-database
+    properties:
+      credentials:
+        masterUserPassword: $Secret('database.password')
+      engine:
+        type: postgres
+        properties:
+          version: '16.6'
+          primaryInstance:
+            instanceSize: db.t3.micro
+
+  authPool:
+    type: user-auth-pool
+    properties:
+      allowEmailAsUserName: true
+      userVerificationType: email-code
+      passwordPolicy:
+        minimumLength: 8
+        requireLowercase: true
+        requireUppercase: true
+        requireNumbers: true
+        requireSymbols: false

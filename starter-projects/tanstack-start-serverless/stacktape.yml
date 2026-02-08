@@ -1,0 +1,5 @@
+resources:
+  web:
+    type: tanstack-web
+    properties:
+      appDirectory: ./

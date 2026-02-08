@@ -1,0 +1,5 @@
+name: GPU Batch Inference
+tags:
+  - Python
+icon: python.svg
+priority: 100

@@ -1,0 +1,10 @@
+name: TanStack Start Serverless
+tags:
+  - Typescript
+  - website
+  - Server side rendered website
+  - React
+  - Lambda
+icon: react.svg
+priority: 1
+hasOwnTsConfig: true

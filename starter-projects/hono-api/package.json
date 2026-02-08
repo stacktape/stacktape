@@ -1,0 +1,8 @@
+{
+  "name": "hono-api",
+  "private": true,
+  "scripts": {},
+  "dependencies": {
+    "hono": "^4.11.8"
+  }
+}

@@ -1,0 +1,7 @@
+name: Phoenix API with Postgres
+tags:
+  - Elixir
+  - REST API
+  - Postgres
+icon: elixir.svg
+priority: 1

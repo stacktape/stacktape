@@ -1,0 +1,8 @@
+{
+  "name": "gpu-inference-api",
+  "private": true,
+  "scripts": {},
+  "dependencies": {
+    "@aws-sdk/client-sfn": "^3.750.0"
+  }
+}

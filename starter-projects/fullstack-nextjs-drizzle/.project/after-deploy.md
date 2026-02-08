@@ -1,0 +1,2 @@
+- Open the **CDN URL** printed to the terminal after deploy to see your app.
+- The database is automatically provisioned and connected. Drizzle migrations run as part of the deploy process.

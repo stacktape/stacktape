@@ -1,0 +1,31 @@
+{
+  "name": "tanstack-start-serverless",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vinxi dev",
+    "build": "node ./scripts/build.mjs",
+    "preview": "vinxi start"
+  },
+  "dependencies": {
+    "@tanstack/react-router": "1.120.20",
+    "@tanstack/start": "1.120.20",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "typescript": "^5.7.0",
+    "vinxi": "0.5.3"
+  },
+  "overrides": {
+    "@tanstack/router-generator": "1.120.20",
+    "@tanstack/router-plugin": "1.120.20",
+    "@tanstack/server-functions-plugin": "1.120.17",
+    "@tanstack/react-start-plugin": "1.120.17",
+    "@tanstack/start-server-functions-handler": "1.120.19",
+    "@tanstack/start-config": "1.120.20"
+  }
+}

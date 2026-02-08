@@ -1,0 +1,14 @@
+resources:
+  bot:
+    type: worker-service
+    properties:
+      packaging:
+        type: stacktape-image-buildpack
+        properties:
+          entryfilePath: ./src/index.ts
+      resources:
+        cpu: 0.25
+        memory: 512
+      environment:
+        - name: DISCORD_BOT_TOKEN
+          value: $Secret('discord-bot-token')

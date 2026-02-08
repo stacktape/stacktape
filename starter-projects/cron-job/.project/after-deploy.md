@@ -1,0 +1,1 @@
+- The function will automatically run on the configured schedule. Check AWS CloudWatch Logs to see execution results.

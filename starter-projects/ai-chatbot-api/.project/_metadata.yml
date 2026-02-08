@@ -1,0 +1,7 @@
+name: AI Chatbot
+tags:
+  - Typescript
+  - Lambda
+  - AI
+icon: typescript.svg
+priority: 0

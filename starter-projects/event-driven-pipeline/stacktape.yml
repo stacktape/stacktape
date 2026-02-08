@@ -1,0 +1,74 @@
+resources:
+  apiGateway:
+    type: http-api-gateway
+    properties:
+      cors:
+        enabled: true
+
+  orderDlq:
+    type: sqs-queue
+    properties:
+      fifoEnabled: true
+
+  orderQueue:
+    type: sqs-queue
+    properties:
+      fifoEnabled: true
+      redrivePolicy:
+        targetSqsQueueName: orderDlq
+        maxReceiveCount: 3
+
+  submitOrder:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/submit-order.ts
+      memory: 512
+      connectTo:
+        - orderQueue
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: apiGateway
+            path: /orders
+            method: POST
+
+  processOrder:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/process-order.ts
+      memory: 512
+      timeout: 30
+      connectTo:
+        - eventBus
+      events:
+        - type: sqs
+          properties:
+            sqsQueueName: orderQueue
+            batchSize: 1
+
+  eventBus:
+    type: event-bus
+
+  onOrderProcessed:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/on-order-processed.ts
+      memory: 512
+      events:
+        - type: event-bus
+          properties:
+            eventBusName: eventBus
+            eventPattern:
+              source:
+                - orders
+              detail-type:
+                - OrderProcessed

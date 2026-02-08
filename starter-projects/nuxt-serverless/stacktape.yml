@@ -1,0 +1,5 @@
+resources:
+  web:
+    type: nuxt-web
+    properties:
+      appDirectory: ./

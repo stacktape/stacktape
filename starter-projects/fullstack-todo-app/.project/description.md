@@ -1,0 +1,2 @@
+- Full-stack todo app with a vanilla JS frontend (S3 + CloudFront) and a serverless API (Lambda + DynamoDB).
+- No build step required. The API URL is automatically injected into the frontend at deploy time.

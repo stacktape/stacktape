@@ -1,0 +1,11 @@
+name: SvelteKit Serverless
+tags:
+  - website
+  - Server side rendered website
+  - Typescript
+  - Svelte
+  - Lambda
+icon: svelte.svg
+priority: 0
+hasOwnTsConfig: true
+disableLintingOption: true

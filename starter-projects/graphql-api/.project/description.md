@@ -1,0 +1,2 @@
+- GraphQL API built with [graphql-yoga](https://the-guild.dev/graphql/yoga-server) and DynamoDB storage.
+- Runs serverlessly in AWS Lambda behind an HTTP API Gateway. Pay only for requests you receive.

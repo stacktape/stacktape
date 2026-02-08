@@ -1,0 +1,31 @@
+resources:
+  webService:
+    type: web-service
+    properties:
+      packaging:
+        type: custom-dockerfile
+        properties:
+          dockerfilePath: ./Dockerfile
+          buildContextPath: ./
+      resources:
+        cpu: 0.25
+        memory: 512
+      connectTo:
+        - mainDatabase
+      environment:
+        - name: SECRET_KEY_BASE
+          value: $Secret('secret-key-base')
+      cors:
+        enabled: true
+
+  mainDatabase:
+    type: relational-database
+    properties:
+      credentials:
+        masterUserPassword: $Secret('mainDatabase.password')
+      engine:
+        type: postgres
+        properties:
+          version: '18.1'
+          primaryInstance:
+            instanceSize: db.t3.micro

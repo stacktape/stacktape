@@ -1,0 +1,46 @@
+resources:
+  n8n:
+    type: web-service
+    properties:
+      packaging:
+        type: prebuilt-image
+        properties:
+          image: docker.n8n.io/n8nio/n8n:latest
+      resources:
+        cpu: 1
+        memory: 2048
+      connectTo:
+        - database
+      environment:
+        - name: DB_TYPE
+          value: postgresdb
+        - name: DB_POSTGRESDB_HOST
+          value: $ResourceParam('database', 'host')
+        - name: DB_POSTGRESDB_PORT
+          value: $ResourceParam('database', 'port')
+        - name: DB_POSTGRESDB_DATABASE
+          value: $ResourceParam('database', 'dbName')
+        - name: DB_POSTGRESDB_USER
+          value: db_master_user
+        - name: DB_POSTGRESDB_PASSWORD
+          value: $Secret('database.password')
+        - name: N8N_PORT
+          value: '3000'
+        - name: N8N_SECURE_COOKIE
+          value: 'false'
+        - name: DB_POSTGRESDB_SSL_ENABLED
+          value: 'true'
+        - name: DB_POSTGRESDB_SSL_REJECT_UNAUTHORIZED
+          value: 'false'
+
+  database:
+    type: relational-database
+    properties:
+      credentials:
+        masterUserPassword: $Secret('database.password')
+      engine:
+        type: postgres
+        properties:
+          version: '16.6'
+          primaryInstance:
+            instanceSize: db.t3.micro

@@ -1,0 +1,8 @@
+name: File Upload API
+tags:
+  - Typescript
+  - S3
+  - REST API
+  - Lambda
+icon: typescript.svg
+priority: 1

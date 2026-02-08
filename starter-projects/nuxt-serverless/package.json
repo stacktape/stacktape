@@ -1,0 +1,14 @@
+{
+  "name": "nuxt-serverless",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "nuxt dev",
+    "build": "nuxt build",
+    "preview": "nuxt preview"
+  },
+  "devDependencies": {
+    "nuxt": "^4.3.0",
+    "typescript": "^5.9.3"
+  }
+}

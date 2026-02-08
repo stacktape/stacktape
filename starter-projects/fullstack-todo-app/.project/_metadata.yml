@@ -1,0 +1,10 @@
+name: Fullstack Todo App
+tags:
+  - Typescript
+  - DynamoDb
+  - REST API
+  - Lambda
+  - S3
+  - CloudFront
+icon: typescript.svg
+priority: 0

@@ -1,0 +1,44 @@
+resources:
+  agent:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/index.ts
+      memory: 1024
+      timeout: 120
+      connectTo:
+        - conversations
+      environment:
+        - name: AI_MODEL
+          value: anthropic.claude-3-7-sonnet-20250219-v1:0
+      iamRoleStatements:
+        - Resource:
+            - '*'
+          Effect: 'Allow'
+          Action:
+            - 'bedrock:InvokeModel'
+            - 'bedrock:InvokeModelWithResponseStream'
+      url:
+        enabled: true
+        responseStreamEnabled: true
+        cors:
+          enabled: true
+          allowedOrigins:
+            - '*'
+          allowedMethods:
+            - '*'
+          allowedHeaders:
+            - '*'
+
+  conversations:
+    type: dynamo-db-table
+    properties:
+      primaryKey:
+        partitionKey:
+          name: conversationId
+          type: string
+        sortKey:
+          name: timestamp
+          type: string

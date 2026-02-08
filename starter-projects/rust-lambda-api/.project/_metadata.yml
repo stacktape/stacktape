@@ -1,0 +1,7 @@
+name: Rust Lambda API
+tags:
+  - Rust
+  - REST API
+  - Lambda
+icon: rust.svg
+priority: 1

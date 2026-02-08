@@ -1,0 +1,66 @@
+resources:
+  apiGateway:
+    type: http-api-gateway
+    properties:
+      cors:
+        enabled: true
+
+  chunks:
+    type: dynamo-db-table
+    properties:
+      primaryKey:
+        partitionKey:
+          name: documentId
+          type: string
+        sortKey:
+          name: chunkId
+          type: string
+
+  ingest:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/ingest.ts
+      memory: 1024
+      timeout: 120
+      connectTo:
+        - chunks
+      iamRoleStatements:
+        - Resource:
+            - '*'
+          Effect: 'Allow'
+          Action:
+            - 'bedrock:InvokeModel'
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: apiGateway
+            path: /ingest
+            method: POST
+
+  ask:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/ask.ts
+      memory: 1024
+      timeout: 60
+      connectTo:
+        - chunks
+      iamRoleStatements:
+        - Resource:
+            - '*'
+          Effect: 'Allow'
+          Action:
+            - 'bedrock:InvokeModel'
+            - 'bedrock:InvokeModelWithResponseStream'
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: apiGateway
+            path: /ask
+            method: POST

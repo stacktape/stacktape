@@ -1,0 +1,10 @@
+{
+  "name": "file-upload-api",
+  "private": true,
+  "scripts": {},
+  "dependencies": {
+    "hono": "^4.11.8",
+    "@aws-sdk/client-s3": "^3.985.0",
+    "@aws-sdk/s3-request-presigner": "^3.985.0"
+  }
+}

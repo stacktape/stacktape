@@ -1,0 +1,2 @@
+- Multi-step data processing workflow using [AWS Step Functions](https://docs.stacktape.com/resources/state-machines/).
+- Demonstrates validation, branching, retries, and error handling. Trigger via HTTP and check execution status.

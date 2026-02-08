@@ -1,0 +1,1 @@
+- Open the **CDN URL** printed to the terminal after deploy to see your app.

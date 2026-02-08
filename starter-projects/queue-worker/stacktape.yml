@@ -1,0 +1,41 @@
+resources:
+  apiGateway:
+    type: http-api-gateway
+    properties:
+      cors:
+        enabled: true
+
+  jobQueue:
+    type: sqs-queue
+
+  enqueueJob:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/enqueue.ts
+      memory: 512
+      connectTo:
+        - jobQueue
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: apiGateway
+            path: /enqueue
+            method: POST
+
+  processJob:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/process.ts
+      memory: 512
+      timeout: 30
+      events:
+        - type: sqs
+          properties:
+            sqsQueueName: jobQueue
+            batchSize: 10

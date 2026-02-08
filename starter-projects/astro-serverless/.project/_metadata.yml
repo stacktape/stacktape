@@ -1,0 +1,10 @@
+name: Astro Serverless
+tags:
+  - website
+  - Server side rendered website
+  - Typescript
+  - Astro
+  - Lambda
+icon: astro.svg
+priority: 0
+hasOwnTsConfig: true

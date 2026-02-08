@@ -1,0 +1,10 @@
+name: Remix Serverless
+tags:
+  - Typescript
+  - website
+  - Server side rendered website
+  - React
+  - Lambda
+icon: remix.svg
+priority: 1
+hasOwnTsConfig: true

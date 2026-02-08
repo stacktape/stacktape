@@ -1,0 +1,39 @@
+resources:
+  apiGateway:
+    type: http-api-gateway
+    properties:
+      cors:
+        enabled: true
+
+  api:
+    type: function
+    properties:
+      packaging:
+        type: custom-artifact
+        properties:
+          packagePath: ./target/lambda/rust-lambda-api/bootstrap.zip
+          handler: bootstrap:handler
+      memory: 256
+      runtime: provided.al2023
+      architecture: x86_64
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: apiGateway
+            path: /
+            method: '*'
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: apiGateway
+            path: /{proxy+}
+            method: '*'
+
+scripts:
+  build:
+    type: local-script
+    properties:
+      executeCommand: cargo lambda build --release --output-format zip
+
+hooks:
+  beforeDeploy:
+    - scriptName: build

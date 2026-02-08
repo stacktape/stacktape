@@ -1,0 +1,1 @@
+- Test your API at the **API Gateway URL** printed to the terminal after deploy.

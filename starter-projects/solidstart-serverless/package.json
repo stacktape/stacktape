@@ -1,0 +1,20 @@
+{
+  "name": "solidstart-serverless",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vinxi dev",
+    "build": "vinxi build",
+    "preview": "vinxi start"
+  },
+  "dependencies": {
+    "solid-js": "^1.9.0",
+    "@solidjs/router": "^0.15.0",
+    "@solidjs/start": "^1.1.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "vinxi": "^0.5.0"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "name": "multi-step-workflow",
+  "private": true,
+  "scripts": {},
+  "dependencies": {
+    "hono": "^4.7.6",
+    "@aws-sdk/client-sfn": "^3.985.0"
+  }
+}

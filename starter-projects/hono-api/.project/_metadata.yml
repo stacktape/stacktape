@@ -1,0 +1,7 @@
+name: Hono API
+tags:
+  - REST API
+  - Typescript
+  - Lambda
+icon: typescript.svg
+priority: 0

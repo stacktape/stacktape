@@ -1,0 +1,60 @@
+resources:
+  apiGateway:
+    type: http-api-gateway
+    properties:
+      cors:
+        enabled: true
+
+  authPool:
+    type: user-auth-pool
+    properties:
+      allowEmailAsUserName: true
+      userVerificationType: email-code
+      passwordPolicy:
+        minimumLength: 8
+      enableHostedUi: true
+      hostedUiDomainPrefix: $Format('{stage()}-{projectName()}-auth')
+      allowedOAuthFlows:
+        - code
+      allowedOAuthScopes:
+        - openid
+        - email
+        - profile
+      callbackURLs:
+        - https://example.com/callback
+      logoutURLs:
+        - https://example.com/logout
+
+  publicEndpoint:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/public.ts
+      memory: 512
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: apiGateway
+            path: /
+            method: GET
+
+  protectedEndpoint:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/protected.ts
+      memory: 512
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: apiGateway
+            path: /me
+            method: GET
+            authorizer:
+              type: cognito
+              properties:
+                userPoolName: authPool

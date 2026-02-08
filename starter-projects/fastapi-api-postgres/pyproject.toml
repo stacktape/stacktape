@@ -1,0 +1,18 @@
+[project]
+name = "fastapi-api-postgres"
+version = "0.1.0"
+description = "FastAPI with Postgres deployed by Stacktape"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "sqlalchemy>=2.0",
+    "psycopg2-binary>=2.9",
+    "pydantic>=2.10",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

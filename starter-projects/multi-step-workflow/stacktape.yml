@@ -1,0 +1,110 @@
+resources:
+  apiGateway:
+    type: http-api-gateway
+    properties:
+      cors:
+        enabled: true
+
+  validateInput:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/validate-input.ts
+
+  processData:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/process-data.ts
+
+  generateReport:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/generate-report.ts
+
+  workflow:
+    type: state-machine
+    properties:
+      definition:
+        Comment: Multi-step data processing workflow
+        StartAt: ValidateInput
+        States:
+          ValidateInput:
+            Type: Task
+            Resource:
+              Fn::GetAtt:
+                - ValidateInputFunction
+                - Arn
+            Next: IsValid
+            Catch:
+              - ErrorEquals:
+                  - States.ALL
+                Next: Failed
+          IsValid:
+            Type: Choice
+            Choices:
+              - Variable: $.valid
+                BooleanEquals: true
+                Next: ProcessData
+            Default: Failed
+          ProcessData:
+            Type: Task
+            Resource:
+              Fn::GetAtt:
+                - ProcessDataFunction
+                - Arn
+            Next: GenerateReport
+            Retry:
+              - ErrorEquals:
+                  - States.TaskFailed
+                IntervalSeconds: 2
+                MaxAttempts: 2
+                BackoffRate: 2
+            Catch:
+              - ErrorEquals:
+                  - States.ALL
+                Next: Failed
+          GenerateReport:
+            Type: Task
+            Resource:
+              Fn::GetAtt:
+                - GenerateReportFunction
+                - Arn
+            End: true
+            Catch:
+              - ErrorEquals:
+                  - States.ALL
+                Next: Failed
+          Failed:
+            Type: Fail
+            Error: WorkflowFailed
+            Cause: One or more steps failed
+
+  startWorkflow:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/start-workflow.ts
+      memory: 512
+      connectTo:
+        - workflow
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: apiGateway
+            path: /start
+            method: POST
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: apiGateway
+            path: /status/{executionArn+}
+            method: GET

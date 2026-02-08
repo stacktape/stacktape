@@ -1,0 +1,2 @@
+- URL shortener service with click tracking, built with Hono and DynamoDB.
+- Create short links, redirect visitors, and track click counts. Runs serverlessly in AWS Lambda.

@@ -1,0 +1,8 @@
+name: API with Authentication
+tags:
+  - Typescript
+  - Lambda
+  - REST API
+  - Authentication
+icon: typescript.svg
+priority: 1

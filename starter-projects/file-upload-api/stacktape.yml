@@ -1,0 +1,34 @@
+resources:
+  apiGateway:
+    type: http-api-gateway
+    properties:
+      cors:
+        enabled: true
+
+  filesBucket:
+    type: bucket
+    properties:
+      cors:
+        enabled: true
+
+  api:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/index.ts
+      memory: 512
+      connectTo:
+        - filesBucket
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: apiGateway
+            path: /
+            method: '*'
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: apiGateway
+            path: /{proxy+}
+            method: '*'
