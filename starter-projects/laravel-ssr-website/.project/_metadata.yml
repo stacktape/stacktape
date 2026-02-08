@@ -1,9 +1,0 @@
-name: Laravel SSR website
-tags:
-  - website
-  - Server side rendered website
-  - PHP
-  - Laravel
-  - Blade
-icon: laravel.svg
-priority: 1

@@ -1,7 +1,0 @@
-name: Typescript monorepo with pnpm
-tags:
-  - Typescript
-  - REST API
-  - Lambda
-icon: typescript.svg
-priority: 1

@@ -1,1 +1,0 @@
-- This example demonstrates how to use Stacktape with a pnpm monorepo

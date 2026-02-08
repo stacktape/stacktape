@@ -1,9 +1,0 @@
-name: React SPA with Vite.js
-tags:
-  - website
-  - SPA website
-  - Typescript
-  - Vite.js
-  - React
-hasOwnTsConfig: true
-icon: react.svg
