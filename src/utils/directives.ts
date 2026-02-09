@@ -52,6 +52,16 @@ export const getDirectiveName = (str: string) => {
   return str.match(/(?<=\$)(.*?)(?=\()/)[0];
 };
 
+export const getEmbeddedDirectiveNames = (value: string): string[] => {
+  if (getIsDirective(value)) {
+    return [];
+  }
+  const directivePattern = /\$([A-Z_][\w$]*)\(/gi;
+  const matches = value.matchAll(directivePattern);
+  const names = Array.from(matches, (match) => match[1]);
+  return Array.from(new Set(names));
+};
+
 export type DirectiveParam = { name?: string; isDirective?: true; definition?: string; value: any };
 
 /**

@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import {
+  getEmbeddedDirectiveNames,
   getDirectiveName,
   getDirectiveParams,
   getDirectivePathToProp,
@@ -106,6 +107,21 @@ describe('getDirectiveName', () => {
     expect(getDirectiveName('$ResourceParam(')).toBe('ResourceParam');
     expect(getDirectiveName('$CfFormat(')).toBe('CfFormat');
     expect(getDirectiveName('$OtherDirective()')).toBe('OtherDirective');
+  });
+});
+
+describe('getEmbeddedDirectiveNames', () => {
+  test('should return empty array for standalone directives', () => {
+    expect(getEmbeddedDirectiveNames('$Stage()')).toEqual([]);
+    expect(getEmbeddedDirectiveNames("$ResourceParam('myBucket', 'arn')")).toEqual([]);
+  });
+
+  test('should detect embedded directives in interpolated strings', () => {
+    expect(getEmbeddedDirectiveNames('cloudinary-origin-images-$Stage()-$Region()')).toEqual(['Stage', 'Region']);
+  });
+
+  test('should return unique directive names only once', () => {
+    expect(getEmbeddedDirectiveNames('prefix-$Stage()-mid-$Stage()-$Region()')).toEqual(['Stage', 'Region']);
   });
 });
 
