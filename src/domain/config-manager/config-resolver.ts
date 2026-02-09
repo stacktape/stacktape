@@ -10,12 +10,12 @@ import { isNonNullObject, processAllNodes, replaceAll, serialize, traverseToMaxi
 import { parseYaml } from '@shared/utils/yaml';
 import { Stack } from '@utils/collections';
 import {
-  getEmbeddedDirectiveNames,
   getDirectiveName,
   getDirectiveParams,
   getDirectivePathToProp,
   getDirectiveWithoutPath,
-  getIsDirective
+  getIsDirective,
+  rewriteEmbeddedDirectivesToCfFormat
 } from '@utils/directives';
 import { ExpectedError, getUserCodeStackTrace, UnexpectedError } from '@utils/errors';
 import { loadFromAnySupportedFile, loadFromTypescript } from '@utils/file-loaders';
@@ -389,22 +389,23 @@ export class ConfigResolver {
 
   enqueueUnresolvedUsedDirectives = async ({ obj, resolveRuntime }: { obj: any; resolveRuntime?: boolean }) => {
     return processAllNodes(obj, async (node) => {
-      if (typeof node === 'string') {
-        const embeddedDirectiveNames = getEmbeddedDirectiveNames(node).filter(
-          (name) => this.registeredDirectives[name]
+      let processedNode = node;
+
+      if (typeof processedNode === 'string') {
+        const rewrittenDirective = rewriteEmbeddedDirectivesToCfFormat(
+          processedNode,
+          Object.keys(this.registeredDirectives)
         );
-        if (embeddedDirectiveNames.length > 0) {
-          throw new ExpectedError(
-            'DIRECTIVE',
-            `Found embedded directive-like expression in a string: "${node}".`,
-            `Use a standalone directive string (e.g. "$Format('prefix-{}', $Stage())") instead of JS string interpolation. ` +
-              `Detected directives: ${embeddedDirectiveNames.map((name) => `$${name}()`).join(', ')}.`
-          );
+        if (rewrittenDirective !== null) {
+          processedNode = rewrittenDirective;
         }
       }
-      if (getIsDirective(node)) {
-        this.addDirectiveToProcess(node, resolveRuntime, false);
+
+      if (getIsDirective(processedNode)) {
+        this.addDirectiveToProcess(processedNode, resolveRuntime, false);
       }
+
+      return processedNode;
     });
   };
 
@@ -633,13 +634,13 @@ export class ConfigResolver {
     if (getIsDirective(itemToResolve)) {
       this.addDirectiveToProcess(itemToResolve, resolveRuntime);
     } else {
-      await this.enqueueUnresolvedUsedDirectives({ obj: result, resolveRuntime });
+      result = await this.enqueueUnresolvedUsedDirectives({ obj: result, resolveRuntime });
     }
 
     let isFirstRun = true;
     while (this.directivesToProcess.length) {
       if (!isFirstRun) {
-        await this.enqueueUnresolvedUsedDirectives({ obj: result, resolveRuntime });
+        result = await this.enqueueUnresolvedUsedDirectives({ obj: result, resolveRuntime });
       }
       await this.processDirectives({ resolveRuntime, useLocalResolve });
       try {

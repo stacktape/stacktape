@@ -56,10 +56,134 @@ export const getEmbeddedDirectiveNames = (value: string): string[] => {
   if (getIsDirective(value)) {
     return [];
   }
-  const directivePattern = /\$([A-Z_][\w$]*)\(/gi;
-  const matches = value.matchAll(directivePattern);
-  const names = Array.from(matches, (match) => match[1]);
+  const names = getEmbeddedDirectives(value).map(({ name }) => name);
   return Array.from(new Set(names));
+};
+
+export const getEmbeddedDirectives = (value: string): Array<{ definition: string; name: string }> => {
+  if (getIsDirective(value)) {
+    return [];
+  }
+
+  const directives: Array<{ definition: string; name: string }> = [];
+
+  const tryParseDirectiveAt = (
+    str: string,
+    startPos: number
+  ): { definition: string; name: string; endPos: number } | null => {
+    if (str[startPos] !== '$') {
+      return null;
+    }
+
+    let idx = startPos + 1;
+    const firstNameChar = str[idx];
+    if (!firstNameChar || !firstNameChar.match(/[A-Z_]/i)) {
+      return null;
+    }
+
+    while (idx < str.length && str[idx].match(/[\w$]/)) {
+      idx++;
+    }
+
+    const name = str.slice(startPos + 1, idx);
+    if (str[idx] !== '(') {
+      return null;
+    }
+
+    let depth = 0;
+    let inSingleQuote = false;
+    let inDoubleQuote = false;
+    let closingParenPos = -1;
+
+    for (let i = idx; i < str.length; i++) {
+      const char = str[i];
+      const prevChar = i > 0 ? str[i - 1] : '';
+
+      if (char === "'" && prevChar !== '\\' && !inDoubleQuote) {
+        inSingleQuote = !inSingleQuote;
+      } else if (char === '"' && prevChar !== '\\' && !inSingleQuote) {
+        inDoubleQuote = !inDoubleQuote;
+      }
+
+      if (!inSingleQuote && !inDoubleQuote) {
+        if (char === '(') {
+          depth++;
+        } else if (char === ')') {
+          depth--;
+          if (depth === 0) {
+            closingParenPos = i;
+            break;
+          }
+        }
+      }
+    }
+
+    if (closingParenPos === -1) {
+      return null;
+    }
+
+    let endPos = closingParenPos + 1;
+    if (str[endPos] === '.') {
+      endPos++;
+      while (endPos < str.length && str[endPos].match(/[\w$\.]/)) {
+        endPos++;
+      }
+    }
+
+    return {
+      definition: str.slice(startPos, endPos),
+      name,
+      endPos
+    };
+  };
+
+  let idx = 0;
+  while (idx < value.length) {
+    if (value[idx] === '$') {
+      const parsed = tryParseDirectiveAt(value, idx);
+      if (parsed) {
+        directives.push({ definition: parsed.definition, name: parsed.name });
+        idx = parsed.endPos;
+        continue;
+      }
+    }
+    idx++;
+  }
+
+  return directives;
+};
+
+const escapeForSingleQuotedDirectiveParam = (value: string) => {
+  return value
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/\r/g, '\\r')
+    .replace(/\n/g, '\\n')
+    .replace(/\t/g, '\\t');
+};
+
+export const rewriteEmbeddedDirectivesToCfFormat = (
+  value: string,
+  directiveNamesToRewrite?: string[]
+): string | null => {
+  if (getIsDirective(value)) {
+    return null;
+  }
+
+  const embeddedDirectives = getEmbeddedDirectives(value).filter(
+    ({ name }) => !directiveNamesToRewrite || directiveNamesToRewrite.includes(name)
+  );
+  if (embeddedDirectives.length === 0) {
+    return null;
+  }
+
+  let interpolatedString = value;
+  embeddedDirectives.forEach(({ definition }) => {
+    interpolatedString = interpolatedString.replace(definition, '{}');
+  });
+
+  const escapedInterpolatedString = escapeForSingleQuotedDirectiveParam(interpolatedString);
+  return `$CfFormat('${escapedInterpolatedString}', ${embeddedDirectives.map(({ definition }) => definition).join(', ')})`;
 };
 
 export type DirectiveParam = { name?: string; isDirective?: true; definition?: string; value: any };

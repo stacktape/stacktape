@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import {
+  getEmbeddedDirectives,
   getEmbeddedDirectiveNames,
   getDirectiveName,
   getDirectiveParams,
@@ -7,6 +8,7 @@ import {
   getDirectiveWithoutPath,
   getIsDirective,
   getIsValidDirectiveName,
+  rewriteEmbeddedDirectivesToCfFormat,
   startsLikeDirective,
   startsLikeDirectiveNotUsableInSub,
   startsLikeGetParamDirective
@@ -122,6 +124,31 @@ describe('getEmbeddedDirectiveNames', () => {
 
   test('should return unique directive names only once', () => {
     expect(getEmbeddedDirectiveNames('prefix-$Stage()-mid-$Stage()-$Region()')).toEqual(['Stage', 'Region']);
+  });
+});
+
+describe('getEmbeddedDirectives', () => {
+  test('should extract embedded directive definitions', () => {
+    expect(getEmbeddedDirectives('prefix-$Stage()-$Region()')).toEqual([
+      { definition: '$Stage()', name: 'Stage' },
+      { definition: '$Region()', name: 'Region' }
+    ]);
+  });
+
+  test('should return empty for standalone directive', () => {
+    expect(getEmbeddedDirectives('$Stage()')).toEqual([]);
+  });
+});
+
+describe('rewriteEmbeddedDirectivesToCfFormat', () => {
+  test('should rewrite interpolated directive string to CfFormat directive', () => {
+    expect(rewriteEmbeddedDirectivesToCfFormat('cloudinary-origin-images-$Stage()-$Region()')).toBe(
+      "$CfFormat('cloudinary-origin-images-{}-{}', $Stage(), $Region())"
+    );
+  });
+
+  test('should not rewrite standalone directive string', () => {
+    expect(rewriteEmbeddedDirectivesToCfFormat('$Stage()')).toBeNull();
   });
 });
 
