@@ -19,22 +19,25 @@ export const commandUpgrade = async () => {
   const installationType = await detectInstallationType();
   const upgradeCommand = getUpgradeCommand(installationType);
 
-  if (installationType === 'native') {
+  if (installationType.installationType === 'native' || installationType.installationType === 'package-global') {
     tuiManager.info(
       `Current: ${tuiManager.makeBold(currentVersion)}\nLatest: ${tuiManager.makeBold(
         latestVersion
-      )}\n\nRunning native installer...`
+      )}\n\nRunning upgrade command:\n  ${tuiManager.colorize('yellow', upgradeCommand)}`
     );
     if (process.platform === 'win32') {
       await exec('powershell', ['-Command', upgradeCommand], { disableStdout: false });
     } else {
       await exec('sh', ['-c', upgradeCommand], { disableStdout: false });
     }
+    tuiManager.success(`Stacktape upgraded to ${tuiManager.makeBold(latestVersion)}.`);
     return { upgraded: true, currentVersion, latestVersion };
   }
 
   const instructionPrefix =
-    installationType === 'npm-local' ? 'To upgrade Stacktape in your project' : 'To upgrade Stacktape';
+    installationType.installationType === 'package-local'
+      ? 'To upgrade Stacktape in your project'
+      : 'Could not detect your installation method automatically. To upgrade Stacktape';
   tuiManager.info(
     `Current: ${tuiManager.makeBold(currentVersion)}\nLatest: ${tuiManager.makeBold(
       latestVersion

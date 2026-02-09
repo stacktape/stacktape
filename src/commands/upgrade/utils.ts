@@ -1,73 +1,102 @@
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { getInstallationScript } from '@shared/utils/bin-executable';
-import { pathExists } from 'fs-extra';
+import { realpath } from 'fs-extra';
 
-export type InstallationType = 'native' | 'npm-global' | 'npm-local' | 'unknown';
+export type PackageManager = 'npm' | 'bun' | 'pnpm';
 
-export const detectInstallationType = async (): Promise<InstallationType> => {
-  const execPath = process.execPath;
-  const argv1 = process.argv[1] || '';
+export type InstallationType = 'native' | 'package-global' | 'package-local' | 'unknown';
 
-  // Check if running from node_modules (npm/bun/pnpm local install)
-  if (argv1.includes('node_modules')) {
-    // Check if it's in the project's node_modules (local) or global
-    const isLocalNodeModules =
-      !argv1.includes(join(homedir(), '.npm')) &&
-      !argv1.includes(join(homedir(), '.bun')) &&
-      !argv1.includes(join(homedir(), '.pnpm')) &&
-      !argv1.includes('/usr/lib/node_modules') &&
-      !argv1.includes('/usr/local/lib/node_modules');
-
-    return isLocalNodeModules ? 'npm-local' : 'npm-global';
-  }
-
-  // Check if running from ~/.stacktape/bin (native install)
-  const nativeBinPath = join(homedir(), '.stacktape', 'bin');
-  if (argv1.startsWith(nativeBinPath) || execPath.startsWith(nativeBinPath)) {
-    return 'native';
-  }
-
-  // Check if stacktape binary exists in native location
-  const nativeStacktapePath = join(nativeBinPath, process.platform === 'win32' ? 'stacktape.exe' : 'stacktape');
-  if (await pathExists(nativeStacktapePath)) {
-    return 'native';
-  }
-
-  return 'unknown';
+export type InstallationDetection = {
+  installationType: InstallationType;
+  packageManager?: PackageManager;
 };
 
-export const getUpgradeCommand = (installationType: InstallationType): string => {
+const normalizePath = (pathValue: string) => pathValue.replace(/\\/g, '/').toLowerCase();
+
+const getCandidatePaths = async (): Promise<string[]> => {
+  const candidates = [process.argv[1], process.execPath].filter(Boolean).map((pathValue) => resolve(pathValue));
+  const realPaths = await Promise.all(
+    candidates.map(async (pathValue) => {
+      try {
+        return await realpath(pathValue);
+      } catch {
+        return pathValue;
+      }
+    })
+  );
+  return [...new Set([...candidates, ...realPaths].map(normalizePath))];
+};
+
+const inferPackageManager = ({ candidatePaths }: { candidatePaths: string[] }): PackageManager => {
+  const npmExecpath = (process.env.npm_execpath || '').toLowerCase();
+  const npmUserAgent = (process.env.npm_config_user_agent || '').toLowerCase();
+  const context = [npmExecpath, npmUserAgent, ...candidatePaths].join(' ');
+
+  if (context.includes('pnpm')) {
+    return 'pnpm';
+  }
+  if (context.includes('bun')) {
+    return 'bun';
+  }
+  return 'npm';
+};
+
+export const detectInstallationType = async (): Promise<InstallationDetection> => {
+  const candidatePaths = await getCandidatePaths();
+  const currentWorkingDir = `${normalizePath(process.cwd())}/`;
+  const nativeBinPath = normalizePath(join(homedir(), '.stacktape', 'bin'));
+
+  const isNativeInstallation = candidatePaths.some((candidatePath) => candidatePath.includes(nativeBinPath));
+  if (isNativeInstallation) {
+    return { installationType: 'native' };
+  }
+
+  const nodeModulesCandidatePaths = candidatePaths.filter((candidatePath) => candidatePath.includes('/node_modules/'));
+  if (!nodeModulesCandidatePaths.length) {
+    return { installationType: 'unknown' };
+  }
+
+  const globalNodeModulesPatterns = [
+    '/usr/local/lib/node_modules/',
+    '/usr/lib/node_modules/',
+    '/opt/homebrew/lib/node_modules/',
+    '/appdata/roaming/npm/node_modules/',
+    '/.bun/install/global/node_modules/',
+    '/.pnpm-global/',
+    '/pnpm/global/'
+  ];
+
+  const isGlobalInstallation =
+    nodeModulesCandidatePaths.some((candidatePath) =>
+      globalNodeModulesPatterns.some((pattern) => candidatePath.includes(pattern))
+    ) || nodeModulesCandidatePaths.every((candidatePath) => !`${candidatePath}/`.startsWith(currentWorkingDir));
+
+  return {
+    installationType: isGlobalInstallation ? 'package-global' : 'package-local',
+    packageManager: inferPackageManager({ candidatePaths })
+  };
+};
+
+export const getUpgradeCommand = ({ installationType, packageManager }: InstallationDetection): string => {
+  const effectivePackageManager = packageManager || 'npm';
+
   switch (installationType) {
     case 'native':
       return getInstallationScript();
-    case 'npm-global':
-      return detectPackageManager() === 'bun'
+    case 'package-global':
+      return effectivePackageManager === 'bun'
         ? 'bun update -g stacktape'
-        : detectPackageManager() === 'pnpm'
+        : effectivePackageManager === 'pnpm'
           ? 'pnpm update -g stacktape'
           : 'npm update -g stacktape';
-    case 'npm-local':
-      return detectPackageManager() === 'bun'
+    case 'package-local':
+      return effectivePackageManager === 'bun'
         ? 'bun update stacktape'
-        : detectPackageManager() === 'pnpm'
+        : effectivePackageManager === 'pnpm'
           ? 'pnpm update stacktape'
           : 'npm update stacktape';
     default:
       return getInstallationScript();
   }
-};
-
-const detectPackageManager = (): 'npm' | 'bun' | 'pnpm' => {
-  const execPath = process.execPath;
-  const argv1 = process.argv[1] || '';
-  const npmExecpath = process.env.npm_execpath || '';
-
-  if (execPath.includes('bun') || argv1.includes('.bun') || npmExecpath.includes('bun')) {
-    return 'bun';
-  }
-  if (argv1.includes('.pnpm') || npmExecpath.includes('pnpm')) {
-    return 'pnpm';
-  }
-  return 'npm';
 };
