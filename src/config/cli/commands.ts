@@ -40,6 +40,8 @@ import {
   paramName,
   preserveTempFiles,
   projectDirectory,
+  organizationId,
+  organizationName,
   projectName,
   raw,
   remoteResources,
@@ -782,10 +784,24 @@ All subsequent operations will be associated with the user and organization link
     requiredArgs: [] as const
   },
 
-  'info:whoami': {
-    description: `Displays information about the current user, organization, connected AWS accounts, and accessible projects.
+  'org:create': {
+    description: `Creates a new organization in your Stacktape account.
 
-Use this command to verify your API key is configured correctly and to see what resources you have access to.`,
+In interactive mode, you'll be prompted for the organization name. In agent mode, provide --organizationName.
+
+The command returns a new API key scoped to the newly created organization.`,
+    args: {
+      logLevel: logLevel.optional(),
+      agent: agent.optional(),
+      organizationName: organizationName.optional()
+    },
+    requiredArgs: [] as const
+  },
+
+  'org:list': {
+    description: `Lists organizations accessible with your current Stacktape user.
+
+Shows organization name, role, number of connected AWS accounts, and whether it's the current organization for your API key.`,
     args: {
       logLevel: logLevel.optional(),
       agent: agent.optional()
@@ -793,10 +809,48 @@ Use this command to verify your API key is configured correctly and to see what 
     requiredArgs: [] as const
   },
 
-  'info:projects': {
+  'org:delete': {
+    description: `Deletes organization access for your user.
+
+In interactive mode, you'll pick an organization. In agent mode, provide --organizationId.
+
+This operation is allowed only for organization OWNER and only when there are no other non-service users and no active connected AWS accounts.`,
+    args: {
+      logLevel: logLevel.optional(),
+      agent: agent.optional(),
+      organizationId: organizationId.optional()
+    },
+    requiredArgs: [] as const
+  },
+
+  'project:create': {
+    description: `Creates a new project in the current organization.
+
+If you omit --projectName in interactive mode, you'll be prompted for it. In agent mode, provide --projectName.`,
+    args: {
+      logLevel: logLevel.optional(),
+      agent: agent.optional(),
+      projectName: projectName.optional(),
+      region: awsRegion.optional()
+    },
+    requiredArgs: [] as const
+  },
+
+  'projects:list': {
     description: `Lists all projects in your organization with their deployed stages, status, and costs.
 
 Shows each project with its stages, deployment status (in-progress, errored, etc.), and current/previous month costs. Useful for getting an overview of your deployments.`,
+    args: {
+      logLevel: logLevel.optional(),
+      agent: agent.optional()
+    },
+    requiredArgs: [] as const
+  },
+
+  'info:whoami': {
+    description: `Displays information about the current user, organization, connected AWS accounts, and accessible projects.
+
+Use this command to verify your API key is configured correctly and to see what resources you have access to.`,
     args: {
       logLevel: logLevel.optional(),
       agent: agent.optional()
@@ -854,7 +908,6 @@ export const commandsWithDisabledAnnouncements: StacktapeCommand[] = [
   'version',
   'upgrade',
   'info:whoami',
-  'info:projects',
   'info:operations',
   'info:stacks',
   'info:stack'

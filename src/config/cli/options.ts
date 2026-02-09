@@ -38,6 +38,14 @@ export const projectName = z.string().describe(`#### Project Name
 ---
 The name of the Stacktape project for this operation.`);
 
+export const organizationName = z.string().describe(`#### Organization Name
+---
+The name of the Stacktape organization.`);
+
+export const organizationId = z.string().describe(`#### Organization ID
+---
+The ID of the Stacktape organization.`);
+
 export const resourceName = z.string().describe(`#### Resource Name
 ---
 The name of the resource as defined in your Stacktape configuration.`);
@@ -491,7 +499,9 @@ export const argAliases = {
   state: 'sta',
   background: 'bg',
   execCommand: 'exec',
-  taskArn: 'ta'
+  taskArn: 'ta',
+  organizationName: 'onm',
+  organizationId: 'oid'
 } as const;
 
 // ============ Combined Args Schema ============
@@ -548,6 +558,8 @@ export const allCliArgsSchema = z.object({
   awsAccount: awsAccount.optional(),
   templateId: templateId.optional(),
   projectName: projectName.optional(),
+  organizationName: organizationName.optional(),
+  organizationId: organizationId.optional(),
   assumeRoleOfResource: assumeRoleOfResource.optional(),
   configFormat: configFormat.optional(),
   localTunnelingPort: localTunnelingPort.optional(),

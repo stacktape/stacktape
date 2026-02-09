@@ -34,6 +34,10 @@ import { commandInfoStack } from './commands/info-stack';
 import { commandInfoWhoami } from './commands/info-whoami';
 import { commandLogin } from './commands/login';
 import { commandLogout } from './commands/logout';
+import { commandOrgCreate } from './commands/org-create';
+import { commandOrgDelete } from './commands/org-delete';
+import { commandOrgList } from './commands/org-list';
+import { commandProjectCreate } from './commands/project-create';
 import { commandDebugLogs } from './commands/debug-logs';
 import { commandDebugAlarms } from './commands/debug-alarms';
 import { commandDebugMetrics } from './commands/debug-metrics';
@@ -158,9 +162,13 @@ const getCommandExecutor = (command: StacktapeCommand) => {
     version: commandVersion,
     login: commandLogin,
     logout: commandLogout,
+    'org:create': commandOrgCreate,
+    'org:list': commandOrgList,
+    'org:delete': commandOrgDelete,
+    'project:create': commandProjectCreate,
+    'projects:list': commandInfoProjects,
     upgrade: commandUpgrade,
     'info:whoami': commandInfoWhoami,
-    'info:projects': commandInfoProjects,
     'info:operations': commandInfoOperations,
     'info:stack': commandInfoStack
   };

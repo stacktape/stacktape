@@ -119,6 +119,42 @@ type CreateProjectParams = {
   region?: string | null;
 };
 
+type CreateOrganizationParams = {
+  name: string;
+};
+
+type OrganizationSummary = {
+  id: string;
+  name: string;
+  role: string;
+  isPersonal: boolean;
+  createdAt: string | Date;
+  connectedAccountsCount: number;
+  isCurrent: boolean;
+};
+
+type CreateOrganizationResponse = {
+  organization: {
+    id: string;
+    name: string;
+    [key: string]: any;
+  };
+  apiKey: string;
+};
+
+type ListOrganizationsResponse = OrganizationSummary[];
+
+type DeleteOrganizationParams = {
+  id: string;
+};
+
+type DeleteOrganizationResponse = {
+  id?: string;
+  userId?: string;
+  organizationId?: string;
+  [key: string]: any;
+};
+
 type CreateProjectResponse = {
   id: string;
   name: string;
@@ -230,6 +266,15 @@ type ApiKeyTrpcClient = {
   createProjectFromCli: {
     mutate: (args: CreateProjectParams) => Promise<CreateProjectResponse>;
   };
+  createOrganizationFromCli: {
+    mutate: (args: CreateOrganizationParams) => Promise<CreateOrganizationResponse>;
+  };
+  listOrganizationsFromCli: {
+    query: () => Promise<ListOrganizationsResponse>;
+  };
+  deleteOrganizationFromCli: {
+    mutate: (args: DeleteOrganizationParams) => Promise<DeleteOrganizationResponse>;
+  };
   deleteUndeployedStageFromCli: {
     mutate: (args: DeleteUndeployedStageParams) => Promise<DeleteUndeployedStageResponse>;
   };
@@ -307,6 +352,18 @@ export class ApiKeyProtectedClient {
 
   createProject = async (args: CreateProjectParams): Promise<CreateProjectResponse> => {
     return this.#client!.createProjectFromCli.mutate(args);
+  };
+
+  createOrganization = async (args: CreateOrganizationParams): Promise<CreateOrganizationResponse> => {
+    return this.#client!.createOrganizationFromCli.mutate(args);
+  };
+
+  listOrganizations = async (): Promise<ListOrganizationsResponse> => {
+    return this.#client!.listOrganizationsFromCli.query();
+  };
+
+  deleteOrganization = async (args: DeleteOrganizationParams): Promise<DeleteOrganizationResponse> => {
+    return this.#client!.deleteOrganizationFromCli.mutate(args);
   };
 
   deleteUndeployedStage = async (args: DeleteUndeployedStageParams): Promise<DeleteUndeployedStageResponse> => {
