@@ -196,6 +196,18 @@ export const isFile = (filePath: string) => {
   }
 };
 
+const configFilePathPrecedence = [
+  'stacktape.ts',
+  'stacktape.yml',
+  ...VALID_CONFIG_PATHS.filter((configPath) => !['stacktape.ts', 'stacktape.yml'].includes(configPath))
+];
+
+const getConfigPathPriority = (filePath: string) => {
+  const configPath = basename(filePath);
+  const priority = configFilePathPrecedence.indexOf(configPath);
+  return priority === -1 ? Number.MAX_SAFE_INTEGER : priority;
+};
+
 const getMatchingConfigFiles = () => {
   const { currentWorkingDirectory } = globalStateManager.args;
   const dirPath = currentWorkingDirectory || process.cwd();
@@ -224,7 +236,16 @@ export const getConfigPath = (): string => {
   }
   const matchingConfigPaths = getMatchingConfigFiles();
   if (matchingConfigPaths.length > 1) {
-    throw stpErrors.e15({ matchingConfigPaths });
+    const sortedMatchingConfigPaths = [...matchingConfigPaths].sort(
+      (firstPath, secondPath) => getConfigPathPriority(firstPath) - getConfigPathPriority(secondPath)
+    );
+    const selectedConfigPath = sortedMatchingConfigPaths[0];
+
+    tuiManager.warn(
+      `Found multiple matching config files: ${sortedMatchingConfigPaths.join(', ')}. Using ${selectedConfigPath} based on precedence: ${configFilePathPrecedence.join(' > ')}.`
+    );
+
+    return selectedConfigPath;
   }
   // if (matchingConfigPaths.length === 0) {
   //   throw stpErrors.e16({});

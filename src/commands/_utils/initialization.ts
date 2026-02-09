@@ -403,8 +403,6 @@ export const loadUserCredentials = async () => {
   });
 };
 
-
-
 export const recordStackOperationStart = async () => {
   const isCommandToBeRecorded = RECORDED_STACKTAPE_COMMANDS.includes(
     globalStateManager.command as StacktapeRecordedCommand

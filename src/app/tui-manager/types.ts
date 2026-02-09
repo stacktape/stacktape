@@ -83,7 +83,14 @@ export type TuiDeploymentHeader = {
   projectName: string;
   stageName: string;
   region: string;
-  action: 'DEPLOYING' | 'DEPLOYING DEV STACK' | 'DELETING' | 'UPDATING' | 'PREVIEWING CHANGES';
+  action:
+    | 'DEPLOYING'
+    | 'DEPLOYING DEV STACK'
+    | 'DELETING'
+    | 'UPDATING'
+    | 'PREVIEWING CHANGES'
+    | 'RUNNING SCRIPT'
+    | `RUNNING SCRIPT: ${string}`;
   subtitle?: string;
 };
 
