@@ -212,9 +212,6 @@
     "unzipper": "^0.12.3"
   },
   "overrides": {
-    "@alcalzone/ansi-tokenize": {
-      "ansi-styles": "^4.3.0"
-    },
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   }

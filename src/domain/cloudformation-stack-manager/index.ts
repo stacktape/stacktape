@@ -392,7 +392,7 @@ export class StackManager {
         const humanStatus = getHumanReadableStackStatus(stackDetails?.StackStatus);
         progressLogger.updateEvent({
           eventType: 'FETCH_STACK_DATA',
-          description: `Waiting for stack to be ready for deploy (current state: ${humanStatus})`,
+          description: `Waiting for stack to be ready for ${globalStateManager.command} (current state: ${humanStatus})`,
           parentEventType: eventContext?.parentEventType,
           instanceId: eventContext?.instanceId
         });

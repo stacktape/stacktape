@@ -77,7 +77,7 @@ interface KeyValuePair {
 
 interface DirectoryUploadFilter {
   /**
-   * #### Glob pattern for files this rule applies to (e.g., `**/*.html`, `assets/**`).
+   * #### Glob pattern for files this rule applies to (e.g., `*.html`, `assets/**`).
    */
   includePattern: string;
   /**
