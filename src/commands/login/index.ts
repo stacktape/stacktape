@@ -30,9 +30,16 @@ export const commandLogin = async () => {
       systemId: globalStateManager.systemId
     });
 
+    const organizationName = userData.organization.name.endsWith('-personal-org')
+      ? 'Personal'
+      : userData.organization.name;
+
     spinner.success({ text: 'Authenticated' });
     tuiManager.info(`User: ${userData.user.name}`);
-    tuiManager.info(`Organization: ${userData.organization.name}`);
+    tuiManager.info(`Organization: ${organizationName}`);
+    tuiManager.info(
+      `To create a new organization, run ${tuiManager.prettyCommand('org:create --organizationName "Acme org"')}`
+    );
     tuiManager.outro('Login successful!');
   } catch (error) {
     spinner.error('Authentication failed');

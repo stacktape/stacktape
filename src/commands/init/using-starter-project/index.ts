@@ -308,15 +308,17 @@ const displayResult = ({
   }
 
   const projectName = projectToUse.starterProjectId;
-  const options = `--projectName ${tuiManager.prettyOption(projectName)} --stage ${tuiManager.prettyOption('{stage}')} --region ${tuiManager.prettyOption('{region}')}`;
+  const options = `--projectName ${projectName} --stage {stage} --region {region}`;
 
   lines.push('');
   lines.push(tuiManager.makeBold('Navigate to the project:'));
   lines.push(`  ${tuiManager.colorize('yellow', 'cd')} ${targetDirectory}`);
-  lines.push(tuiManager.makeBold(`Run local dev mode ${color.dim('(optional)')}:`));
-  lines.push(`  ${tuiManager.prettyCommand('dev')} ${options}`);
+  lines.push(
+    tuiManager.makeBold(`Run hybrid-local dev mode ${color.dim('(deploys minimal, free dev stack to AWS)')}:`)
+  );
+  lines.push(`  ${tuiManager.prettyCommand(`dev ${options}`)}`);
   lines.push(tuiManager.makeBold('Deploy to AWS:'));
-  lines.push(`  ${tuiManager.prettyCommand('deploy')} ${options}`);
+  lines.push(`  ${tuiManager.prettyCommand(`deploy ${options}`)}`);
 
   clackNote(lines.join('\n'), projectToUse.name, { format: (line: string) => line });
 };

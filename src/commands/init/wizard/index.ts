@@ -193,13 +193,15 @@ const displayResult = (state: WizardState, costEstimation: StackPriceEstimationR
     lines.push(`\n${color.dim('Estimated total costs:')} ~${formatPrice(flatMonthlyCost || 0)}/mo + pay-per-use costs`);
   }
 
-  const options = `--projectName ${tuiManager.prettyOption(state.projectName)} --stage ${tuiManager.prettyOption('{stage}')} --region ${tuiManager.prettyOption('{region}')}`;
+  const options = `--projectName ${state.projectName} --stage {stage} --region {region}`;
   // Next steps
   lines.push('');
-  lines.push(tuiManager.makeBold(`Run local dev mode ${color.dim('(optional)')}:`));
-  lines.push(`  ${tuiManager.prettyCommand('dev')} ${options}`);
+  lines.push(
+    tuiManager.makeBold(`Run hybrid-local dev mode ${color.dim('(deploys minimal, free dev stack to AWS)')}:`)
+  );
+  lines.push(`  ${tuiManager.prettyCommand(`dev ${options}`)}`);
   lines.push(tuiManager.makeBold('Deploy to AWS:'));
-  lines.push(`  ${tuiManager.prettyCommand('deploy')} ${options}`);
+  lines.push(`  ${tuiManager.prettyCommand(`deploy ${options}`)}`);
 
   clackNote(lines.join('\n'), 'Configuration', { format: (line: string) => line });
 };

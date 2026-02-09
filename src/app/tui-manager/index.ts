@@ -657,7 +657,28 @@ class TuiManager {
   }
 
   prettyCommand(command: string): string {
-    return this.colorize('yellow', `stacktape ${command}`);
+    const normalizedCommand = command.trim().replace(/^stacktape\s+/, '');
+    const commandParts = normalizedCommand.match(/"[^"]*"|'[^']*'|`[^`]*`|\S+/g) || [];
+    const [commandName, ...args] = commandParts;
+
+    if (!commandName) {
+      return this.colorize('yellow', 'stacktape');
+    }
+
+    const formattedArgs = args.map((arg) => {
+      if (!arg.startsWith('-')) return arg;
+
+      if (!arg.includes('=')) {
+        return this.colorize('gray', arg);
+      }
+
+      const [option, ...valueParts] = arg.split('=');
+      const value = valueParts.join('=');
+      const formattedOption = this.colorize('gray', option);
+      return `${formattedOption}=${value}`;
+    });
+
+    return [this.colorize('yellow', 'stacktape'), commandName, ...formattedArgs].join(' ');
   }
 
   prettyOption(option: string): string {
