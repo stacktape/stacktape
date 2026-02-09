@@ -13,7 +13,7 @@ export default function Home() {
       </ul>
       <h2>Stack</h2>
       <ul>
-        <li>Next.js 16 on AWS Lambda (serverless)</li>
+        <li>Next.js on AWS Lambda (serverless)</li>
         <li>PostgreSQL database with Prisma ORM</li>
         <li>Cognito user authentication</li>
         <li>CloudFront CDN for global delivery</li>
