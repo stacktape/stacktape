@@ -193,9 +193,32 @@ export class TemplateManager {
           }
           // @todo better validation
           // const updatedResourceProperties = merge(this.template.Resources[cfLogicalName].Properties, overrides);
-          Object.entries(overrides).forEach(([pathToProp, value]) =>
-            set(this.template.Resources[cfLogicalName].Properties, pathToProp, value)
-          );
+          Object.entries(overrides).forEach(([pathToProp, value]) => {
+            const firstDotIndex = pathToProp.indexOf('.');
+            if (firstDotIndex > -1 && typeof value !== 'object') {
+              const topLevelProperty = pathToProp.slice(0, firstDotIndex);
+              const literalMapKey = pathToProp.slice(firstDotIndex + 1);
+              const existingTopLevelValue = this.template.Resources[cfLogicalName].Properties?.[topLevelProperty];
+              const existingLooksLikeMapWithSpecialKeys =
+                existingTopLevelValue &&
+                typeof existingTopLevelValue === 'object' &&
+                !Array.isArray(existingTopLevelValue) &&
+                Object.keys(existingTopLevelValue).some((key) => !/^[A-Za-z0-9_]+$/.test(key));
+
+              // Some CloudFormation maps use literal keys that can contain dots or other characters
+              // (for example RDS Parameters and OpenSearch AdvancedOptions). If such path reaches us
+              // as flattened "MapName.some.literal.key", keep the remainder as a literal map key.
+              if (existingLooksLikeMapWithSpecialKeys || ['Parameters', 'AdvancedOptions'].includes(topLevelProperty)) {
+                set(this.template.Resources[cfLogicalName].Properties, topLevelProperty, {
+                  ...(this.template.Resources[cfLogicalName].Properties?.[topLevelProperty] || {}),
+                  [literalMapKey]: value
+                });
+                return;
+              }
+            }
+
+            set(this.template.Resources[cfLogicalName].Properties, pathToProp, value);
+          });
           // this.template.Resources[cfLogicalName].Properties = updatedResourceProperties;
         });
       }

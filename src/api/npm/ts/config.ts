@@ -275,7 +275,7 @@ export class BaseResource {
 /**
  * Flatten nested objects into dot-notation paths.
  * E.g., { SmsConfiguration: { ExternalId: 'value' } } becomes { 'SmsConfiguration.ExternalId': 'value' }
- * Preserves arrays and non-plain objects as leaf values.
+ * Preserves arrays, non-plain objects, and map-like objects with special keys as leaf values.
  */
 function flattenToDotNotation(obj: any, prefix = ''): Record<string, any> {
   const result: Record<string, any> = {};
@@ -286,9 +286,10 @@ function flattenToDotNotation(obj: any, prefix = ''): Record<string, any> {
 
     // Check if value is a plain object (not array, not null, not special types)
     if (value !== null && typeof value === 'object' && !Array.isArray(value) && value.constructor === Object) {
-      // Preserve maps with dotted keys (for example RDS parameter names like "rds.allowed_extensions")
-      // so they don't get split into nested paths by lodash/set during override application.
-      if (Object.keys(value).some((childKey) => childKey.includes('.'))) {
+      // Preserve map-like objects with non-path-safe keys (for example
+      // RDS parameter names like "rds.allowed_extensions" or OpenSearch options).
+      // This prevents splitting literal keys into nested paths later.
+      if (Object.keys(value).some((childKey) => !/^[A-Za-z0-9_]+$/.test(childKey))) {
         result[newKey] = value;
         continue;
       }
