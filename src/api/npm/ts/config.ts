@@ -286,6 +286,12 @@ function flattenToDotNotation(obj: any, prefix = ''): Record<string, any> {
 
     // Check if value is a plain object (not array, not null, not special types)
     if (value !== null && typeof value === 'object' && !Array.isArray(value) && value.constructor === Object) {
+      // Preserve maps with dotted keys (for example RDS parameter names like "rds.allowed_extensions")
+      // so they don't get split into nested paths by lodash/set during override application.
+      if (Object.keys(value).some((childKey) => childKey.includes('.'))) {
+        result[newKey] = value;
+        continue;
+      }
       // Recursively flatten nested objects
       Object.assign(result, flattenToDotNotation(value, newKey));
     } else {
@@ -658,6 +664,8 @@ export const transformValue = (value: any): any => {
   return value;
 };
 
+const RUNTIME_DIRECTIVE_NAMES = new Set(['ResourceParam', 'CfResourceParam', 'Secret', 'CfFormat', 'CfStackOutput']);
+
 const rewriteEmbeddedDirectivesToCfFormat = (value: string): string | null => {
   const embeddedDirectives = getEmbeddedDirectives(value);
   if (embeddedDirectives.length === 0) {
@@ -688,13 +696,20 @@ const rewriteEmbeddedDirectivesToCfFormat = (value: string): string | null => {
     .replace(/\t/g, '\\t');
 
   const directiveArgs = embeddedDirectives.map(({ definition }) => definition).join(', ');
-  return `$CfFormat('${escapedInterpolatedString}', ${directiveArgs})`;
+  const hasRuntimeDirective = embeddedDirectives.some(({ name }) => RUNTIME_DIRECTIVE_NAMES.has(name));
+  const formatDirectiveName = hasRuntimeDirective ? 'CfFormat' : 'Format';
+  return `$${formatDirectiveName}('${escapedInterpolatedString}', ${directiveArgs})`;
 };
 
-const getEmbeddedDirectives = (value: string): Array<{ definition: string; startPos: number; endPos: number }> => {
-  const directives: Array<{ definition: string; startPos: number; endPos: number }> = [];
+const getEmbeddedDirectives = (
+  value: string
+): Array<{ definition: string; name: string; startPos: number; endPos: number }> => {
+  const directives: Array<{ definition: string; name: string; startPos: number; endPos: number }> = [];
 
-  const tryParseDirectiveAt = (str: string, startPos: number): { definition: string; endPos: number } | null => {
+  const tryParseDirectiveAt = (
+    str: string,
+    startPos: number
+  ): { definition: string; name: string; endPos: number } | null => {
     if (str[startPos] !== '$') {
       return null;
     }
@@ -708,6 +723,8 @@ const getEmbeddedDirectives = (value: string): Array<{ definition: string; start
     while (idx < str.length && str[idx].match(/[\w$]/)) {
       idx++;
     }
+
+    const name = str.slice(startPos + 1, idx);
 
     if (str[idx] !== '(') {
       return null;
@@ -755,6 +772,7 @@ const getEmbeddedDirectives = (value: string): Array<{ definition: string; start
 
     return {
       definition: str.slice(startPos, endPos),
+      name,
       endPos
     };
   };
@@ -764,7 +782,7 @@ const getEmbeddedDirectives = (value: string): Array<{ definition: string; start
     if (value[idx] === '$') {
       const parsed = tryParseDirectiveAt(value, idx);
       if (parsed) {
-        directives.push({ definition: parsed.definition, startPos: idx, endPos: parsed.endPos });
+        directives.push({ definition: parsed.definition, name: parsed.name, startPos: idx, endPos: parsed.endPos });
         idx = parsed.endPos;
         continue;
       }
