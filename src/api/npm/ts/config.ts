@@ -578,6 +578,13 @@ export const transformValue = (value: any): any => {
     return value;
   }
 
+  if (typeof value === 'string') {
+    const rewrittenDirective = rewriteEmbeddedDirectivesToCfFormat(value);
+    if (rewrittenDirective !== null) {
+      return rewrittenDirective;
+    }
+  }
+
   // Transform DeferredResourceName - resolve to actual name
   if (isDeferredResourceName(value)) {
     return value.resolve();
@@ -649,4 +656,121 @@ export const transformValue = (value: any): any => {
   }
 
   return value;
+};
+
+const rewriteEmbeddedDirectivesToCfFormat = (value: string): string | null => {
+  const embeddedDirectives = getEmbeddedDirectives(value);
+  if (embeddedDirectives.length === 0) {
+    return null;
+  }
+
+  if (
+    embeddedDirectives.length === 1 &&
+    embeddedDirectives[0].startPos === 0 &&
+    embeddedDirectives[0].endPos === value.length
+  ) {
+    return null;
+  }
+
+  let interpolatedString = '';
+  let currentPos = 0;
+  embeddedDirectives.forEach(({ startPos, endPos }) => {
+    interpolatedString += `${value.slice(currentPos, startPos)}{}`;
+    currentPos = endPos;
+  });
+  interpolatedString += value.slice(currentPos);
+
+  const escapedInterpolatedString = interpolatedString
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/\r/g, '\\r')
+    .replace(/\n/g, '\\n')
+    .replace(/\t/g, '\\t');
+
+  const directiveArgs = embeddedDirectives.map(({ definition }) => definition).join(', ');
+  return `$CfFormat('${escapedInterpolatedString}', ${directiveArgs})`;
+};
+
+const getEmbeddedDirectives = (value: string): Array<{ definition: string; startPos: number; endPos: number }> => {
+  const directives: Array<{ definition: string; startPos: number; endPos: number }> = [];
+
+  const tryParseDirectiveAt = (str: string, startPos: number): { definition: string; endPos: number } | null => {
+    if (str[startPos] !== '$') {
+      return null;
+    }
+
+    let idx = startPos + 1;
+    const firstNameChar = str[idx];
+    if (!firstNameChar || !firstNameChar.match(/[A-Z_]/i)) {
+      return null;
+    }
+
+    while (idx < str.length && str[idx].match(/[\w$]/)) {
+      idx++;
+    }
+
+    if (str[idx] !== '(') {
+      return null;
+    }
+
+    let depth = 0;
+    let inSingleQuote = false;
+    let inDoubleQuote = false;
+    let closingParenPos = -1;
+
+    for (let i = idx; i < str.length; i++) {
+      const char = str[i];
+      const prevChar = i > 0 ? str[i - 1] : '';
+
+      if (char === "'" && prevChar !== '\\' && !inDoubleQuote) {
+        inSingleQuote = !inSingleQuote;
+      } else if (char === '"' && prevChar !== '\\' && !inSingleQuote) {
+        inDoubleQuote = !inDoubleQuote;
+      }
+
+      if (!inSingleQuote && !inDoubleQuote) {
+        if (char === '(') {
+          depth++;
+        } else if (char === ')') {
+          depth--;
+          if (depth === 0) {
+            closingParenPos = i;
+            break;
+          }
+        }
+      }
+    }
+
+    if (closingParenPos === -1) {
+      return null;
+    }
+
+    let endPos = closingParenPos + 1;
+    if (str[endPos] === '.') {
+      endPos++;
+      while (endPos < str.length && str[endPos].match(/[\w$\.]/)) {
+        endPos++;
+      }
+    }
+
+    return {
+      definition: str.slice(startPos, endPos),
+      endPos
+    };
+  };
+
+  let idx = 0;
+  while (idx < value.length) {
+    if (value[idx] === '$') {
+      const parsed = tryParseDirectiveAt(value, idx);
+      if (parsed) {
+        directives.push({ definition: parsed.definition, startPos: idx, endPos: parsed.endPos });
+        idx = parsed.endPos;
+        continue;
+      }
+    }
+    idx++;
+  }
+
+  return directives;
 };

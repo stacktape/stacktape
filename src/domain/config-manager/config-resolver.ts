@@ -14,8 +14,7 @@ import {
   getDirectiveParams,
   getDirectivePathToProp,
   getDirectiveWithoutPath,
-  getIsDirective,
-  rewriteEmbeddedDirectivesToCfFormat
+  getIsDirective
 } from '@utils/directives';
 import { ExpectedError, getUserCodeStackTrace, UnexpectedError } from '@utils/errors';
 import { loadFromAnySupportedFile, loadFromTypescript } from '@utils/file-loaders';
@@ -389,23 +388,9 @@ export class ConfigResolver {
 
   enqueueUnresolvedUsedDirectives = async ({ obj, resolveRuntime }: { obj: any; resolveRuntime?: boolean }) => {
     return processAllNodes(obj, async (node) => {
-      let processedNode = node;
-
-      if (typeof processedNode === 'string') {
-        const rewrittenDirective = rewriteEmbeddedDirectivesToCfFormat(
-          processedNode,
-          Object.keys(this.registeredDirectives)
-        );
-        if (rewrittenDirective !== null) {
-          processedNode = rewrittenDirective;
-        }
+      if (getIsDirective(node)) {
+        this.addDirectiveToProcess(node, resolveRuntime, false);
       }
-
-      if (getIsDirective(processedNode)) {
-        this.addDirectiveToProcess(processedNode, resolveRuntime, false);
-      }
-
-      return processedNode;
     });
   };
 
@@ -634,13 +619,13 @@ export class ConfigResolver {
     if (getIsDirective(itemToResolve)) {
       this.addDirectiveToProcess(itemToResolve, resolveRuntime);
     } else {
-      result = await this.enqueueUnresolvedUsedDirectives({ obj: result, resolveRuntime });
+      await this.enqueueUnresolvedUsedDirectives({ obj: result, resolveRuntime });
     }
 
     let isFirstRun = true;
     while (this.directivesToProcess.length) {
       if (!isFirstRun) {
-        result = await this.enqueueUnresolvedUsedDirectives({ obj: result, resolveRuntime });
+        await this.enqueueUnresolvedUsedDirectives({ obj: result, resolveRuntime });
       }
       await this.processDirectives({ resolveRuntime, useLocalResolve });
       try {
