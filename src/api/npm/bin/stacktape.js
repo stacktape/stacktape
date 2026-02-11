@@ -14,7 +14,11 @@ const {
   accessSync,
   constants,
   unlinkSync,
-  readFileSync
+  readFileSync,
+  writeFileSync,
+  readdirSync,
+  rmSync,
+  statSync
 } = require('node:fs');
 const { get: httpsGet } = require('node:https');
 const { platform, arch, homedir } = require('node:os');
@@ -32,6 +36,18 @@ const PLATFORM_MAP = {
   'darwin-arm64': { fileName: 'macos-arm.tar.gz', extract: extractTarGz },
   'linux-x64-musl': { fileName: 'alpine.tar.gz', extract: extractTarGz }
 };
+
+const REQUIRED_HELPER_LAMBDA_PREFIXES = [
+  'stacktapeServiceLambda',
+  'cdnOriginRequestLambda',
+  'cdnOriginResponseLambda',
+  'batchJobTriggerLambda'
+];
+
+const INSTALL_MARKER_FILE_NAME = '.stacktape-install.json';
+const INSTALL_LOCK_DIR_SUFFIX = '.stacktape-install.lock';
+const LOCK_WAIT_TIMEOUT_MS = 120000;
+const STALE_LOCK_TIMEOUT_MS = 300000;
 
 // ANSI color codes
 const colors = {
@@ -200,55 +216,207 @@ async function ensureBinary() {
 
   const binaryName = platform() === 'win32' ? 'stacktape.exe' : 'stacktape';
 
+  const localCacheDir = join(__dirname, '..', 'bin');
+
   let cacheDir;
   try {
-    const localDir = join(__dirname, '..', 'bin');
-    mkdirSync(localDir, { recursive: true });
-    accessSync(localDir, constants.W_OK);
-    cacheDir = localDir;
+    mkdirSync(localCacheDir, { recursive: true });
+    accessSync(localCacheDir, constants.W_OK);
+    cacheDir = localCacheDir;
   } catch {
     cacheDir = join(homedir(), '.stacktape', 'bin', version);
   }
 
   const binaryPath = join(cacheDir, binaryName);
+  const preserveLauncherScript = cacheDir === localCacheDir;
 
-  if (existsSync(binaryPath)) {
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  const lockDirPath = `${cacheDir}${INSTALL_LOCK_DIR_SUFFIX}`;
+
+  const isHelperLambdasCacheComplete = () => {
+    const helperLambdasDir = join(cacheDir, 'helper-lambdas');
+    if (!existsSync(helperLambdasDir)) {
+      return false;
+    }
+
+    try {
+      const files = readdirSync(helperLambdasDir);
+      return REQUIRED_HELPER_LAMBDA_PREFIXES.every((prefix) =>
+        files.some((fileName) => fileName.startsWith(`${prefix}-`) && fileName.endsWith('.zip'))
+      );
+    } catch {
+      return false;
+    }
+  };
+
+  const isCacheValid = () => {
+    if (!existsSync(binaryPath)) {
+      return false;
+    }
+
+    if (!isHelperLambdasCacheComplete()) {
+      return false;
+    }
+
+    const markerPath = join(cacheDir, INSTALL_MARKER_FILE_NAME);
+    if (!existsSync(markerPath)) {
+      return false;
+    }
+
+    try {
+      const parsedMarker = JSON.parse(readFileSync(markerPath, 'utf8'));
+      return parsedMarker.version === version && parsedMarker.platformKey === platformKey;
+    } catch {
+      return false;
+    }
+  };
+
+  const writeInstallMarker = () => {
+    const markerPath = join(cacheDir, INSTALL_MARKER_FILE_NAME);
+    writeFileSync(
+      markerPath,
+      JSON.stringify(
+        {
+          version,
+          platformKey,
+          helperLambdas: REQUIRED_HELPER_LAMBDA_PREFIXES,
+          installedAt: new Date().toISOString()
+        },
+        null,
+        2
+      )
+    );
+  };
+
+  const cleanupExtractedCache = () => {
+    if (!existsSync(cacheDir)) {
+      return;
+    }
+
+    try {
+      const entries = readdirSync(cacheDir);
+      for (const entry of entries) {
+        if (preserveLauncherScript && entry === 'stacktape.js') {
+          continue;
+        }
+        rmSync(join(cacheDir, entry), { recursive: true, force: true });
+      }
+    } catch {
+      // Ignore cleanup errors and try reinstall anyway
+    }
+  };
+
+  const acquireInstallLock = async () => {
+    const start = Date.now();
+    while (true) {
+      try {
+        mkdirSync(lockDirPath);
+        return;
+      } catch (error) {
+        if (error.code !== 'EEXIST') {
+          throw error;
+        }
+
+        try {
+          const lockStats = statSync(lockDirPath);
+          const lockAge = Date.now() - lockStats.mtimeMs;
+          if (lockAge > STALE_LOCK_TIMEOUT_MS) {
+            rmSync(lockDirPath, { recursive: true, force: true });
+            continue;
+          }
+        } catch {
+          // Lock directory disappeared between checks
+        }
+
+        if (Date.now() - start > LOCK_WAIT_TIMEOUT_MS) {
+          throw new Error('Timed out waiting for Stacktape binary installation lock');
+        }
+
+        await sleep(200);
+      }
+    }
+  };
+
+  const releaseInstallLock = () => {
+    try {
+      rmSync(lockDirPath, { recursive: true, force: true });
+    } catch {
+      // Ignore release lock errors
+    }
+  };
+
+  const installBinary = async () => {
+    console.info(`${colors.dim}Installing Stacktape ${version} for ${platformKey}...${colors.reset}`);
+
+    mkdirSync(cacheDir, { recursive: true });
+
+    const downloadUrl = `https://github.com/${GITHUB_REPO}/releases/download/${version}/${platformInfo.fileName}`;
+    const archivePath = join(cacheDir, `.download-${Date.now()}-${platformInfo.fileName}`);
+
+    try {
+      console.info(`${colors.dim}Downloading from GitHub releases...${colors.reset}`);
+      await downloadFile(downloadUrl, archivePath);
+
+      console.info(`${colors.dim}Extracting...${colors.reset}`);
+      await platformInfo.extract(archivePath, cacheDir);
+
+      setExecutablePermissions(cacheDir);
+
+      unlinkSync(archivePath);
+
+      if (!existsSync(binaryPath)) {
+        throw new Error(`Binary not found after extraction: ${binaryPath}`);
+      }
+
+      if (!isHelperLambdasCacheComplete()) {
+        throw new Error('Incomplete installation: helper lambdas were not extracted correctly');
+      }
+
+      writeInstallMarker();
+      printLogo();
+
+      return binaryPath;
+    } catch (error) {
+      try {
+        if (existsSync(archivePath)) {
+          unlinkSync(archivePath);
+        }
+      } catch {
+        // Ignore archive cleanup errors
+      }
+      throw error;
+    }
+  };
+
+  if (isCacheValid()) {
     return binaryPath;
   }
 
-  console.info(`${colors.dim}Installing Stacktape ${version} for ${platformKey}...${colors.reset}`);
-
-  mkdirSync(cacheDir, { recursive: true });
-
-  const downloadUrl = `https://github.com/${GITHUB_REPO}/releases/download/${version}/${platformInfo.fileName}`;
-  const archivePath = join(cacheDir, platformInfo.fileName);
+  await acquireInstallLock();
 
   try {
-    console.info(`${colors.dim}Downloading from GitHub releases...${colors.reset}`);
-    await downloadFile(downloadUrl, archivePath);
-
-    console.info(`${colors.dim}Extracting...${colors.reset}`);
-    await platformInfo.extract(archivePath, cacheDir);
-
-    setExecutablePermissions(cacheDir);
-
-    unlinkSync(archivePath);
-
-    if (!existsSync(binaryPath)) {
-      throw new Error(`Binary not found after extraction: ${binaryPath}`);
+    if (isCacheValid()) {
+      return binaryPath;
     }
 
-    printLogo();
+    let lastError;
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        cleanupExtractedCache();
+        return await installBinary();
+      } catch (error) {
+        lastError = error;
+        cleanupExtractedCache();
+        if (attempt < 2) {
+          console.info(`\n${colors.dim}Retrying installation (${attempt + 1}/2)...${colors.reset}`);
+        }
+      }
+    }
 
-    return binaryPath;
-  } catch (error) {
-    console.error(`
-${colors.red}Error installing Stacktape:${colors.reset}
-${error.message}
-
-You can also install Stacktape directly using:
-${getManualInstallCommand(platformKey)}`);
-    process.exit(1);
+    throw lastError;
+  } finally {
+    releaseInstallLock();
   }
 }
 
@@ -269,6 +437,7 @@ function getGlobalBinaryPathIfVersionMatches() {
   const globalDir = join(homedir(), '.stacktape', 'bin');
   const globalBinaryPath = join(globalDir, binaryName);
   const releaseDataPath = join(globalDir, 'release-data.json');
+  const globalHelperLambdasDir = join(globalDir, 'helper-lambdas');
 
   if (!existsSync(globalBinaryPath) || !existsSync(releaseDataPath)) {
     return null;
@@ -277,6 +446,14 @@ function getGlobalBinaryPathIfVersionMatches() {
   try {
     const { version } = JSON.parse(readFileSync(releaseDataPath, 'utf8'));
     if (version !== PACKAGE_VERSION) {
+      return null;
+    }
+
+    const files = readdirSync(globalHelperLambdasDir);
+    const hasAllHelperLambdas = REQUIRED_HELPER_LAMBDA_PREFIXES.every((prefix) =>
+      files.some((fileName) => fileName.startsWith(`${prefix}-`) && fileName.endsWith('.zip'))
+    );
+    if (!hasAllHelperLambdas) {
       return null;
     }
   } catch {
