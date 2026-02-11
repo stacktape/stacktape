@@ -16,7 +16,7 @@ function HomePage() {
         Server-rendered at: <code>{renderedAt}</code>
       </p>
       <p>
-        <a href="/api/hello">API Route →</a>
+        Refresh to see the timestamp update (server-side rendered on each request).
       </p>
     </>
   );

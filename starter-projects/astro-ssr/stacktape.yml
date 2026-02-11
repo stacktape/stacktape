@@ -1,12 +1,5 @@
 resources:
-  webService:
-    type: web-service
+  web:
+    type: astro-web
     properties:
-      packaging:
-        type: nixpacks
-        properties:
-          sourceDirectoryPath: ./
-          startCmd: node ./dist/server/entry.mjs
-      resources:
-        cpu: 0.25
-        memory: 512
+      appDirectory: ./
