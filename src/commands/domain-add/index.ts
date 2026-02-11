@@ -28,7 +28,9 @@ export const commandDomainAdd = async () => {
     tuiManager.hint(
       'Register via Route 53: https://us-east-1.console.aws.amazon.com/route53/home#DomainRegistration\n'
         .concat(`Prices start at $3/year for ${tuiManager.colorize('gray', '.click')}.\n`)
-        .concat(`After purchase, re-run \`${tuiManager.prettyCommand('domain:add')}\`.`)
+        .concat(
+          'After purchase, manage and verify the domain in Stacktape Console: https://console.stacktape.com/domains'
+        )
     );
     return;
   }
@@ -104,8 +106,8 @@ export const commandDomainAdd = async () => {
     );
     tuiManager.hint(
       [
-        `Re-run \`${tuiManager.prettyCommand('domain:add')}\` to verify DNS ownership.`,
-        'If valid, you will get the next steps for TLS certs.\n'
+        'Open Stacktape Console to verify DNS ownership and continue setup: https://console.stacktape.com/domains',
+        'If DNS is valid, you can continue with TLS certificate setup.\n'
       ].join('\n')
     );
 
@@ -140,7 +142,7 @@ export const commandDomainAdd = async () => {
     );
     tuiManager.success('Added DNS validation record(s) to the hosted zone.');
     tuiManager.info('Certificate validation can take a few minutes.');
-    tuiManager.hint(`Re-run \`${tuiManager.prettyCommand('domain:add')}\` in a few minutes to check status.`);
+    tuiManager.hint('Check certificate status in Stacktape Console: https://console.stacktape.com/domains');
     domainStatus.regionalCert = regionalCert;
     domainStatus.usEast1Cert = usEast1Cert;
     await domainManager.storeDomainStatusIntoParameterStore({ domainName, status: domainStatus });
