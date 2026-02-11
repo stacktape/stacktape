@@ -132,7 +132,16 @@ export const getLoadBalancersListeners = (loadBalancerName: string, loadBalancer
         // );
       } else {
         certificatesForListener = loadBalancerConfig.customDomains
-          .map((fullDomainName) => domainManager.getCertificateForDomain(fullDomainName, 'application-load-balancer'))
+          .map(({ domainName, customCertificateArn, disableDnsRecordCreation }) => {
+            if (customCertificateArn) {
+              return customCertificateArn;
+            }
+            if (disableDnsRecordCreation) {
+              return null;
+            }
+            return domainManager.getCertificateForDomain(domainName, 'application-load-balancer');
+          })
+          .filter(Boolean)
           .sort()
           .filter((certArn, index, certArr) => certArn !== certArr[index + 1]);
       }
@@ -196,7 +205,7 @@ export const transformIntegrationsForResourceOutput = ({
         listener.protocol === 'HTTP' ? 'http' : 'https',
         '://',
         hosts?.[0] ||
-          resource.customDomains?.[0] ||
+          resource.customDomains?.[0]?.domainName ||
           domainManager.getDefaultDomainForResource({ stpResourceName: resource.name }),
         ':',
         listenerPort

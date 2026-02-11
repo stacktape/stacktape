@@ -9,6 +9,9 @@ import { consoleLinks } from '@shared/naming/console-links';
 import { getError } from '@shared/utils/misc';
 import { getApexDomain } from '@utils/domains';
 
+const STACKTAPE_DOMAINS_CONSOLE_URL = 'https://console.stacktape.com/domains';
+const DOMAINS_DOCS_URL = 'https://docs.stacktape.com/other-resources/domains-and-certificates/';
+
 const wrap = (
   errorsObj: typeof errors
 ): {
@@ -409,13 +412,18 @@ If you want to disable local emulation, use the ${tuiManager.prettyOption('disab
   e38({ domainName }: { domainName: string }): ReturnedError {
     return {
       type: 'DOMAIN_MANAGEMENT',
-      message: `Domain ${tuiManager.makeBold(domainName)} is not a valid root domain name.`,
-      hint: `When using ${tuiManager.prettyCommand(
-        'domain:add'
-      )}, enter the apex (root) domain, e.g. ${tuiManager.colorize('blue', 'example.com')} or ${tuiManager.colorize(
-        'blue',
-        'mydomain.net'
-      )}. After domain is added, you can also use its subdomains (such as my-subdomain.example.com).`
+      message: `Domain ${tuiManager.makeBold(domainName)} is not a valid apex (root) domain name.`,
+      hint: [
+        `Enter only the root domain, for example ${tuiManager.colorize('blue', 'example.com')} or ${tuiManager.colorize(
+          'blue',
+          'mydomain.net'
+        )}.`,
+        `After the root domain is configured in Stacktape, you can use subdomains such as ${tuiManager.colorize(
+          'blue',
+          'api.example.com'
+        )}.`,
+        `Manage and verify your domains in Stacktape Console: ${STACKTAPE_DOMAINS_CONSOLE_URL}`
+      ]
     };
   },
   e39({
@@ -429,14 +437,15 @@ If you want to disable local emulation, use the ${tuiManager.prettyOption('disab
   }): ReturnedError {
     return {
       type: 'DOMAIN_MANAGEMENT',
-      message: `No suitable TLS certificate found for domain ${tuiManager.makeBold(fullDomainName)} in region ${region}.\n`,
+      message: `No suitable TLS certificate found for domain ${tuiManager.makeBold(
+        fullDomainName
+      )} in region ${region}.`,
       hint: [
-        'Depending on your goal:',
-        `1. If you want Stacktape to manage DNS and TLS certificates, run ${tuiManager.prettyCommand(
-          'domain:add'
-        )} to see next steps.`,
-        `2. If you want to use a custom certificate, set ${tuiManager.prettyConfigProperty('customCertificateArn')}.`,
-        'Refer to Stacktape docs for more information: https://docs.stacktape.com/other-resources/domains-and-certificates/'
+        `If you want Stacktape to manage DNS and certificates, configure and verify the domain in Stacktape Console: ${STACKTAPE_DOMAINS_CONSOLE_URL}`,
+        `If you manage certificates yourself, use ${tuiManager.prettyConfigProperty(
+          'customCertificateArn'
+        )} (or ${tuiManager.prettyConfigProperty('customCertificateArns')} on load balancer listeners).`,
+        `Docs: ${DOMAINS_DOCS_URL}`
       ].join('\n')
     };
   },
@@ -447,7 +456,7 @@ If you want to disable local emulation, use the ${tuiManager.prettyOption('disab
         fullDomainName
       )} is not validated yet. Current status: ${certificateStatus}.`,
       hint: [
-        `Run ${tuiManager.prettyCommand('domain:add')} to refresh status and see next steps.`,
+        `Open Stacktape Console to check domain and certificate validation status: ${STACKTAPE_DOMAINS_CONSOLE_URL}`,
         'If you added the domain recently, validation can take a few minutes.'
       ]
     };
@@ -466,18 +475,19 @@ If you want to disable local emulation, use the ${tuiManager.prettyOption('disab
       type: 'DOMAIN_MANAGEMENT',
       message: `Cannot use domain ${tuiManager.makeBold(
         fullDomainName
-      )} with automatically generated Stacktape certificate.\nCurrently, the automatically generated certificate for the domain ${tuiManager.makeBold(
+      )} with Stacktape-managed certificate.\nCurrently, managed certificates for ${tuiManager.makeBold(
         getApexDomain(fullDomainName)
-      )} does not support more than one level of subdomain.`,
+      )} do not support more than one subdomain level.`,
       hint: [
-        `Until we resolve this limitation, you can manually create your certificate here: ${tuiManager.colorize(
-          'blue',
-          consoleLinks.createCertificateUrl(attachingTo, region)
-        )} and reference it using ${tuiManager.prettyConfigProperty('customCertificateArn')}.`,
+        `Create your own certificate here: ${tuiManager.colorize('blue', consoleLinks.createCertificateUrl(attachingTo, region))}`,
+        `Then reference it using ${tuiManager.prettyConfigProperty('customCertificateArn')} (or ${tuiManager.prettyConfigProperty(
+          'customCertificateArns'
+        )} on load balancer listeners).`,
         `You can try using alternative domain name such as ${tuiManager.colorize(
           'blue',
           [domainLevelSplit.slice(0, -2).join('-'), domainLevelSplit.slice(-2).join('.')].join('.')
-        )}`
+        )}`,
+        `Domain setup and status are available in Stacktape Console: ${STACKTAPE_DOMAINS_CONSOLE_URL}`
       ]
     };
   },
@@ -597,26 +607,16 @@ If you want to disable local emulation, use the ${tuiManager.prettyOption('disab
       type: 'DOMAIN_MANAGEMENT',
       message: `Cannot use domain ${tuiManager.makeBold(domainName)}. DNS records of the domain ${tuiManager.makeBold(
         getApexDomain(domainName)
-      )} are not under control of your AWS account.`,
+      )} are not delegated to the hosted zone in your AWS account.`,
       hint: [
-        "You can transfer the control over domain's DNS records by changing name server configuration at your domain registrar.\n"
-          .concat(
-            'Changing name servers will transfer the control of the DNS records to the hosted zone in your AWS account.\n'
-          )
-          .concat(
-            'Read https://docs.stacktape.com/other-resources/domains-and-certificates/#adding-domain before changing name servers.\n'
-          )
-          .concat(
-            desiredNameServers
-              ? `Change name servers to following values \n${tuiManager.colorize(
-                  'cyan',
-                  desiredNameServers.map((ns) => `- ${ns}`).join('\n')
-                )}`
-              : ''
-          ),
-        `Use command ${tuiManager.prettyCommand(
-          'domain:add'
-        )} which will guide you through the process of preparing domain to be used with Stacktape.`
+        `Manage domain setup in Stacktape Console: ${STACKTAPE_DOMAINS_CONSOLE_URL}`,
+        desiredNameServers
+          ? `At your registrar, update name servers to:\n${tuiManager.colorize(
+              'cyan',
+              desiredNameServers.map((ns) => `- ${ns}`).join('\n')
+            )}`
+          : 'At your registrar, update name servers to the values shown in the Stacktape Console.',
+        `Docs: ${DOMAINS_DOCS_URL}#adding-domain`
       ]
     };
   },
@@ -1189,14 +1189,15 @@ If you want to disable local emulation, use the ${tuiManager.prettyOption('disab
   e88({ domainName }: { domainName: string }): ReturnedError {
     return {
       type: 'DOMAIN_MANAGEMENT',
-      message: `Cannot use domain name ${tuiManager.makeBold(domainName)}. DNS records of the domain ${tuiManager.makeBold(
+      message: `Cannot use domain name ${tuiManager.makeBold(domainName)}. DNS records for ${tuiManager.makeBold(
         getApexDomain(domainName)
-      )} are not under control of your AWS account or the domain was not yet configured to be used with Stacktape.`,
+      )} are not delegated to your AWS account, or the domain is not configured in Stacktape yet.`,
       hint: [
-        'Depending on your goal:',
-        `1. If you want Stacktape to be able to manage your domain names (DNS) and TLS certificates, run command ${tuiManager.prettyCommand('domain:add')} to see next steps.`,
-        `2. If you wish to manage DNS records on your own, set ${tuiManager.prettyConfigProperty('disableDnsRecordCreation')} to ${tuiManager.makeBold('true')} and specify ${tuiManager.prettyConfigProperty('customCertificateArn')}`,
-        'Refer to Stacktape docs for more information: https://docs.stacktape.com/other-resources/domains-and-certificates/'
+        `If you want Stacktape to manage DNS and certificates, configure and verify the domain in Stacktape Console: ${STACKTAPE_DOMAINS_CONSOLE_URL}`,
+        `If you manage DNS yourself, set ${tuiManager.prettyConfigProperty(
+          'disableDnsRecordCreation'
+        )} to ${tuiManager.makeBold('true')} and specify ${tuiManager.prettyConfigProperty('customCertificateArn')}.`,
+        `Docs: ${DOMAINS_DOCS_URL}`
       ].join('\n')
     };
   },
@@ -1612,12 +1613,20 @@ You have specified ${tuiManager.makeBold('app_variable')} "${appVariable}" in yo
       )}. CDN can only be used with web services that use ${tuiManager.prettyConfigProperty('http-api-gateway')} (default) or ${tuiManager.prettyConfigProperty('application-load-balancer')} load balancing types.`
     };
   },
-  e118({ webServiceName }: { webServiceName: string }): ReturnedError {
+  e118({
+    resourceName,
+    resourceType
+  }: {
+    resourceName: string;
+    resourceType: 'web-service' | 'application-load-balancer' | 'network-load-balancer';
+  }): ReturnedError {
     return {
       type: 'CONFIG_VALIDATION',
-      message: `Error in ${tuiManager.prettyResourceType('web-service')} ${tuiManager.prettyResourceName(
-        webServiceName
-      )}. If you disable DNS record creation for your domain, you must specify ${tuiManager.prettyConfigProperty('customCertificateArn')} property.`
+      message: `Error in ${tuiManager.prettyResourceType(resourceType)} ${tuiManager.prettyResourceName(
+        resourceName
+      )}. If ${tuiManager.prettyConfigProperty(
+        'disableDnsRecordCreation'
+      )} is set to true, you must also specify ${tuiManager.prettyConfigProperty('customCertificateArn')}.`
     };
   },
   e119({ containerResourceName }: { containerResourceName: string }): ReturnedError {
@@ -2059,9 +2068,7 @@ export const hintMessages = {
     return [
       `If you do not own a domain, you can register/buy a domain in the AWS console: https://us-east-1.console.aws.amazon.com/route53/home#DomainRegistration:
 Prices of domains start at $3/year for ${tuiManager.colorize('gray', '.click')} domains.
-After buying the domain, run the ${tuiManager.prettyCommand(
-        'domain:add'
-      )} to prepare the domain to be usable with Stacktape.`
+After purchase, configure and verify the domain in Stacktape Console: ${STACKTAPE_DOMAINS_CONSOLE_URL}`
     ];
   }
 };

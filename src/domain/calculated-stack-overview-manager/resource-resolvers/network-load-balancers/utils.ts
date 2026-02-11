@@ -67,7 +67,16 @@ export const getNetworkLoadBalancerListeners = (
         certificatesForListener = [GetAtt(cfLogicalNames.customResourceDefaultDomainCert(), 'certArn')];
       } else {
         certificatesForListener = loadBalancerConfig.customDomains
-          .map((fullDomainName) => domainManager.getCertificateForDomain(fullDomainName, 'network-load-balancer'))
+          .map(({ domainName, customCertificateArn, disableDnsRecordCreation }) => {
+            if (customCertificateArn) {
+              return customCertificateArn;
+            }
+            if (disableDnsRecordCreation) {
+              return null;
+            }
+            return domainManager.getCertificateForDomain(domainName, 'network-load-balancer');
+          })
+          .filter(Boolean)
           .sort()
           .filter((certArn, index, certArr) => certArn !== certArr[index + 1]);
       }

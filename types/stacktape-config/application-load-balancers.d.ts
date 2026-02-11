@@ -19,14 +19,14 @@ interface ApplicationLoadBalancerProps {
    */
   interface?: 'internet' | 'internal';
   /**
-   * #### Custom domains. Stacktape auto-creates DNS records and TLS certificates.
+   * #### Custom domains.
    *
    * ---
    *
-   * Your domain must be added as a Route53 hosted zone in your AWS account first.
-   * Use `customCertificateArns` on listeners if you want to bring your own certificates.
+   * By default, Stacktape creates DNS records and TLS certificates for each domain.
+   * If you manage DNS yourself, set `disableDnsRecordCreation` and provide `customCertificateArn`.
    */
-  customDomains?: string[];
+  customDomains?: DomainConfiguration[];
   /**
    * #### Custom listeners (port + protocol). Defaults to HTTPS on 443 + HTTP on 80 (redirecting to HTTPS).
    */
@@ -56,8 +56,10 @@ type StpApplicationLoadBalancer = ApplicationLoadBalancer['properties'] & {
   nameChain: string[];
 };
 
-interface StpResolvedLoadBalancerReference
-  extends Omit<ContainerWorkloadLoadBalancerIntegrationProps, 'loadBalancerName'> {
+interface StpResolvedLoadBalancerReference extends Omit<
+  ContainerWorkloadLoadBalancerIntegrationProps,
+  'loadBalancerName'
+> {
   protocol: 'HTTP' | 'HTTPS';
   loadBalancer: StpApplicationLoadBalancer;
   listenerPort: number;

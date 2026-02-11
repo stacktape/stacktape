@@ -120,27 +120,32 @@ export const resolveApplicationLoadBalancer = ({ definition }: { definition: Stp
     paramName: 'canonicalDomain',
     paramValue: GetAtt(cfLogicalNames.loadBalancer(name), 'DNSName'),
     showDuringPrint:
-      !finalDefinition.customDomains?.length &&
+      (!finalDefinition.customDomains?.length ||
+        finalDefinition.customDomains.some(({ disableDnsRecordCreation }) => disableDnsRecordCreation)) &&
       finalDefinition.listeners?.some(({ customCertificateArns }) => customCertificateArns?.length)
   });
   const usesCustomCerts = finalDefinition.listeners?.some(({ customCertificateArns }) => customCertificateArns?.length);
 
   if (finalDefinition.customDomains?.length) {
-    finalDefinition.customDomains.forEach((domainName) => {
-      domainManager.validateDomainUsability(domainName);
-      calculatedStackOverviewManager.addCfChildResource({
-        cfLogicalName: cfLogicalNames.dnsRecord(domainName),
-        resource: getLoadBalancerDnsRecord(name, {
-          fullyQualifiedDomainName: domainName,
-          hostedZoneId: domainManager.getDomainStatus(domainName).hostedZoneInfo.HostedZone.Id
-        }),
-        nameChain
-      });
+    const allCustomDomains: string[] = [];
+    finalDefinition.customDomains.forEach(({ domainName, disableDnsRecordCreation }) => {
+      allCustomDomains.push(domainName);
+      if (!disableDnsRecordCreation) {
+        domainManager.validateDomainUsability(domainName);
+        calculatedStackOverviewManager.addCfChildResource({
+          cfLogicalName: cfLogicalNames.dnsRecord(domainName),
+          resource: getLoadBalancerDnsRecord(name, {
+            fullyQualifiedDomainName: domainName,
+            hostedZoneId: domainManager.getDomainStatus(domainName).hostedZoneInfo.HostedZone.Id
+          }),
+          nameChain
+        });
+      }
     });
     calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
       nameChain,
       paramName: 'customDomains',
-      paramValue: finalDefinition.customDomains.join(',')
+      paramValue: allCustomDomains.join(',')
     });
     calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
       nameChain,
@@ -150,7 +155,7 @@ export const resolveApplicationLoadBalancer = ({ definition }: { definition: Stp
     calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
       nameChain,
       paramName: 'url',
-      paramValue: `https://${finalDefinition.customDomains[0]}`
+      paramValue: `https://${finalDefinition.customDomains[0].domainName}`
     });
   } else if (usesCustomCerts) {
     calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({

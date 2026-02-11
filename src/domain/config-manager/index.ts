@@ -2113,9 +2113,6 @@ export class ConfigManager {
       // props check constant ensures full destructuring of web service props
       // eslint-disable-next-line
       const propsCheck: Record<string, never> = restProps;
-      const customCerts = customDomains?.length
-        ? customDomains.map(({ customCertificateArn }) => customCertificateArn).filter(Boolean)
-        : null;
       const needTestListener = deployment?.beforeAllowTrafficFunction;
 
       return {
@@ -2237,11 +2234,7 @@ export class ConfigManager {
                   }),
                   type: 'application-load-balancer',
                   configParentResourceType: type,
-                  customDomains: customDomains?.length
-                    ? customDomains
-                        .filter(({ disableDnsRecordCreation }) => !disableDnsRecordCreation)
-                        .map(({ domainName }) => domainName)
-                    : null,
+                  customDomains: customDomains?.length ? customDomains : null,
                   cdn: cdn && { listenerPort: 443, originDomainName: customDomains?.[0]?.domainName, ...cdn },
                   alarms: alarms as ApplicationLoadBalancerAlarm[],
                   disabledGlobalAlarms,
@@ -2258,7 +2251,7 @@ export class ConfigManager {
                     {
                       port: 443,
                       protocol: 'HTTPS',
-                      customCertificateArns: customCerts?.length ? customCerts : null
+                      customCertificateArns: null
                     }
                   ].concat(
                     needTestListener
@@ -2266,7 +2259,7 @@ export class ConfigManager {
                           {
                             port: DEFAULT_TEST_LISTENER_PORT,
                             protocol: 'HTTPS',
-                            customCertificateArns: customCerts?.length ? customCerts : null
+                            customCertificateArns: null
                           }
                         ]
                       : []
@@ -2283,16 +2276,12 @@ export class ConfigManager {
                   }),
                   type: 'network-load-balancer',
                   configParentResourceType: type,
-                  customDomains: customDomains?.length
-                    ? customDomains
-                        .filter(({ disableDnsRecordCreation }) => !disableDnsRecordCreation)
-                        .map(({ domainName }) => domainName)
-                    : null,
+                  customDomains: customDomains?.length ? customDomains : null,
                   disabledGlobalAlarms,
                   listeners: loadBalancing.properties?.ports.map((port) => ({
                     port: port.port,
                     protocol: port.protocol || 'TLS',
-                    customCertificateArns: customCerts?.length ? customCerts : null
+                    customCertificateArns: null
                   }))
                 }
               : undefined
@@ -2699,21 +2688,25 @@ export class ConfigManager {
     // check load balancers and their domains
     this.allApplicationLoadBalancers.forEach(({ name, customDomains }) => {
       if (customDomains) {
-        customDomains.forEach((fullDomainName) => {
-          domainAssociations[fullDomainName] = (domainAssociations[fullDomainName] || []).concat(name);
-          const rootDomain = getApexDomain(fullDomainName);
-          resultDomains.add(rootDomain);
-        });
+        customDomains
+          .filter(({ disableDnsRecordCreation }) => !disableDnsRecordCreation)
+          .forEach(({ domainName }) => {
+            domainAssociations[domainName] = (domainAssociations[domainName] || []).concat(name);
+            const rootDomain = getApexDomain(domainName);
+            resultDomains.add(rootDomain);
+          });
       }
     });
     // check load balancers and their domains
     this.allNetworkLoadBalancers.forEach(({ name, customDomains }) => {
       if (customDomains) {
-        customDomains.forEach((fullDomainName) => {
-          domainAssociations[fullDomainName] = (domainAssociations[fullDomainName] || []).concat(name);
-          const rootDomain = getApexDomain(fullDomainName);
-          resultDomains.add(rootDomain);
-        });
+        customDomains
+          .filter(({ disableDnsRecordCreation }) => !disableDnsRecordCreation)
+          .forEach(({ domainName }) => {
+            domainAssociations[domainName] = (domainAssociations[domainName] || []).concat(name);
+            const rootDomain = getApexDomain(domainName);
+            resultDomains.add(rootDomain);
+          });
       }
     });
     // check http api gateways

@@ -39,6 +39,14 @@ const validateNetworkLoadBalancerIntegrations = ({
 };
 
 export const validateNetworkLoadBalancerConfig = ({ definition }: { definition: StpNetworkLoadBalancer }) => {
+  if (
+    definition.customDomains?.some(
+      ({ disableDnsRecordCreation, customCertificateArn }) => disableDnsRecordCreation && !customCertificateArn
+    )
+  ) {
+    throw stpErrors.e118({ resourceName: definition.name, resourceType: definition.type });
+  }
+
   validateListenerPortOverlap({ loadBalancer: definition });
   validateNetworkLoadBalancerIntegrations({ loadBalancerDefinition: definition });
 };

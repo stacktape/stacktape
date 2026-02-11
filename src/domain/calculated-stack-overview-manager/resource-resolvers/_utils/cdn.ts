@@ -661,7 +661,7 @@ const determineLoadBalancerOriginProperties = (
   return {
     originDomainName:
       originDomainName ||
-      listenerReference.loadBalancer.customDomains?.[0] ||
+      listenerReference.loadBalancer.customDomains?.[0]?.domainName ||
       domainManager.getDefaultDomainForResource({ stpResourceName: listenerReference.loadBalancer.name }),
     originProtocol: listenerReference.protocol,
     originPort: listenerReference.listenerPort

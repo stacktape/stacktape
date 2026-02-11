@@ -19,6 +19,6 @@ export const validateWebServiceConfig = ({ resource }: { resource: StpWebService
       ({ disableDnsRecordCreation, customCertificateArn }) => disableDnsRecordCreation && !customCertificateArn
     )
   ) {
-    throw stpErrors.e118({ webServiceName: resource.name });
+    throw stpErrors.e118({ resourceName: resource.name, resourceType: resource.type });
   }
 };

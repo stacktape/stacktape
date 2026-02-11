@@ -56,26 +56,31 @@ export const resolveNetworkLoadBalancer = ({ definition }: { definition: StpNetw
     paramName: 'canonicalDomain',
     paramValue: GetAtt(cfLogicalNames.loadBalancer(name), 'DNSName'),
     showDuringPrint:
-      !definition.customDomains?.length &&
+      (!definition.customDomains?.length ||
+        definition.customDomains.some(({ disableDnsRecordCreation }) => disableDnsRecordCreation)) &&
       definition.listeners?.some(({ customCertificateArns }) => customCertificateArns?.length)
   });
 
   if (definition.customDomains?.length) {
-    definition.customDomains.forEach((domainName) => {
-      domainManager.validateDomainUsability(domainName);
-      calculatedStackOverviewManager.addCfChildResource({
-        cfLogicalName: cfLogicalNames.dnsRecord(domainName),
-        resource: getNetworkLoadBalancerDnsRecord(name, {
-          fullyQualifiedDomainName: domainName,
-          hostedZoneId: domainManager.getDomainStatus(domainName).hostedZoneInfo.HostedZone.Id
-        }),
-        nameChain
-      });
+    const allCustomDomains: string[] = [];
+    definition.customDomains.forEach(({ domainName, disableDnsRecordCreation }) => {
+      allCustomDomains.push(domainName);
+      if (!disableDnsRecordCreation) {
+        domainManager.validateDomainUsability(domainName);
+        calculatedStackOverviewManager.addCfChildResource({
+          cfLogicalName: cfLogicalNames.dnsRecord(domainName),
+          resource: getNetworkLoadBalancerDnsRecord(name, {
+            fullyQualifiedDomainName: domainName,
+            hostedZoneId: domainManager.getDomainStatus(domainName).hostedZoneInfo.HostedZone.Id
+          }),
+          nameChain
+        });
+      }
     });
     calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
       nameChain,
       paramName: 'customDomains',
-      paramValue: definition.customDomains.join(',')
+      paramValue: allCustomDomains.join(',')
     });
     calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
       nameChain,

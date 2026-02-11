@@ -206,6 +206,14 @@ export const validateApplicationLoadBalancerConfig = ({ definition }: { definiti
 
   const finalDefinition = transformLoadBalancerToListenerForm({ definition });
 
+  if (
+    finalDefinition.customDomains?.some(
+      ({ disableDnsRecordCreation, customCertificateArn }) => disableDnsRecordCreation && !customCertificateArn
+    )
+  ) {
+    throw stpErrors.e118({ resourceName: finalDefinition.name, resourceType: finalDefinition.type });
+  }
+
   validateListenerPortOverlap({ loadBalancer: finalDefinition });
   // we do this validations here, even though strictly speaking this is more about event integrations than load balancer itself
   // it is still related to load balancer so it should make sense :D
