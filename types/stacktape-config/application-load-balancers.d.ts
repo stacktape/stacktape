@@ -25,8 +25,10 @@ interface ApplicationLoadBalancerProps {
    *
    * By default, Stacktape creates DNS records and TLS certificates for each domain.
    * If you manage DNS yourself, set `disableDnsRecordCreation` and provide `customCertificateArn`.
+   *
+   * Backward compatible format `string[]` is still supported.
    */
-  customDomains?: DomainConfiguration[];
+  customDomains?: DomainConfiguration[] | string[];
   /**
    * #### Custom listeners (port + protocol). Defaults to HTTPS on 443 + HTTP on 80 (redirecting to HTTPS).
    */
@@ -49,7 +51,8 @@ interface ApplicationLoadBalancerProps {
   useFirewall?: string;
 }
 
-type StpApplicationLoadBalancer = ApplicationLoadBalancer['properties'] & {
+type StpApplicationLoadBalancer = Omit<ApplicationLoadBalancer['properties'], 'customDomains'> & {
+  customDomains?: DomainConfiguration[];
   name: string;
   type: ApplicationLoadBalancer['type'];
   configParentResourceType: WebService['type'] | ApplicationLoadBalancer['type'] | PrivateService['type'];

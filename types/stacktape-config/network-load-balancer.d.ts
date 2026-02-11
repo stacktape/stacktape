@@ -25,8 +25,10 @@ interface NetworkLoadBalancerProps {
    *
    * By default, Stacktape creates DNS records and TLS certificates for each domain.
    * If you manage DNS yourself, set `disableDnsRecordCreation` and provide `customCertificateArn`.
+   *
+   * Backward compatible format `string[]` is still supported.
    */
-  customDomains?: DomainConfiguration[];
+  customDomains?: DomainConfiguration[] | string[];
   /**
    * #### Listeners define which ports and protocols (TCP/TLS) this load balancer accepts traffic on.
    */
@@ -62,7 +64,8 @@ interface NetworkLoadBalancerProps {
   // useFirewall?: string;
 }
 
-type StpNetworkLoadBalancer = NetworkLoadBalancer['properties'] & {
+type StpNetworkLoadBalancer = Omit<NetworkLoadBalancer['properties'], 'customDomains'> & {
+  customDomains?: DomainConfiguration[];
   name: string;
   type: NetworkLoadBalancer['type'];
   configParentResourceType: WebService['type'] | NetworkLoadBalancer['type'] | PrivateService['type'];

@@ -30,6 +30,7 @@ import { ConfigResolver } from './config-resolver';
 import { TransformsResolver } from './transforms-resolver';
 import { getAlarmsToBeAppliedToResource, isGlobalAlarmEligibleForStack } from './utils/alarms';
 import { DEFAULT_TEST_LISTENER_PORT } from './utils/application-load-balancers';
+import { normalizeCustomDomains } from './utils/custom-domains';
 import { getStacktapeOriginRequestLambdaIamStatement } from './utils/iam';
 import {
   getBatchJobTriggerLambdaAccessControl,
@@ -396,7 +397,12 @@ export class ConfigManager {
   }
 
   get applicationLoadBalancers() {
-    return this.getResourcesFromConfig<StpApplicationLoadBalancer>('application-load-balancer');
+    return this.getResourcesFromConfig<StpApplicationLoadBalancer>('application-load-balancer').map((resource) => ({
+      ...resource,
+      customDomains: normalizeCustomDomains({
+        customDomains: resource.customDomains as (string | DomainConfiguration)[] | null | undefined
+      })
+    }));
   }
 
   get httpApiGateways() {
@@ -3474,7 +3480,12 @@ export class ConfigManager {
   }
 
   get networkLoadBalancers() {
-    return this.getResourcesFromConfig<StpNetworkLoadBalancer>('network-load-balancer');
+    return this.getResourcesFromConfig<StpNetworkLoadBalancer>('network-load-balancer').map((resource) => ({
+      ...resource,
+      customDomains: normalizeCustomDomains({
+        customDomains: resource.customDomains as (string | DomainConfiguration)[] | null | undefined
+      })
+    }));
   }
 }
 
