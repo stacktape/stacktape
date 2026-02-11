@@ -1,0 +1,8 @@
+name: S3 Image Processor
+tags:
+  - Typescript
+  - S3
+  - Lambda
+  - Event-Driven
+icon: typescript.svg
+priority: 1

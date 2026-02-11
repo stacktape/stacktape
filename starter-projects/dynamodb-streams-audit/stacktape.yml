@@ -1,0 +1,66 @@
+resources:
+  apiGateway:
+    type: http-api-gateway
+    properties:
+      cors:
+        enabled: true
+
+  productsTable:
+    type: dynamo-db-table
+    properties:
+      primaryKey:
+        partitionKey:
+          name: id
+          type: string
+      streamType: NEW_AND_OLD_IMAGES
+
+  auditTable:
+    type: dynamo-db-table
+    properties:
+      primaryKey:
+        partitionKey:
+          name: entityId
+          type: string
+        sortKey:
+          name: timestamp
+          type: string
+
+  processStream:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/process-stream.ts
+      memory: 256
+      connectTo:
+        - auditTable
+      events:
+        - type: dynamo-db-stream
+          properties:
+            streamArn: $ResourceParam('productsTable', 'streamArn')
+            batchSize: 10
+            startingPosition: LATEST
+
+  api:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/index.ts
+      memory: 512
+      connectTo:
+        - productsTable
+        - auditTable
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: apiGateway
+            path: /
+            method: '*'
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: apiGateway
+            path: /{proxy+}
+            method: '*'

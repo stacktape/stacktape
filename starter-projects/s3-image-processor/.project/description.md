@@ -1,0 +1,3 @@
+- Automatic image processing triggered by [S3](https://docs.stacktape.com/resources/buckets/) uploads.
+- Upload images via presigned URLs — an [S3 event](https://docs.stacktape.com/compute-resources/lambda-functions/#s3) triggers a Lambda that resizes each image to three sizes (thumbnail, medium, large) using [sharp](https://sharp.pixelplumbing.com/).
+- Includes an API to generate upload URLs and list processed images.

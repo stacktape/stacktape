@@ -1,0 +1,11 @@
+{
+  "name": "sns-notification-fanout",
+  "private": true,
+  "scripts": {},
+  "dependencies": {
+    "hono": "^4.11.8",
+    "@aws-sdk/client-sns": "^3.985.0",
+    "@aws-sdk/client-dynamodb": "^3.985.0",
+    "@aws-sdk/lib-dynamodb": "^3.985.0"
+  }
+}

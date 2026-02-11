@@ -1,0 +1,8 @@
+name: Scheduled Health Checker
+tags:
+  - Typescript
+  - DynamoDB
+  - Lambda
+  - Event-Driven
+icon: typescript.svg
+priority: 1
