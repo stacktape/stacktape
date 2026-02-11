@@ -256,12 +256,16 @@ const reorganizeBuildOutput = async ({
   const normalizedStatic = buildConfig.staticOutputPath.replace(/\\/g, '/');
   const staticIsInsideServer = normalizedStatic.startsWith(`${normalizedServer}/`);
 
+  // Use dereference: true so symlinks (e.g. Nitro's .nitro/ node_modules symlinks)
+  // are resolved to actual files - Lambda zip archives don't support symlinks
+  const copyOpts = { dereference: true };
+
   if (staticIsInsideServer) {
     // Static output is nested inside server output (e.g. SvelteKit: server='build', static='build/client').
     // Copy the server output to server-function, then remove the static subdirectory from it.
     const serverSourcePath = join(distFolderPath, 'build-output', buildConfig.serverOutputPath);
     if (await pathExists(serverSourcePath)) {
-      await copy(serverSourcePath, serverFunctionPath);
+      await copy(serverSourcePath, serverFunctionPath, copyOpts);
     }
     // Remove the static assets subdirectory from server-function to avoid bloating Lambda
     const staticRelative = normalizedStatic.slice(normalizedServer.length + 1);
@@ -272,17 +276,17 @@ const reorganizeBuildOutput = async ({
     // Copy static assets from __static-assets (created during move phase) to bucket-content
     const staticAssetsPath = join(distFolderPath, 'build-output', '__static-assets');
     if (await pathExists(staticAssetsPath)) {
-      await copy(staticAssetsPath, bucketContentPath);
+      await copy(staticAssetsPath, bucketContentPath, copyOpts);
     }
   } else {
     // Independent paths - copy server and static separately
     const serverSourcePath = join(distFolderPath, 'build-output', buildConfig.serverOutputPath);
     if (await pathExists(serverSourcePath)) {
-      await copy(serverSourcePath, serverFunctionPath);
+      await copy(serverSourcePath, serverFunctionPath, copyOpts);
     }
     const staticSourcePath = join(distFolderPath, 'build-output', buildConfig.staticOutputPath);
     if (await pathExists(staticSourcePath)) {
-      await copy(staticSourcePath, bucketContentPath);
+      await copy(staticSourcePath, bucketContentPath, copyOpts);
     }
   }
 
@@ -291,7 +295,7 @@ const reorganizeBuildOutput = async ({
   if (buildConfig.wrapperType !== 'passthrough') {
     const nodeModulesPath = join(buildConfig.workingDir, 'node_modules');
     if (await pathExists(nodeModulesPath)) {
-      await copy(nodeModulesPath, join(serverFunctionPath, 'node_modules'));
+      await copy(nodeModulesPath, join(serverFunctionPath, 'node_modules'), copyOpts);
       // Prune devDependencies to reduce Lambda package size
       const pkgJsonPath = join(buildConfig.workingDir, 'package.json');
       const lockfilePath = join(buildConfig.workingDir, 'package-lock.json');
@@ -372,12 +376,15 @@ export const createSsrWebArtifacts = async ({
       inheritEnvVarsExcept: []
     });
 
-    // Move build output to our dist folder.
+    // Copy build output to our dist folder, dereferencing symlinks so they become real files.
+    // Nitro-based frameworks (Nuxt, SolidStart, TanStack Start) create symlinks in node_modules
+    // that point back to the build directory - these break when moved and don't work in Lambda zips.
     // Handle the case where one output path is nested inside the other (e.g. SvelteKit:
-    // serverOutputPath='build', staticOutputPath='build/client') by moving the parent first,
-    // then resolving the child from within the already-moved parent.
+    // serverOutputPath='build', staticOutputPath='build/client') by copying the parent first,
+    // then resolving the child from within the already-copied parent.
     const serverOutputFullPath = join(buildConfig.workingDir, buildConfig.serverOutputPath);
     const staticOutputFullPath = join(buildConfig.workingDir, buildConfig.staticOutputPath);
+    const deref = { dereference: true };
 
     const normalizedServer = buildConfig.serverOutputPath.replace(/\\/g, '/');
     const normalizedStatic = buildConfig.staticOutputPath.replace(/\\/g, '/');
@@ -386,33 +393,36 @@ export const createSsrWebArtifacts = async ({
 
     if (staticIsInsideServer) {
       // Static is nested inside server (e.g. server='build', static='build/client')
-      // Move the parent (server) first, then the child (static) is already inside
+      // Copy the parent (server) first, then the child (static) is already inside
       if (await pathExists(serverOutputFullPath)) {
-        await move(serverOutputFullPath, join(buildOutputPath, buildConfig.serverOutputPath), { overwrite: true });
+        await copy(serverOutputFullPath, join(buildOutputPath, buildConfig.serverOutputPath), deref);
+        await remove(serverOutputFullPath);
       }
-      // Static output is now at its relative position inside the moved server output
-      const staticWithinMoved = join(buildOutputPath, buildConfig.staticOutputPath);
-      if (await pathExists(staticWithinMoved)) {
+      // Static output is now at its relative position inside the copied server output
+      const staticWithinCopied = join(buildOutputPath, buildConfig.staticOutputPath);
+      if (await pathExists(staticWithinCopied)) {
         await ensureDir(join(buildOutputPath, normalizedStatic, '..'));
-        // Copy (not move) to build-output/{staticOutputPath} so both exist in build-output
-        await copy(staticWithinMoved, join(buildOutputPath, '__static-assets'));
+        await copy(staticWithinCopied, join(buildOutputPath, '__static-assets'));
       }
     } else if (serverIsInsideStatic) {
-      // Server is nested inside static - move parent (static) first
+      // Server is nested inside static - copy parent (static) first
       if (await pathExists(staticOutputFullPath)) {
-        await move(staticOutputFullPath, join(buildOutputPath, buildConfig.staticOutputPath), { overwrite: true });
+        await copy(staticOutputFullPath, join(buildOutputPath, buildConfig.staticOutputPath), deref);
+        await remove(staticOutputFullPath);
       }
-      const serverWithinMoved = join(buildOutputPath, buildConfig.serverOutputPath);
-      if (await pathExists(serverWithinMoved)) {
-        await copy(serverWithinMoved, join(buildOutputPath, '__server-output'));
+      const serverWithinCopied = join(buildOutputPath, buildConfig.serverOutputPath);
+      if (await pathExists(serverWithinCopied)) {
+        await copy(serverWithinCopied, join(buildOutputPath, '__server-output'));
       }
     } else {
-      // Independent paths - move both
+      // Independent paths - copy both
       if (await pathExists(serverOutputFullPath)) {
-        await move(serverOutputFullPath, join(buildOutputPath, buildConfig.serverOutputPath), { overwrite: true });
+        await copy(serverOutputFullPath, join(buildOutputPath, buildConfig.serverOutputPath), deref);
+        await remove(serverOutputFullPath);
       }
       if (await pathExists(staticOutputFullPath)) {
-        await move(staticOutputFullPath, join(buildOutputPath, buildConfig.staticOutputPath), { overwrite: true });
+        await copy(staticOutputFullPath, join(buildOutputPath, buildConfig.staticOutputPath), deref);
+        await remove(staticOutputFullPath);
       }
     }
   } catch (err) {
