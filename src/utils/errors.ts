@@ -207,6 +207,17 @@ export const attemptToGetUsefulExpectedError = (error: Error) => {
       'Please free up some space on the device and try again.'
     );
   }
+  if (
+    `${error?.message || error}`.includes(
+      'Resource name not set. Make sure to add the resource to the resources object in your config.'
+    )
+  ) {
+    return new ExpectedError(
+      'CONFIG_VALIDATION',
+      'Resource name not set. Make sure to add the resource to the resources object in your config. The resource name is automatically derived from the object key.',
+      'If you create a resource instance, assign it under config.resources (for example resources: { myApi: api }).'
+    );
+  }
   return null;
 };
 
