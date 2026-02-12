@@ -1,0 +1,241 @@
+---
+docType: recipe
+title: Static Website
+tags:
+  - static
+  - website
+  - recipe
+source: docs/_curated-docs/recipes/static-website.mdx
+priority: 1
+---
+
+# Static Website Hosting
+
+Host a static website with S3 and CloudFront CDN.
+
+## Using Hosting Bucket (Recommended)
+
+`HostingBucket` is purpose-built for static websites with CDN included automatically:
+
+```typescript
+import { defineConfig, HostingBucket } from 'stacktape';
+
+export default defineConfig(({ stage }) => {
+  const isProduction = stage === 'production';
+
+  const website = new HostingBucket({
+    uploadDirectoryPath: './dist',
+    hostingContentType: 'single-page-app', // or 'static-website'
+    customDomains: isProduction ? [{ domainName: 'mysite.com' }, { domainName: 'www.mysite.com' }] : []
+  });
+
+  return {
+    resources: { website }
+  };
+});
+```
+
+### YAML equivalent
+
+```yaml
+resources:
+  website:
+    type: hosting-bucket
+    properties:
+      uploadDirectoryPath: ./dist
+      hostingContentType: single-page-app
+      customDomains:
+        - domainName: mysite.com
+        - domainName: www.mysite.com
+```
+
+## Hosting Content Types
+
+### Single Page App (React, Vue, etc.)
+
+```typescript
+const website = new HostingBucket({
+  uploadDirectoryPath: './dist',
+  hostingContentType: 'single-page-app'
+});
+```
+
+- All routes redirect to `index.html`
+- Client-side routing works correctly
+- HTML files never cached, assets cached indefinitely
+
+### Static Website (Multi-page)
+
+```typescript
+const website = new HostingBucket({
+  uploadDirectoryPath: './public',
+  hostingContentType: 'static-website',
+  indexDocument: '/index.html',
+  errorDocument: '/404.html'
+});
+```
+
+- Each page is a separate HTML file
+- Direct file serving
+- Custom error pages
+
+## Build Integration
+
+Run your build command before upload:
+
+```typescript
+const website = new HostingBucket({
+  uploadDirectoryPath: './dist',
+  build: {
+    command: 'npm run build',
+    workingDirectory: '.'
+  }
+});
+```
+
+## Custom Headers
+
+```typescript
+const website = new HostingBucket({
+  uploadDirectoryPath: './dist',
+  fileOptions: [
+    {
+      includePattern: 'assets/**',
+      headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }]
+    },
+    {
+      includePattern: '*.html',
+      headers: [{ key: 'Cache-Control', value: 'no-cache' }]
+    }
+  ]
+});
+```
+
+## Environment Variables
+
+Inject backend URLs into frontend HTML:
+
+```typescript
+const api = new HttpApiGateway({
+  routes: [
+    /* ... */
+  ]
+});
+
+const website = new HostingBucket({
+  uploadDirectoryPath: './dist',
+  injectEnvironment: [{ name: 'API_URL', value: $ResourceParam('api', 'url') }]
+});
+```
+
+Access in JavaScript via `window.STP_INJECTED_ENV.API_URL`.
+
+## With API Backend
+
+```typescript
+import { defineConfig, HostingBucket, LambdaFunction, HttpApiGateway, HttpApiIntegration } from 'stacktape';
+
+export default defineConfig(() => {
+  const api = new LambdaFunction({
+    packaging: {
+      type: 'stacktape-lambda-buildpack',
+      properties: { entryfilePath: './api/handler.ts' }
+    }
+  });
+
+  const gateway = new HttpApiGateway({
+    routes: [{ path: '/api/{proxy+}', method: '*', integration: new HttpApiIntegration({ function: 'api' }) }]
+  });
+
+  const website = new HostingBucket({
+    uploadDirectoryPath: './dist',
+    hostingContentType: 'single-page-app',
+    routeRewrites: [
+      {
+        path: '/api/*',
+        routeTo: {
+          type: 'http-api-gateway',
+          properties: { httpApiGatewayName: 'gateway' }
+        }
+      }
+    ]
+  });
+
+  return {
+    resources: { api, gateway, website }
+  };
+});
+```
+
+## Using Regular Bucket with CDN
+
+For more control, use `Bucket` with explicit CDN configuration:
+
+```typescript
+import { defineConfig, Bucket } from 'stacktape';
+
+export default defineConfig(({ stage }) => {
+  const website = new Bucket({
+    directoryUpload: {
+      directoryPath: './dist',
+      headersPreset: 'single-page-app'
+    },
+    cdn: {
+      enabled: true,
+      rewriteRoutesForSinglePageApp: true,
+      customDomains: stage === 'production' ? [{ domainName: 'mysite.com' }] : []
+    }
+  });
+
+  return {
+    resources: { website }
+  };
+});
+```
+
+## Build & Deploy
+
+```bash
+# Deploy (build runs automatically if configured)
+stacktape deploy --stage dev --region us-east-1
+
+# Or build manually first
+npm run build
+stacktape deploy --stage dev --region us-east-1
+```
+
+## Sync Without Full Deploy
+
+Update website files without CloudFormation:
+
+```bash
+stacktape bucket:sync --stage dev --region us-east-1 --resourceName website
+```
+
+## Edge Functions
+
+Add authentication or request modification at the edge:
+
+```typescript
+import { defineConfig, HostingBucket, EdgeLambdaFunction } from 'stacktape';
+
+export default defineConfig(() => {
+  const authFunction = new EdgeLambdaFunction({
+    packaging: {
+      type: 'stacktape-lambda-buildpack',
+      properties: { entryfilePath: './edge/auth.ts' }
+    }
+  });
+
+  const website = new HostingBucket({
+    uploadDirectoryPath: './dist',
+    edgeFunctions: {
+      onRequest: 'authFunction'
+    }
+  });
+
+  return {
+    resources: { authFunction, website }
+  };
+});
+```

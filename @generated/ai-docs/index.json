@@ -1,0 +1,1492 @@
+{
+  "generatedAt": "2026-02-12T16:57:59.356Z",
+  "version": "1.0",
+  "synonymMap": {
+    "function": [
+      "lambda",
+      "serverless",
+      "faas"
+    ],
+    "web-service": [
+      "container",
+      "docker",
+      "ecs",
+      "fargate",
+      "http-service"
+    ],
+    "worker-service": [
+      "background",
+      "worker",
+      "async-worker"
+    ],
+    "private-service": [
+      "internal-service",
+      "vpc-service"
+    ],
+    "batch-job": [
+      "batch",
+      "job",
+      "scheduled-job"
+    ],
+    "multi-container-workload": [
+      "multi-container",
+      "sidecar"
+    ],
+    "nextjs-web": [
+      "nextjs",
+      "next.js",
+      "next",
+      "ssr"
+    ],
+    "astro-web": [
+      "astro",
+      "astro.js"
+    ],
+    "nuxt-web": [
+      "nuxt",
+      "nuxt.js"
+    ],
+    "sveltekit-web": [
+      "sveltekit",
+      "svelte"
+    ],
+    "solidstart-web": [
+      "solidstart",
+      "solid"
+    ],
+    "tanstack-web": [
+      "tanstack",
+      "tanstack-start"
+    ],
+    "remix-web": [
+      "remix"
+    ],
+    "relational-database": [
+      "rds",
+      "postgres",
+      "postgresql",
+      "mysql",
+      "database",
+      "db",
+      "sql",
+      "aurora"
+    ],
+    "dynamo-db-table": [
+      "dynamodb",
+      "nosql",
+      "document-db"
+    ],
+    "redis-cluster": [
+      "elasticache",
+      "redis",
+      "cache"
+    ],
+    "bucket": [
+      "s3",
+      "storage",
+      "object-storage"
+    ],
+    "hosting-bucket": [
+      "static-site",
+      "static-website",
+      "spa"
+    ],
+    "http-api-gateway": [
+      "api-gateway",
+      "apigateway",
+      "gateway",
+      "api"
+    ],
+    "application-load-balancer": [
+      "alb",
+      "load-balancer"
+    ],
+    "network-load-balancer": [
+      "nlb"
+    ],
+    "cdn": [
+      "cloudfront",
+      "distribution"
+    ],
+    "user-auth-pool": [
+      "cognito",
+      "auth",
+      "authentication"
+    ],
+    "event-bus": [
+      "eventbridge",
+      "events"
+    ],
+    "sns-topic": [
+      "sns",
+      "notification",
+      "pubsub"
+    ],
+    "sqs-queue": [
+      "sqs",
+      "queue",
+      "message-queue"
+    ],
+    "state-machine": [
+      "step-functions",
+      "stepfunctions",
+      "workflow"
+    ],
+    "efs-filesystem": [
+      "efs",
+      "filesystem",
+      "persistent-storage"
+    ],
+    "bastion": [
+      "jump-host",
+      "ssh"
+    ],
+    "web-app-firewall": [
+      "waf",
+      "firewall"
+    ],
+    "mongo-db-atlas-cluster": [
+      "mongodb",
+      "mongo"
+    ],
+    "upstash-redis": [
+      "upstash"
+    ],
+    "open-search": [
+      "opensearch",
+      "elasticsearch",
+      "elastic"
+    ],
+    "custom-resource": [
+      "cloudformation-custom"
+    ],
+    "deployment-script": [
+      "deploy-script",
+      "migration-script"
+    ],
+    "kinesis-stream": [
+      "kinesis",
+      "streaming"
+    ],
+    "aws-cdk-construct": [
+      "cdk",
+      "construct"
+    ]
+  },
+  "files": [
+    {
+      "path": "concept/connecting-resources.md",
+      "docType": "concept",
+      "title": "Connecting Resources",
+      "tags": [
+        "connecting",
+        "resources",
+        "concept"
+      ],
+      "priority": 1
+    },
+    {
+      "path": "concept/directives.md",
+      "docType": "concept",
+      "title": "Directives",
+      "tags": [
+        "directives",
+        "concept"
+      ],
+      "priority": 1
+    },
+    {
+      "path": "concept/extending-cloudformation.md",
+      "docType": "concept",
+      "title": "CloudFormation Resources",
+      "tags": [
+        "cloudformation",
+        "resources",
+        "concept"
+      ],
+      "priority": 1
+    },
+    {
+      "path": "concept/overrides-and-transforms.md",
+      "docType": "concept",
+      "title": "Overrides & Transforms",
+      "tags": [
+        "overrides",
+        "transforms",
+        "concept"
+      ],
+      "priority": 1
+    },
+    {
+      "path": "concept/stages-and-environments.md",
+      "docType": "concept",
+      "title": "Stages & Environments",
+      "tags": [
+        "stages",
+        "environments",
+        "concept"
+      ],
+      "priority": 1
+    },
+    {
+      "path": "concept/typescript-config.md",
+      "docType": "concept",
+      "title": "TypeScript Configuration",
+      "tags": [
+        "typescript",
+        "configuration",
+        "concept"
+      ],
+      "priority": 1
+    },
+    {
+      "path": "concept/yaml-config.md",
+      "docType": "concept",
+      "title": "YAML Configuration",
+      "tags": [
+        "yaml",
+        "configuration",
+        "concept"
+      ],
+      "priority": 1
+    },
+    {
+      "path": "config-ref/_root.md",
+      "docType": "config-ref",
+      "title": "Stacktape Config",
+      "tags": [
+        "root",
+        "config",
+        "stacktape-config",
+        "top-level"
+      ],
+      "priority": 1
+    },
+    {
+      "path": "config-ref/application-load-balancer.md",
+      "docType": "config-ref",
+      "title": "Application Load Balancer",
+      "resourceType": "application-load-balancer",
+      "tags": [
+        "application-load-balancer",
+        "alb",
+        "load-balancer"
+      ],
+      "priority": 1
+    },
+    {
+      "path": "config-ref/application-load-balancer.md",
+      "docType": "config-ref",
+      "title": "Container Workload Load Balancer Integration",
+      "resourceType": "application-load-balancer",
+      "tags": [
+        "application-load-balancer",
+        "alb",
+        "load-balancer"
+      ],
+      "priority": 1
+    },
+    {
+      "path": "config-ref/astro-web.md",
+      "docType": "config-ref",
+      "title": "Astro Web",
+      "resourceType": "astro-web",
+      "tags": [
+        "astro-web",
+        "astro",
+        "astro.js"
+      ],
+      "priority": 1
+    },
+    {
+      "path": "config-ref/aws-cdk-construct.md",
+      "docType": "config-ref",
+      "title": "Aws Cdk Construct",
+      "resourceType": "aws-cdk-construct",
+      "tags": [
+        "aws-cdk-construct",
+        "cdk",
+        "construct"
+      ],
+      "priority": 1
+    },
+    {
+      "path": "config-ref/bastion.md",
+      "docType": "config-ref",
+      "title": "Bastion",
+      "resourceType": "bastion",
+      "tags": [
+        "bastion",
+        "jump-host",
+        "ssh"
+      ],
+      "priority": 1
+    },
+    {
+      "path": "config-ref/batch-job.md",
+      "docType": "config-ref",
+      "title": "Batch Job",
+      "resourceType": "batch-job",
+      "tags": [
+        "batch-job",
+        "batch",
+        "job",
+        "scheduled-job"
+      ],
+      "priority": 1
+    },
+    {
+      "path": "config-ref/bucket.md",
+      "docType": "config-ref",
+      "title": "Bucket",
+      "resourceType": "bucket",
+      "tags": [
+        "bucket",
+        "s3",
+        "storage",
+        "object-storage"
+      ],
+      "priority": 1
+    },
+    {
+      "path": "config-ref/cdn.md",
+      "docType": "config-ref",
+      "title": "Cdn Configuration",
+      "resourceType": "cdn",
+      "tags": [
+        "cdn",
+        "cloudfront",
+        "distribution"
+      ],
+      "priority": 1
+    },
+    {
+      "path": "config-ref/custom-resource.md",
+      "docType": "config-ref",
+      "title": "Custom Resource Definition",
+      "resourceType": "custom-resource",
+      "tags": [
+        "custom-resource",
+        "cloudformation-custom"
+      ],
+      "priority": 1
+    },
+    {
+      "path": "config-ref/deployment-script.md",
+      "docType": "config-ref",
+      "title": "Deployment Script",
+      "resourceType": "deployment-script",
+      "tags": [
+        "deployment-script",
+        "deploy-script",
+        "migration-script"
+      ],
+      "priority": 1
+    },
+    {
+      "path": "config-ref/dynamo-db-table.md",
+      "docType": "config-ref",
+      "title": "Dynamo Db Table",
+      "resourceType": "dynamo-db-table",
+      "tags": [
+        "dynamo-db-table",
+        "dynamodb",
+        "nosql",
+        "document-db"
+      ],
+      "priority": 1
+    },
+    {
+      "path": "config-ref/edge-lambda-function.md",
+      "docType": "config-ref",
+      "title": "Edge Lambda Function",
+      "resourceType": "edge-lambda-function",
+      "tags": [
+        "edge-lambda-function"
+      ],
+      "priority": 1
+    },
+    {
+      "path": "config-ref/efs-filesystem.md",
+      "docType": "config-ref",
+      "title": "Efs Filesystem",
+      "resourceType": "efs-filesystem",
+      "tags": [
+        "efs-filesystem",
+        "efs",
+        "filesystem",
+        "persistent-storage"
+      ],
+      "priority": 1
+    },
+    {
+      "path": "config-ref/event-bus.md",
+      "docType": "config-ref",
+      "title": "Event Bus",
+      "resourceType": "event-bus",
+      "tags": [
+        "event-bus",
+        "eventbridge",
+        "events"
+      ],
+      "priority": 1
+    },
+    {
+      "path": "config-ref/function.md",
+      "docType": "config-ref",
+      "title": "Lambda Function",
+      "resourceType": "function",
+      "tags": [
+        "function",
+        "lambda",
+        "serverless",
+        "faas"
+      ],
+      "priority": 1
+    },
+    {
+      "path": "config-ref/hosting-bucket.md",
+      "docType": "config-ref",
+      "title": "Hosting Bucket",
+      "resourceType": "hosting-bucket",
+      "tags": [
+        "hosting-bucket",
+        "static-site",
+        "static-website",
+        "spa"
+      ],
+      "priority": 1
+    },
+    {
+      "path": "config-ref/http-api-gateway.md",
+      "docType": "config-ref",
+      "title": "Http Api Gateway",
+      "resourceType": "http-api-gateway",
+      "tags": [
+        "http-api-gateway",
+        "api-gateway",
+        "apigateway",
+        "gateway",
+        "api"
+      ],
+      "priority": 1
+    },
+    {
+      "path": "config-ref/http-endpoint.md",
+      "docType": "config-ref",
+      "title": "Log Forwarding Base",
+      "resourceType": "http-endpoint",
+      "tags": [
+        "http-endpoint"
+      ],
+      "priority": 1
+    },
+    {
+      "path": "config-ref/kinesis-stream.md",
+      "docType": "config-ref",
+      "title": "Kinesis Stream",
+      "resourceType": "kinesis-stream",
+      "tags": [
+        "kinesis-stream",
+        "kinesis",
+        "streaming"
+      ],
+      "priority": 1
+    },
+    {
+      "path": "config-ref/mongo-db-atlas-cluster.md",
+      "docType": "config-ref",
+      "title": "Mongo Db Atlas Cluster",
+      "resourceType": "mongo-db-atlas-cluster",
+      "tags": [
+        "mongo-db-atlas-cluster",
+        "mongodb",
+        "mongo"
+      ],
+      "priority": 1
+    },
+    {
+      "path": "config-ref/multi-container-workload.md",
+      "docType": "config-ref",
+      "title": "Container Workload",
+      "resourceType": "multi-container-workload",
+      "tags": [
+        "multi-container-workload",
+        "multi-container",
+        "sidecar"
+      ],
+      "priority": 1
+    },
+    {
+      "path": "config-ref/network-load-balancer.md",
+      "docType": "config-ref",
+      "title": "Network Load Balancer",
+      "resourceType": "network-load-balancer",
+      "tags": [
+        "network-load-balancer",
+        "nlb"
+      ],
+      "priority": 1
+    },
+    {
+      "path": "config-ref/nextjs-web.md",
+      "docType": "config-ref",
+      "title": "Nextjs Web",
+      "resourceType": "nextjs-web",
+      "tags": [
+        "nextjs-web",
+        "nextjs",
+        "next.js",
+        "next",
+        "ssr"
+      ],
+      "priority": 1
+    },
+    {
+      "path": "config-ref/nuxt-web.md",
+      "docType": "config-ref",
+      "title": "Nuxt Web",
+      "resourceType": "nuxt-web",
+      "tags": [
+        "nuxt-web",
+        "nuxt",
+        "nuxt.js"
+      ],
+      "priority": 1
+    },
+    {
+      "path": "config-ref/open-search.md",
+      "docType": "config-ref",
+      "title": "Open Search Domain",
+      "resourceType": "open-search",
+      "tags": [
+        "open-search",
+        "opensearch",
+        "elasticsearch",
+        "elastic"
+      ],
+      "priority": 1
+    },
+    {
+      "path": "config-ref/private-service.md",
+      "docType": "config-ref",
+      "title": "Private Service",
+      "resourceType": "private-service",
+      "tags": [
+        "private-service",
+        "internal-service",
+        "vpc-service"
+      ],
+      "priority": 1
+    },
+    {
+      "path": "config-ref/redis-cluster.md",
+      "docType": "config-ref",
+      "title": "Redis Cluster",
+      "resourceType": "redis-cluster",
+      "tags": [
+        "redis-cluster",
+        "elasticache",
+        "redis",
+        "cache"
+      ],
+      "priority": 1
+    },
+    {
+      "path": "config-ref/relational-database.md",
+      "docType": "config-ref",
+      "title": "Relational Database",
+      "resourceType": "relational-database",
+      "tags": [
+        "relational-database",
+        "rds",
+        "postgres",
+        "postgresql",
+        "mysql",
+        "database",
+        "db",
+        "sql",
+        "aurora"
+      ],
+      "priority": 1
+    },
+    {
+      "path": "config-ref/remix-web.md",
+      "docType": "config-ref",
+      "title": "Remix Web",
+      "resourceType": "remix-web",
+      "tags": [
+        "remix-web",
+        "remix"
+      ],
+      "priority": 1
+    },
+    {
+      "path": "config-ref/sns-topic.md",
+      "docType": "config-ref",
+      "title": "Sns Topic",
+      "resourceType": "sns-topic",
+      "tags": [
+        "sns-topic",
+        "sns",
+        "notification",
+        "pubsub"
+      ],
+      "priority": 1
+    },
+    {
+      "path": "config-ref/solidstart-web.md",
+      "docType": "config-ref",
+      "title": "Solid Start Web",
+      "resourceType": "solidstart-web",
+      "tags": [
+        "solidstart-web",
+        "solidstart",
+        "solid"
+      ],
+      "priority": 1
+    },
+    {
+      "path": "config-ref/sqs-queue-not-empty.md",
+      "docType": "config-ref",
+      "title": "Alarm Definition Base",
+      "resourceType": "sqs-queue-not-empty",
+      "tags": [
+        "sqs-queue-not-empty"
+      ],
+      "priority": 1
+    },
+    {
+      "path": "config-ref/sqs-queue.md",
+      "docType": "config-ref",
+      "title": "Sqs Queue",
+      "resourceType": "sqs-queue",
+      "tags": [
+        "sqs-queue",
+        "sqs",
+        "queue",
+        "message-queue"
+      ],
+      "priority": 1
+    },
+    {
+      "path": "config-ref/state-machine.md",
+      "docType": "config-ref",
+      "title": "State Machine",
+      "resourceType": "state-machine",
+      "tags": [
+        "state-machine",
+        "step-functions",
+        "stepfunctions",
+        "workflow"
+      ],
+      "priority": 1
+    },
+    {
+      "path": "config-ref/sveltekit-web.md",
+      "docType": "config-ref",
+      "title": "Svelte Kit Web",
+      "resourceType": "sveltekit-web",
+      "tags": [
+        "sveltekit-web",
+        "sveltekit",
+        "svelte"
+      ],
+      "priority": 1
+    },
+    {
+      "path": "config-ref/tanstack-web.md",
+      "docType": "config-ref",
+      "title": "Tan Stack Web",
+      "resourceType": "tanstack-web",
+      "tags": [
+        "tanstack-web",
+        "tanstack",
+        "tanstack-start"
+      ],
+      "priority": 1
+    },
+    {
+      "path": "config-ref/upstash-redis.md",
+      "docType": "config-ref",
+      "title": "Upstash Redis",
+      "resourceType": "upstash-redis",
+      "tags": [
+        "upstash-redis",
+        "upstash"
+      ],
+      "priority": 1
+    },
+    {
+      "path": "config-ref/user-auth-pool.md",
+      "docType": "config-ref",
+      "title": "User Auth Pool",
+      "resourceType": "user-auth-pool",
+      "tags": [
+        "user-auth-pool",
+        "cognito",
+        "auth",
+        "authentication"
+      ],
+      "priority": 1
+    },
+    {
+      "path": "config-ref/web-app-firewall.md",
+      "docType": "config-ref",
+      "title": "Web App Firewall",
+      "resourceType": "web-app-firewall",
+      "tags": [
+        "web-app-firewall",
+        "waf",
+        "firewall"
+      ],
+      "priority": 1
+    },
+    {
+      "path": "config-ref/web-service.md",
+      "docType": "config-ref",
+      "title": "Web Service",
+      "resourceType": "web-service",
+      "tags": [
+        "web-service",
+        "container",
+        "docker",
+        "ecs",
+        "fargate",
+        "http-service"
+      ],
+      "priority": 1
+    },
+    {
+      "path": "config-ref/worker-service.md",
+      "docType": "config-ref",
+      "title": "Worker Service",
+      "resourceType": "worker-service",
+      "tags": [
+        "worker-service",
+        "background",
+        "worker",
+        "async-worker"
+      ],
+      "priority": 1
+    },
+    {
+      "path": "recipe/background-jobs.md",
+      "docType": "recipe",
+      "title": "Background Jobs",
+      "tags": [
+        "background",
+        "jobs",
+        "recipe"
+      ],
+      "priority": 1
+    },
+    {
+      "path": "recipe/database-migrations.md",
+      "docType": "recipe",
+      "title": "Database Migrations",
+      "tags": [
+        "database",
+        "migrations",
+        "recipe"
+      ],
+      "priority": 1
+    },
+    {
+      "path": "recipe/graphql-api.md",
+      "docType": "recipe",
+      "title": "GraphQL API",
+      "tags": [
+        "graphql",
+        "api",
+        "recipe"
+      ],
+      "priority": 1
+    },
+    {
+      "path": "recipe/monorepo-setup.md",
+      "docType": "recipe",
+      "title": "Monorepo Setup",
+      "tags": [
+        "monorepo",
+        "setup",
+        "recipe"
+      ],
+      "priority": 1
+    },
+    {
+      "path": "recipe/nextjs-full-stack.md",
+      "docType": "recipe",
+      "title": "Next.js Full-Stack",
+      "tags": [
+        "next.js",
+        "full-stack",
+        "recipe"
+      ],
+      "priority": 1
+    },
+    {
+      "path": "recipe/rest-api-with-database.md",
+      "docType": "recipe",
+      "title": "REST API + Database",
+      "tags": [
+        "rest",
+        "api",
+        "database",
+        "recipe"
+      ],
+      "priority": 1
+    },
+    {
+      "path": "recipe/scheduled-tasks.md",
+      "docType": "recipe",
+      "title": "Scheduled Tasks",
+      "tags": [
+        "scheduled",
+        "tasks",
+        "recipe"
+      ],
+      "priority": 1
+    },
+    {
+      "path": "recipe/static-website.md",
+      "docType": "recipe",
+      "title": "Static Website",
+      "tags": [
+        "static",
+        "website",
+        "recipe"
+      ],
+      "priority": 1
+    },
+    {
+      "path": "getting-started/console.md",
+      "docType": "getting-started",
+      "title": "Console",
+      "tags": [
+        "console",
+        "getting-started"
+      ],
+      "priority": 2
+    },
+    {
+      "path": "getting-started/deployment.md",
+      "docType": "getting-started",
+      "title": "Deployment",
+      "tags": [
+        "deployment",
+        "getting-started"
+      ],
+      "priority": 2
+    },
+    {
+      "path": "getting-started/dev-mode.md",
+      "docType": "getting-started",
+      "title": "Dev Mode",
+      "tags": [
+        "dev",
+        "mode",
+        "getting-started"
+      ],
+      "priority": 2
+    },
+    {
+      "path": "getting-started/how-it-works.md",
+      "docType": "getting-started",
+      "title": "How It Works",
+      "tags": [
+        "how",
+        "works",
+        "getting-started"
+      ],
+      "priority": 2
+    },
+    {
+      "path": "getting-started/intro.md",
+      "docType": "getting-started",
+      "title": "Introduction",
+      "tags": [
+        "introduction",
+        "getting-started"
+      ],
+      "priority": 2
+    },
+    {
+      "path": "getting-started/using-with-ai.md",
+      "docType": "getting-started",
+      "title": "Using with AI",
+      "tags": [
+        "using",
+        "with",
+        "getting-started"
+      ],
+      "priority": 2
+    },
+    {
+      "path": "getting-started/workflow.md",
+      "docType": "getting-started",
+      "title": "Workflow",
+      "tags": [
+        "workflow",
+        "getting-started"
+      ],
+      "priority": 2
+    },
+    {
+      "path": "troubleshooting/cloudformation-stack-states.md",
+      "docType": "troubleshooting",
+      "title": "CloudFormation Stack States",
+      "tags": [
+        "cloudformation",
+        "stack",
+        "states",
+        "troubleshooting"
+      ],
+      "priority": 2
+    },
+    {
+      "path": "cli-ref/aws-profile-create.md",
+      "docType": "cli-ref",
+      "title": "CLI: aws-profile:create",
+      "tags": [
+        "aws-profile:create",
+        "aws-profile",
+        "create"
+      ],
+      "priority": 3
+    },
+    {
+      "path": "cli-ref/aws-profile-delete.md",
+      "docType": "cli-ref",
+      "title": "CLI: aws-profile:delete",
+      "tags": [
+        "aws-profile:delete",
+        "aws-profile",
+        "delete"
+      ],
+      "priority": 3
+    },
+    {
+      "path": "cli-ref/aws-profile-list.md",
+      "docType": "cli-ref",
+      "title": "CLI: aws-profile:list",
+      "tags": [
+        "aws-profile:list",
+        "aws-profile",
+        "list"
+      ],
+      "priority": 3
+    },
+    {
+      "path": "cli-ref/aws-profile-update.md",
+      "docType": "cli-ref",
+      "title": "CLI: aws-profile:update",
+      "tags": [
+        "aws-profile:update",
+        "aws-profile",
+        "update"
+      ],
+      "priority": 3
+    },
+    {
+      "path": "cli-ref/bastion-session.md",
+      "docType": "cli-ref",
+      "title": "CLI: bastion:session",
+      "tags": [
+        "bastion:session",
+        "bastion",
+        "session"
+      ],
+      "priority": 3
+    },
+    {
+      "path": "cli-ref/bastion-tunnel.md",
+      "docType": "cli-ref",
+      "title": "CLI: bastion:tunnel",
+      "tags": [
+        "bastion:tunnel",
+        "bastion",
+        "tunnel"
+      ],
+      "priority": 3
+    },
+    {
+      "path": "cli-ref/bucket-sync.md",
+      "docType": "cli-ref",
+      "title": "CLI: bucket:sync",
+      "tags": [
+        "bucket:sync",
+        "bucket",
+        "sync"
+      ],
+      "priority": 3
+    },
+    {
+      "path": "cli-ref/cf-module-update.md",
+      "docType": "cli-ref",
+      "title": "CLI: cf-module:update",
+      "tags": [
+        "cf-module:update",
+        "cf-module",
+        "update"
+      ],
+      "priority": 3
+    },
+    {
+      "path": "cli-ref/codebuild-deploy.md",
+      "docType": "cli-ref",
+      "title": "CLI: codebuild:deploy",
+      "tags": [
+        "codebuild:deploy",
+        "codebuild",
+        "deploy"
+      ],
+      "priority": 3
+    },
+    {
+      "path": "cli-ref/compile-template.md",
+      "docType": "cli-ref",
+      "title": "CLI: compile-template",
+      "tags": [
+        "compile-template"
+      ],
+      "priority": 3
+    },
+    {
+      "path": "cli-ref/container-session.md",
+      "docType": "cli-ref",
+      "title": "CLI: container:session",
+      "tags": [
+        "container:session",
+        "container",
+        "session"
+      ],
+      "priority": 3
+    },
+    {
+      "path": "cli-ref/debug-alarms.md",
+      "docType": "cli-ref",
+      "title": "CLI: debug:alarms",
+      "tags": [
+        "debug:alarms",
+        "debug",
+        "alarms"
+      ],
+      "priority": 3
+    },
+    {
+      "path": "cli-ref/debug-aws-sdk.md",
+      "docType": "cli-ref",
+      "title": "CLI: debug:aws-sdk",
+      "tags": [
+        "debug:aws-sdk",
+        "debug",
+        "aws-sdk"
+      ],
+      "priority": 3
+    },
+    {
+      "path": "cli-ref/debug-container-exec.md",
+      "docType": "cli-ref",
+      "title": "CLI: debug:container-exec",
+      "tags": [
+        "debug:container-exec",
+        "debug",
+        "container-exec"
+      ],
+      "priority": 3
+    },
+    {
+      "path": "cli-ref/debug-dynamodb.md",
+      "docType": "cli-ref",
+      "title": "CLI: debug:dynamodb",
+      "tags": [
+        "debug:dynamodb",
+        "debug",
+        "dynamodb"
+      ],
+      "priority": 3
+    },
+    {
+      "path": "cli-ref/debug-logs.md",
+      "docType": "cli-ref",
+      "title": "CLI: debug:logs",
+      "tags": [
+        "debug:logs",
+        "debug",
+        "logs"
+      ],
+      "priority": 3
+    },
+    {
+      "path": "cli-ref/debug-metrics.md",
+      "docType": "cli-ref",
+      "title": "CLI: debug:metrics",
+      "tags": [
+        "debug:metrics",
+        "debug",
+        "metrics"
+      ],
+      "priority": 3
+    },
+    {
+      "path": "cli-ref/debug-opensearch.md",
+      "docType": "cli-ref",
+      "title": "CLI: debug:opensearch",
+      "tags": [
+        "debug:opensearch",
+        "debug",
+        "opensearch"
+      ],
+      "priority": 3
+    },
+    {
+      "path": "cli-ref/debug-redis.md",
+      "docType": "cli-ref",
+      "title": "CLI: debug:redis",
+      "tags": [
+        "debug:redis",
+        "debug",
+        "redis"
+      ],
+      "priority": 3
+    },
+    {
+      "path": "cli-ref/debug-sql.md",
+      "docType": "cli-ref",
+      "title": "CLI: debug:sql",
+      "tags": [
+        "debug:sql",
+        "debug",
+        "sql"
+      ],
+      "priority": 3
+    },
+    {
+      "path": "cli-ref/defaults-configure.md",
+      "docType": "cli-ref",
+      "title": "CLI: defaults:configure",
+      "tags": [
+        "defaults:configure",
+        "defaults",
+        "configure"
+      ],
+      "priority": 3
+    },
+    {
+      "path": "cli-ref/defaults-list.md",
+      "docType": "cli-ref",
+      "title": "CLI: defaults:list",
+      "tags": [
+        "defaults:list",
+        "defaults",
+        "list"
+      ],
+      "priority": 3
+    },
+    {
+      "path": "cli-ref/delete.md",
+      "docType": "cli-ref",
+      "title": "CLI: delete",
+      "tags": [
+        "delete"
+      ],
+      "priority": 3
+    },
+    {
+      "path": "cli-ref/deploy.md",
+      "docType": "cli-ref",
+      "title": "CLI: deploy",
+      "tags": [
+        "deploy"
+      ],
+      "priority": 3
+    },
+    {
+      "path": "cli-ref/deployment-script-run.md",
+      "docType": "cli-ref",
+      "title": "CLI: deployment-script:run",
+      "tags": [
+        "deployment-script:run",
+        "deployment-script",
+        "run"
+      ],
+      "priority": 3
+    },
+    {
+      "path": "cli-ref/dev-stop.md",
+      "docType": "cli-ref",
+      "title": "CLI: dev:stop",
+      "tags": [
+        "dev:stop",
+        "dev",
+        "stop"
+      ],
+      "priority": 3
+    },
+    {
+      "path": "cli-ref/dev.md",
+      "docType": "cli-ref",
+      "title": "CLI: dev",
+      "tags": [
+        "dev"
+      ],
+      "priority": 3
+    },
+    {
+      "path": "cli-ref/domain-add.md",
+      "docType": "cli-ref",
+      "title": "CLI: domain:add",
+      "tags": [
+        "domain:add",
+        "domain",
+        "add"
+      ],
+      "priority": 3
+    },
+    {
+      "path": "cli-ref/help.md",
+      "docType": "cli-ref",
+      "title": "CLI: help",
+      "tags": [
+        "help"
+      ],
+      "priority": 3
+    },
+    {
+      "path": "cli-ref/info-operations.md",
+      "docType": "cli-ref",
+      "title": "CLI: info:operations",
+      "tags": [
+        "info:operations",
+        "info",
+        "operations"
+      ],
+      "priority": 3
+    },
+    {
+      "path": "cli-ref/info-stack.md",
+      "docType": "cli-ref",
+      "title": "CLI: info:stack",
+      "tags": [
+        "info:stack",
+        "info",
+        "stack"
+      ],
+      "priority": 3
+    },
+    {
+      "path": "cli-ref/info-stacks.md",
+      "docType": "cli-ref",
+      "title": "CLI: info:stacks",
+      "tags": [
+        "info:stacks",
+        "info",
+        "stacks"
+      ],
+      "priority": 3
+    },
+    {
+      "path": "cli-ref/info-whoami.md",
+      "docType": "cli-ref",
+      "title": "CLI: info:whoami",
+      "tags": [
+        "info:whoami",
+        "info",
+        "whoami"
+      ],
+      "priority": 3
+    },
+    {
+      "path": "cli-ref/init.md",
+      "docType": "cli-ref",
+      "title": "CLI: init",
+      "tags": [
+        "init"
+      ],
+      "priority": 3
+    },
+    {
+      "path": "cli-ref/login.md",
+      "docType": "cli-ref",
+      "title": "CLI: login",
+      "tags": [
+        "login"
+      ],
+      "priority": 3
+    },
+    {
+      "path": "cli-ref/logout.md",
+      "docType": "cli-ref",
+      "title": "CLI: logout",
+      "tags": [
+        "logout"
+      ],
+      "priority": 3
+    },
+    {
+      "path": "cli-ref/mcp.md",
+      "docType": "cli-ref",
+      "title": "CLI: mcp",
+      "tags": [
+        "mcp"
+      ],
+      "priority": 3
+    },
+    {
+      "path": "cli-ref/org-create.md",
+      "docType": "cli-ref",
+      "title": "CLI: org:create",
+      "tags": [
+        "org:create",
+        "org",
+        "create"
+      ],
+      "priority": 3
+    },
+    {
+      "path": "cli-ref/org-delete.md",
+      "docType": "cli-ref",
+      "title": "CLI: org:delete",
+      "tags": [
+        "org:delete",
+        "org",
+        "delete"
+      ],
+      "priority": 3
+    },
+    {
+      "path": "cli-ref/org-list.md",
+      "docType": "cli-ref",
+      "title": "CLI: org:list",
+      "tags": [
+        "org:list",
+        "org",
+        "list"
+      ],
+      "priority": 3
+    },
+    {
+      "path": "cli-ref/package-workloads.md",
+      "docType": "cli-ref",
+      "title": "CLI: package-workloads",
+      "tags": [
+        "package-workloads"
+      ],
+      "priority": 3
+    },
+    {
+      "path": "cli-ref/param-get.md",
+      "docType": "cli-ref",
+      "title": "CLI: param:get",
+      "tags": [
+        "param:get",
+        "param",
+        "get"
+      ],
+      "priority": 3
+    },
+    {
+      "path": "cli-ref/preview-changes.md",
+      "docType": "cli-ref",
+      "title": "CLI: preview-changes",
+      "tags": [
+        "preview-changes"
+      ],
+      "priority": 3
+    },
+    {
+      "path": "cli-ref/project-create.md",
+      "docType": "cli-ref",
+      "title": "CLI: project:create",
+      "tags": [
+        "project:create",
+        "project",
+        "create"
+      ],
+      "priority": 3
+    },
+    {
+      "path": "cli-ref/projects-list.md",
+      "docType": "cli-ref",
+      "title": "CLI: projects:list",
+      "tags": [
+        "projects:list",
+        "projects",
+        "list"
+      ],
+      "priority": 3
+    },
+    {
+      "path": "cli-ref/rollback.md",
+      "docType": "cli-ref",
+      "title": "CLI: rollback",
+      "tags": [
+        "rollback"
+      ],
+      "priority": 3
+    },
+    {
+      "path": "cli-ref/script-run.md",
+      "docType": "cli-ref",
+      "title": "CLI: script:run",
+      "tags": [
+        "script:run",
+        "script",
+        "run"
+      ],
+      "priority": 3
+    },
+    {
+      "path": "cli-ref/secret-create.md",
+      "docType": "cli-ref",
+      "title": "CLI: secret:create",
+      "tags": [
+        "secret:create",
+        "secret",
+        "create"
+      ],
+      "priority": 3
+    },
+    {
+      "path": "cli-ref/secret-delete.md",
+      "docType": "cli-ref",
+      "title": "CLI: secret:delete",
+      "tags": [
+        "secret:delete",
+        "secret",
+        "delete"
+      ],
+      "priority": 3
+    },
+    {
+      "path": "cli-ref/secret-get.md",
+      "docType": "cli-ref",
+      "title": "CLI: secret:get",
+      "tags": [
+        "secret:get",
+        "secret",
+        "get"
+      ],
+      "priority": 3
+    },
+    {
+      "path": "cli-ref/upgrade.md",
+      "docType": "cli-ref",
+      "title": "CLI: upgrade",
+      "tags": [
+        "upgrade"
+      ],
+      "priority": 3
+    },
+    {
+      "path": "cli-ref/version.md",
+      "docType": "cli-ref",
+      "title": "CLI: version",
+      "tags": [
+        "version"
+      ],
+      "priority": 3
+    }
+  ]
+}

@@ -1,0 +1,240 @@
+---
+docType: recipe
+title: Database Migrations
+tags:
+  - database
+  - migrations
+  - recipe
+source: docs/_curated-docs/recipes/database-migrations.mdx
+priority: 1
+---
+
+# Database Migrations
+
+Run database migrations automatically during deployment.
+
+## Using Prisma
+
+### Configuration
+
+```typescript
+import {
+  defineConfig,
+  LambdaFunction,
+  RelationalDatabase,
+  RdsEnginePostgres,
+  HttpApiGateway,
+  $Secret,
+  $ResourceParam
+} from 'stacktape';
+
+export default defineConfig(({ stage }) => {
+  const database = new RelationalDatabase({
+    engine: new RdsEnginePostgres({ version: '16' }),
+    credentials: {
+      masterUserPassword: $Secret(`db-password-${stage}`)
+    }
+  });
+
+  const api = new LambdaFunction({
+    packaging: {
+      type: 'stacktape-lambda-buildpack',
+      properties: {
+        entryfilePath: './src/handler.ts'
+      }
+    },
+    connectTo: [database]
+  });
+
+  const gateway = new HttpApiGateway({
+    routes: [{ path: '/{proxy+}', method: '*', integration: { type: 'function', properties: { function: api } } }]
+  });
+
+  return {
+    hooks: {
+      afterDeploy: [{ scriptName: 'migrate' }]
+    },
+    scripts: {
+      migrate: {
+        executeCommand: 'npx prisma migrate deploy',
+        environment: {
+          DATABASE_URL: $ResourceParam('database', 'connectionString')
+        }
+      },
+      // Optional: seed script for development
+      seed: {
+        executeCommand: 'npx prisma db seed',
+        environment: {
+          DATABASE_URL: $ResourceParam('database', 'connectionString')
+        }
+      }
+    },
+    resources: { database, api, gateway }
+  };
+});
+```
+
+### Prisma Schema
+
+```prisma
+// prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  name      String?
+  posts     Post[]
+  createdAt DateTime @default(now())
+}
+
+model Post {
+  id        Int      @id @default(autoincrement())
+  title     String
+  content   String?
+  author    User     @relation(fields: [authorId], references: [id])
+  authorId  Int
+  createdAt DateTime @default(now())
+}
+```
+
+### Creating Migrations
+
+```bash
+# Development: create a new migration
+npx prisma migrate dev --name add_users_table
+
+# This creates: prisma/migrations/20240115_add_users_table/migration.sql
+```
+
+## Using Drizzle
+
+### Configuration
+
+```typescript
+export default defineConfig(({ stage }) => {
+  // ... resources ...
+
+  return {
+    hooks: {
+      afterDeploy: [{ scriptName: 'migrate' }]
+    },
+    scripts: {
+      migrate: {
+        executeCommand: 'npx drizzle-kit push',
+        environment: {
+          DATABASE_URL: $ResourceParam('database', 'connectionString')
+        }
+      }
+    },
+    resources: { database, api, gateway }
+  };
+});
+```
+
+## Using Raw SQL
+
+### Migration Script
+
+```typescript
+// scripts/migrate.ts
+import { Pool } from 'pg';
+import { readdir, readFile } from 'fs/promises';
+import { join } from 'path';
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL
+});
+
+async function migrate() {
+  // Create migrations table if not exists
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS _migrations (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(255) NOT NULL UNIQUE,
+      applied_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+
+  // Get applied migrations
+  const { rows: applied } = await pool.query('SELECT name FROM _migrations');
+  const appliedNames = new Set(applied.map((r) => r.name));
+
+  // Get migration files
+  const migrationsDir = join(__dirname, '../migrations');
+  const files = await readdir(migrationsDir);
+  const pending = files
+    .filter((f) => f.endsWith('.sql'))
+    .filter((f) => !appliedNames.has(f))
+    .sort();
+
+  // Apply pending migrations
+  for (const file of pending) {
+    console.log(`Applying: ${file}`);
+    const sql = await readFile(join(migrationsDir, file), 'utf-8');
+
+    await pool.query('BEGIN');
+    try {
+      await pool.query(sql);
+      await pool.query('INSERT INTO _migrations (name) VALUES ($1)', [file]);
+      await pool.query('COMMIT');
+      console.log(`Applied: ${file}`);
+    } catch (error) {
+      await pool.query('ROLLBACK');
+      throw error;
+    }
+  }
+
+  console.log('Migrations complete');
+}
+
+migrate()
+  .catch(console.error)
+  .finally(() => pool.end());
+```
+
+### Stacktape Script
+
+```typescript
+scripts: {
+  migrate: {
+    executeCommand: 'npx ts-node scripts/migrate.ts',
+    environment: {
+      DATABASE_URL: $ResourceParam('database', 'connectionString')
+    }
+  }
+}
+```
+
+## Migration Best Practices
+
+1. **Always test migrations locally first**
+
+   ```bash
+   stacktape dev --stage dev --region us-east-1
+   # Then run migrations against local emulated database
+   ```
+
+2. **Make migrations idempotent when possible**
+
+   ```sql
+   CREATE TABLE IF NOT EXISTS users (...);
+   CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+   ```
+
+3. **Use transactions for safety**
+   - Prisma and Drizzle handle this automatically
+   - For raw SQL, wrap in BEGIN/COMMIT
+
+4. **Back up production before migrating**
+   ```bash
+   # Create a snapshot before deploying
+   aws rds create-db-snapshot --db-instance-identifier my-db --db-snapshot-identifier pre-migration-backup
+   ```

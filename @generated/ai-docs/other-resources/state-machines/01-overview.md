@@ -1,3 +1,0 @@
-# Overview
-
-A state machine allows you to design and automate business processes and data pipelines by composing compute resources (like [functions](../../compute-resources/functions/index.md) and [batch jobs](../../compute-resources/batch-jobs/index.md)) and other AWS services into a workflow. State machines manage failures, retries, parallelization, and observability, so you can focus on your business logic.

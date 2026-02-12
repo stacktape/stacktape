@@ -11,6 +11,7 @@ import { packageHelperLambdas } from './package-helper-lambdas';
 import { getCliArgs } from './release/args';
 import {
   buildBinaryFile,
+  copyAiDocs,
   copyBoreBinary,
   copyConfigSchema,
   copyNixpacksBinary,
@@ -20,6 +21,7 @@ import {
   EXECUTABLE_FILE_PATTERNS,
   generateSourceMapInstall
 } from './release/build-cli-sources';
+import { generateAiDocsV2 } from './generate-ai-docs-v2';
 
 const { debug, keepUnarchived } = getCliArgs();
 
@@ -52,6 +54,8 @@ const buildEverything = async () => {
 
   logInfo(`Building binary for platform: ${platform}, version: ${version}`);
 
+  await generateAiDocsV2({ distFolderPath: join(process.cwd(), '@generated', 'ai-docs') });
+
   const distFolderPath = DIST_PACKAGE_FOLDER_PATH;
   await remove(distFolderPath);
 
@@ -68,6 +72,7 @@ const buildEverything = async () => {
     copySessionsManagerPluginBinary({ distFolderPath, platform }),
     copyBoreBinary({ distFolderPath, platform }),
     copyConfigSchema({ distFolderPath: platformDistFolderPath }),
+    copyAiDocs({ distFolderPath: platformDistFolderPath }),
     generateStarterProjectsMetadata({ distFolderPath: platformDistFolderPath }),
     packageHelperLambdas({ isDev: false, distFolderPath: platformDistFolderPath }),
     createReleaseDataFile({ distFolderPath: platformDistFolderPath, version }),

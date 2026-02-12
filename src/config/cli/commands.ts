@@ -890,6 +890,16 @@ You can identify the stack in two ways:
       agent: agent.optional()
     },
     requiredArgs: ['region'] as const
+  },
+
+  mcp: {
+    description: `Starts a local MCP (Model Context Protocol) server that provides Stacktape tools and documentation to AI coding agents.
+
+The server communicates over stdio using the MCP protocol. It is spawned by MCP-compatible clients (Claude Code, Cursor, etc.) and provides tools for searching Stacktape docs, managing deployments, and debugging infrastructure.`,
+    args: {
+      logLevel: logLevel.optional()
+    },
+    requiredArgs: [] as const
   }
 } as const;
 
@@ -905,6 +915,7 @@ export const cliCommands = Object.keys(commandDefinitions) as StacktapeCommand[]
 // Commands that don't show announcements
 export const commandsWithDisabledAnnouncements: StacktapeCommand[] = [
   'dev',
+  'mcp',
   'version',
   'upgrade',
   'info:whoami',
@@ -917,6 +928,7 @@ export const commandsWithDisabledAnnouncements: StacktapeCommand[] = [
 export const commandsNotRequiringApiKey: StacktapeCommand[] = [
   'login',
   'logout',
+  'mcp',
   'version',
   'help',
   'defaults:list',

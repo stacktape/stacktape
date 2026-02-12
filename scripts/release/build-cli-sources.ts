@@ -1,6 +1,7 @@
 import { arch } from 'node:os';
 import { basename, join } from 'node:path';
 import {
+  AI_DOCS_FOLDER_PATH,
   COMPLETIONS_SCRIPTS_PATH,
   CONFIG_SCHEMA_PATH,
   DIST_FOLDER_PATH,
@@ -359,6 +360,14 @@ export const copyHelperLambdas = async ({ distFolderPath }: { distFolderPath?: s
   const destPath = join(distFolderPath, 'helper-lambdas');
   await copy(sourcePath, destPath);
   logSuccess('Helper lambdas copied successfully.');
+};
+
+export const copyAiDocs = async ({ distFolderPath }: { distFolderPath?: string }) => {
+  logInfo('Copying AI docs...');
+  const sourcePath = AI_DOCS_FOLDER_PATH;
+  const destPath = join(distFolderPath, 'ai-docs');
+  await copy(sourcePath, destPath);
+  logSuccess('AI docs copied successfully.');
 };
 
 export const createReleaseDataFile = async ({

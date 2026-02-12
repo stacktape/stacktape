@@ -57,12 +57,19 @@ import { commandSecretDelete } from './commands/secret-delete';
 import { commandSecretGet } from './commands/secret-get';
 
 import { commandInfoStacks } from './commands/info-stacks';
+import { commandMcp } from './commands/mcp';
 import { commandUpgrade } from './commands/upgrade';
 import { commandVersion } from './commands/version';
 import { initAgentMode } from './commands/_utils/agent-mode';
 
 /** Commands that use the full phase-based TUI (deploy progress, phases, etc.) */
-const commandsWithPhaseTui: StacktapeCommand[] = ['deploy', 'delete', 'codebuild:deploy', 'script:run', 'deployment-script:run'];
+const commandsWithPhaseTui: StacktapeCommand[] = [
+  'deploy',
+  'delete',
+  'codebuild:deploy',
+  'script:run',
+  'deployment-script:run'
+];
 
 export const runCommand = async (opts: StacktapeProgrammaticOptions) => {
   try {
@@ -170,7 +177,8 @@ const getCommandExecutor = (command: StacktapeCommand) => {
     upgrade: commandUpgrade,
     'info:whoami': commandInfoWhoami,
     'info:operations': commandInfoOperations,
-    'info:stack': commandInfoStack
+    'info:stack': commandInfoStack,
+    mcp: commandMcp
   };
   return commandMap[command];
 };

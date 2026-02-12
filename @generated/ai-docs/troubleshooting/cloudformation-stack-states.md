@@ -1,0 +1,189 @@
+---
+docType: troubleshooting
+title: CloudFormation Stack States
+tags:
+  - cloudformation
+  - stack
+  - states
+  - troubleshooting
+source: docs/_curated-docs/troubleshooting/cloudformation-stack-states.mdx
+priority: 2
+---
+
+# CloudFormation Stack States
+
+Every Stacktape deployment is backed by a CloudFormation stack. The stack has a **status** that reflects what happened during the
+last operation (deploy, delete, rollback). Most of the time you won't need to think about this - but when a deployment fails, understanding
+the stack state helps you recover quickly.
+
+You can check the current state of your stacks using:
+
+```bash
+stacktape info:stacks --region us-east-1
+```
+
+## Healthy States
+
+These states mean your stack is working normally and ready for the next deploy or delete.
+
+| State             | Meaning                                              |
+| ----------------- | ---------------------------------------------------- |
+| `CREATE_COMPLETE` | Stack was successfully created (first deploy).       |
+| `UPDATE_COMPLETE` | Stack was successfully updated.                      |
+| `IMPORT_COMPLETE` | Resources were successfully imported into the stack. |
+
+No action needed - you can run `deploy`, `delete`, or any other command.
+
+## Failed / Needs Attention
+
+These are the states you're most likely to encounter when something goes wrong.
+
+### `UPDATE_FAILED`
+
+**What happened:** A deployment failed mid-way. With `--disableAutoRollback` enabled, the stack stays in this state instead of
+rolling back automatically.
+
+**What to do:**
+
+- **Option A** - Fix the issue and redeploy:
+
+  ```bash
+  stacktape deploy --stage <stage> --region <region>
+  ```
+
+  Stacktape can deploy directly from `UPDATE_FAILED` state. It will attempt to apply your changes again.
+
+- **Option B** - Roll back to the previous working state:
+  ```bash
+  stacktape rollback --stage <stage> --region <region>
+  ```
+
+### `CREATE_FAILED`
+
+**What happened:** The very first deployment of the stack failed.
+
+**What to do:**
+
+- Roll back the failed creation:
+  ```bash
+  stacktape rollback --stage <stage> --region <region>
+  ```
+  After rollback completes the stack will be in `ROLLBACK_COMPLETE` state. From there, delete it and start fresh:
+  ```bash
+  stacktape delete --stage <stage> --region <region>
+  ```
+
+### `UPDATE_ROLLBACK_FAILED`
+
+**What happened:** A deployment failed, and the automatic rollback also failed. This is the most problematic state.
+
+**What to do:**
+
+- Continue the rollback (optionally skipping problematic resources):
+
+  ```bash
+  stacktape rollback --stage <stage> --region <region>
+  ```
+
+  If specific resources are blocking the rollback, skip them:
+
+  ```bash
+  stacktape rollback --stage <stage> --region <region> --resourcesToSkip MyResource1 MyResource2
+  ```
+
+  The `--resourcesToSkip` values are CloudFormation **logical resource IDs** (visible in the AWS CloudFormation console or in the
+  deployment error output).
+
+- If rollback still fails, you may need to manually fix or delete the problematic resources in the AWS console, then retry.
+
+### `UPDATE_ROLLBACK_COMPLETE`
+
+**What happened:** A deployment failed but was successfully rolled back to the previous state.
+
+**What to do:** Your stack is back to the last working version. Fix the issue in your configuration and redeploy:
+
+```bash
+stacktape deploy --stage <stage> --region <region>
+```
+
+### `ROLLBACK_COMPLETE`
+
+**What happened:** The first-ever deployment (`create`) failed and was rolled back. The stack exists but contains no resources.
+
+**What to do:** Delete the empty stack and try again:
+
+```bash
+stacktape delete --stage <stage> --region <region>
+stacktape deploy --stage <stage> --region <region>
+```
+
+### `ROLLBACK_FAILED`
+
+**What happened:** The first deployment failed and the rollback of that creation also failed.
+
+**What to do:** Delete the stack (you may need to use the AWS console if some resources are stuck):
+
+```bash
+stacktape delete --stage <stage> --region <region>
+```
+
+### `DELETE_FAILED`
+
+**What happened:** Some resources couldn't be deleted (e.g., non-empty S3 bucket, resource in use by another stack).
+
+**What to do:**
+
+1. Check which resources failed to delete (visible in the AWS CloudFormation console).
+2. Manually resolve the issue (empty the bucket, remove dependencies, etc.).
+3. Retry the delete:
+   ```bash
+   stacktape delete --stage <stage> --region <region>
+   ```
+
+## In-Progress States
+
+These states mean an operation is currently running. Stacktape automatically waits for these to complete before starting a new operation.
+
+| State                                          | Meaning                                |
+| ---------------------------------------------- | -------------------------------------- |
+| `CREATE_IN_PROGRESS`                           | Stack is being created.                |
+| `UPDATE_IN_PROGRESS`                           | Stack is being updated.                |
+| `DELETE_IN_PROGRESS`                           | Stack is being deleted.                |
+| `ROLLBACK_IN_PROGRESS`                         | Stack is rolling back a failed create. |
+| `UPDATE_ROLLBACK_IN_PROGRESS`                  | Stack is rolling back a failed update. |
+| `UPDATE_ROLLBACK_COMPLETE_CLEANUP_IN_PROGRESS` | Cleanup after a successful rollback.   |
+| `UPDATE_COMPLETE_CLEANUP_IN_PROGRESS`          | Cleanup after a successful update.     |
+| `IMPORT_IN_PROGRESS`                           | Resources are being imported.          |
+| `IMPORT_ROLLBACK_IN_PROGRESS`                  | Import is being rolled back.           |
+
+If you try to run a Stacktape command while the stack is in one of these states, Stacktape will wait for the current operation
+to finish before proceeding.
+
+## Auto-Rollback Behavior
+
+By default, Stacktape enables **auto-rollback**: if a deployment fails, CloudFormation automatically rolls back to the previous
+working state. The stack ends up in `UPDATE_ROLLBACK_COMPLETE` (ready for the next deploy).
+
+If you disable auto-rollback:
+
+```bash
+stacktape deploy --stage <stage> --region <region> --disableAutoRollback
+```
+
+...a failed deployment leaves the stack in `UPDATE_FAILED`. This can be useful for debugging because you can inspect the
+partially-updated resources, but you'll need to either redeploy or manually rollback before the stack is fully operational again.
+
+## Quick Reference
+
+| Stack State                | Can Deploy? | Can Delete? | Can Rollback? | Recommended Action                          |
+| -------------------------- | ----------- | ----------- | ------------- | ------------------------------------------- |
+| `CREATE_COMPLETE`          | Yes         | Yes         | -             | None needed                                 |
+| `UPDATE_COMPLETE`          | Yes         | Yes         | -             | None needed                                 |
+| `UPDATE_FAILED`            | Yes         | Yes         | Yes           | Fix and redeploy, or rollback               |
+| `CREATE_FAILED`            | -           | -           | Yes           | Rollback, then delete                       |
+| `UPDATE_ROLLBACK_COMPLETE` | Yes         | Yes         | -             | Fix config and redeploy                     |
+| `UPDATE_ROLLBACK_FAILED`   | -           | -           | Yes           | Rollback with `--resourcesToSkip` if needed |
+| `ROLLBACK_COMPLETE`        | Yes         | Yes         | -             | Delete and redeploy                         |
+| `ROLLBACK_FAILED`          | -           | Yes         | -             | Delete the stack                            |
+| `DELETE_FAILED`            | -           | Yes         | -             | Fix blocking resources, retry delete        |
+| `*_IN_PROGRESS`            | Waits       | Waits       | Waits         | Wait for completion                         |
