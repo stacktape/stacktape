@@ -1037,18 +1037,22 @@ export class AwsSdkManager {
     const errHandler = this.#getErrorHandler(
       `Failed to batch delete images with tags/digests: ${imageTags.join(', ')}, ${imageDigests.join(', ')}.`
     );
-    if (imageTags.length || imageDigests.length) {
-      return this.#ecr()
-        .send(
-          new BatchDeleteImageCommand({
-            repositoryName,
-            imageIds: [
-              ...imageTags.map((tag) => ({ imageTag: tag })),
-              ...imageDigests.map((digest) => ({ imageDigest: digest }))
-            ]
-          })
-        )
-        .catch(errHandler);
+    const imageIds = [
+      ...imageTags.map((tag) => ({ imageTag: tag })),
+      ...imageDigests.map((digest) => ({ imageDigest: digest }))
+    ];
+    if (imageIds.length) {
+      for (const imageIdsBatch of chunkArray(imageIds, 100)) {
+        await this.#ecr()
+          .send(
+            new BatchDeleteImageCommand({
+              repositoryName,
+              imageIds: imageIdsBatch
+            })
+          )
+          .catch(errHandler);
+      }
+      return;
     }
     return Promise.resolve();
   };

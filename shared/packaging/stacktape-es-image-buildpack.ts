@@ -138,6 +138,10 @@ export const buildUsingStacktapeEsImageBuildpack = async ({
   };
 };
 
+// Deduplicates concurrent builds of the same dev base image tag.
+// When multiple workloads share the same hash, only one docker build runs.
+const devBaseImageBuildLocks = new Map<string, Promise<{ imageName: string; devBaseImageBuilt: boolean }>>();
+
 const buildDevBaseImage = async ({
   buildContextPath,
   languageSpecificBundleOutput,
@@ -171,28 +175,43 @@ const buildDevBaseImage = async ({
     return { imageName: devBaseImageTag, devBaseImageBuilt: false };
   }
 
-  // Build the dev base image
-  await progressLogger.startEvent({ eventType: 'BUILD_IMAGE', description: 'Building dev base image' });
+  // If another workload is already building this exact image, wait for it
+  const existingBuild = devBaseImageBuildLocks.get(devBaseImageTag);
+  if (existingBuild) {
+    return existingBuild;
+  }
 
-  const dockerfileContents = buildEsDevDockerfile({
-    dependencies,
-    packageManager,
-    requiresGlibcBinaries,
-    nodeVersion
-  });
+  const buildPromise = (async () => {
+    await progressLogger.startEvent({ eventType: 'BUILD_IMAGE', description: 'Building dev base image' });
 
-  const dockerfilePath = join(buildContextPath, 'Dockerfile.dev');
-  await outputFile(dockerfilePath, dockerfileContents);
+    const dockerfileContents = buildEsDevDockerfile({
+      dependencies,
+      packageManager,
+      requiresGlibcBinaries,
+      nodeVersion
+    });
 
-  await buildDockerImage({
-    imageTag: devBaseImageTag,
-    buildContextPath,
-    dockerfilePath: 'Dockerfile.dev'
-  });
+    const dockerfilePath = join(buildContextPath, 'Dockerfile.dev');
+    await outputFile(dockerfilePath, dockerfileContents);
 
-  await progressLogger.finishEvent({ eventType: 'BUILD_IMAGE', finalMessage: 'Dev base image built.' });
+    await buildDockerImage({
+      imageTag: devBaseImageTag,
+      buildContextPath,
+      dockerfilePath: 'Dockerfile.dev'
+    });
 
-  return { imageName: devBaseImageTag, devBaseImageBuilt: true };
+    await progressLogger.finishEvent({ eventType: 'BUILD_IMAGE', finalMessage: 'Dev base image built.' });
+
+    return { imageName: devBaseImageTag, devBaseImageBuilt: true };
+  })();
+
+  devBaseImageBuildLocks.set(devBaseImageTag, buildPromise);
+
+  try {
+    return await buildPromise;
+  } finally {
+    devBaseImageBuildLocks.delete(devBaseImageTag);
+  }
 };
 
 const createEsDockerFile = async ({

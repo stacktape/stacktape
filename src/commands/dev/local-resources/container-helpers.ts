@@ -1,6 +1,6 @@
 import type { LocalResourceConfig, LocalResourceInstance } from './index';
 import { globalStateManager } from '@application-services/global-state-manager';
-import { inspectDockerContainer } from '@shared/utils/docker';
+import { execDocker, inspectDockerContainer } from '@shared/utils/docker';
 import { isPortInUse } from '@shared/utils/ports';
 import findFreePorts from 'find-free-ports';
 import { DEV_CONFIG } from '../dev-config';
@@ -100,6 +100,15 @@ export const findAvailablePort = async (preferredPort: number): Promise<number> 
   return freePort;
 };
 
+export const isDockerPortBindError = (err: unknown): boolean => {
+  const message = err instanceof Error ? err.message : String(err);
+  return (
+    message.includes('port is already allocated') ||
+    (message.includes('Bind for') && message.includes('failed')) ||
+    message.includes('driver failed programming external connectivity')
+  );
+};
+
 export const getImageTag = (version: string, imageType: string): string => {
   if (version === 'latest') return `${imageType}:latest`;
   return `${imageType}:${version}`;
@@ -123,7 +132,36 @@ export const waitForReady = async ({
   const startTime = Date.now();
   let lastError: Error | null = null;
 
+  const getContainerExitDetails = async (): Promise<string | null> => {
+    const info = await inspectDockerContainer(containerName);
+    if (!info?.State || info.State.Running) {
+      return null;
+    }
+
+    const status = info.State.Status || 'unknown';
+    const exitCode = info.State.ExitCode;
+    const reason = info.State.Error || 'no exit reason';
+    let logs = '';
+    try {
+      const { stdout, stderr } = await execDocker(['logs', '--tail', '80', containerName], { skipHandleError: true });
+      logs = [stdout, stderr].filter(Boolean).join('\n').trim();
+    } catch {
+      // Ignore log collection errors
+    }
+
+    const details = [`status=${status}`, `exitCode=${exitCode}`, `reason=${reason}`];
+    if (logs) {
+      details.push(`logs:\n${logs}`);
+    }
+    return details.join(', ');
+  };
+
   while (Date.now() - startTime < timeoutMs) {
+    const exitDetails = await getContainerExitDetails();
+    if (exitDetails) {
+      throw new Error(`${resourceType} container "${containerName}" exited before becoming ready (${exitDetails}).`);
+    }
+
     try {
       const isReady = await checkFn();
       if (isReady) return;

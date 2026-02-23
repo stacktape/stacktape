@@ -10,6 +10,7 @@ import {
   getContainerPort,
   getDbCredentials,
   getImageTag,
+  isDockerPortBindError,
   isContainerRunning,
   removeContainerIfExists,
   waitForReady
@@ -60,7 +61,7 @@ export const startLocalPostgres = async (
     await removeContainerIfExists(containerName);
   }
 
-  const actualPort = await findAvailablePort(port);
+  let actualPort = await findAvailablePort(port);
   const imageTag = getImageTag(version, 'postgres');
 
   // Fetch and merge database parameters (skip AWS defaults for faster dev startup)
@@ -72,20 +73,30 @@ export const startLocalPostgres = async (
   });
   const postgresConfigArgs = postgresParamsToDockerArgs(dbParams);
 
-  const dockerArgs = buildDockerRunArgs({
-    containerName,
-    envVars: {
-      POSTGRES_USER: user,
-      POSTGRES_PASSWORD: pass,
-      POSTGRES_DB: database
-    },
-    portMapping: { host: actualPort, container: DEFAULT_PORTS.postgres },
-    volumeMapping: { host: dataDir, container: POSTGRES_DATA_PATH },
-    imageTag,
-    additionalArgs: postgresConfigArgs
-  });
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const dockerArgs = buildDockerRunArgs({
+      containerName,
+      envVars: {
+        POSTGRES_USER: user,
+        POSTGRES_PASSWORD: pass,
+        POSTGRES_DB: database
+      },
+      portMapping: { host: actualPort, container: DEFAULT_PORTS.postgres },
+      volumeMapping: { host: dataDir, container: POSTGRES_DATA_PATH },
+      imageTag,
+      additionalArgs: postgresConfigArgs
+    });
 
-  await execDocker(dockerArgs);
+    try {
+      await execDocker(dockerArgs);
+      break;
+    } catch (err) {
+      if (!isDockerPortBindError(err) || attempt === 4) {
+        throw err;
+      }
+      actualPort = await findAvailablePort(actualPort + 1);
+    }
+  }
 
   await waitForReady({
     containerName,

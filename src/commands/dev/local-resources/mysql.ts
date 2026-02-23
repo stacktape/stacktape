@@ -1,5 +1,7 @@
 import type { LocalResourceConfig, LocalResourceInstance } from './index';
+import { tuiManager } from '@application-services/tui-manager';
 import { execDocker } from '@shared/utils/docker';
+import { ensureDir, remove } from 'fs-extra';
 import {
   buildLocalResourceInstance,
   DEFAULT_LOCAL_HOST,
@@ -9,6 +11,7 @@ import {
   getContainerPort,
   getDbCredentials,
   getImageTag,
+  isDockerPortBindError,
   isContainerRunning,
   removeContainerIfExists,
   waitForReady
@@ -16,6 +19,13 @@ import {
 import { getLocalDbParameters, mysqlParamsToDockerArgs } from './db-parameters';
 
 const MYSQL_DATA_PATH = '/var/lib/mysql';
+
+const isIncompatibleMysqlDataError = (err: unknown): boolean => {
+  const message = err instanceof Error ? err.message : String(err);
+  return (
+    message.includes('Unsupported redo log format') || message.includes('Unknown/unsupported storage engine: InnoDB')
+  );
+};
 
 const buildConnectionInfo = (user: string, pass: string, host: string, port: number, database: string) => {
   const connectionString = `mysql://${user}:${pass}@${host}:${port}/${database}`;
@@ -41,7 +51,7 @@ export const startLocalMysql = async (
     username: 'root',
     password: 'localdevpassword'
   });
-  const database = dbName || 'mysql';
+  let database = dbName || 'mysql';
 
   // Return existing instance if container is already running
   if (await isContainerRunning(containerName)) {
@@ -61,7 +71,7 @@ export const startLocalMysql = async (
     await removeContainerIfExists(containerName);
   }
 
-  const actualPort = await findAvailablePort(port);
+  let actualPort = await findAvailablePort(port);
   const imageTag = getImageTag(version, isMaria ? 'mariadb' : 'mysql');
 
   // Fetch and merge database parameters (skip AWS defaults for faster dev startup)
@@ -70,45 +80,88 @@ export const startLocalMysql = async (
   const mysqlConfigArgs = mysqlParamsToDockerArgs(dbParams);
 
   const envVars: Record<string, string> = {
-    MYSQL_ROOT_PASSWORD: pass,
-    MYSQL_DATABASE: database
+    MYSQL_ROOT_PASSWORD: pass
   };
+
+  // MariaDB/MySQL system database "mysql" already exists.
+  // Passing MYSQL_DATABASE=mysql may cause initialization failures in some images.
+  const shouldCreateDatabase = database.toLowerCase() !== 'mysql';
+
+  if (shouldCreateDatabase) {
+    envVars.MYSQL_DATABASE = database;
+  }
 
   // Add non-root user if specified
   if (user !== 'root') {
+    // Non-root users need a target database. If user didn't specify one, use a safe default.
+    if (!shouldCreateDatabase) {
+      database = 'app';
+      envVars.MYSQL_DATABASE = database;
+    }
     envVars.MYSQL_USER = user;
     envVars.MYSQL_PASSWORD = pass;
   }
 
-  const dockerArgs = [
+  const buildDockerArgs = (hostPort: number) => [
     'run',
     '-d',
     '--name',
     containerName,
     ...Object.entries(envVars).flatMap(([key, value]) => ['-e', `${key}=${value}`]),
     '-p',
-    `${actualPort}:${defaultPort}`,
+    `${hostPort}:${defaultPort}`,
     '-v',
     `${dataDir}:${MYSQL_DATA_PATH}`,
     imageTag,
     ...mysqlConfigArgs
   ];
 
-  await execDocker(dockerArgs);
-
-  await waitForReady({
-    containerName,
-    resourceType: isMaria ? 'MariaDB' : 'MySQL',
-    timeoutMs: 60000,
-    pollIntervalMs: 1000,
-    checkFn: async () => {
-      const { exitCode } = await execDocker(
-        ['exec', containerName, 'mysqladmin', 'ping', '-h', 'localhost', '--silent'],
-        { skipHandleError: true }
-      );
-      return exitCode === 0;
+  const runAndWaitUntilReady = async () => {
+    for (let attempt = 0; attempt < 5; attempt++) {
+      try {
+        await execDocker(buildDockerArgs(actualPort));
+        break;
+      } catch (err) {
+        if (!isDockerPortBindError(err) || attempt === 4) {
+          throw err;
+        }
+        actualPort = await findAvailablePort(actualPort + 1);
+      }
     }
-  });
+
+    await waitForReady({
+      containerName,
+      resourceType: isMaria ? 'MariaDB' : 'MySQL',
+      timeoutMs: 60000,
+      pollIntervalMs: 1000,
+      checkFn: async () => {
+        const { exitCode } = await execDocker(
+          ['exec', containerName, 'mysqladmin', 'ping', '-h', 'localhost', '--silent'],
+          { skipHandleError: true }
+        );
+        return exitCode === 0;
+      }
+    });
+  };
+
+  try {
+    await runAndWaitUntilReady();
+  } catch (err) {
+    if (!isIncompatibleMysqlDataError(err)) {
+      throw err;
+    }
+
+    tuiManager.warn(
+      `[${name}] Existing local ${isMaria ? 'MariaDB' : 'MySQL'} data is incompatible with version ${version}. Reinitializing local data directory.`
+    );
+
+    await removeContainerIfExists(containerName);
+    await remove(dataDir);
+    await ensureDir(dataDir);
+
+    actualPort = await findAvailablePort(port);
+    await runAndWaitUntilReady();
+  }
 
   const connInfo = buildConnectionInfo(user, pass, DEFAULT_LOCAL_HOST, actualPort, database);
 

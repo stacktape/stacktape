@@ -319,9 +319,13 @@ const getOpenNextConfig = async ({
       });
     }
   }
+  const windowsDefaultBuildCommand =
+    "npx next build --webpack && node -e \"const fs=require('fs');const path=require('path');const file=path.join('.next','required-server-files.json');if(fs.existsSync(file)){const data=JSON.parse(fs.readFileSync(file,'utf8'));data.config=data.config||{};if(data.config.skipTrailingSlashRedirect===undefined)data.config.skipTrailingSlashRedirect=false;if(data.config.serverExternalPackages===undefined)data.config.serverExternalPackages=[];fs.writeFileSync(file,JSON.stringify(data,null,2));}\"";
+  const buildCommand = resource.buildCommand || (process.platform === 'win32' ? windowsDefaultBuildCommand : undefined);
+
   const finalConfig: OpenNextConfig = {
     ...userOpenNextConfig,
-    ...(resource.buildCommand ? { buildCommand: resource.buildCommand } : {})
+    ...(buildCommand ? { buildCommand } : {})
   };
   if (resource.useEdgeLambda) {
     finalConfig.default.placement = 'global';

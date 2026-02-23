@@ -31,44 +31,44 @@ const helperLambdas = {
 
 export const packageHelperLambdas = async ({ distFolderPath }: { isDev?: boolean; distFolderPath: string }) => {
   logInfo('Packaging helper lambdas...');
+  const packagingRunId = `helper-lambdas-install-${process.pid}-${Date.now().toString(36)}`;
 
   await fsExtra.ensureDir(HELPER_LAMBDAS_DIST_FOLDER_PATH);
 
   const lambdasDistFolderPath = join(distFolderPath, HELPER_LAMBDAS_FOLDER_NAME);
   await fsExtra.ensureDir(lambdasDistFolderPath);
 
-  await Promise.all(
-    Object.entries(helperLambdas).map(async ([name, { filePath, bundleSizeLimit }]) => {
-      await buildUsingStacktapeEsLambdaBuildpack({
-        existingDigests: [],
-        sizeLimit: bundleSizeLimit,
-        includeFiles: [],
-        name,
-        cwd: process.cwd(),
-        entryfilePath: filePath,
-        languageSpecificConfig: {
-          tsConfigPath: localBuildTsConfigPath
-        },
-        nodeTarget: '22',
-        minify: true,
-        isDev: false,
-        externals: ['aws-sdk'],
-        distFolderPath: join(lambdasDistFolderPath, name),
-        progressLogger: {
-          startEvent: () => {},
-          finishEvent: () => {},
-          updateEvent: () => {},
-          get eventContext() {
-            return {};
-          }
-        },
-        args: {},
-        zippedSizeLimit: Infinity,
-        invocationId: 'helper-lambdas-install'
-      });
-      await remove(join(lambdasDistFolderPath, name));
-    })
-  );
+  for (const [name, { filePath, bundleSizeLimit }] of Object.entries(helperLambdas)) {
+    await buildUsingStacktapeEsLambdaBuildpack({
+      existingDigests: [],
+      sizeLimit: bundleSizeLimit,
+      includeFiles: [],
+      name,
+      cwd: process.cwd(),
+      entryfilePath: filePath,
+      languageSpecificConfig: {
+        tsConfigPath: localBuildTsConfigPath
+      },
+      nodeTarget: '22',
+      minify: true,
+      isDev: false,
+      externals: ['aws-sdk'],
+      distFolderPath: join(lambdasDistFolderPath, name),
+      progressLogger: {
+        startEvent: () => {},
+        finishEvent: () => {},
+        updateEvent: () => {},
+        get eventContext() {
+          return {};
+        }
+      },
+      args: {},
+      zippedSizeLimit: Infinity,
+      invocationId: `${packagingRunId}-${name}`
+    });
+    await remove(join(lambdasDistFolderPath, name));
+  }
+
   logSuccess('Helper lambdas packaged successfully.');
 };
 

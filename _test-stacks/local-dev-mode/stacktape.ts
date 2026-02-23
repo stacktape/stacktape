@@ -39,7 +39,7 @@ export default defineConfig(() => {
     engine: {
       type: 'mysql',
       properties: {
-        version: '8.0',
+        version: '8.0.45',
         primaryInstance: {
           instanceSize: 'db.t3.micro'
         }
@@ -54,7 +54,7 @@ export default defineConfig(() => {
     engine: {
       type: 'mariadb',
       properties: {
-        version: '10.11',
+        version: '10.6.24',
         primaryInstance: {
           instanceSize: 'db.t3.micro'
         }
@@ -99,9 +99,8 @@ export default defineConfig(() => {
       cpu: 0.25,
       memory: 512
     },
-    connectTo: [privateService],
     environment: {
-      PRIVATE_SERVICE_ADDR: privateService.address
+      PRIVATE_SERVICE_ADDR: 'not-connected-in-local-test'
     }
   });
 
@@ -142,7 +141,6 @@ export default defineConfig(() => {
 
   const nextjsFrontend = new NextjsWeb({
     appDirectory: './packages/nextjs-frontend',
-    connectTo: [webService],
     dev: {
       command: 'bun run dev'
     },

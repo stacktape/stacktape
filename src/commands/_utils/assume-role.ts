@@ -35,18 +35,39 @@ export const getLocalInvokeAwsCredentials = async ({
   await addCallerToAssumeRolePolicy({ roleName: workloadRoleName });
 
   // Wait for IAM trust policy propagation (eventual consistency)
-  await new Promise((resolve) => setTimeout(resolve, 2000));
+  await new Promise((resolve) => setTimeout(resolve, 4000));
 
   const durationSeconds = isDevStack ? DEV_SESSION_DURATION_SECONDS : SESSION_DURATION_SECONDS;
-  const credentials = await awsSdkManager.getAssumedRoleCredentials({
-    durationSeconds,
-    roleArn: arns.iamRole({
-      accountId: globalStateManager.targetAwsAccount.awsAccountId,
-      roleAwsName: workloadRoleName
-    }),
-    roleSessionName: `local-assume-by-${globalStateManager.userData.id}`,
-    retry: { count: 6, delaySeconds: 5 }
+  const roleArn = arns.iamRole({
+    accountId: globalStateManager.targetAwsAccount.awsAccountId,
+    roleAwsName: workloadRoleName
   });
+
+  const getCredentials = () =>
+    awsSdkManager.getAssumedRoleCredentials({
+      durationSeconds,
+      roleArn,
+      roleSessionName: `local-assume-by-${globalStateManager.userData.id}`,
+      retry: { count: 10, delaySeconds: 5 }
+    });
+
+  let credentials: Awaited<ReturnType<typeof awsSdkManager.getAssumedRoleCredentials>>;
+  try {
+    credentials = await getCredentials();
+  } catch (err) {
+    const errMessage = err instanceof Error ? err.message : String(err);
+    const isAssumeRoleAccessDenied =
+      errMessage.includes('AccessDenied') && errMessage.includes('sts:AssumeRole') && errMessage.includes(roleArn);
+
+    if (!isAssumeRoleAccessDenied) {
+      throw err;
+    }
+
+    // Re-apply trust policy and wait longer. IAM propagation can lag.
+    await addCallerToAssumeRolePolicy({ roleName: workloadRoleName });
+    await new Promise((resolve) => setTimeout(resolve, 8000));
+    credentials = await getCredentials();
+  }
   await eventManager.finishEvent({ eventType: 'ASSUME_ROLE' });
 
   return {

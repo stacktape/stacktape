@@ -205,7 +205,7 @@ export const runParallelWorkloads = async (
             : tunnelCount > 0
               ? `${tunnelCount} tunnel(s)`
               : undefined;
-        devTuiManager.setSetupStepStatus('tunnels', failedCount > 0 ? 'done' : 'done', statusMessage);
+        devTuiManager.setSetupStepStatus('tunnels', 'done', statusMessage);
       }
     } else {
       if (useDevTui) devTuiManager.setSetupStepStatus('tunnels', 'skipped');
@@ -515,22 +515,26 @@ const startContainerWorkload = async (
   const ports = (containerDefinition.events || []).map((event: any) => event.properties.containerPort);
   const primaryPort = ports[0];
 
-  // Get environment
   const resourceDeployedConnectTo = (resource.connectTo || []).filter((c) => deployedConnectTo.includes(c));
   // Skip AWS credentials for locally-injected resources (not deployed to AWS)
   const skipAwsCredentials = !stackManager.existingStackDetails || isInjected;
-  const environment = await getWorkloadEnvironmentVars({
-    jobEnvironment: containerDefinition.environment,
-    jobName,
-    workloadName: containerDefinition.workloadName,
-    connectTo: resourceDeployedConnectTo,
-    workloadType: 'multi-container-workload',
-    tunnels: state.tunnels.filter((t) => resourceDeployedConnectTo.includes(t.targetInfo.targetStpName)),
-    localResourceEnvVars,
-    skipAwsCredentials,
-    port: primaryPort,
-    localWorkloadAddresses
-  });
+  const getFreshEnvironment = async () => {
+    return getWorkloadEnvironmentVars({
+      jobEnvironment: containerDefinition.environment,
+      jobName,
+      workloadName: containerDefinition.workloadName,
+      connectTo: resourceDeployedConnectTo,
+      workloadType: 'multi-container-workload',
+      tunnels: state.tunnels.filter((t) => resourceDeployedConnectTo.includes(t.targetInfo.targetStpName)),
+      localResourceEnvVars,
+      skipAwsCredentials,
+      port: primaryPort,
+      localWorkloadAddresses
+    });
+  };
+
+  // Get environment (including fresh AWS credentials)
+  const environment = await getFreshEnvironment();
   // Auto-stop conflicting containers when DevTUI is active (can't prompt user)
   await resolveRunningContainersWithSamePort({ ports, autoStopConflicting: useDevTui });
 
@@ -636,12 +640,15 @@ const startContainerWorkload = async (
       devTuiManager.setRebuildStep(resourceName, 'starting');
     }
 
+    // Always re-fetch env (and IAM credentials) on explicit restart/rebuild.
+    const rebuiltEnvironment = await getFreshEnvironment();
+
     await new Promise<void>((resolve) => {
       dockerRun({
         name: localContainerName,
         image: newImage.imageName,
         command,
-        environment,
+        environment: rebuiltEnvironment,
         portMappings: ports.map((port: number) => ({ containerPort: port, hostPort: port })),
         volumeMounts: newImage.distFolderPath ? [{ hostPath: newImage.distFolderPath, containerPath: '/app' }] : [],
         onStart: () => {
@@ -676,7 +683,7 @@ const startContainerWorkload = async (
       });
     });
 
-    return { sourceFiles: newImage.sourceFiles, size: newImage.details };
+    return { sourceFiles: newImage.sourceFiles, size: newImage.details, environment: rebuiltEnvironment };
   };
 
   state.workloads.set(resourceName, {
@@ -690,6 +697,7 @@ const startContainerWorkload = async (
       const workload = state.workloads.get(resourceName);
       if (workload) {
         workload.sourceFiles = result.sourceFiles;
+        workload.envVars = result.environment;
       }
     }
   });
@@ -942,7 +950,10 @@ const startFunctionWorkload = async (resourceName: string): Promise<void> => {
     try {
       await cloudwatchLogPrinter.printLogs();
     } catch (err) {
-      if (IS_DEV) console.error(`[${resourceName}] Log fetch error:`, err);
+      if (IS_DEV) {
+        const errMessage = err instanceof Error ? err.message : String(err);
+        tuiManager.error(`[${resourceName}] Log fetch error: ${errMessage}`);
+      }
     }
   }, PRINT_LOGS_INTERVAL);
 

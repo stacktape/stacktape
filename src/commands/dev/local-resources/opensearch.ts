@@ -7,6 +7,7 @@ import {
   doesContainerExist,
   findAvailablePort,
   getContainerPort,
+  isDockerPortBindError,
   isContainerRunning,
   removeContainerIfExists,
   waitForReady
@@ -51,19 +52,19 @@ export const startLocalOpenSearch = async (
     await removeContainerIfExists(containerName);
   }
 
-  const actualPort = await findAvailablePort(preferredPort);
+  let actualPort = await findAvailablePort(preferredPort);
 
   // Map version to OpenSearch image version
   const imageVersion = version === 'latest' ? '2.17.0' : version;
   const imageTag = `${OPENSEARCH_IMAGE}:${imageVersion}`;
 
-  const dockerArgs = [
+  const buildDockerArgs = (hostPort: number) => [
     'run',
     '-d',
     '--name',
     containerName,
     '-p',
-    `${actualPort}:9200`,
+    `${hostPort}:9200`,
     '-v',
     `${dataDir}:${OPENSEARCH_DATA_PATH}`,
     // Disable security for local development (simpler setup)
@@ -79,7 +80,17 @@ export const startLocalOpenSearch = async (
     imageTag
   ];
 
-  await execDocker(dockerArgs);
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      await execDocker(buildDockerArgs(actualPort));
+      break;
+    } catch (err) {
+      if (!isDockerPortBindError(err) || attempt === 4) {
+        throw err;
+      }
+      actualPort = await findAvailablePort(actualPort + 1);
+    }
+  }
 
   await waitForReady({
     containerName,

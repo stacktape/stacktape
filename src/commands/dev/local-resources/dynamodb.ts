@@ -9,6 +9,7 @@ import {
   doesContainerExist,
   findAvailablePort,
   getContainerPort,
+  isDockerPortBindError,
   isContainerRunning,
   removeContainerIfExists,
   waitForReady
@@ -183,15 +184,15 @@ export const startLocalDynamoDb = async (
     await removeContainerIfExists(containerName);
   }
 
-  const actualPort = await findAvailablePort(port);
+  let actualPort = await findAvailablePort(port);
 
-  const dockerArgs = [
+  const buildDockerArgs = (hostPort: number) => [
     'run',
     '-d',
     '--name',
     containerName,
     '-p',
-    `${actualPort}:${defaultPort}`,
+    `${hostPort}:${defaultPort}`,
     '-v',
     `${dataDir}:${DYNAMODB_DATA_PATH}`,
     DYNAMODB_IMAGE,
@@ -202,7 +203,17 @@ export const startLocalDynamoDb = async (
     DYNAMODB_DATA_PATH
   ];
 
-  await execDocker(dockerArgs);
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      await execDocker(buildDockerArgs(actualPort));
+      break;
+    } catch (err) {
+      if (!isDockerPortBindError(err) || attempt === 4) {
+        throw err;
+      }
+      actualPort = await findAvailablePort(actualPort + 1);
+    }
+  }
 
   await waitForReady({
     containerName,

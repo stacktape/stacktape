@@ -43,6 +43,27 @@ type DevServerCallbacks = {
 const runningDevServers: Map<string, ChildProcess> = new Map();
 const runningDevServerFrameworks: Map<string, FrameworkType> = new Map();
 
+const waitForProcessExit = async (proc: ChildProcess, timeoutMs: number): Promise<boolean> => {
+  if (proc.exitCode !== null || proc.signalCode !== null) {
+    return true;
+  }
+
+  return new Promise<boolean>((resolve) => {
+    let done = false;
+    const finish = (exited: boolean) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      proc.removeListener('exit', onExit);
+      resolve(exited);
+    };
+    const onExit = () => finish(true);
+    const timer = setTimeout(() => finish(false), timeoutMs);
+
+    proc.once('exit', onExit);
+  });
+};
+
 /**
  * Formats the dev server state into a status message for display.
  */
@@ -75,33 +96,40 @@ export const formatDevServerStatus = (state: DevServerState): string => {
  */
 export const stopDevServer = async (name: string): Promise<void> => {
   const proc = runningDevServers.get(name);
-  if (proc && !proc.killed) {
-    const pid = proc.pid;
+  if (!proc) {
+    return;
+  }
 
-    // Try graceful shutdown first
+  const pid = proc.pid;
+
+  // Try graceful shutdown first
+  try {
     proc.kill('SIGTERM');
+  } catch {
+    // Process may already be dead
+  }
 
-    // Wait a bit for graceful shutdown
-    await new Promise((resolve) => setTimeout(resolve, 100));
+  const exitedGracefully = await waitForProcessExit(proc, 1200);
 
-    // If still running, force kill the process tree
-    if (pid && !proc.killed) {
-      try {
-        if (process.platform === 'win32') {
-          // Windows: kill process tree (execSync already imported at top of file)
-          execSync(`taskkill /PID ${pid} /T /F`, { stdio: 'ignore' });
-        } else {
-          // Unix: kill process group
-          process.kill(-pid, 'SIGKILL');
-        }
-      } catch {
-        // Process might already be dead
+  // If still running, force kill the process tree
+  if (!exitedGracefully && pid) {
+    try {
+      if (process.platform === 'win32') {
+        // Windows: kill process tree
+        execSync(`taskkill /PID ${pid} /T /F`, { stdio: 'ignore' });
+      } else {
+        // Unix: kill process group
+        process.kill(-pid, 'SIGKILL');
       }
+    } catch {
+      // Process might already be dead
     }
 
-    runningDevServers.delete(name);
-    runningDevServerFrameworks.delete(name);
+    await waitForProcessExit(proc, 1200);
   }
+
+  runningDevServers.delete(name);
+  runningDevServerFrameworks.delete(name);
 };
 
 /**
@@ -109,26 +137,32 @@ export const stopDevServer = async (name: string): Promise<void> => {
  */
 export const stopDevServerSync = (name: string): void => {
   const proc = runningDevServers.get(name);
-  if (proc && !proc.killed) {
-    const pid = proc.pid;
-    proc.kill('SIGTERM');
-
-    // Force kill if needed
-    if (pid) {
-      try {
-        if (process.platform === 'win32') {
-          execSync(`taskkill /PID ${pid} /T /F`, { stdio: 'ignore' });
-        } else {
-          process.kill(-pid, 'SIGKILL');
-        }
-      } catch {
-        // Process might already be dead
-      }
-    }
-
-    runningDevServers.delete(name);
-    runningDevServerFrameworks.delete(name);
+  if (!proc) {
+    return;
   }
+
+  const pid = proc.pid;
+  try {
+    proc.kill('SIGTERM');
+  } catch {
+    // Process may already be dead
+  }
+
+  // Cleanup hook should be deterministic - always hard kill tree when we can.
+  if (pid) {
+    try {
+      if (process.platform === 'win32') {
+        execSync(`taskkill /PID ${pid} /T /F`, { stdio: 'ignore' });
+      } else {
+        process.kill(-pid, 'SIGKILL');
+      }
+    } catch {
+      // Process might already be dead
+    }
+  }
+
+  runningDevServers.delete(name);
+  runningDevServerFrameworks.delete(name);
 };
 
 export const startDevServer = async ({
@@ -158,9 +192,6 @@ export const startDevServer = async ({
   // Detect framework for parsing output
   const framework = config.framework || detectFramework(workingDir);
   runningDevServerFrameworks.set(name, framework);
-
-  // Create stateful parser for this framework
-  const parseOutput = createFrameworkParser(framework);
 
   // Parse command
   const commandParts = config.command.match(/(?:[^\s"]+|"[^"]*")+/g) || [config.command];
@@ -212,6 +243,10 @@ export const startDevServer = async ({
 
   const spawnDevServer = (): Promise<DevServerState> => {
     return new Promise((resolve) => {
+      // Parser keeps per-process accumulated state (URL/compileTime across lines)
+      // so create a fresh one for each spawn/retry attempt.
+      const parseOutput = createFrameworkParser(framework);
+
       const proc = spawn(command, args, {
         cwd: workingDir,
         env,
@@ -333,6 +368,8 @@ export const startDevServer = async ({
     const conflictPort = parsePortFromError(errorBuffer);
     if (conflictPort) {
       portConflictRetried = true;
+
+      callbacks?.onOutput?.(`Port ${conflictPort} is already in use. Retrying dev server startup...`);
 
       // Try to kill the process using the port
       const killed = await killProcessOnPort(conflictPort);

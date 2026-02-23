@@ -18,16 +18,36 @@ export type AwsWorkspaceswebSessionlogger = {
    * @pattern ^[ _\-\d\w]+$
    */
   DisplayName?: string;
-  EventFilter: {
-    All: Record<string, unknown>;
-  } | {
-    /**
-     * @minItems 1
-     * @maxItems 100
-     * @uniqueItems true
-     */
-    Include: ("WebsiteInteract" | "FileDownloadFromSecureBrowserToRemoteDisk" | "FileTransferFromRemoteToLocalDisk" | "FileTransferFromLocalToRemoteDisk" | "FileUploadFromRemoteDiskToSecureBrowser" | "ContentPasteToWebsite" | "ContentTransferFromLocalToRemoteClipboard" | "ContentCopyFromWebsite" | "UrlLoad" | "TabOpen" | "TabClose" | "PrintJobSubmit" | "SessionConnect" | "SessionStart" | "SessionDisconnect" | "SessionEnd" | "UrlBlockByContentFilter")[];
-  };
+  EventFilter:
+    | {
+        All: Record<string, unknown>;
+      }
+    | {
+        /**
+         * @minItems 1
+         * @maxItems 100
+         * @uniqueItems true
+         */
+        Include: (
+          | 'WebsiteInteract'
+          | 'FileDownloadFromSecureBrowserToRemoteDisk'
+          | 'FileTransferFromRemoteToLocalDisk'
+          | 'FileTransferFromLocalToRemoteDisk'
+          | 'FileUploadFromRemoteDiskToSecureBrowser'
+          | 'ContentPasteToWebsite'
+          | 'ContentTransferFromLocalToRemoteClipboard'
+          | 'ContentCopyFromWebsite'
+          | 'UrlLoad'
+          | 'TabOpen'
+          | 'TabClose'
+          | 'PrintJobSubmit'
+          | 'SessionConnect'
+          | 'SessionStart'
+          | 'SessionDisconnect'
+          | 'SessionEnd'
+          | 'UrlBlockByContentFilter'
+        )[];
+      };
   LogConfiguration: {
     S3?: {
       /**
@@ -44,8 +64,8 @@ export type AwsWorkspaceswebSessionlogger = {
       KeyPrefix?: string;
       /** @pattern ^[0-9]{12}$ */
       BucketOwner?: string;
-      LogFileFormat: "JSONLines" | "Json";
-      FolderStructure: "Flat" | "NestedByDate";
+      LogFileFormat: 'JSONLines' | 'Json';
+      FolderStructure: 'Flat' | 'NestedByDate';
     };
   };
   /**

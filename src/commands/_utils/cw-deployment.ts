@@ -57,6 +57,56 @@ const normalizeAndValidateCapacityProviderStrategyForEcsApi = (input: UpdateServ
   (input as any).capacityProviderStrategy = sanitized;
 };
 
+const normalizeAndValidateServiceRegistriesForEcsApi = (input: UpdateServiceCommandInput) => {
+  const registries = (input as any).serviceRegistries;
+  if (!Array.isArray(registries)) {
+    return;
+  }
+
+  // Allow users to specify CF-like refs in overrides (e.g. { Ref: 'LogicalId' }).
+  // Convert them to physical IDs so the ECS API accepts them.
+  const withResolvedRefs = replaceCloudformationRefFunctionsWithCfPhysicalIds(
+    serialize(registries),
+    stackManager.existingStackResources
+  );
+
+  const sanitized = (withResolvedRefs as any[])
+    .map((entry) => {
+      if (!entry || typeof entry !== 'object') return null;
+
+      const rawRegistryArn = entry.registryArn;
+      const registryArn = typeof rawRegistryArn === 'string' ? rawRegistryArn.trim() : undefined;
+      if (!registryArn) return null;
+
+      const rawContainerName = entry.containerName;
+      const containerName = typeof rawContainerName === 'string' ? rawContainerName.trim() : undefined;
+
+      const rawContainerPort = entry.containerPort;
+      const containerPort =
+        typeof rawContainerPort === 'number'
+          ? rawContainerPort
+          : typeof rawContainerPort === 'string' && rawContainerPort.trim()
+            ? Number(rawContainerPort)
+            : undefined;
+
+      return {
+        ...entry,
+        registryArn,
+        containerName,
+        containerPort: Number.isFinite(containerPort) ? containerPort : undefined
+      };
+    })
+    .filter(Boolean);
+
+  if (!sanitized.length) {
+    // Avoid AWS error: "InvalidParameterException: registry arn cannot be blank"
+    delete (input as any).serviceRegistries;
+    return;
+  }
+
+  (input as any).serviceRegistries = sanitized;
+};
+
 export const getECSHotswapInformation = async ({ workload }: { workload: StpContainerWorkload }) => {
   const {
     PhysicalResourceId: ecsServiceArn,
@@ -250,10 +300,19 @@ export const updateEcsService = async ({
         });
         await awsSdkManager.waitForEcsServiceCodeDeployUpdateToFinish({ deploymentId });
       } else {
+        const serviceRegistriesFromTemplate = (getEcsService({ workload, blueGreen: false }) as any).Properties
+          ?.ServiceRegistries;
+
         const updateServiceInput: UpdateServiceCommandInput = {
           service: ecsServiceArn,
           taskDefinition: taskDefinitionArn,
           cluster: clusterName,
+          serviceRegistries: serviceRegistriesFromTemplate
+            ? replaceCloudformationRefFunctionsWithCfPhysicalIds(
+                serialize(serviceRegistriesFromTemplate),
+                stackManager.existingStackResources
+              )
+            : undefined,
           forceNewDeployment: true,
           deploymentConfiguration: {
             // if set to 0, it can be a bit faster but there is downtime during deployment
@@ -278,6 +337,7 @@ export const updateEcsService = async ({
           });
         }
         normalizeAndValidateCapacityProviderStrategyForEcsApi(updateServiceInput);
+        normalizeAndValidateServiceRegistriesForEcsApi(updateServiceInput);
         await awsSdkManager.startEcsServiceRollingUpdate(updateServiceInput);
         await awsSdkManager.waitForEcsServiceRollingUpdateToFinish({ ecsServiceArn });
       }

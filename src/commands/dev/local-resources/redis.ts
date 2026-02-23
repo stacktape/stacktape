@@ -8,6 +8,7 @@ import {
   findAvailablePort,
   getContainerPort,
   getImageTag,
+  isDockerPortBindError,
   isContainerRunning,
   removeContainerIfExists,
   waitForReady
@@ -59,23 +60,33 @@ export const startLocalRedis = async (
     await removeContainerIfExists(containerName);
   }
 
-  const actualPort = await findAvailablePort(port);
+  let actualPort = await findAvailablePort(port);
   const imageTag = getImageTag(version, 'redis');
 
-  const dockerArgs = [
+  const buildDockerArgs = (hostPort: number) => [
     'run',
     '-d',
     '--name',
     containerName,
     '-p',
-    `${actualPort}:${defaultPort}`,
+    `${hostPort}:${defaultPort}`,
     '-v',
     `${dataDir}:${REDIS_DATA_PATH}`,
     imageTag,
     ...(password ? ['--requirepass', password] : [])
   ];
 
-  await execDocker(dockerArgs);
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      await execDocker(buildDockerArgs(actualPort));
+      break;
+    } catch (err) {
+      if (!isDockerPortBindError(err) || attempt === 4) {
+        throw err;
+      }
+      actualPort = await findAvailablePort(actualPort + 1);
+    }
+  }
 
   await waitForReady({
     containerName,

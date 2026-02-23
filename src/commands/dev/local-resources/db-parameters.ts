@@ -1,4 +1,5 @@
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { DescribeEngineDefaultParametersCommand, RDSClient } from '@aws-sdk/client-rds';
 import { configManager } from '@domain-services/config-manager';
 
@@ -212,7 +213,7 @@ export const fetchAwsDefaultParameters = async (parameterGroupFamily: string): P
     } while (marker);
   } catch (error) {
     // If we can't fetch AWS defaults, continue without them
-    console.warn(`Could not fetch AWS default parameters for ${parameterGroupFamily}: ${error.message}`);
+    tuiManager.warn(`Could not fetch AWS default parameters for ${parameterGroupFamily}: ${error.message}`);
   }
 
   return params;
