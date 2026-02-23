@@ -145,16 +145,12 @@ type ConfigurableOtherDefaults = {
   [propName in Partial<keyof (typeof import('../src/config/random'))['configurableGlobalDefaultOtherProps']>]: string;
 };
 
-type GlobalStateOrganization = import('../console-app/trpc-api-client').CurrentUserAndOrgDataType['organization'];
-// & {
-//   role: import('../console-app/node_modules/@prisma/client').Role;
-// };
-type GlobalStateConnectedAwsAccount =
-  import('../console-app/trpc-api-client').CurrentUserAndOrgDataType['connectedAwsAccounts'][number];
+type GlobalStateOrganization = import('./console-app/global-state').GlobalStateOrganization;
+type GlobalStateConnectedAwsAccount = import('./console-app/global-state').GlobalStateConnectedAwsAccount;
 
-type GlobalStateProject = import('../console-app/trpc-api-client').CurrentUserAndOrgDataType['projects'][number];
+type GlobalStateProject = import('./console-app/global-state').GlobalStateProject;
 
-type GlobalStateUser = import('../console-app/trpc-api-client').CurrentUserAndOrgDataType['user'];
+type GlobalStateUser = import('./console-app/global-state').GlobalStateUser;
 
 type AwsCredentials = Mutable<import('@aws-sdk/types').Credentials>;
 

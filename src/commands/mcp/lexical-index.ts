@@ -390,6 +390,13 @@ const search = (index: LexicalIndex, options: QueryOptions): SearchResult[] => {
   }
   results.sort((a, b) => b.score - a.score);
 
+  // Filter out low-relevance results: if a result scores much lower than the top result,
+  // it's likely a weak content-body match (e.g., "cost" in a firewall doc for a pricing query).
+  if (results.length > 1) {
+    const topScore = results[0].score;
+    return results.filter((r) => r.score >= topScore * 0.25).slice(0, maxItems);
+  }
+
   return results.slice(0, maxItems);
 };
 

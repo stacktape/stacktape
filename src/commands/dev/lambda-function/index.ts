@@ -67,7 +67,7 @@ export const runDevLambdaFunction = async () => {
           failedPrints = 0;
         } catch (refreshErr) {
           tuiManager.warn('Failed to refresh AWS credentials. Restart dev to continue.');
-          if (IS_DEV) console.error(refreshErr);
+          if (IS_DEV) tuiManager.error(String(refreshErr));
         }
         isRefreshingCredentials = false;
         return;
@@ -75,7 +75,7 @@ export const runDevLambdaFunction = async () => {
 
       tuiManager.warn('Failed to fetch logs.');
       if (IS_DEV) {
-        console.error(err);
+        tuiManager.error(String(err));
       }
       if (failedPrints > 3) {
         clearInterval(printingInterval);

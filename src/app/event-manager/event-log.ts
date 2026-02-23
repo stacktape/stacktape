@@ -51,6 +51,7 @@ type StoredChildEvent = {
 export class EventLog {
   rawEvents: EventLogEntry[] = [];
   childEvents: StoredChildEvent[] = [];
+  printedEvents: Set<string> = new Set();
 
   get formattedData(): FormattedEventData[] {
     const rootEvents = getGroupedEventsWithDetails(this.rawEvents).map((e) => ({ ...e, childEvents: [] }));
@@ -141,5 +142,6 @@ export class EventLog {
   reset = () => {
     this.rawEvents = [];
     this.childEvents = [];
+    this.printedEvents.clear();
   };
 }

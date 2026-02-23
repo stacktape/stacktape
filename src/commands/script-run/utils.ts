@@ -1,6 +1,7 @@
 import type { ScriptFn } from '@utils/scripts';
 import type { SsmPortForwardingTunnel } from '@utils/ssm-session';
 import { join, resolve } from 'node:path';
+import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { configManager } from '@domain-services/config-manager';
@@ -74,7 +75,7 @@ const getBastionScriptExecutionFn = ({
     const scriptDescription = `${hookTrigger ? `(${hookTrigger} hook) ` : ''}${resolvedScriptDefinition.scriptName}`;
     const eventInstanceId = `${hookTrigger || 'manual'}-${resolvedScriptDefinition.scriptName}`;
 
-    tuiManager.startEvent({
+    eventManager.startEvent({
       eventType: 'RUN_SCRIPT',
       description: `Running script ${scriptDescription} on bastion ${bastionResourceStpName}`,
       instanceId: eventInstanceId
@@ -96,12 +97,12 @@ const getBastionScriptExecutionFn = ({
         instanceId: bastionInstanceId,
         cwd: resolvedScriptDefinition.properties.cwd
       });
-      tuiManager.finishEvent({
+      eventManager.finishEvent({
         eventType: 'RUN_SCRIPT',
         instanceId: eventInstanceId
       });
     } catch (err) {
-      tuiManager.finishEvent({
+      eventManager.finishEvent({
         eventType: 'RUN_SCRIPT',
         instanceId: eventInstanceId,
         status: 'error'
@@ -184,7 +185,7 @@ const getLocalScriptExecutionFn = ({
     const scriptDisplayName = `${hookTrigger ? `(${hookTrigger} hook) ` : ''}${resolvedScriptDefinition.scriptName}`;
     const eventInstanceId = `${hookTrigger || 'manual'}-${resolvedScriptDefinition.scriptName}`;
 
-    tuiManager.startEvent({
+    eventManager.startEvent({
       eventType: 'RUN_SCRIPT',
       description: `Running script ${scriptDisplayName}`,
       instanceId: eventInstanceId
@@ -194,7 +195,7 @@ const getLocalScriptExecutionFn = ({
     // This avoids piping directly to stdout while streaming
     const onOutputLine = pipeStdio
       ? (line: string) => {
-          tuiManager.appendEventOutput({
+          eventManager.appendEventOutput({
             eventType: 'RUN_SCRIPT',
             instanceId: eventInstanceId,
             lines: [line]
@@ -208,7 +209,7 @@ const getLocalScriptExecutionFn = ({
           ? `script at ${join(globalStateManager.workingDir, commandOrScriptToExecute)}`
           : `command '${commandOrScriptToExecute}'`;
 
-      tuiManager.updateEvent({
+      eventManager.updateEvent({
         eventType: 'RUN_SCRIPT',
         instanceId: eventInstanceId,
         additionalMessage: `Running ${currentDescription}`
@@ -243,7 +244,7 @@ const getLocalScriptExecutionFn = ({
           });
         }
       } catch (err) {
-        tuiManager.finishEvent({
+        eventManager.finishEvent({
           eventType: 'RUN_SCRIPT',
           instanceId: eventInstanceId,
           status: 'error'
@@ -256,7 +257,7 @@ const getLocalScriptExecutionFn = ({
       }
     }
 
-    tuiManager.finishEvent({
+    eventManager.finishEvent({
       eventType: 'RUN_SCRIPT',
       instanceId: eventInstanceId
     });

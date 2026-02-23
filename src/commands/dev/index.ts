@@ -2,8 +2,7 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import { eventManager } from '@application-services/event-manager';
 import { applicationManager } from '@application-services/application-manager';
 import { tuiManager } from '@application-services/tui-manager';
-import { box as clackBox } from '@clack/prompts';
-import { MultiSpinner, setSpinnerAgentMode } from '@application-services/tui-manager/spinners';
+import { createSpinner, setSpinnerAgentMode } from '@application-services/tui-manager/spinners';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
@@ -301,8 +300,8 @@ export const commandDev = async () => {
     // Check if agent is already running
     const runningAgent = await getRunningAgent();
     if (runningAgent) {
-      console.log(
-        buildAgentReadyMessage({
+      process.stdout.write(
+        `${buildAgentReadyMessage({
           port: runningAgent.port,
           projectName: runningAgent.projectName,
           stage: runningAgent.stage,
@@ -310,7 +309,7 @@ export const commandDev = async () => {
           workloads: runningAgent.workloads.map((name) => ({ name, type: 'unknown' })),
           databases: runningAgent.databases.map((name) => ({ name, type: 'unknown' })),
           logFile: runningAgent.logFile || ''
-        })
+        })}\n`
       );
       return;
     }
@@ -340,8 +339,8 @@ export const commandDev = async () => {
       originalArgs.push(arg);
     }
 
-    console.log('Starting dev agent daemon...');
-    console.log('');
+    tuiManager.info('Starting dev agent daemon...');
+    tuiManager.printLines(['']);
     const result = await spawnAgentDaemon({
       originalArgs,
       agentPort,
@@ -349,15 +348,17 @@ export const commandDev = async () => {
     });
 
     if (!result.success) {
-      console.error(`Failed to start dev agent: ${result.error}`);
-      process.exit(1);
+      throw getError({
+        type: 'CLI',
+        message: `Failed to start dev agent: ${result.error || 'Unknown error'}`
+      });
     }
 
     // Print startup message with endpoint documentation
     if (result.readyPayload) {
       const { port, projectName, stage, region, workloads, databases, logFile } = result.readyPayload;
-      console.log('');
-      console.log(
+      tuiManager.printLines([
+        '',
         buildStartupMessage({
           projectName,
           stage: stage || '',
@@ -366,17 +367,17 @@ export const commandDev = async () => {
           databases: databases || [],
           port,
           logFile
-        })
-      );
-      console.log('');
-      console.log('─'.repeat(60));
-      console.log('IMPORTANT: When done, stop the dev agent with:');
-      console.log(`  stacktape dev:stop --agentPort ${port}`);
-      console.log('─'.repeat(60));
+        }),
+        '',
+        '─'.repeat(60),
+        'IMPORTANT: When done, stop the dev agent with:',
+        `  stacktape dev:stop --agentPort ${port}`,
+        '─'.repeat(60)
+      ]);
     }
 
     // Daemon started successfully - parent can exit
-    return;
+    return result.readyPayload || null;
   }
 
   // Register cleanup hooks for dev command (must be done at runtime, not module import time)
@@ -418,25 +419,17 @@ export const commandDev = async () => {
     await startAgentServer(agentPort, join(globalStateManager.workingDir, '.stacktape', 'dev-agent'));
   }
 
-  // Print header - plain text in agent mode, clack box otherwise
-  if (agentEnabled) {
-    const headerTitle = `DEV MODE${isLegacy ? ' (legacy)' : ''}`;
-    console.log(
-      `--- ${headerTitle}: ${globalStateManager.targetStack.projectName} -> ${globalStateManager.targetStack.stage} (${globalStateManager.region}) ---`
-    );
-    console.log('');
-  } else {
-    const headerTitle = `RUNNING DEV MODE${isLegacy ? ' (legacy)' : ''}`;
-    const projectNameLabel = tuiManager.makeBold(globalStateManager.targetStack.projectName);
-    const stageNameLabel = tuiManager.colorize('cyan', globalStateManager.targetStack.stage);
-    const regionLabel = tuiManager.colorize('gray', globalStateManager.region);
-    clackBox(`${projectNameLabel} → ${stageNameLabel} (${regionLabel})`, tuiManager.makeBold(` ${headerTitle} `), {
-      rounded: true,
-      width: 'auto',
-      titleAlign: 'left',
-      contentAlign: 'left'
-    });
-    console.info('');
+  const devHeader = {
+    action: `RUNNING DEV MODE${isLegacy ? ' (legacy)' : ''}`,
+    projectName: globalStateManager.targetStack.projectName,
+    stageName: globalStateManager.targetStack.stage,
+    region: globalStateManager.region
+  } as const;
+
+  tuiManager.showCommandHeader(devHeader, { renderStandalone: !agentEnabled });
+
+  if (!agentEnabled) {
+    tuiManager.printLines(['']);
   }
 
   const allWorkloads = getDevCompatibleResources();
@@ -475,12 +468,11 @@ export const commandDev = async () => {
     const workloadNames = devCompatibleResources.map((r) => `${r.name} (${r.category})`);
     const dbNames = emulateableResources.map((r) => `${r.name} (${r.engineType})`);
     const allNames = [...workloadNames, ...dbNames];
-    console.log(`[~] Selected resources: ${allNames.join(', ')}`);
+    tuiManager.info(`[~] Selected resources: ${allNames.join(', ')}`);
   }
 
   // Phase 2: Load AWS metadata (stack info, etc.)
-  const multiSpinner = new MultiSpinner(tuiManager.colorize.bind(tuiManager));
-  const metadataSpinner = multiSpinner.add('dev-metadata', 'Loading metadata from AWS');
+  const metadataSpinner = createSpinner('Loading metadata from AWS', tuiManager.colorize.bind(tuiManager));
   await initializeStackServicesForDevPhase2();
   metadataSpinner.success();
 
@@ -523,8 +515,8 @@ export const commandDev = async () => {
           const warnMsg = `Stack '${globalStateManager.targetStack.stackName}' exists but isn't marked as a dev stack and is in ${stackStatus}.`;
           const infoMsg = 'Deleting the failed stack and redeploying a fresh dev stack...';
           if (agentEnabled) {
-            console.log(`[!] ${warnMsg}`);
-            console.log(`[~] ${infoMsg}`);
+            tuiManager.warn(warnMsg);
+            tuiManager.info(infoMsg);
           } else {
             tuiManager.warn(warnMsg);
             tuiManager.info(infoMsg);
@@ -545,30 +537,26 @@ export const commandDev = async () => {
     if (!stackManager.existingStackDetails) {
       if (agentEnabled) {
         // Agent mode: plain text output for dev stack deployment
-        console.log('[~] Deploying dev stack (minimal stack for dev mode)...');
+        tuiManager.info('[~] Deploying dev stack (minimal stack for dev mode)...');
         try {
           await deployDevStack();
-          console.log('[+] Dev stack deployed successfully');
+          tuiManager.success('[+] Dev stack deployed successfully');
         } catch (err) {
-          console.log('[x] Dev stack deployment failed');
+          tuiManager.error('[x] Dev stack deployment failed');
           throw err;
         }
       } else {
         // Interactive mode: use TUI
         eventManager.setSilentMode(false);
         tuiManager.start();
+        tuiManager.setSimpleMode(true);
         tuiManager.setShowPhaseHeaders(false);
-        tuiManager.setHeader({
-          action: 'DEPLOYING DEV STACK',
-          projectName: globalStateManager.targetStack.projectName,
-          stageName: globalStateManager.targetStack.stage,
-          region: globalStateManager.region,
-          subtitle: 'minimal stack for dev mode'
-        });
+        tuiManager.info('Deploying dev stack...');
         try {
           await deployDevStack();
         } finally {
           await tuiManager.stop();
+          tuiManager.setSimpleMode(false);
           tuiManager.setShowPhaseHeaders(true);
           eventManager.setSilentMode(true);
         }
@@ -630,8 +618,8 @@ export const commandDev = async () => {
 
           // Print AGENT_READY for daemon parent to detect
           // This MUST be printed for the daemon spawning to work
-          console.log(
-            buildAgentReadyMessage({
+          process.stdout.write(
+            `${buildAgentReadyMessage({
               port: port!,
               projectName,
               stage: stageName,
@@ -639,12 +627,12 @@ export const commandDev = async () => {
               workloads: workloadsWithUrls,
               databases: databasesWithPorts,
               logFile: getAgentLogFilePath() || ''
-            })
+            })}\n`
           );
-          console.log('');
+          tuiManager.printLines(['']);
 
           // Also print human-readable info
-          console.log(
+          tuiManager.printLines([
             buildStartupMessage({
               projectName,
               stage: stageName,
@@ -652,9 +640,9 @@ export const commandDev = async () => {
               workloads: workloadInfos,
               databases: databaseInfos,
               logFile: getAgentLogFilePath() || undefined
-            })
-          );
-          console.log('');
+            }),
+            ''
+          ]);
         }
       : undefined,
     devMode,
@@ -785,6 +773,9 @@ export const commandDev = async () => {
       hostingContentType: resource.hostingContentType
     });
   }
+
+  // Start the renderer after all items are registered so the first frame has the complete layout
+  devTuiManager.startRenderer();
 
   // Build set of selected database names for local resource handling
   // In legacy mode, this is empty (all databases use deployed AWS resources)

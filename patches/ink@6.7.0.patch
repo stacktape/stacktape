@@ -1,0 +1,44 @@
+diff --git a/build/ink.js b/build/ink.js
+index 82f31cccc22fdd81aa656b53d9d20a75095c19be..e61138d14d3a13d9227bc70bfa2284f03aeb94fe 100644
+--- a/build/ink.js
++++ b/build/ink.js
+@@ -6,7 +6,8 @@ import isInCi from 'is-in-ci';
+ import autoBind from 'auto-bind';
+ import signalExit from 'signal-exit';
+ import patchConsole from 'patch-console';
+-import { LegacyRoot, ConcurrentRoot } from 'react-reconciler/constants.js';
++import reconcilerConstants from 'react-reconciler/constants.js';
++const { LegacyRoot, ConcurrentRoot } = reconcilerConstants;
+ import Yoga from 'yoga-layout';
+ import wrapAnsi from 'wrap-ansi';
+ import terminalSize from 'terminal-size';
+@@ -306,6 +307,16 @@ export default class Ink {
+             this.options.stdout.write(data);
+             return;
+         }
++        // Re-render the tree to compute fresh output so that restoreLastOutput
++        // writes back the current content (not stale content from a dropped
++        // throttle frame). log.clear() still uses the log renderer's existing
++        // previousLines which correctly matches what is on the terminal.
++        this.calculateLayout();
++        const { output, outputHeight } = render(this.rootNode, this.isScreenReaderEnabled);
++        const isFullscreen = this.options.stdout.isTTY && outputHeight >= this.options.stdout.rows;
++        this.lastOutput = output;
++        this.lastOutputToRender = isFullscreen ? output : output + '\n';
++        this.lastOutputHeight = outputHeight;
+         const sync = shouldSynchronize(this.options.stdout);
+         if (sync) {
+             this.options.stdout.write(bsu);
+@@ -330,6 +341,12 @@ export default class Ink {
+             this.options.stderr.write(data);
+             return;
+         }
++        this.calculateLayout();
++        const { output, outputHeight } = render(this.rootNode, this.isScreenReaderEnabled);
++        const isFullscreen = this.options.stdout.isTTY && outputHeight >= this.options.stdout.rows;
++        this.lastOutput = output;
++        this.lastOutputToRender = isFullscreen ? output : output + '\n';
++        this.lastOutputHeight = outputHeight;
+         const sync = shouldSynchronize(this.options.stdout);
+         if (sync) {
+             this.options.stdout.write(bsu);

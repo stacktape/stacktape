@@ -14,7 +14,7 @@ import { initializeStackServicesForWorkingWithDeployedStack } from '../_utils/in
 export const commandDelete = async () => {
   // Set up TUI for delete operation BEFORE initialization (simplified phases: Initialize, Delete)
   tuiManager.configureForDelete();
-  tuiManager.setHeader({
+  tuiManager.showCommandHeader({
     action: 'DELETING',
     projectName: globalStateManager.args.projectName || 'project',
     stageName: globalStateManager.stage || 'stage',
@@ -28,7 +28,7 @@ export const commandDelete = async () => {
   });
 
   // Update header with actual values now that we have them
-  tuiManager.setHeader({
+  tuiManager.showCommandHeader({
     action: 'DELETING',
     projectName: globalStateManager.targetStack.projectName,
     stageName: globalStateManager.targetStack.stage,

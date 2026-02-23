@@ -46,7 +46,7 @@ export const initializeAllStackServices = async ({
     if (globalStateManager.command === 'preview-changes') return 'PREVIEWING CHANGES';
     return 'DEPLOYING';
   };
-  tuiManager.setHeader({
+  tuiManager.showCommandHeader({
     action: getHeaderAction(),
     projectName: globalStateManager.args.projectName || globalStateManager.targetStack?.projectName || 'project',
     stageName: globalStateManager.stage || 'stage',
@@ -136,28 +136,18 @@ export const initializeAllStackServices = async ({
 
   await eventManager.registerHooks(configManager.hooks);
   if (globalStateManager.command !== 'codebuild:deploy') {
-    await eventManager.startEvent({
-      eventType: 'INSTALL_DEPENDENCIES',
-      description: 'Installing dependencies',
+    await dependencyInstaller.install({
+      rootProjectDirPath: globalStateManager.workingDir,
+      progressLogger: eventManager,
       phase: 'INITIALIZE'
     });
-    try {
-      await dependencyInstaller.install({
-        rootProjectDirPath: globalStateManager.workingDir,
-        progressLogger: eventManager
-      });
-      await eventManager.finishEvent({ eventType: 'INSTALL_DEPENDENCIES' });
-    } catch (error) {
-      await eventManager.finishEvent({ eventType: 'INSTALL_DEPENDENCIES', status: 'error' });
-      throw error;
-    }
   }
   await eventManager.processHooks({ captureType: 'START' });
 };
 
 export const initializeStackServicesForLocalResolve = async () => {
   const scriptName = globalStateManager.args.scriptName;
-  tuiManager.setHeader({
+  tuiManager.showCommandHeader({
     action: scriptName ? `RUNNING SCRIPT: ${scriptName}` : 'RUNNING SCRIPT',
     projectName: globalStateManager.args.projectName || 'project',
     stageName: globalStateManager.stage || 'stage',

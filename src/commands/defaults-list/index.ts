@@ -7,13 +7,14 @@ export const commandDefaultsList = async () => {
     ...(globalStateManager.persistedState?.cliArgsDefaults || {})
   };
 
-  if (!Object.keys(defaults)) {
+  if (!Object.keys(defaults).length) {
     tuiManager.info(`No defaults configured. Run \`${tuiManager.prettyCommand('defaults:configure')}\`.`);
+    return;
   }
 
-  console.info(
+  tuiManager.printLines([
     `${tuiManager.makeBold('Configured defaults')}:\n  ${Object.entries(defaults)
       .map(([name, value]) => `${name}: ${tuiManager.colorize('cyan', value)}`)
       .join('\n  ')}`
-  );
+  ]);
 };

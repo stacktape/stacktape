@@ -8,8 +8,9 @@ import { fsPaths } from '@shared/naming/fs-paths';
 import { publicApiClient, type StackPriceEstimationResponse } from '@shared/trpc/public';
 import { deleteDirectoryContent } from '@shared/utils/fs-utils';
 import { unzip } from '@shared/utils/unzip';
-import { note as clackNote } from '@clack/prompts';
 import color from 'picocolors';
+import { appendResourceRows, formatPrice, formatResourceType, getResourceCostLabel } from '../utils/output-formatting';
+import { printInitPreflight, promptConfigFormat } from '../utils/ui';
 import {
   createWriteStream,
   ensureDir,
@@ -47,6 +48,8 @@ export const initUsingStarterProject = async () => {
     });
     projectToUse = availableStarters.find((s) => s.name === selectedName);
   }
+
+  printInitPreflight({ projectName: projectToUse.starterProjectId, mode: 'starter-template' });
 
   let targetDirectory = globalStateManager.args.projectDirectory;
   if (!targetDirectory) {
@@ -171,17 +174,6 @@ const resolveStarterRoot = async ({
   return join(targetDirectory, capsuleDirName);
 };
 
-const promptConfigFormat = async (): Promise<'typescript' | 'yaml'> => {
-  const format = await tuiManager.promptSelect({
-    message: 'Config format:',
-    options: [
-      { label: 'TypeScript (stacktape.ts)', value: 'typescript', description: 'Type-safe with IDE autocompletion' },
-      { label: 'YAML (stacktape.yml)', value: 'yaml', description: 'Simple declarative format' }
-    ]
-  });
-  return format as 'typescript' | 'yaml';
-};
-
 const removeUnusedConfigFile = async ({
   absoluteProjectPath,
   chosenFormat
@@ -208,54 +200,6 @@ const fetchCostEstimate = async (yamlConfigPath: string): Promise<StackPriceEsti
   } catch {
     return null;
   }
-};
-
-const stripAnsi = (str: string): string => {
-  // eslint-disable-next-line no-control-regex
-  return str.replace(/\x1B\[[0-9;]*m/g, '');
-};
-
-const formatPrice = (price: number): string => {
-  if (price < 0.01) return color.green('<$0.01');
-  if (price < 1) return color.green(`$${price.toFixed(2)}`);
-  return color.yellow(`$${price.toFixed(2)}`);
-};
-
-const formatResourceType = (type: string): string => {
-  const typeLabels: Record<string, string> = {
-    'web-service': 'Web service',
-    'worker-service': 'Worker service',
-    function: 'Function',
-    'nextjs-web': 'Next.js web',
-    'astro-web': 'Astro web',
-    'nuxt-web': 'Nuxt web',
-    'sveltekit-web': 'SvelteKit web',
-    'solidstart-web': 'SolidStart web',
-    'tanstack-web': 'TanStack web',
-    'remix-web': 'Remix web',
-    'redis-cluster': 'Redis cluster',
-    'dynamo-db-table': 'DynamoDB table',
-    'mongo-db-atlas-cluster': 'MongoDB Atlas cluster',
-    'relational-database': 'Relational database',
-    'open-search-domain': 'OpenSearch domain',
-    'hosting-bucket': 'Hosting bucket',
-    'http-api-gateway': 'HTTP API Gateway',
-    bucket: 'S3 bucket',
-    'sqs-queue': 'SQS queue',
-    'sns-topic': 'SNS topic',
-    bastion: 'Bastion',
-    'web-app-firewall': 'Web application firewall'
-  };
-  return typeLabels[type] || type;
-};
-
-const getResourceCostLabel = (costInfo?: { priceInfo: { totalMonthlyFlat: number; costBreakdown: any[] } }): string => {
-  if (!costInfo) return color.dim('-');
-  const monthly = costInfo.priceInfo.totalMonthlyFlat;
-  if (monthly > 0) return `~${formatPrice(monthly)}/mo`;
-  const hasPayPerUse = costInfo.priceInfo.costBreakdown.some((item: any) => item.priceModel === 'pay-per-use');
-  if (hasPayPerUse) return color.dim('pay-per-use');
-  return color.dim('-');
 };
 
 const displayResult = ({
@@ -287,20 +231,16 @@ const displayResult = ({
   lines.push(
     `${color.green('✓')} Project initialized to ${tuiManager.prettyFilePath(absoluteProjectPath)} (${configFile})\n`
   );
+  lines.push(color.dim('Setup mode: Starter template (no AI project analysis).'));
+  lines.push('');
 
-  if (rows.length) {
-    lines.push(tuiManager.makeBold('Resources:'));
-    const nameWidth = Math.max(...rows.map((r) => stripAnsi(r.name).length));
-    const typeWidth = Math.max(...rows.map((r) => stripAnsi(r.type).length));
-    for (const row of rows) {
-      const namePad = ' '.repeat(Math.max(0, nameWidth - stripAnsi(row.name).length));
-      const typePad = ' '.repeat(Math.max(0, typeWidth - stripAnsi(row.type).length));
-      const line = hasCosts
-        ? `  ${tuiManager.makeBold(row.name)}${namePad}  ${row.type}${typePad}  ${row.cost}`
-        : `  ${tuiManager.makeBold(row.name)}${namePad}  ${row.type}`;
-      lines.push(line);
-    }
-  }
+  appendResourceRows({
+    lines,
+    heading: 'Resources:',
+    rows,
+    hasCosts,
+    makeBold: tuiManager.makeBold.bind(tuiManager)
+  });
 
   if (hasCosts && costEstimation.costs) {
     const { flatMonthlyCost } = costEstimation.costs;
@@ -320,5 +260,5 @@ const displayResult = ({
   lines.push(tuiManager.makeBold('Deploy to AWS:'));
   lines.push(`  ${tuiManager.prettyCommand(`deploy ${options}`)}`);
 
-  clackNote(lines.join('\n'), projectToUse.name, { format: (line: string) => line });
+  tuiManager.printBox({ title: projectToUse.name, lines });
 };

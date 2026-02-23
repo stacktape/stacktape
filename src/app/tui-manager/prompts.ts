@@ -1,5 +1,6 @@
 import type { TuiSelectOption } from './types';
-import * as clack from '@clack/prompts';
+import prompts from 'prompts';
+import promptStyle from 'prompts/lib/util/style';
 
 export class UserCancelledError extends Error {
   constructor() {
@@ -10,36 +11,71 @@ export class UserCancelledError extends Error {
 
 type ColorFn = (color: string, text: string) => string;
 
-/**
- * Prompt utilities that work in both TTY and non-TTY modes.
- * Uses @clack/prompts for a clean, modern prompt experience.
- */
 export class PromptManager {
   private colorize: ColorFn;
   private isTTY: boolean;
+  private static didApplyPromptTheme = false;
 
   constructor(colorize: ColorFn, isTTY: boolean) {
     this.colorize = colorize;
     this.isTTY = isTTY;
+    this.applyPromptTheme();
   }
 
-  /**
-   * Prompt user to select one option from a list.
-   */
+  private applyPromptTheme() {
+    if (PromptManager.didApplyPromptTheme) return;
+    const defaultSymbol = '?';
+    promptStyle.symbol = (done: boolean, aborted: boolean, exited: boolean) => {
+      if (aborted) return promptStyle.symbols.aborted;
+      if (exited) return promptStyle.symbols.exited;
+      if (done) return promptStyle.symbols.done;
+      return defaultSymbol;
+    };
+    PromptManager.didApplyPromptTheme = true;
+  }
+
+  private printSpacer() {
+    console.info('');
+  }
+
   async select(config: { message: string; options: TuiSelectOption[]; defaultValue?: string }): Promise<string> {
     if (!this.isTTY) {
       return this.handleNonTTY(config.message, config.defaultValue, () => {
-        const opt = config.options.find((o) => o.value === config.defaultValue);
-        return opt?.label || config.defaultValue || '';
+        const option = config.options.find((item) => item.value === config.defaultValue);
+        return option?.label || config.defaultValue || '';
       });
     }
 
-    return this.promptSimpleSelect(config);
+    const response = await prompts(
+      {
+        type: 'select',
+        name: 'value',
+        message: config.message,
+        choices: config.options.map((option) => ({
+          title: option.label,
+          value: option.value,
+          description: option.description
+        })),
+        initial:
+          config.defaultValue !== undefined
+            ? Math.max(
+                0,
+                config.options.findIndex((o) => o.value === config.defaultValue)
+              )
+            : 0
+      },
+      {
+        onCancel: () => {
+          throw new UserCancelledError();
+        }
+      }
+    );
+
+    this.printSpacer();
+
+    return response.value as string;
   }
 
-  /**
-   * Prompt user to select multiple options from a list.
-   */
   async multiSelect(config: {
     message: string;
     options: TuiSelectOption[];
@@ -48,7 +84,7 @@ export class PromptManager {
     if (!this.isTTY) {
       if (config.defaultValues !== undefined) {
         const labels = config.defaultValues
-          .map((v) => config.options.find((o) => o.value === v)?.label || v)
+          .map((value) => config.options.find((option) => option.value === value)?.label || value)
           .join(', ');
         console.info(`${this.colorize('cyan', 'ℹ')} ${config.message} ${this.colorize('cyan', labels)} (default)`);
         return config.defaultValues;
@@ -58,53 +94,58 @@ export class PromptManager {
       );
     }
 
-    const result = await clack.multiselect({
-      message: config.message,
-      options: config.options.map((opt) => ({
-        value: opt.value,
-        label: opt.label,
-        hint: opt.description
-      })),
-      initialValues: config.defaultValues,
-      required: false
-    });
+    const response = await prompts(
+      {
+        type: 'multiselect',
+        name: 'values',
+        message: config.message,
+        choices: config.options.map((option) => ({
+          title: option.label,
+          value: option.value,
+          description: option.description
+        })),
+        hint: '- Space to select. Return to submit',
+        instructions: false
+      },
+      {
+        onCancel: () => {
+          throw new UserCancelledError();
+        }
+      }
+    );
 
-    if (clack.isCancel(result)) {
-      clack.cancel('Operation cancelled');
-      throw new UserCancelledError();
-    }
-
-    return result as string[];
+    const selected = response.values as string[];
+    this.printSpacer();
+    if (selected.length > 0) return selected;
+    return config.defaultValues || [];
   }
 
-  /**
-   * Prompt user for yes/no confirmation.
-   */
   async confirm(config: { message: string; defaultValue?: boolean }): Promise<boolean> {
     if (!this.isTTY) {
       return this.handleNonTTYBoolean(config.message, config.defaultValue);
     }
 
-    return this.promptSimpleConfirm(config);
+    const response = await prompts(
+      {
+        type: 'toggle',
+        name: 'value',
+        message: config.message,
+        initial: false,
+        active: 'No',
+        inactive: 'Yes'
+      },
+      {
+        onCancel: () => {
+          throw new UserCancelledError();
+        }
+      }
+    );
+
+    this.printSpacer();
+
+    return !response.value;
   }
 
-  private async promptSimpleConfirm(config: { message: string; defaultValue?: boolean }): Promise<boolean> {
-    const result = await clack.confirm({
-      message: config.message,
-      initialValue: config.defaultValue ?? true
-    });
-
-    if (clack.isCancel(result)) {
-      clack.cancel('Operation cancelled');
-      throw new UserCancelledError();
-    }
-
-    return result as boolean;
-  }
-
-  /**
-   * Prompt user for text input.
-   */
   async text(config: {
     message: string;
     placeholder?: string;
@@ -121,75 +162,30 @@ export class PromptManager {
       });
     }
 
-    return this.promptSimpleText(config);
-  }
-
-  private async promptSimpleSelect(config: {
-    message: string;
-    options: TuiSelectOption[];
-    defaultValue?: string;
-  }): Promise<string> {
-    // Use clack select for a proper interactive UI
-    const result = await clack.select({
-      message: config.message,
-      options: config.options.map((opt) => ({
-        value: opt.value,
-        label: opt.label,
-        hint: opt.description
-      })),
-      initialValue: config.defaultValue
-    });
-
-    if (clack.isCancel(result)) {
-      clack.cancel('Operation cancelled');
-      throw new UserCancelledError();
-    }
-
-    return result as string;
-  }
-
-  private async promptSimpleText(config: {
-    message: string;
-    placeholder?: string;
-    isPassword?: boolean;
-    description?: string;
-    defaultValue?: string;
-  }): Promise<string> {
-    if (config.isPassword) {
-      const result = await clack.password({
+    const response = await prompts(
+      {
+        type: config.isPassword ? 'password' : 'text',
+        name: 'value',
         message: config.message,
-        mask: '*'
-      });
-
-      if (clack.isCancel(result)) {
-        clack.cancel('Operation cancelled');
-        throw new UserCancelledError();
+        initial: config.defaultValue,
+        ...(config.placeholder ? { placeholder: config.placeholder } : {})
+      },
+      {
+        onCancel: () => {
+          throw new UserCancelledError();
+        }
       }
+    );
 
-      const value = result as string;
-      if (value.trim().length === 0 && config.defaultValue !== undefined) {
-        return config.defaultValue;
-      }
-      return value;
-    }
+    this.printSpacer();
 
-    const result = await clack.text({
-      message: config.message,
-      placeholder: config.placeholder,
-      defaultValue: config.defaultValue
-    });
-
-    if (clack.isCancel(result)) {
-      clack.cancel('Operation cancelled');
-      throw new UserCancelledError();
-    }
-
-    return result as string;
+    return (response.value as string) || config.defaultValue || '';
   }
 
   private handleNonTTY<T>(message: string, defaultValue: T | undefined, formatDefault: () => string): T {
     if (defaultValue !== undefined) {
       console.info(`${this.colorize('cyan', 'ℹ')} ${message} ${this.colorize('cyan', formatDefault())} (default)`);
+      this.printSpacer();
       return defaultValue;
     }
     throw new Error(
@@ -201,6 +197,7 @@ export class PromptManager {
     if (defaultValue !== undefined) {
       const answer = defaultValue ? this.colorize('green', 'Yes') : this.colorize('red', 'No');
       console.info(`${this.colorize('cyan', 'ℹ')} ${message} ${answer} (default)`);
+      this.printSpacer();
       return defaultValue;
     }
     throw new Error(

@@ -244,13 +244,11 @@ export const commandPreviewChanges = async () => {
   if (isAgentMode()) {
     // Agent mode: plain structured output
     if (changes.length === 0) {
-      console.info('NO CHANGES DETECTED');
+      tuiManager.info('NO CHANGES DETECTED');
     } else {
-      console.info(`SUMMARY: ${added} new, ${removed} removed, ${modified} modified`);
+      tuiManager.info(`SUMMARY: ${added} new, ${removed} removed, ${modified} modified`);
       const lines = buildAgentChangesOutput(categorized);
-      for (const line of lines) {
-        console.info(line);
-      }
+      tuiManager.printLines(lines);
     }
   } else {
     // Human mode: colored output with decorations
@@ -261,15 +259,10 @@ export const commandPreviewChanges = async () => {
 
     if (changes.length > 0) {
       const lines = buildHumanChangesOutput(categorized);
-      console.info('');
-      for (const line of lines) {
-        console.info(line);
-      }
-      console.info('');
+      tuiManager.printLines(['', ...lines, '']);
     }
 
-    console.info(tuiManager.colorize('green', `✓ ${summary}`));
-    console.info(tuiManager.colorize('gray', '─'.repeat(54)));
+    tuiManager.printLines([tuiManager.colorize('green', `✓ ${summary}`), tuiManager.colorize('gray', '─'.repeat(54))]);
   }
 
   return { changes };

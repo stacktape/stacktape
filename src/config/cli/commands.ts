@@ -37,6 +37,7 @@ import {
   noCache,
   noTunnel,
   outFile,
+  outputFormat,
   paramName,
   preserveTempFiles,
   projectDirectory,
@@ -469,6 +470,8 @@ Alternative modes:
 - **Template:** Use \`--templateId\` to fetch a template from the Stacktape console.`,
     args: {
       logLevel: logLevel.optional(),
+      agent: agent.optional(),
+      outputFormat: outputFormat.optional(),
       starterId: starterId.optional(),
       starterProject: starterProject.optional(),
       projectDirectory: projectDirectory.optional(),
@@ -793,6 +796,7 @@ The command returns a new API key scoped to the newly created organization.`,
     args: {
       logLevel: logLevel.optional(),
       agent: agent.optional(),
+      outputFormat: outputFormat.optional(),
       organizationName: organizationName.optional()
     },
     requiredArgs: [] as const
@@ -804,7 +808,8 @@ The command returns a new API key scoped to the newly created organization.`,
 Shows organization name, role, number of connected AWS accounts, and whether it's the current organization for your API key.`,
     args: {
       logLevel: logLevel.optional(),
-      agent: agent.optional()
+      agent: agent.optional(),
+      outputFormat: outputFormat.optional()
     },
     requiredArgs: [] as const
   },
@@ -818,6 +823,7 @@ This operation is allowed only for organization OWNER and only when there are no
     args: {
       logLevel: logLevel.optional(),
       agent: agent.optional(),
+      outputFormat: outputFormat.optional(),
       organizationId: organizationId.optional()
     },
     requiredArgs: [] as const
@@ -830,6 +836,7 @@ If you omit --projectName in interactive mode, you'll be prompted for it. In age
     args: {
       logLevel: logLevel.optional(),
       agent: agent.optional(),
+      outputFormat: outputFormat.optional(),
       projectName: projectName.optional(),
       region: awsRegion.optional()
     },
@@ -842,7 +849,8 @@ If you omit --projectName in interactive mode, you'll be prompted for it. In age
 Shows each project with its stages, deployment status (in-progress, errored, etc.), and current/previous month costs. Useful for getting an overview of your deployments.`,
     args: {
       logLevel: logLevel.optional(),
-      agent: agent.optional()
+      agent: agent.optional(),
+      outputFormat: outputFormat.optional()
     },
     requiredArgs: [] as const
   },
@@ -853,7 +861,8 @@ Shows each project with its stages, deployment status (in-progress, errored, etc
 Use this command to verify your API key is configured correctly and to see what resources you have access to.`,
     args: {
       logLevel: logLevel.optional(),
-      agent: agent.optional()
+      agent: agent.optional(),
+      outputFormat: outputFormat.optional()
     },
     requiredArgs: [] as const
   },
@@ -867,7 +876,8 @@ Shows operation history including success/failure status, timestamps, and error 
       projectName: projectName.optional(),
       stage: stage.optional(),
       limit: limit.optional(),
-      agent: agent.optional()
+      agent: agent.optional(),
+      outputFormat: outputFormat.optional()
     },
     requiredArgs: [] as const
   },
@@ -887,7 +897,8 @@ You can identify the stack in two ways:
       stage: stage.optional(),
       region: awsRegion.optional(),
       awsAccount: awsAccount.optional(),
-      agent: agent.optional()
+      agent: agent.optional(),
+      outputFormat: outputFormat.optional()
     },
     requiredArgs: ['region'] as const
   },
@@ -898,6 +909,19 @@ You can identify the stack in two ways:
 The server communicates over stdio using the MCP protocol. It is spawned by MCP-compatible clients (Claude Code, Cursor, etc.) and provides tools for searching Stacktape docs, managing deployments, and debugging infrastructure.`,
     args: {
       logLevel: logLevel.optional()
+    },
+    requiredArgs: [] as const
+  },
+
+  'mcp:add': {
+    description: `Installs Stacktape MCP server config into popular coding-agent clients on this machine.
+
+Detects client config files (Claude Code, Codex, Cursor, VS Code/Copilot, OpenCode, Windsurf), then adds or updates a \`stacktape\` MCP server entry that runs \`stacktape mcp\`. Creates timestamped backups before modifying existing files.`,
+    args: {
+      logLevel: logLevel.optional(),
+      autoConfirmOperation: autoConfirmOperation.optional(),
+      agent: agent.optional(),
+      outputFormat: outputFormat.optional()
     },
     requiredArgs: [] as const
   }
@@ -916,6 +940,7 @@ export const cliCommands = Object.keys(commandDefinitions) as StacktapeCommand[]
 export const commandsWithDisabledAnnouncements: StacktapeCommand[] = [
   'dev',
   'mcp',
+  'mcp:add',
   'version',
   'upgrade',
   'info:whoami',
@@ -929,6 +954,7 @@ export const commandsNotRequiringApiKey: StacktapeCommand[] = [
   'login',
   'logout',
   'mcp',
+  'mcp:add',
   'version',
   'help',
   'defaults:list',

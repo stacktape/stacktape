@@ -1,4 +1,4 @@
-import { join } from 'node:path';
+import { basename, isAbsolute, join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
 import { tuiManager } from '@application-services/tui-manager';
@@ -6,8 +6,18 @@ import { IS_DEV } from '@config';
 import { stpErrors } from '@errors';
 import { outputFile } from 'fs-extra';
 import { getTypescriptConfig } from './utils';
+import { printInitPreflight } from '../utils/ui';
 
 export const initUsingExistingConfig = async () => {
+  const projectDirectory = globalStateManager.args.projectDirectory;
+  const cwd = projectDirectory
+    ? isAbsolute(projectDirectory)
+      ? projectDirectory
+      : join(process.cwd(), projectDirectory)
+    : process.cwd();
+  const projectName = basename(cwd);
+  printInitPreflight({ projectName, mode: 'template-import' });
+
   await stacktapeTrpcApiManager.init({ apiKey: globalStateManager.apiKey });
 
   const sourceCodePath = join(globalStateManager.workingDir, globalStateManager.args.projectDirectory || '');
@@ -39,6 +49,15 @@ export const initUsingExistingConfig = async () => {
   }
 
   await outputFile(templatePath, template.content);
-
-  tuiManager.success(`Template saved to ${tuiManager.prettyFilePath(templatePath)}.`);
+  tuiManager.printBox({
+    title: 'Configuration',
+    lines: [
+      `✓ Configuration generated to ${tuiManager.prettyFilePath(templatePath)}`,
+      '',
+      'Setup mode: Template import (no AI project analysis).',
+      '',
+      tuiManager.makeBold('Next steps:'),
+      `  ${tuiManager.prettyCommand('deploy --projectName {projectName} --stage {stage} --region {region}')}`
+    ]
+  });
 };

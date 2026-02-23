@@ -255,6 +255,22 @@ const parseAgentReady = (line: string): AgentReadyPayload | null => {
   }
 };
 
+const parseJsonlResult = (line: string): { ok: boolean; code: string; message: string } | null => {
+  try {
+    const parsed = JSON.parse(line);
+    if (parsed?.type === 'result') {
+      return {
+        ok: !!parsed.ok,
+        code: parsed.code || 'UNKNOWN_ERROR',
+        message: parsed.message || 'Child process failed'
+      };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+};
+
 /**
  * Detect if running as a compiled Bun binary (vs via `bun run script.ts`).
  * Compiled binaries have execPath pointing to the binary itself, not bun.
@@ -291,7 +307,7 @@ export const spawnAgentDaemon = async (args: {
     const child: ChildProcess = spawn(process.execPath, spawnArgs, {
       detached: true,
       stdio: ['ignore', 'pipe', 'pipe'],
-      env: { ...process.env, STACKTAPE_AGENT_DAEMON: '1' },
+      env: { ...process.env, STACKTAPE_AGENT_DAEMON: '1', STP_DISABLE_CONSOLE_INTERCEPT: 'true' },
       cwd: workingDir
     });
 
@@ -375,9 +391,15 @@ export const spawnAgentDaemon = async (args: {
           return;
         }
 
-        // Print non-empty lines to show progress (skip AGENT_READY line itself)
         if (trimmedLine && !trimmedLine.startsWith('AGENT_READY ')) {
-          console.log(line);
+          const childResult = parseJsonlResult(trimmedLine);
+          if (childResult && !childResult.ok && !resolved) {
+            resolved = true;
+            clearTimeout(timeout);
+            cleanup();
+            resolve({ success: false, error: `${childResult.code}: ${childResult.message}` });
+            return;
+          }
         }
       }
 
@@ -388,8 +410,11 @@ export const spawnAgentDaemon = async (args: {
     child.stderr?.on('data', (data: Buffer) => {
       const text = data.toString();
       stderrBuffer += text;
-      // Print stderr immediately so errors are visible
-      process.stderr.write(text);
+      for (const line of text.split(/\r?\n/)) {
+        if (line.trim()) {
+          console.error(line);
+        }
+      }
     });
   });
 };

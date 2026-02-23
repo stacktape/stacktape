@@ -118,6 +118,11 @@ const formatResourceList = (resources: string[], maxItems: number) => {
   return `${visible.join(', ')}${overflow > 0 ? ` +${overflow}` : ''}`;
 };
 
+type StackProgressUpdate = {
+  message: string;
+  detail?: import('@application-services/tui-manager/jsonl-types').JsonlEventDetail;
+};
+
 export class StackManager {
   callerIdentity: AwsCallerIdentity;
   existingStackDetails: StackDetails;
@@ -470,8 +475,12 @@ export class StackManager {
     });
     const { skipped } = await awsSdkManager.updateStack(templateUrl, stackParams);
     if (!skipped) {
-      const result = await this.monitorStack('update', stackParams.StackName, (message) => {
-        eventManager.updateEvent({ eventType: 'UPDATE_STACK', additionalMessage: message });
+      const result = await this.monitorStack('update', stackParams.StackName, (progress) => {
+        eventManager.updateEvent({
+          eventType: 'UPDATE_STACK',
+          additionalMessage: progress.message,
+          detail: progress.detail
+        });
       });
       if (stackParams.StackPolicyBody) {
         await awsSdkManager.setStackPolicy(stackParams);
@@ -505,8 +514,12 @@ export class StackManager {
     await awsSdkManager.deleteStack(this.#stackName, {
       roleArn
     });
-    const result = await this.monitorStack('delete', this.existingStackDetails.StackId, (message) =>
-      eventManager.updateEvent({ eventType: 'DELETE_STACK', additionalMessage: message })
+    const result = await this.monitorStack('delete', this.existingStackDetails.StackId, (progress) =>
+      eventManager.updateEvent({
+        eventType: 'DELETE_STACK',
+        additionalMessage: progress.message,
+        detail: progress.detail
+      })
     );
     await eventManager.finishEvent({ eventType: 'DELETE_STACK', data: {} });
     return result;
@@ -592,8 +605,12 @@ export class StackManager {
         resourcesToSkip
       });
     }
-    const result = await this.monitorStack('rollback', this.existingStackDetails.StackId, () =>
-      eventManager.updateEvent({ eventType: 'ROLLBACK_STACK' })
+    const result = await this.monitorStack('rollback', this.existingStackDetails.StackId, (progress) =>
+      eventManager.updateEvent({
+        eventType: 'ROLLBACK_STACK',
+        additionalMessage: progress.message,
+        detail: progress.detail
+      })
     );
     await eventManager.finishEvent({ eventType: 'ROLLBACK_STACK', data: {} });
     return result;
@@ -602,7 +619,7 @@ export class StackManager {
   monitorStack = async (
     cfStackAction: 'create' | 'update' | 'delete' | 'rollback',
     stackId: string,
-    onProgress: (message: string) => any
+    onProgress: (progress: StackProgressUpdate) => any
   ): Promise<{ warningMessages?: string[] }> => {
     const handledEvents: string[] = [];
     const potentialErrorCausingEvents: { [logicalResourceId: string]: StackEvent } = {};
@@ -719,7 +736,27 @@ export class StackManager {
           : completeResources.size;
         const totalPlanned = plannedSet?.size || resourcesToHandleCount;
         const percent = totalPlanned > 0 ? Math.round((completedCount / totalPlanned) * 100) : 0;
-        onProgress(`${completedCount}/${totalPlanned} resources (${percent}%)`);
+        const activeResources = plannedSet
+          ? Array.from(inProgressResources).filter((name) => plannedSet.has(name))
+          : Array.from(inProgressResources);
+        const activePart = activeResources.length > 0 ? ` | updating: ${formatResourceList(activeResources, 3)}` : '';
+        const changeSummaryPart = ` | changes: +${changeSummary.counts.created} ~${changeSummary.counts.updated} -${changeSummary.counts.deleted}`;
+        onProgress({
+          message: `${completedCount}/${totalPlanned} resources (${percent}%)${activePart}${changeSummaryPart}`,
+          detail: {
+            kind: 'cloudformation-progress',
+            stackAction: cfStackAction,
+            completedCount,
+            totalPlanned,
+            percent,
+            inProgressResources: activeResources,
+            changeCounts: {
+              created: changeSummary.counts.created,
+              updated: changeSummary.counts.updated,
+              deleted: changeSummary.counts.deleted
+            }
+          }
+        });
         return;
       }
 
@@ -737,7 +774,21 @@ export class StackManager {
         // Include summary/details even during cleanup so TUI can show accurate counts
         const summaryPart = `Summary: created=${changeSummary.counts.created} updated=${changeSummary.counts.updated} deleted=${changeSummary.counts.deleted}`;
         const detailsPart = `Details: created=${changeSummary.lists.created.join(', ') || 'none'}; updated=${changeSummary.lists.updated.join(', ') || 'none'}; deleted=${changeSummary.lists.deleted.join(', ') || 'none'}.`;
-        onProgress(`${progressMessage} ${summaryPart} ${detailsPart}`);
+        onProgress({
+          message: `${progressMessage} ${summaryPart} ${detailsPart}`,
+          detail: {
+            kind: 'cloudformation-progress',
+            stackAction: cfStackAction,
+            status: 'cleanup',
+            completedCount: completedAmount,
+            inProgressCount: inProgressAmount,
+            changeCounts: {
+              created: changeSummary.counts.created,
+              updated: changeSummary.counts.updated,
+              deleted: changeSummary.counts.deleted
+            }
+          }
+        });
         return;
       }
 
@@ -817,7 +868,24 @@ export class StackManager {
         progressParts.push(`Estimate: ~${remainingPercent === 100 ? '<1' : 100 - remainingPercent}%`);
       }
       const progressMessage = progressParts.join('. ');
-      onProgress(`${progressMessage}.${changesPart ? ` ${changesPart}` : ''} ${summaryPart} ${detailsPart}`.trim());
+      onProgress({
+        message: `${progressMessage}.${changesPart ? ` ${changesPart}` : ''} ${summaryPart} ${detailsPart}`.trim(),
+        detail: {
+          kind: 'cloudformation-progress',
+          stackAction: cfStackAction,
+          status: 'active',
+          completedCount,
+          totalPlanned,
+          inProgressCount,
+          inProgressResources: activeResources,
+          waitingResources: waitingCandidates,
+          changeCounts: {
+            created: changeSummary.counts.created,
+            updated: changeSummary.counts.updated,
+            deleted: changeSummary.counts.deleted
+          }
+        }
+      });
     };
 
     const { warningMessages }: { warningMessages?: string[] } = await new Promise((resolve, reject) => {
@@ -887,6 +955,7 @@ export class StackManager {
           // if there are no new events, check stack details as fallback to detect if operation completed
           // this is critical - without this check, the monitoring could hang indefinitely if completion events are missed
           if (!stackEvents.length) {
+            if (lastStackActionTimestamp) handleProgress();
             const stackDetails = stackDetailsFromBatch || (await awsSdkManager.getStackDetails(stackId));
             if (
               this.#stackStatusSignalsStackOperationSuccess({
@@ -949,6 +1018,7 @@ export class StackManager {
                   cfStackAction
                 })
               ) {
+                handleProgress();
                 return afterStackOperationSuccess();
               }
               // if event signals that desired stack operation failed
@@ -963,6 +1033,7 @@ export class StackManager {
                 if (!Object.keys(potentialErrorCausingEvents).length) {
                   potentialErrorCausingEvents[LogicalResourceId] = event;
                 }
+                handleProgress();
                 return afterStackOperationFailure();
               }
               // if we are performing update and cleanup is happening after successful update
@@ -1003,6 +1074,7 @@ export class StackManager {
             }
             handledEvents.push(event.EventId);
           }
+          handleProgress();
           // additional checking for stack status from stack details
           // if we somehow missed a cloudformation event signaling stack operation end, then operation might be hanging
           if (
@@ -1021,7 +1093,6 @@ export class StackManager {
           ) {
             return afterStackOperationFailure();
           }
-          handleProgress();
           // Check if we should show the cancel banner (ECS task failed)
           showCancelBannerIfNeeded(resolve);
         } catch (err) {

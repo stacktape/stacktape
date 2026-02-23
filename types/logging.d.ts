@@ -110,6 +110,8 @@ type ChildEventLogEntry = import('../src/app/event-manager/event-log').ChildEven
 type EventManagerProgressEvent = {
   eventType: LoggableEventType;
   data?: Record<string, any>;
+  /** Typed JSONL event metadata (e.g. CloudFormation resource counts). */
+  detail?: import('../src/app/tui-manager/jsonl-types').JsonlEventDetail;
   skipPrint?: boolean;
   additionalMessage?: string;
   description?: string;

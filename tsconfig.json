@@ -1,6 +1,7 @@
 {
   "compilerOptions": {
     "target": "ES6",
+    "jsx": "react-jsx",
     "lib": ["es2021"],
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,

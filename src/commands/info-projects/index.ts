@@ -37,7 +37,7 @@ export const commandInfoProjects = async () => {
     });
 
     tuiManager.printTable({ header: summaryHeader, rows: summaryRows });
-    console.info('');
+    tuiManager.printLines(['']);
   }
 
   tuiManager.printProjects({ projects: sortedProjects });

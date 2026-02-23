@@ -58,20 +58,60 @@ import { commandSecretGet } from './commands/secret-get';
 
 import { commandInfoStacks } from './commands/info-stacks';
 import { commandMcp } from './commands/mcp';
+import { commandMcpAdd } from './commands/mcp-add';
 import { commandUpgrade } from './commands/upgrade';
 import { commandVersion } from './commands/version';
 import { initAgentMode } from './commands/_utils/agent-mode';
 
-/** Commands that use the full phase-based TUI (deploy progress, phases, etc.) */
-const commandsWithPhaseTui: StacktapeCommand[] = [
-  'deploy',
-  'delete',
-  'codebuild:deploy',
-  'script:run',
-  'deployment-script:run'
+/** Commands where the phase-based TUI should NOT be started (purely interactive/informational, or with own TUI). */
+const commandsWithoutTui: StacktapeCommand[] = [
+  'dev',
+  'dev:stop',
+  'help',
+  'version',
+  'login',
+  'logout',
+  'upgrade',
+  'init',
+  'compile-template',
+  'defaults:configure',
+  'defaults:list',
+  'aws-profile:create',
+  'aws-profile:delete',
+  'aws-profile:update',
+  'aws-profile:list',
+  'org:create',
+  'org:list',
+  'org:delete',
+  'project:create',
+  'projects:list',
+  'info:whoami',
+  'info:operations',
+  'info:stacks',
+  'mcp',
+  'mcp:add',
+  'param:get',
+  'secret:create',
+  'secret:delete',
+  'secret:get',
+  'debug:logs',
+  'debug:alarms',
+  'debug:metrics',
+  'debug:container-exec',
+  'debug:sql',
+  'debug:aws-sdk',
+  'debug:dynamodb',
+  'debug:redis',
+  'debug:opensearch',
+  'bastion:session',
+  'bastion:tunnel',
+  'container:session',
+  'domain:add',
+  'cf-module:update'
 ];
 
 export const runCommand = async (opts: StacktapeProgrammaticOptions) => {
+  let commandResult: any = null;
   try {
     initializeSentry();
     await applicationManager.init();
@@ -84,18 +124,18 @@ export const runCommand = async (opts: StacktapeProgrammaticOptions) => {
     tuiManager.init({ logLevel: globalStateManager.logLevel });
     // Initialize agent mode (sets non-TTY output for spinners)
     initAgentMode();
-    // Only start phase-based TUI for deploy/delete commands
-    if (commandsWithPhaseTui.includes(globalStateManager.command)) {
+    // Start TUI for all commands except purely interactive/informational ones
+    if (!commandsWithoutTui.includes(globalStateManager.command)) {
       tuiManager.start();
-    }
-
-    // Use simple mode (no phase headers, no indentation) for script commands
-    if (['script:run', 'deployment-script:run'].includes(globalStateManager.command)) {
-      tuiManager.setSimpleMode(true);
+      // Commands with multi-phase flows get phase headers; everything else uses simple mode
+      const commandsWithPhaseFlow: StacktapeCommand[] = ['deploy', 'delete', 'codebuild:deploy'];
+      if (!commandsWithPhaseFlow.includes(globalStateManager.command)) {
+        tuiManager.setSimpleMode(true);
+      }
     }
 
     const executor = getCommandExecutor(globalStateManager.command);
-    await executor();
+    commandResult = await executor();
     await eventManager.processHooks({ captureType: 'FINISH' });
 
     // Commit pending completion (from setPendingCompletion) before stopping
@@ -106,20 +146,47 @@ export const runCommand = async (opts: StacktapeProgrammaticOptions) => {
     await tuiManager.stop();
 
     await applicationManager.cleanUpAfterSuccess();
-    if (!commandsWithDisabledAnnouncements.includes(globalStateManager.command)) {
+    if (!commandsWithDisabledAnnouncements.includes(globalStateManager.command) && tuiManager.mode !== 'jsonl') {
       await announcementsManager.checkForUpdates();
       await announcementsManager.printAnnouncements();
     }
+
+    tuiManager.emitJsonlResult({
+      ok: true,
+      code: 'OK',
+      message: `${globalStateManager.command} completed`,
+      ...(commandResult !== undefined ? { data: { result: commandResult } } : {})
+    });
   } catch (err) {
     if (applicationManager.isInterrupted) {
+      tuiManager.emitJsonlResult({
+        ok: false,
+        code: 'USER_INTERRUPTION',
+        message: 'Operation interrupted by user'
+      });
       return;
     }
     const returnableError = await applicationManager.handleError(err);
     if (applicationManager.isInterrupted || !returnableError) {
+      tuiManager.emitJsonlResult({
+        ok: false,
+        code: 'USER_INTERRUPTION',
+        message: 'Operation interrupted by user'
+      });
       return;
     }
     await notificationManager.reportError(returnableError.stack);
     await tuiManager.stop();
+    const errorDetails = (returnableError as any).details || {};
+    tuiManager.emitJsonlResult({
+      ok: false,
+      code: errorDetails.errorType || 'INTERNAL_ERROR',
+      message: returnableError.message || 'Command failed',
+      data: {
+        ...(errorDetails.errorId ? { errorId: errorDetails.errorId } : {}),
+        ...(errorDetails.hints ? { hints: errorDetails.hints } : {})
+      }
+    });
     throw returnableError;
   }
 };
@@ -178,7 +245,8 @@ const getCommandExecutor = (command: StacktapeCommand) => {
     'info:whoami': commandInfoWhoami,
     'info:operations': commandInfoOperations,
     'info:stack': commandInfoStack,
-    mcp: commandMcp
+    mcp: commandMcp,
+    'mcp:add': commandMcpAdd
   };
   return commandMap[command];
 };

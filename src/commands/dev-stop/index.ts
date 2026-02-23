@@ -1,4 +1,5 @@
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { getAllRunningAgents, stopRunningAgent } from '../dev/agent-daemon';
 import { cleanupOrphanedContainers } from '../dev/cleanup-utils';
 
@@ -12,12 +13,12 @@ export const commandDevStop = async () => {
 
   // Handle --cleanupContainers flag
   if (shouldCleanupContainers) {
-    console.log('Cleaning up orphaned Stacktape dev containers...');
+    tuiManager.info('Cleaning up orphaned Stacktape dev containers...');
     const cleaned = await cleanupOrphanedContainers();
     if (cleaned.length > 0) {
-      console.log(`Removed ${cleaned.length} container(s): ${cleaned.join(', ')}`);
+      tuiManager.success(`Removed ${cleaned.length} container(s): ${cleaned.join(', ')}`);
     } else {
-      console.log('No orphaned containers found.');
+      tuiManager.info('No orphaned containers found.');
     }
     // If only cleanup was requested (no agent stop), we're done
     if (!agentPortArg) {
@@ -47,13 +48,13 @@ export const commandDevStop = async () => {
           workloads: [],
           databases: []
         };
-        console.log(`Stopping dev agent on port ${port}...`);
+        tuiManager.info(`Stopping dev agent on port ${port}...`);
         const stopped = await stopRunningAgent(agent);
         if (stopped) {
-          console.log('Dev agent stopped.');
+          tuiManager.success('Dev agent stopped.');
           return true;
         } else {
-          console.error('Failed to stop dev agent.');
+          tuiManager.error('Failed to stop dev agent.');
           return false;
         }
       }
@@ -67,7 +68,7 @@ export const commandDevStop = async () => {
   if (agentPortArg) {
     const stopped = await stopAgentOnPort(agentPortArg);
     if (!stopped) {
-      console.log(`No dev agent found on port ${agentPortArg}.`);
+      tuiManager.warn(`No dev agent found on port ${agentPortArg}.`);
       process.exit(1);
     }
     return;
@@ -79,12 +80,12 @@ export const commandDevStop = async () => {
   if (allAgents.length === 1) {
     // Single agent from lock file - stop it
     const agent = allAgents[0];
-    console.log(`Stopping dev agent: ${agent.projectName}/${agent.stage} (port ${agent.port})...`);
+    tuiManager.info(`Stopping dev agent: ${agent.projectName}/${agent.stage} (port ${agent.port})...`);
     const stopped = await stopRunningAgent(agent);
     if (stopped) {
-      console.log('Dev agent stopped.');
+      tuiManager.success('Dev agent stopped.');
     } else {
-      console.error('Failed to stop dev agent.');
+      tuiManager.error('Failed to stop dev agent.');
       process.exit(1);
     }
     return;
@@ -92,21 +93,21 @@ export const commandDevStop = async () => {
 
   if (allAgents.length > 1) {
     // Multiple agents - list them and ask user to be specific
-    console.log('Multiple dev agents running:');
+    tuiManager.info('Multiple dev agents running:');
     for (const agent of allAgents) {
-      console.log(`  - ${agent.projectName}/${agent.stage} on port ${agent.port}`);
+      tuiManager.info(`  - ${agent.projectName}/${agent.stage} on port ${agent.port}`);
     }
-    console.log('');
-    console.log('To stop a specific agent, use: dev:stop --agentPort <port>');
+    tuiManager.printLines(['']);
+    tuiManager.info('To stop a specific agent, use: dev:stop --agentPort <port>');
     return;
   }
 
   // No lock files found - try default port as fallback
-  console.log('No lock files found, trying default port 7331...');
+  tuiManager.info('No lock files found, trying default port 7331...');
   const stopped = await stopAgentOnPort(7331);
   if (!stopped) {
-    console.log('No running dev agents found.');
-    console.log('');
-    console.log('If the agent is running on a different port, use: dev:stop --agentPort <port>');
+    tuiManager.info('No running dev agents found.');
+    tuiManager.printLines(['']);
+    tuiManager.info('If the agent is running on a different port, use: dev:stop --agentPort <port>');
   }
 };

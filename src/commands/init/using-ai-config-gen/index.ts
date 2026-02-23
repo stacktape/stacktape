@@ -1,9 +1,22 @@
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { configGenManager, getPhaseDisplayName, type ConfigGenPhaseInfo } from '@utils/config-gen';
-import { publicApiClient, type ProductionReadiness, type StackPriceEstimationResponse } from '@shared/trpc/public';
+import {
+  publicApiClient,
+  type ProductionReadiness,
+  type StackPriceEstimationResponse
+} from '@shared/trpc/public';
 import { stringify } from 'yaml';
 import { basename, relative, join, isAbsolute } from 'node:path';
+import {
+  appendResourceRows,
+  countUnsetEnvVarsInConfig,
+  formatPrice,
+  formatResourceType,
+  getResourceCostLabel,
+  summarizeDeployableUnits
+} from '../utils/output-formatting';
+import { printInitPreflight, promptConfigFormat } from '../utils/ui';
 import color from 'picocolors';
 
 type TuiState = {
@@ -23,62 +36,6 @@ type InitUsingAiConfigGenOptions = {
   infrastructureType?: ProductionReadiness;
 };
 
-const formatPrice = (price: number): string => {
-  if (price < 0.01) return color.green('<$0.01');
-  if (price < 1) return color.green(`$${price.toFixed(2)}`);
-  return color.yellow(`$${price.toFixed(2)}`);
-};
-
-const formatResourceType = (type: string, resource: any): string => {
-  if (type === 'relational-database') {
-    const engineType = resource?.properties?.engine?.type;
-    if (engineType?.includes('postgres')) return 'Relational database (Postgres)';
-    if (engineType?.includes('mysql')) return 'Relational database (MySQL)';
-    return 'Relational database';
-  }
-
-  if (type === 'hosting-bucket') {
-    const contentType = resource?.properties?.hostingContentType;
-    if (contentType === 'single-page-app') return 'Hosting bucket (SPA)';
-    if (contentType === 'gatsby-static-website') return 'Hosting bucket (Gatsby)';
-    if (contentType === 'static-website') return 'Hosting bucket (Static)';
-    return 'Hosting bucket';
-  }
-
-  const typeLabels: Record<string, string> = {
-    'web-service': 'Web service',
-    'worker-service': 'Worker service',
-    function: 'Function',
-    'nextjs-web': 'Next.js web',
-    'astro-web': 'Astro web',
-    'nuxt-web': 'Nuxt web',
-    'sveltekit-web': 'SvelteKit web',
-    'solidstart-web': 'SolidStart web',
-    'tanstack-web': 'TanStack web',
-    'remix-web': 'Remix web',
-    'redis-cluster': 'Redis cluster',
-    'dynamo-db-table': 'DynamoDB table',
-    'mongo-db-atlas-cluster': 'MongoDB Atlas cluster',
-    'open-search-domain': 'OpenSearch domain',
-    bucket: 'S3 bucket',
-    'sqs-queue': 'SQS queue',
-    'sns-topic': 'SNS topic',
-    bastion: 'Bastion',
-    'web-app-firewall': 'Web application firewall'
-  };
-
-  return typeLabels[type] || type;
-};
-
-const getResourceCostLabel = (costInfo?: { priceInfo: { totalMonthlyFlat: number; costBreakdown: any[] } }): string => {
-  if (!costInfo) return color.dim('-');
-  const monthly = costInfo.priceInfo.totalMonthlyFlat;
-  if (monthly > 0) return `~${formatPrice(monthly)}/mo`;
-  const hasPayPerUse = costInfo.priceInfo.costBreakdown.some((item: any) => item.priceModel === 'pay-per-use');
-  if (hasPayPerUse) return color.dim('pay-per-use');
-  return color.dim('-');
-};
-
 export const initUsingAiConfigGen = async (options: InitUsingAiConfigGenOptions = {}): Promise<void> => {
   const projectDirectory = globalStateManager.args.projectDirectory;
   const cwd = projectDirectory
@@ -91,8 +48,7 @@ export const initUsingAiConfigGen = async (options: InitUsingAiConfigGenOptions 
 
   const projectName = basename(cwd);
 
-  tuiManager.info(`Generating Stacktape configuration for ${tuiManager.makeBold(projectName)}...`);
-  tuiManager.info('');
+  printInitPreflight({ projectName, mode: 'ai-analysis' });
 
   // Check if config already exists
   const existingConfig = await configGenManager.configFileExists();
@@ -146,9 +102,9 @@ export const initUsingAiConfigGen = async (options: InitUsingAiConfigGenOptions 
 
     if (isTTY && (phaseChanged || filesChanged)) {
       const detail = filesChanged && tuiState.filesToRead > 0 ? ` (${tuiState.filesRead}/${tuiState.filesToRead})` : '';
-      console.info(`${tuiManager.colorize('cyan', '›')} ${tuiState.phase}: ${tuiState.message}${detail}`);
+      tuiManager.info(`${tuiManager.colorize('cyan', '›')} ${tuiState.phase}: ${tuiState.message}${detail}`);
     } else if (!isTTY) {
-      console.info(`  ${info.message}`);
+      tuiManager.info(`  ${info.message}`);
     }
 
     if (phaseChanged) lastPhase = tuiState.phase;
@@ -162,21 +118,21 @@ export const initUsingAiConfigGen = async (options: InitUsingAiConfigGenOptions 
 
     tuiState = { ...tuiState, completed: true, success: true };
     if (isTTY) {
-      console.info(tuiManager.colorize('green', '✓ Configuration generated'));
+      tuiManager.info(tuiManager.colorize('green', '✓ Configuration generated'));
     }
 
     // Estimate costs before showing results
     let costEstimation: StackPriceEstimationResponse | null = null;
     try {
-      if (isTTY) console.info(`${tuiManager.colorize('cyan', '›')} Estimating monthly costs...`);
+      if (isTTY) tuiManager.info(`${tuiManager.colorize('cyan', '›')} Estimating monthly costs...`);
       const configYaml = stringify(result.config);
       const costResult = await publicApiClient.stackPriceEstimation({ stackConfig: configYaml });
       if (costResult.success && costResult.costs) {
         costEstimation = costResult;
       }
-      if (isTTY) console.info(tuiManager.colorize('green', '✓ Cost estimation complete'));
+      if (isTTY) tuiManager.info(tuiManager.colorize('green', '✓ Cost estimation complete'));
     } catch {
-      if (isTTY) console.info(color.dim('  Cost estimation unavailable'));
+      if (isTTY) tuiManager.info(color.dim('  Cost estimation unavailable'));
     }
 
     // Determine config format
@@ -185,31 +141,25 @@ export const initUsingAiConfigGen = async (options: InitUsingAiConfigGenOptions 
       format = options.configFormat;
       tuiManager.info(`Using ${format === 'typescript' ? 'TypeScript' : 'YAML'} format (from --configFormat)`);
     } else {
-      format = (await tuiManager.promptSelect({
-        message: 'Choose config format:',
-        options: [
-          {
-            label: 'TypeScript (stacktape.ts)',
-            description: 'Type-safe configuration with IDE autocompletion',
-            value: 'typescript'
-          },
-          {
-            label: 'YAML (stacktape.yml)',
-            description: 'Simple, declarative configuration',
-            value: 'yaml'
-          }
-        ]
-      })) as 'yaml' | 'typescript';
+      format = await promptConfigFormat({ message: 'Config format:' });
     }
 
     const outputPath = await configGenManager.writeConfig(result.config, format);
     const relativePath = relative(cwd, outputPath);
 
-    // Show unified resources table with costs
-    tuiManager.info('');
+    const analyzedFilesSummary =
+      tuiState.filesToRead > 0
+        ? `${tuiState.filesToRead} selected files${
+            tuiState.totalFiles > 0 ? ` (from ${tuiState.totalFiles} scanned)` : ''
+          }`
+        : 'selected files';
+    tuiManager.info(`${color.dim('Analyzed')} ${tuiManager.makeBold(analyzedFilesSummary)}`);
+
     const costBreakdown = costEstimation?.costs?.resourcesBreakdown || {};
     const hasCosts = costEstimation?.costs != null;
     const configResources = result.config.resources || {};
+    const architectureSummary = summarizeDeployableUnits(result.deployableUnits || []);
+    const unresolvedEnvVars = countUnsetEnvVarsInConfig(result.config);
 
     type ResourceRow = { name: string; type: string; cost: string };
     const rows: ResourceRow[] = [];
@@ -222,36 +172,40 @@ export const initUsingAiConfigGen = async (options: InitUsingAiConfigGenOptions 
       rows.push({ name: resourceName, type: friendlyType, cost: getResourceCostLabel(costInfo) });
     }
 
-    if (rows.length > 0) {
-      const header = hasCosts
-        ? [tuiManager.makeBold('Resource'), tuiManager.makeBold('Type'), tuiManager.makeBold('Est. Cost')]
-        : [tuiManager.makeBold('Resource'), tuiManager.makeBold('Type')];
-      const tableRows = rows.map((r) =>
-        hasCosts ? [tuiManager.makeBold(r.name), r.type, r.cost] : [tuiManager.makeBold(r.name), r.type]
-      );
+    const lines: string[] = [];
+    lines.push(`${color.green('✓')} Configuration generated at ${tuiManager.prettyFilePath(relativePath)}\n`);
 
-      tuiManager.printTable({ header, rows: tableRows });
-
-      if (hasCosts && costEstimation!.costs) {
-        const { flatMonthlyCost } = costEstimation!.costs;
-        if (flatMonthlyCost > 0) {
-          tuiManager.info(`${tuiManager.makeBold('Estimated total:')} ~${formatPrice(flatMonthlyCost)}/mo`);
-        } else {
-          tuiManager.info(
-            `${tuiManager.makeBold('Estimated total:')} ${color.green('$0')} ${color.dim('(pay-per-use only)')}`
-          );
-        }
-        tuiManager.info(color.dim('Actual costs depend on usage.'));
-      }
+    if (architectureSummary.length > 0) {
+      lines.push(tuiManager.makeBold('Detected architecture:'));
+      lines.push(`  ${architectureSummary.join(color.dim(' + '))}`);
+      lines.push('');
     }
 
-    tuiManager.info('');
-    tuiManager.success(`Configuration written to ${tuiManager.prettyFilePath(relativePath)}`);
-    tuiManager.info(`
-Next steps:
-  1. Review the generated configuration
-  2. Run ${tuiManager.prettyCommand('deploy --stage dev --region us-east-1')} to deploy
-`);
+    appendResourceRows({
+      lines,
+      heading: 'Identified resources:',
+      rows,
+      hasCosts,
+      makeBold: tuiManager.makeBold.bind(tuiManager)
+    });
+
+    if (hasCosts && costEstimation?.costs) {
+      lines.push(`\n${color.dim('Estimated total costs:')} ~${formatPrice(costEstimation.costs.flatMonthlyCost || 0)}/mo + pay-per-use costs`);
+    }
+
+    if (unresolvedEnvVars > 0) {
+      lines.push('');
+      lines.push(
+        `${color.yellow('▲')} Review the generated configuration and configure environment variables with TODO placeholder.`
+      );
+    }
+
+    lines.push('');
+    lines.push(tuiManager.makeBold('Next steps:'));
+    lines.push(`  ${tuiManager.prettyCommand('dev --projectName ' + projectName + ' --stage {stage} --region {region}')}`);
+    lines.push(`  ${tuiManager.prettyCommand('deploy --projectName ' + projectName + ' --stage {stage} --region {region}')}`);
+
+    tuiManager.printBox({ title: 'Configuration', lines });
   } catch (error) {
     tuiState = {
       ...tuiState,

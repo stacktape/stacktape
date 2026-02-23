@@ -5,8 +5,20 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { configGenManager, getPhaseDisplayName, type ConfigGenPhaseInfo } from '@utils/config-gen';
 import { getLockFileData } from '@shared/packaging/bundlers/es/utils';
-import { publicApiClient, type ProductionReadiness, type StackPriceEstimationResponse } from '@shared/trpc/public';
-import { intro, outro, log, spinner as clackSpinner, note as clackNote, S_BAR } from '@clack/prompts';
+import {
+  publicApiClient,
+  type CliConfigGenDeployableUnit,
+  type ProductionReadiness,
+  type StackPriceEstimationResponse
+} from '@shared/trpc/public';
+import {
+  appendResourceRows,
+  countUnsetEnvVarsInConfig,
+  formatPrice,
+  formatResourceType,
+  getResourceCostLabel
+} from '../utils/output-formatting';
+import { printInitPreflight, promptConfigFormat } from '../utils/ui';
 import color from 'picocolors';
 import { detectGitInfo, type GitInfo } from '../utils/git-detection';
 import { detectConfigFormat, type ConfigFormat } from '../utils/config-format-detection';
@@ -18,7 +30,7 @@ export type WizardState = {
   infrastructureType: ProductionReadiness;
   gitInfo: GitInfo;
   config: StacktapeConfig | null;
-  deployableUnits: any[];
+  deployableUnits: CliConfigGenDeployableUnit[];
   requiredResources: any[];
   configPath: string | null;
 };
@@ -49,12 +61,7 @@ export const runInitWizard = async (): Promise<void> => {
     configPath: null
   };
 
-  intro(`Initializing project - ${tuiManager.makeBold(projectName)}`);
-
-  log.message('Stacktape will analyze your project and generate a deployment configuration.', {
-    withGuide: true,
-    symbol: color.cyan('i')
-  });
+  printInitPreflight({ projectName, mode: 'ai-analysis' });
 
   // Detect git info and config format in background
   state.gitInfo = detectGitInfo(cwd);
@@ -72,29 +79,13 @@ export const runInitWizard = async (): Promise<void> => {
       defaultValue: false
     });
     if (!shouldOverwrite) {
-      outro('Init cancelled.');
+      tuiManager.outro('Init cancelled.');
       return;
     }
   }
 
   // Ask for config format
-  const formatChoice = await tuiManager.promptSelect({
-    message: 'Config format:',
-    options: [
-      {
-        label: state.configFormat === 'typescript' ? 'TypeScript (Recommended)' : 'TypeScript',
-        value: 'typescript',
-        description: 'Type-safe with IDE autocompletion'
-      },
-      {
-        label: state.configFormat === 'yaml' ? 'YAML (Recommended)' : 'YAML',
-        value: 'yaml',
-        description: 'Simple declarative format'
-      }
-    ],
-    defaultValue: state.configFormat
-  });
-  state.configFormat = formatChoice as ConfigFormat;
+  state.configFormat = (await promptConfigFormat({ defaultValue: state.configFormat })) as ConfigFormat;
 
   // Ask for infrastructure type (or use CLI arg)
   const cliInfraType = globalStateManager.args.infrastructureType as ProductionReadiness | undefined;
@@ -136,8 +127,18 @@ export const runInitWizard = async (): Promise<void> => {
     state.config = result.config;
     state.deployableUnits = result.deployableUnits;
     state.requiredResources = result.requiredResources;
+
+    tuiManager.info(
+      `${color.dim('Analyzed')} ${tuiManager.makeBold(String(result.summary.selectedFiles))} ${color.dim(
+        'selected files'
+      )}${
+        result.summary.totalFilesScanned > 0
+          ? ` ${color.dim(`(from ${result.summary.totalFilesScanned} scanned)`)}`
+          : ''
+      }`
+    );
   } catch (error) {
-    log.error(`Config generation failed: ${error instanceof Error ? error.message : error}`);
+    tuiManager.warn(`Config generation failed: ${error instanceof Error ? error.message : error}`);
     return;
   }
 
@@ -147,7 +148,6 @@ export const runInitWizard = async (): Promise<void> => {
   state.configPath = await configGenManager.writeConfig(state.config!, state.configFormat);
   const relativeConfigPath = relative(process.cwd(), state.configPath) || state.configPath;
 
-  console.info(color.gray(S_BAR));
   displayResult(state, costEstimation, relativeConfigPath);
 };
 
@@ -155,6 +155,7 @@ const displayResult = (state: WizardState, costEstimation: StackPriceEstimationR
   const costBreakdown = costEstimation?.costs?.resourcesBreakdown || {};
   const hasCosts = costEstimation?.costs != null;
   const configResources = state.config?.resources || {};
+  const unresolvedEnvVars = state.config ? countUnsetEnvVarsInConfig(state.config) : 0;
 
   type ResourceRow = { name: string; type: string; cost: string };
   const rows: ResourceRow[] = [];
@@ -170,31 +171,29 @@ const displayResult = (state: WizardState, costEstimation: StackPriceEstimationR
 
   const lines: string[] = [];
 
-  lines.push(`${color.green('✓')} Configuration successfully generated to ${tuiManager.prettyFilePath(configPath)}\n`);
+  lines.push(`${color.green('✓')} Configuration generated to ${tuiManager.prettyFilePath(configPath)}\n`);
 
-  // Resource table
-  if (rows.length) {
-    lines.push(tuiManager.makeBold('Identified resources:'));
-    const nameWidth = Math.max(...rows.map((r) => stripAnsi(r.name).length));
-    const typeWidth = Math.max(...rows.map((r) => stripAnsi(r.type).length));
-    for (const row of rows) {
-      const namePad = ' '.repeat(Math.max(0, nameWidth - stripAnsi(row.name).length));
-      const typePad = ' '.repeat(Math.max(0, typeWidth - stripAnsi(row.type).length));
-      const line = hasCosts
-        ? `  ${tuiManager.makeBold(row.name)}${namePad}  ${row.type}${typePad}  ${row.cost}`
-        : `  ${tuiManager.makeBold(row.name)}${namePad}  ${row.type}`;
-      lines.push(line);
-    }
-  }
+  appendResourceRows({
+    lines,
+    heading: 'Identified resources:',
+    rows,
+    hasCosts,
+    makeBold: tuiManager.makeBold.bind(tuiManager)
+  });
 
-  // Total cost
   if (hasCosts && costEstimation.costs) {
     const { flatMonthlyCost } = costEstimation.costs;
     lines.push(`\n${color.dim('Estimated total costs:')} ~${formatPrice(flatMonthlyCost || 0)}/mo + pay-per-use costs`);
   }
 
+  if (unresolvedEnvVars > 0) {
+    lines.push('');
+    lines.push(
+      `${color.yellow('▲')} Review the generated configuration and configure environment variables with TODO placeholder.`
+    );
+  }
+
   const options = `--projectName ${state.projectName} --stage {stage} --region {region}`;
-  // Next steps
   lines.push('');
   lines.push(
     tuiManager.makeBold(`Run hybrid-local dev mode ${color.dim('(deploys minimal, free dev stack to AWS)')}:`)
@@ -203,7 +202,7 @@ const displayResult = (state: WizardState, costEstimation: StackPriceEstimationR
   lines.push(tuiManager.makeBold('Deploy to AWS:'));
   lines.push(`  ${tuiManager.prettyCommand(`deploy ${options}`)}`);
 
-  clackNote(lines.join('\n'), 'Configuration', { format: (line: string) => line });
+  tuiManager.printBox({ title: 'Configuration', lines });
 };
 
 const fetchCostEstimate = async (config: StacktapeConfig): Promise<StackPriceEstimationResponse | null> => {
@@ -219,24 +218,14 @@ const fetchCostEstimate = async (config: StacktapeConfig): Promise<StackPriceEst
   }
 };
 
-const formatPrice = (price: number): string => {
-  if (price < 0.01) return color.green('<$0.01');
-  if (price < 1) return color.green(`$${price.toFixed(2)}`);
-  return color.yellow(`$${price.toFixed(2)}`);
-};
-
-// Braille spinner frames (same as tuiManager MultiSpinner)
-const SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
-
-// Spinner options with cyan color
-const SPINNER_OPTIONS = { frames: SPINNER_FRAMES, delay: 80, styleFrame: (frame: string) => color.cyan(frame) };
-
 /**
  * Runs the AI config generation with separate spinner for each phase
  */
 const runConfigGenerationWithSteps = async (productionReadiness?: ProductionReadiness) => {
-  let currentSpinner: ReturnType<typeof clackSpinner> | null = null;
+  let currentSpinner: ReturnType<typeof tuiManager.createSpinner> | null = null;
   let currentPhase: string | null = null;
+  let totalFilesScanned = 0;
+  let selectedFiles = 0;
 
   // Track details for each phase to show on completion
   const phaseDetails: Record<string, string> = {};
@@ -247,9 +236,11 @@ const runConfigGenerationWithSteps = async (productionReadiness?: ProductionRead
     // Track details for contextual info BEFORE stopping spinners
     if (info.details) {
       if (info.details.totalFiles) {
+        totalFilesScanned = Math.max(totalFilesScanned, info.details.totalFiles);
         phaseDetails.FILE_SELECTION = `${info.details.totalFiles} files found`;
       }
       if (info.details.filesToRead) {
+        selectedFiles = Math.max(selectedFiles, info.details.filesToRead);
         phaseDetails.WAITING_FOR_FILE_CONTENTS = `${info.details.filesToRead} files`;
       }
       // Track deployable units when available (becomes available when transitioning to ADJUSTING_ENV_VARS)
@@ -267,18 +258,17 @@ const runConfigGenerationWithSteps = async (productionReadiness?: ProductionRead
         const stopMessage = detail
           ? `${getPhaseDisplayName(currentPhase)} ${color.dim(`- ${detail}`)}`
           : getPhaseDisplayName(currentPhase);
-        currentSpinner.stop(stopMessage);
+        currentSpinner.success({ text: stopMessage });
       }
 
       // Start new spinner for this phase
       currentPhase = phase;
-      currentSpinner = clackSpinner(SPINNER_OPTIONS);
-      currentSpinner.start(getPhaseDisplayName(phase));
+      currentSpinner = tuiManager.createSpinner({ text: getPhaseDisplayName(phase) });
     }
 
     // Update spinner with progress if available
     if (currentSpinner && info.details?.filesRead && info.details?.filesToRead) {
-      currentSpinner.message(`${getPhaseDisplayName(phase)} (${info.details.filesRead}/${info.details.filesToRead})`);
+      currentSpinner.update(`(${info.details.filesRead}/${info.details.filesToRead})`);
     }
   };
 
@@ -303,10 +293,17 @@ const runConfigGenerationWithSteps = async (productionReadiness?: ProductionRead
       const stopMessage = detail
         ? `${getPhaseDisplayName(currentPhase)} ${color.dim(`- ${detail}`)}`
         : getPhaseDisplayName(currentPhase);
-      currentSpinner.stop(stopMessage);
+      currentSpinner.success({ text: stopMessage });
     }
 
-    return result;
+    return {
+      ...result,
+      summary: {
+        totalFilesScanned,
+        selectedFiles,
+        envVarCount
+      }
+    };
   } catch (error) {
     // Error the current spinner if it exists
     if (currentSpinner) {
@@ -333,61 +330,6 @@ const countEnvVarsInConfig = (config: StacktapeConfig): number => {
   return count;
 };
 
-const stripAnsi = (str: string): string => {
-  // eslint-disable-next-line no-control-regex
-  return str.replace(/\x1B\[[0-9;]*m/g, '');
-};
-
-const getResourceCostLabel = (costInfo?: { priceInfo: { totalMonthlyFlat: number; costBreakdown: any[] } }): string => {
-  if (!costInfo) return color.dim('-');
-  const monthly = costInfo.priceInfo.totalMonthlyFlat;
-  if (monthly > 0) return `~${formatPrice(monthly)}/mo`;
-  const hasPayPerUse = costInfo.priceInfo.costBreakdown.some((item: any) => item.priceModel === 'pay-per-use');
-  if (hasPayPerUse) return color.dim('pay-per-use');
-  return color.dim('-');
-};
-
-const formatResourceType = (type: string, resource: any): string => {
-  if (type === 'relational-database') {
-    const engineType = resource?.properties?.engine?.type;
-    if (engineType?.includes('postgres')) return 'Relational database (Postgres)';
-    if (engineType?.includes('mysql')) return 'Relational database (MySQL)';
-    return 'Relational database';
-  }
-
-  if (type === 'hosting-bucket') {
-    const contentType = resource?.properties?.hostingContentType;
-    if (contentType === 'single-page-app') return 'Hosting bucket (SPA)';
-    if (contentType === 'gatsby-static-website') return 'Hosting bucket (Gatsby)';
-    if (contentType === 'static-website') return 'Hosting bucket (Static)';
-    return 'Hosting bucket';
-  }
-
-  const typeLabels: Record<string, string> = {
-    'web-service': 'Web service',
-    'worker-service': 'Worker service',
-    function: 'Function',
-    'nextjs-web': 'Next.js web',
-    'astro-web': 'Astro web',
-    'nuxt-web': 'Nuxt web',
-    'sveltekit-web': 'SvelteKit web',
-    'solidstart-web': 'SolidStart web',
-    'tanstack-web': 'TanStack web',
-    'remix-web': 'Remix web',
-    'redis-cluster': 'Redis cluster',
-    'dynamo-db-table': 'DynamoDB table',
-    'mongo-db-atlas-cluster': 'MongoDB Atlas cluster',
-    'open-search-domain': 'OpenSearch domain',
-    bucket: 'S3 bucket',
-    'sqs-queue': 'SQS queue',
-    'sns-topic': 'SNS topic',
-    bastion: 'Bastion',
-    'web-app-firewall': 'Web application firewall'
-  };
-
-  return typeLabels[type] || type;
-};
-
 /**
  * Installs the stacktape package as a dev dependency using the detected package manager
  */
@@ -412,8 +354,7 @@ const installStacktapePackage = async (cwd: string): Promise<void> => {
       break;
   }
 
-  const spinner = clackSpinner(SPINNER_OPTIONS);
-  spinner.start('Installing stacktape package');
+  const spinner = tuiManager.createSpinner({ text: 'Installing stacktape package' });
 
   try {
     execSync(installCommand, {
@@ -421,9 +362,9 @@ const installStacktapePackage = async (cwd: string): Promise<void> => {
       stdio: 'pipe',
       timeout: 120000
     });
-    spinner.stop('Installed stacktape package');
+    spinner.success({ text: 'Installed stacktape package' });
   } catch {
     spinner.error('Failed to install stacktape package');
-    log.warn(`Run "${installCommand}" manually to enable TypeScript autocompletion.`);
+    tuiManager.warn(`Run "${installCommand}" manually to enable TypeScript autocompletion.`);
   }
 };

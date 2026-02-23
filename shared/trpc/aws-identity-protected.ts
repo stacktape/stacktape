@@ -1,58 +1,12 @@
 import { Buffer } from 'node:buffer';
-import { createTRPCClient, httpBatchLink } from '@trpc/client';
+import type {
+  AwsIdentityTrpcClient,
+  DeleteDefaultDomainDnsRecordParams,
+  UpsertDefaultDomainDnsRecordParams,
+  ValidateCertificateParams
+} from '../../types/console-app/trpc/aws-identity-protected';
 import { getSignedGetCallerIdentityRequest } from '../aws/identity';
-
-// Manually typed interfaces based on actual TRPC router at console-app/server/api/aws-identity-protected.ts
-type ValidateCertificateParams = {
-  certificateArn: string;
-  version: number;
-};
-
-type UpsertDefaultDomainDnsRecordParams = {
-  domainName: string;
-  region: string;
-  stackName: string;
-  targetInfo: {
-    hostedZoneId: string;
-    domainName: string;
-  };
-  version: number;
-};
-
-type DeleteDefaultDomainDnsRecordParams = {
-  domainName: string;
-  region: string;
-  stackName: string;
-  targetInfo: {
-    hostedZoneId: string;
-    domainName: string;
-  };
-  version: number;
-};
-
-type AwsIdentityTrpcClient = {
-  validateCertificate: {
-    mutate: (args: ValidateCertificateParams) => Promise<void>;
-  };
-  upsertDefaultDomainDnsRecord: {
-    mutate: (args: UpsertDefaultDomainDnsRecordParams) => Promise<void>;
-  };
-  deleteDefaultDomainDnsRecord: {
-    mutate: (args: DeleteDefaultDomainDnsRecordParams) => Promise<void>;
-  };
-};
-
-const TRPC_REQUEST_TIMEOUT_MS = 30000; // 30 seconds
-
-const fetchWithTimeout = async (url: any, options: any) => {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), TRPC_REQUEST_TIMEOUT_MS);
-  try {
-    return await fetch(url, { ...options, signal: controller.signal });
-  } finally {
-    clearTimeout(timeoutId);
-  }
-};
+import { createTypedTrpcClient } from './client';
 
 const createTrpcAwsIdentityProtectedClient = ({
   credentials,
@@ -62,20 +16,15 @@ const createTrpcAwsIdentityProtectedClient = ({
   credentials: AwsCredentials;
   region: string;
   apiUrl: string;
-}): AwsIdentityTrpcClient => {
-  return createTRPCClient<any>({
-    links: [
-      httpBatchLink({
-        url: apiUrl,
-        headers: async () => ({
-          aws_identity: Buffer.from(
-            JSON.stringify(await getSignedGetCallerIdentityRequest({ credentials, region }))
-          ).toString('base64')
-        }),
-        fetch: fetchWithTimeout as any
-      })
-    ]
-  }) as unknown as AwsIdentityTrpcClient;
+}) => {
+  return createTypedTrpcClient<AwsIdentityTrpcClient>({
+    url: apiUrl,
+    headers: async () => ({
+      aws_identity: Buffer.from(
+        JSON.stringify(await getSignedGetCallerIdentityRequest({ credentials, region }))
+      ).toString('base64')
+    })
+  });
 };
 
 export class AwsIdentityProtectedClient {
@@ -85,21 +34,29 @@ export class AwsIdentityProtectedClient {
     this.#client = createTrpcAwsIdentityProtectedClient({ credentials, region, apiUrl });
   };
 
+  #ensureInitialized = () => {
+    if (!this.#client) {
+      throw new Error('AwsIdentityProtectedClient not initialized. Call init({ credentials, region, apiUrl }) first.');
+    }
+
+    return this.#client;
+  };
+
   validateCertificate = {
     mutate: async (args: ValidateCertificateParams): Promise<void> => {
-      return this.#client!.validateCertificate.mutate(args);
+      return this.#ensureInitialized().validateCertificate.mutate(args);
     }
   };
 
   upsertDefaultDomainDnsRecord = {
     mutate: async (args: UpsertDefaultDomainDnsRecordParams): Promise<void> => {
-      return this.#client!.upsertDefaultDomainDnsRecord.mutate(args);
+      return this.#ensureInitialized().upsertDefaultDomainDnsRecord.mutate(args);
     }
   };
 
   deleteDefaultDomainDnsRecord = {
     mutate: async (args: DeleteDefaultDomainDnsRecordParams): Promise<void> => {
-      return this.#client!.deleteDefaultDomainDnsRecord.mutate(args);
+      return this.#ensureInitialized().deleteDefaultDomainDnsRecord.mutate(args);
     }
   };
 }

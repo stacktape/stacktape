@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-12T16:57:59.356Z",
+  "generatedAt": "2026-02-23T12:38:00.332Z",
   "version": "1.0",
   "synonymMap": {
     "function": [
@@ -1321,6 +1321,17 @@
       "title": "CLI: logout",
       "tags": [
         "logout"
+      ],
+      "priority": 3
+    },
+    {
+      "path": "cli-ref/mcp-add.md",
+      "docType": "cli-ref",
+      "title": "CLI: mcp:add",
+      "tags": [
+        "mcp:add",
+        "mcp",
+        "add"
       ],
       "priority": 3
     },

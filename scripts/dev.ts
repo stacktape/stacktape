@@ -7,6 +7,13 @@ import { config } from 'dotenv';
 
 const skipPackagingHelperLambdas = Boolean(process.env.SPHL);
 const skipLoadingEnv = Boolean(process.env.SKIP_LOADING_ENV);
+const isMachineMode =
+  process.argv.includes('--agent') || process.argv.includes('--agentPort') || process.argv.includes('-ap');
+const isMcpMode = process.argv.includes('mcp');
+
+if (isMachineMode || isMcpMode) {
+  process.env.STP_SILENT_SCRIPT_LOGS = 'true';
+}
 
 if (!skipLoadingEnv) {
   config({ path: '.env.local' });
@@ -36,20 +43,27 @@ export const runDev = async () => {
     !skipPackagingHelperLambdas && packageHelperLambdas({ isDev: true, distFolderPath: DEV_TMP_FOLDER_PATH })
   ]);
 
-  logInfo('----- RUN -----');
+  const isSilentMode = isMachineMode || isMcpMode;
+  if (!isSilentMode) {
+    logInfo('----- RUN -----');
+  }
   try {
     process.env.STP_DEV_MODE = 'true';
     const { runUsingCli } = dynamicRequire({
       filePath: cliDistPath
     }) as typeof import('../src/api/cli');
     await runUsingCli();
-    logInfo('----- FINISHED -----');
+    if (!isSilentMode) {
+      logInfo('----- FINISHED -----');
+    }
   } catch (err) {
     // if for some reason, the error doesn't get properly handled, print
     if (err.details === undefined) {
       logError(err, '- UNHANDLED ERROR -');
     }
-    logWarn('----- FINISHED WITH ERROR -----');
+    if (!isSilentMode) {
+      logWarn('----- FINISHED WITH ERROR -----');
+    }
   }
 };
 

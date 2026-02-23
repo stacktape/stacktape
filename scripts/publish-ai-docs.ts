@@ -1,7 +1,7 @@
 import { AI_DOCS_BUCKET_NAME } from '@config';
 import { AI_DOCS_FOLDER_PATH } from '@shared/naming/project-fs-paths';
 import { logInfo, logSuccess } from '@shared/utils/logging';
-import { generateAiDocs } from './generate-ai-docs';
+import { generateAiDocsV2 as generateAiDocs } from './generate-ai-docs-v2';
 import { syncBucket } from './release/stacktape';
 
 export const publishAiDocs = async () => {

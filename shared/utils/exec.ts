@@ -7,6 +7,8 @@ import { StreamTransformer } from './streams';
 
 EventEmitter.defaultMaxListeners = 0;
 
+const shouldRedirectStdioToConsole = () => process.env.STP_REDIRECT_STDIO_TO_CONSOLE === 'true';
+
 type ExecProps = {
   logFailedCommand?: boolean;
   transformStderrLine?: StdTransformer | StdTransformer[];
@@ -68,12 +70,16 @@ const getChildProcess = (
       stdoutStream = childProcess.stdout.pipe(new StreamTransformer(lineTransforms, putTransforms));
     }
     if (onOutputLine) {
-      // Capture output via callback instead of piping to stdout
+      // Capture output via callback instead of piping to stdout/logCollector.
+      // The callback owner is responsible for routing output to the appropriate destinations
+      // (e.g. jsonlEmitter which writes to both stdout and logCollectorStream).
       setupLineCallback(stdoutStream, (line) => onOutputLine(line, 'stdout'));
+    } else if (shouldRedirectStdioToConsole()) {
+      setupLineCallback(stdoutStream, (line) => console.info(line));
     } else {
       stdoutStream.pipe(process.stdout);
+      stdoutStream.pipe(logCollectorStream, { end: false });
     }
-    stdoutStream.pipe(logCollectorStream, { end: false });
   }
   if (!disableStderr) {
     let stderrStream = childProcess.stderr;
@@ -83,12 +89,13 @@ const getChildProcess = (
       stderrStream = childProcess.stderr.pipe(new StreamTransformer(lineTransforms, putTransforms));
     }
     if (onOutputLine) {
-      // Capture output via callback instead of piping to stderr
       setupLineCallback(stderrStream, (line) => onOutputLine(line, 'stderr'));
+    } else if (shouldRedirectStdioToConsole()) {
+      setupLineCallback(stderrStream, (line) => console.error(line));
     } else {
       stderrStream.pipe(process.stderr);
+      stderrStream.pipe(logCollectorStream, { end: false });
     }
-    stderrStream.pipe(logCollectorStream, { end: false });
   }
   return childProcess;
 };

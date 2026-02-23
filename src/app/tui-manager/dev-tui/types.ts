@@ -1,5 +1,3 @@
-/** Dev TUI Types */
-
 export type DevPhase = 'startup' | 'running';
 
 export type DevModeType = 'normal' | 'legacy';
@@ -26,9 +24,7 @@ export type Workload = {
   port?: number;
   statusMessage?: string;
   error?: string;
-  /** For hosting-bucket, the content type (e.g., 'single-page-app', 'static-website') */
   hostingContentType?: string;
-  /** Size info (e.g., "245 MB" for container image, "1.2 MB" for lambda package) */
   size?: string;
 };
 
@@ -66,23 +62,19 @@ export type DevTuiState = {
   projectName: string;
   stageName: string;
 
-  // Startup phase
   localResources: LocalResource[];
   setupSteps: SetupStep[];
   hooks: Hook[];
   workloads: Workload[];
 
-  // Running phase
   logs: LogEntry[];
   maxLogs: number;
 
-  // UI state
-  selectedLogFilter: string | null; // null = all, or workload name
+  selectedLogFilter: string | null;
   isQuitting: boolean;
   inputBuffer: string;
 };
 
-// Color assignments for workloads (for log prefixes)
 export const WORKLOAD_COLORS = ['cyan', 'magenta', 'yellow', 'blue', 'green', 'red', 'white', 'gray'] as const;
 
 export type WorkloadColor = (typeof WORKLOAD_COLORS)[number];

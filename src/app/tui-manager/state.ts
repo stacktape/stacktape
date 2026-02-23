@@ -22,10 +22,6 @@ import {
 
 type StateListener = (state: TuiState) => void;
 
-/**
- * Events whose CHILDREN should be hidden when the parent is finished.
- * The parent event itself is still shown.
- */
 const HIDE_CHILDREN_WHEN_FINISHED_EVENTS: LoggableEventType[] = ['LOAD_METADATA_FROM_AWS'];
 
 class TuiStateManager {
@@ -33,6 +29,7 @@ class TuiStateManager {
   private listeners: Set<StateListener> = new Set();
   private phaseOrder: DeploymentPhase[] = PHASE_ORDER;
   private phaseNames: Record<DeploymentPhase, string> = PHASE_NAMES;
+  private notifyTimeout: NodeJS.Timeout | undefined;
 
   constructor() {
     this.state = this.createInitialState();
@@ -54,10 +51,6 @@ class TuiStateManager {
     };
   }
 
-  /**
-   * Configure phases for delete command (simpler phase structure).
-   * Must be called before setHeader for delete operations.
-   */
   configureForDelete() {
     this.phaseOrder = DELETE_PHASE_ORDER;
     this.phaseNames = { ...PHASE_NAMES, ...DELETE_PHASE_NAMES };
@@ -65,10 +58,6 @@ class TuiStateManager {
     this.notifyListeners();
   }
 
-  /**
-   * Configure phases for codebuild:deploy command.
-   * Uses: Initialize, Prepare Pipeline, Deploy (no Build & Package).
-   */
   configureForCodebuildDeploy() {
     this.phaseOrder = CODEBUILD_DEPLOY_PHASE_ORDER;
     this.phaseNames = { ...PHASE_NAMES, ...CODEBUILD_DEPLOY_PHASE_NAMES };
@@ -88,38 +77,21 @@ class TuiStateManager {
     this.notifyListeners();
   }
 
-  /**
-   * Enable/disable streaming mode. When enabled, hides dynamic phase rendering
-   * to prevent conflicts with console.log output (e.g., cloudwatch logs).
-   */
   setStreamingMode(enabled: boolean) {
     this.state = { ...this.state, streamingMode: enabled };
     this.notifyListeners();
   }
 
-  /**
-   * Mark the TUI as finalizing. This signals that no more events will be added
-   * and the current phase can be committed to Static.
-   */
   setFinalizing() {
     this.state = { ...this.state, isFinalizing: true };
     this.notifyListeners();
   }
 
-  /**
-   * Store completion info without displaying summary yet.
-   * This allows hooks to run and add events before showing the summary.
-   * Call commitPendingCompletion() to actually display the summary.
-   */
   setPendingCompletion(params: { success: boolean; message: string; links: TuiLink[]; consoleUrl?: string }) {
     this.state = { ...this.state, pendingCompletion: params };
     this.notifyListeners();
   }
 
-  /**
-   * Commit the pending completion by calling setComplete with stored info.
-   * This should be called after hooks finish running.
-   */
   commitPendingCompletion() {
     if (this.state.pendingCompletion) {
       const { success, message, links, consoleUrl } = this.state.pendingCompletion;
@@ -139,15 +111,17 @@ class TuiStateManager {
   }
 
   private notifyListeners() {
-    for (const listener of this.listeners) {
-      listener(this.state);
-    }
+    if (this.notifyTimeout) return;
+    this.notifyTimeout = setTimeout(() => {
+      this.notifyTimeout = undefined;
+      for (const listener of this.listeners) {
+        listener(this.state);
+      }
+    }, 16);
   }
 
   setHeader(header: TuiDeploymentHeader) {
-    // Clear any messages that were added before the header (e.g., from confirmation prompts)
-    // These will be displayed via non-TUI console output, so don't duplicate in TUI
-    this.state = { ...this.state, header, messages: [] };
+    this.state = { ...this.state, header };
     this.notifyListeners();
   }
 
@@ -158,7 +132,6 @@ class TuiStateManager {
   setCurrentPhase(phase: DeploymentPhase) {
     const currentPhaseIndex = this.phaseOrder.indexOf(phase);
 
-    // Mark all previous phases as complete
     this.state.phases = this.state.phases.map((p, index) => {
       if (index < currentPhaseIndex && p.status !== 'success' && p.status !== 'error') {
         return {
@@ -219,14 +192,11 @@ class TuiStateManager {
       children: []
     };
 
-    // Determine which phase this event belongs to
     const targetPhase = phase || this.state.currentPhase || 'INITIALIZE';
 
-    // If it's a child event, add it to the parent
     if (parentEventType && instanceId) {
       this.addChildEvent(targetPhase, parentEventType, newEvent);
     } else {
-      // Add as a top-level event in the phase
       this.addEventToPhase(targetPhase, newEvent);
     }
 
@@ -235,15 +205,12 @@ class TuiStateManager {
 
   private addEventToPhase(phaseId: DeploymentPhase, event: TuiEvent) {
     const newPhases = this.state.phases.map((p) => {
+      const withoutSameEventId = p.events.filter((existingEvent) => existingEvent.id !== event.id);
       if (p.id === phaseId) {
-        // Check if event already exists (update instead of add)
-        const existingIndex = p.events.findIndex((e) => e.id === event.id);
-        if (existingIndex >= 0) {
-          const updatedEvents = [...p.events];
-          updatedEvents[existingIndex] = { ...updatedEvents[existingIndex], ...event };
-          return { ...p, events: updatedEvents };
-        }
-        return { ...p, events: [...p.events, event] };
+        return { ...p, events: [...withoutSameEventId, event] };
+      }
+      if (withoutSameEventId.length !== p.events.length) {
+        return { ...p, events: withoutSameEventId };
       }
       return p;
     });
@@ -257,8 +224,6 @@ class TuiStateManager {
           ...p,
           events: p.events.map((e) => {
             if (e.eventType === parentEventType) {
-              // If a child with the same instanceId already exists, update it in place
-              // (same workload going through multiple stages: build -> package -> upload)
               if (childEvent.instanceId) {
                 const existingIndex = e.children.findIndex((c) => c.instanceId === childEvent.instanceId);
                 if (existingIndex >= 0) {
@@ -284,18 +249,18 @@ class TuiStateManager {
   updateEvent(params: {
     eventType: LoggableEventType;
     additionalMessage?: string;
+    data?: Record<string, any>;
     description?: string;
     parentEventType?: LoggableEventType;
     instanceId?: string;
   }) {
-    const { eventType, additionalMessage, description, parentEventType, instanceId } = params;
+    const { eventType, additionalMessage, data, description, parentEventType, instanceId } = params;
     const eventId = instanceId ? `${eventType}-${instanceId}` : eventType;
 
     const newPhases = this.state.phases.map((phase) => ({
       ...phase,
       events: phase.events.map((event) => {
         if (parentEventType && instanceId) {
-          // Update child event - match by instanceId (child may have been reused across event types)
           if (event.eventType === parentEventType) {
             return {
               ...event,
@@ -304,6 +269,7 @@ class TuiStateManager {
                   return {
                     ...child,
                     ...(additionalMessage !== undefined && { additionalMessage }),
+                    ...(data !== undefined && { data }),
                     ...(description !== undefined && { description })
                   };
                 }
@@ -315,6 +281,7 @@ class TuiStateManager {
           return {
             ...event,
             ...(additionalMessage !== undefined && { additionalMessage }),
+            ...(data !== undefined && { data }),
             ...(description !== undefined && { description })
           };
         }
@@ -342,7 +309,6 @@ class TuiStateManager {
       ...phase,
       events: phase.events.map((event) => {
         if (parentEventType && instanceId) {
-          // Finish child event - match by instanceId (child may have been reused across event types)
           if (event.eventType === parentEventType) {
             return {
               ...event,
@@ -410,7 +376,6 @@ class TuiStateManager {
   }
 
   setComplete(success: boolean, message: string, links: TuiLink[] = [], consoleUrl?: string) {
-    // Finish the current phase before setting summary
     if (this.state.currentPhase) {
       const endTime = Date.now();
       const finalStatus: TuiEventStatus = success ? 'success' : 'error';
@@ -427,17 +392,10 @@ class TuiStateManager {
     this.setSummary({ success, message, links, consoleUrl });
   }
 
-  /**
-   * Mark all currently running events and phases as errored.
-   * Called when an error occurs to show failed state in the UI.
-   * Running children are left as 'pending' (interrupted) - only the phase/parent gets 'error'.
-   */
   markAllRunningAsErrored() {
     const endTime = Date.now();
 
     const markEventErrored = (event: TuiEvent): TuiEvent => {
-      // Running children become 'pending' (interrupted, shown as ○)
-      // Children already finished with 'error' keep their error status
       const children = event.children.map((child) =>
         child.status === 'running' ? { ...child, status: 'pending' as TuiEventStatus, endTime } : child
       );
@@ -454,7 +412,6 @@ class TuiStateManager {
       return { ...event, children };
     };
 
-    // Mark all running events in all phases as errored
     const newPhases = this.state.phases.map((phase) => {
       const events = phase.events.map(markEventErrored);
       if (phase.status === 'running') {
@@ -473,10 +430,6 @@ class TuiStateManager {
     this.notifyListeners();
   }
 
-  /**
-   * Append output lines to an event (for script output capture).
-   * Lines are stored in the event and rendered as part of the event UI.
-   */
   appendEventOutput(params: { eventType: LoggableEventType; lines: string[]; instanceId?: string }) {
     const { eventType, lines, instanceId } = params;
     const eventId = instanceId ? `${eventType}-${instanceId}` : eventType;
@@ -496,34 +449,21 @@ class TuiStateManager {
     this.notifyListeners();
   }
 
-  /**
-   * Set the active prompt for user input.
-   */
   setActivePrompt(prompt: TuiPrompt) {
     this.state = { ...this.state, activePrompt: prompt };
     this.notifyListeners();
   }
 
-  /**
-   * Clear the active prompt after user has responded.
-   */
   clearActivePrompt() {
     this.state = { ...this.state, activePrompt: undefined };
     this.notifyListeners();
   }
 
-  /**
-   * Show a cancel deployment banner that the user can trigger with 'c' key.
-   * Used when a deployment failure is detected and the user may want to cancel.
-   */
   setCancelDeployment(cancelDeployment: TuiCancelDeployment) {
     this.state = { ...this.state, cancelDeployment };
     this.notifyListeners();
   }
 
-  /**
-   * Update the cancel deployment state (e.g., to show cancelling in progress).
-   */
   updateCancelDeployment(updates: Partial<TuiCancelDeployment>) {
     if (this.state.cancelDeployment) {
       this.state = {
@@ -534,9 +474,6 @@ class TuiStateManager {
     }
   }
 
-  /**
-   * Clear the cancel deployment banner.
-   */
   clearCancelDeployment() {
     this.state = { ...this.state, cancelDeployment: undefined };
     this.notifyListeners();

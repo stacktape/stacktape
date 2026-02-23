@@ -101,7 +101,6 @@ export const renderErrorToString = (
   const lines: string[] = [];
   const typeLabel = error.isExpected === false ? 'Unexpected Error' : getErrorLabel(error.errorType);
 
-  // Error header without box
   lines.push('');
   lines.push(colorize('red', `[x] ${typeLabel}`));
   lines.push('');
@@ -110,7 +109,6 @@ export const renderErrorToString = (
     lines.push(msgLine);
   }
 
-  // User stack trace (for config errors - shows where in user's code the error occurred)
   if (error.userStackTrace) {
     lines.push('');
     lines.push(makeBold('Stack trace in your code:'));
@@ -126,7 +124,6 @@ export const renderErrorToString = (
     }
   }
 
-  // Internal stack trace
   if (error.stackTrace) {
     lines.push('');
     lines.push(makeBold('Stack trace:'));
@@ -140,8 +137,6 @@ export const renderErrorToString = (
 
   return lines.join('\n');
 };
-
-// ─── Next steps rendering ───
 
 export const renderNextStepsToString = (
   steps: NextStep[],
@@ -171,8 +166,6 @@ export const renderNextStepsToString = (
 
   return lines.join('\n');
 };
-
-// ─── Stack errors rendering ───
 
 const cleanErrorMessage = (message: string): string => {
   let cleaned = message;

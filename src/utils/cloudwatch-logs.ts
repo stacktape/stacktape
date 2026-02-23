@@ -5,7 +5,6 @@ import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { getErrorFromString } from '@utils/errors';
 import { getAwsSynchronizedTime } from '@utils/time';
 import dayjs from 'dayjs';
-import { logCollectorStream } from './log-collector';
 
 type LogCallback = (message: string, level: 'info' | 'warn' | 'error') => void;
 
@@ -280,12 +279,13 @@ export class CodebuildDeploymentCloudwatchLogPrinter {
         if (message.startsWith('[Container]')) {
           message = tuiManager.colorize('gray', message);
         }
-        console.info(
-          `${tuiManager.colorize('gray', `[${dayjs(event.timestamp).format('HH:mm:ss:SSS')}]:`)} ${this.#colorizeMessage(
-            // if we have empty message we will print white spaces (otherwise parts of messages from spinner might be printed)
-            message.length === 0 ? ' '.repeat(30) : message
-          )}`
-        );
+        const renderedLine = `${tuiManager.colorize('gray', `[${dayjs(event.timestamp).format('HH:mm:ss:SSS')}]:`)} ${this.#colorizeMessage(
+          message.length === 0 ? ' '.repeat(30) : message
+        )}`;
+        if (tuiManager.mode !== 'jsonl') {
+          console.info(renderedLine);
+        }
+        tuiManager.emitCollectorLog({ level: 'info', source: 'codebuild-log', message: renderedLine });
       });
   };
 
@@ -358,8 +358,10 @@ export class SsmExecuteScriptCloudwatchLogPrinter {
             : ` ${event.logStreamName?.endsWith('stderr') ? tuiManager.colorize('red', '!└') : ' └'} ${line.trim()}`
         )
         .join('\n');
-      console.info(messageLines);
-      logCollectorStream.write(messageLines);
+      if (tuiManager.mode !== 'jsonl') {
+        console.info(messageLines);
+      }
+      tuiManager.emitCollectorLog({ level: 'info', source: 'ssm-script', message: messageLines });
     });
   };
 }

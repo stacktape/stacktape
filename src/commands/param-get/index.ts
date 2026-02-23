@@ -36,7 +36,7 @@ export const commandParamGet = async () => {
         paramName
       )}`
     );
-    console.info(`${tuiManager.makeBold(`${paramValue}`)}\n`);
+    tuiManager.printLines([`${tuiManager.makeBold(`${paramValue}`)}`, '']);
   }
   return `${paramValue}`;
 };

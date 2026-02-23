@@ -269,7 +269,7 @@ const runDockerContainer = async (
       tuiManager.colorize.bind(tuiManager),
       tuiManager.makeBold.bind(tuiManager)
     );
-    console.error(errorOutput);
+    tuiManager.error(errorOutput);
   }
 };
 

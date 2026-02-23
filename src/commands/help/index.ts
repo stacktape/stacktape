@@ -18,21 +18,23 @@ marked.use(
 );
 
 const logHints = ({ showOptionsHint }: { showOptionsHint: boolean }) => {
-  console.info(`\n${tuiManager.makeBold('Hints:')}\n`);
+  tuiManager.printLines(['', tuiManager.makeBold('Hints:'), '']);
   if (showOptionsHint) {
-    console.info(
+    tuiManager.printLines([
       `  To show available options for selected command, use \`${tuiManager.colorize(
         'yellow',
         'stacktape help --command'
       )} <command>\``
-    );
+    ]);
   }
-  console.info(`  For more information about CLI, visit ${tuiManager.getLink('docsCli', 'CLI Documentation')}`);
-  console.info(`  To see the full documentation, visit ${tuiManager.getLink('docs', 'Stacktape Docs')}`);
+  tuiManager.printLines([
+    `  For more information about CLI, visit ${tuiManager.getLink('docsCli', 'CLI Documentation')}`,
+    `  To see the full documentation, visit ${tuiManager.getLink('docs', 'Stacktape Docs')}`
+  ]);
 };
 
 const logUsage = ({ command }: { command: StacktapeCommand }) => {
-  console.info(
+  tuiManager.printLines([
     `\n${tuiManager.makeBold('Usage')}:\n\n  ${tuiManager.colorize('yellow', 'stacktape')} (or ${tuiManager.colorize(
       'yellow',
       'stp'
@@ -40,7 +42,7 @@ const logUsage = ({ command }: { command: StacktapeCommand }) => {
       'gray',
       '--option'
     )} [option value]`
-  );
+  ]);
 };
 
 const getDescription = (desc: string) => {
@@ -75,7 +77,7 @@ export const commandHelp = async () => {
   const command = globalStateManager.args.command as StacktapeCommand | undefined;
   if (command) {
     logUsage({ command });
-    console.info(`\n${tuiManager.makeBold('Options:\n')}`);
+    tuiManager.printLines([`\n${tuiManager.makeBold('Options:\n')}`]);
     const lines: string[] = [];
     for (const cliArg of getSortedCliArgs(command)) {
       lines.push(
@@ -84,11 +86,11 @@ export const commandHelp = async () => {
         }\n  ${getDescription(cliArg.description || '')}`
       );
     }
-    console.info(lines.join('\n'));
+    tuiManager.printLines([lines.join('\n')]);
     logHints({ showOptionsHint: false });
   } else {
     logUsage({ command: null as any });
-    console.info(`\n${tuiManager.makeBold('Available commands:\n')}`);
+    tuiManager.printLines([`\n${tuiManager.makeBold('Available commands:\n')}`]);
 
     const lines: string[] = [];
     for (const commandName of cliCommands) {
@@ -97,7 +99,7 @@ export const commandHelp = async () => {
         `${tuiManager.makeBold(tuiManager.colorize('yellow', commandName))}\n  ${getDescription(commandInfo.description)}`
       );
     }
-    console.info(lines.join('\n'));
+    tuiManager.printLines([lines.join('\n')]);
     logHints({ showOptionsHint: true });
   }
 };

@@ -217,6 +217,7 @@ export class EventManager implements ProgressLogger {
     eventType,
     description,
     data,
+    detail,
     captureType,
     finalMessage,
     additionalMessage,
@@ -261,22 +262,26 @@ export class EventManager implements ProgressLogger {
           description,
           phase: phase || this.currentPhase,
           parentEventType: resolvedParentEventType,
+          parentInstanceId: resolvedParentInstanceId,
           instanceId: resolvedInstanceId
         });
       } else if (captureType === 'UPDATE') {
         tuiManager.updateEvent({
           eventType,
           additionalMessage,
+          detail,
           description,
           parentEventType: resolvedParentEventType,
+          parentInstanceId: resolvedParentInstanceId,
           instanceId: resolvedInstanceId
         });
       } else if (captureType === 'FINISH') {
         tuiManager.finishEvent({
           eventType,
           finalMessage,
-          data,
+          detail,
           parentEventType: resolvedParentEventType,
+          parentInstanceId: resolvedParentInstanceId,
           instanceId: resolvedInstanceId,
           status
         });
@@ -288,34 +293,29 @@ export class EventManager implements ProgressLogger {
     }
   };
 
-  private printedEvents: Set<string> = new Set();
-
   printProgress = () => {
+    const printed = this.eventLog.printedEvents;
     for (const event of this.formattedEventLogData) {
       const identifier = event.eventType;
       const isEventFinished = event.duration !== null;
 
-      // Skip events with no printable text or null message
       if (!event.printableText || event.printableText === 'null') {
         continue;
       }
 
-      // Skip if already printed as finished
-      if (this.printedEvents.has(`${identifier}-finished`)) {
+      if (printed.has(`${identifier}-finished`)) {
         continue;
       }
 
-      // If event is already finished when we first see it, only print the success message
       if (isEventFinished) {
         tuiManager.success(event.printableText);
-        this.printedEvents.add(`${identifier}-finished`);
+        printed.add(`${identifier}-finished`);
         continue;
       }
 
-      // Print start (only for events that are still running)
-      if (!this.printedEvents.has(`${identifier}-started`)) {
+      if (!printed.has(`${identifier}-started`)) {
         tuiManager.info(event.printableText);
-        this.printedEvents.add(`${identifier}-started`);
+        printed.add(`${identifier}-started`);
       }
     }
   };
@@ -332,9 +332,37 @@ export class EventManager implements ProgressLogger {
     return this.handleEvent({ ...params, captureType: 'FINISH' });
   };
 
+  appendEventOutput = ({
+    eventType,
+    lines,
+    instanceId
+  }: {
+    eventType: LoggableEventType;
+    lines: string[];
+    instanceId?: string;
+  }) => {
+    if (!lines.length) return;
+
+    const resolvedInstanceId = instanceId ?? this._eventContext.instanceId;
+    if (tuiManager.enabled) {
+      tuiManager.appendEventOutput({
+        eventType,
+        lines,
+        instanceId: resolvedInstanceId,
+        parentEventType: this._eventContext.parentEventType,
+        parentInstanceId: this._eventContext.parentInstanceId
+      });
+      return;
+    }
+
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      tuiManager.info(line);
+    }
+  };
+
   reset = () => {
     this.eventLog.reset();
-    this.printedEvents.clear();
   };
 }
 

@@ -134,12 +134,20 @@ Specifies which dev mode to use:
 - \`normal\` (default): Deploys a minimal "dev stack" to AWS (IAM roles, secrets only) and runs workloads locally. Databases (PostgreSQL, MySQL, DynamoDB) and Redis are emulated locally using Docker. Tunnels are automatically created so Lambda functions can reach local databases.
 - \`legacy\`: Requires an already deployed stack. Runs selected workloads locally while connecting to all deployed AWS resources. No local database emulation - uses deployed databases directly. Useful for testing against production-like data.`);
 
+export const outputFormat = z.enum(['jsonl', 'plain', 'tty']).describe(`#### Output Format
+---
+Controls the CLI output format:
+- \`jsonl\`: Machine-readable NDJSON (one JSON object per line). Disables interactive UI.
+- \`plain\`: Simple text output without colors or animations. Used automatically in CI or non-TTY environments.
+- \`tty\`: Full interactive terminal UI with colors, spinners, and animations. Used automatically when a TTY is detected.
+If not specified, the format is auto-detected from the environment. --agent implies --outputFormat jsonl.`);
+
 export const agent = z.boolean().describe(`#### Agent Mode
 ---
 Optimizes CLI output for programmatic/LLM consumption:
-- Forces non-TTY output mode (no spinners, animations, or interactive elements)
+- Uses strict JSONL/NDJSON output (one JSON object per line)
+- Disables interactive terminal UI
 - Automatically confirms operations (equivalent to --autoConfirmOperation)
-- Uses plain text output suitable for parsing
 For dev command: also enables HTTP server for programmatic control.`);
 
 export const agentPort = z.number().describe(`#### Agent Port
@@ -403,7 +411,8 @@ export const universalArgs = {
   logLevel: logLevel.optional(),
   help: help.optional(),
   awsAccount: awsAccount.optional(),
-  agent: agent.optional()
+  agent: agent.optional(),
+  outputFormat: outputFormat.optional()
 };
 
 export const stackArgs = {
@@ -484,6 +493,7 @@ export const argAliases = {
   devMode: 'dm',
   agent: 'ag',
   agentPort: 'ap',
+  outputFormat: 'ofmt',
   useAi: 'ai',
   infrastructureType: 'it',
   limit: 'lim',
@@ -570,6 +580,7 @@ export const allCliArgsSchema = z.object({
   agent: agent.optional(),
   agentPort: agentPort.optional(),
   agentChild: agentChild.optional(),
+  outputFormat: outputFormat.optional(),
   stop: stop.optional(),
   cleanupContainers: cleanupContainers.optional(),
   freshDb: freshDb.optional(),

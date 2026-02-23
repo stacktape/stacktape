@@ -2,6 +2,7 @@ import type { Server } from 'node:http';
 import { createServer } from 'node:http';
 import { applicationManager } from '@application-services/application-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
+import { formatCommandHeaderLine } from '@application-services/tui-manager/command-header';
 import { executeAwsSdkCommand, getSupportedServices } from '@domain-services/debug-services/aws-sdk-executor';
 import { getDevAgentCredentials } from './dev-agent-credentials';
 import {
@@ -170,7 +171,87 @@ type Route = {
   handler: RouteHandler;
 };
 
+type DevAgentEnvelope = {
+  v: '1.0';
+  ok: boolean;
+  code: string;
+  message?: string;
+  data?: Record<string, unknown>;
+};
+
 const routes: Route[] = [];
+
+const inferErrorCode = (message?: string): string => {
+  const msg = (message || '').toLowerCase();
+  if (msg.includes('not found')) return 'NOT_FOUND';
+  if (msg.includes('missing required') || msg.includes('invalid')) return 'VALIDATION_ERROR';
+  if (msg.includes('already')) return 'ALREADY_EXISTS';
+  if (msg.includes('credentials')) return 'AUTH_ERROR';
+  return 'INTERNAL_ERROR';
+};
+
+const toDevAgentEnvelope = (result: unknown): DevAgentEnvelope => {
+  if (!result || typeof result !== 'object') {
+    return {
+      v: '1.0',
+      ok: true,
+      code: 'OK',
+      message: 'OK',
+      data: { value: result as unknown }
+    };
+  }
+
+  const obj = result as Record<string, unknown>;
+  if (typeof obj.v === 'string' && typeof obj.ok === 'boolean' && typeof obj.code === 'string') {
+    return obj as DevAgentEnvelope;
+  }
+
+  if (typeof obj.ok === 'boolean') {
+    const { ok, code, message, error, hint, available, ...rest } = obj as {
+      ok: boolean;
+      code?: string;
+      message?: string;
+      error?: string;
+      hint?: unknown;
+      available?: unknown;
+      [key: string]: unknown;
+    };
+
+    if (!ok) {
+      return {
+        v: '1.0',
+        ok: false,
+        code: code || inferErrorCode(error || message),
+        message: error || message || 'Request failed',
+        data: {
+          ...(hint !== undefined ? { hint } : {}),
+          ...(available !== undefined ? { available } : {}),
+          ...rest
+        }
+      };
+    }
+
+    return {
+      v: '1.0',
+      ok: true,
+      code: code || 'OK',
+      message: message || 'OK',
+      data: {
+        ...(hint !== undefined ? { hint } : {}),
+        ...(available !== undefined ? { available } : {}),
+        ...rest
+      }
+    };
+  }
+
+  return {
+    v: '1.0',
+    ok: true,
+    code: 'OK',
+    message: 'OK',
+    data: obj
+  };
+};
 
 const addRoute = (method: 'GET' | 'POST', path: string, handler: RouteHandler) => {
   // Convert path like /postgres/:resource/query to regex
@@ -919,7 +1000,14 @@ const handleRequest = async (req: any, res: any) => {
   if (req.method === 'OPTIONS') {
     // Reject CORS preflight - browsers won't proceed with the actual request
     res.statusCode = 403;
-    res.end(JSON.stringify({ ok: false, error: 'CORS requests not allowed' }));
+    res.end(
+      JSON.stringify({
+        v: '1.0',
+        ok: false,
+        code: 'READ_ONLY_VIOLATION',
+        message: 'CORS requests not allowed'
+      } as DevAgentEnvelope)
+    );
     return;
   }
 
@@ -927,7 +1015,15 @@ const handleRequest = async (req: any, res: any) => {
   if (pathname === '/' || pathname === '') {
     res.statusCode = 200;
     const compact = url.searchParams.get('compact') === 'true';
-    res.end(JSON.stringify(compact ? buildCompactDocumentation() : buildEndpointDocumentation()));
+    res.end(
+      JSON.stringify({
+        v: '1.0',
+        ok: true,
+        code: 'OK',
+        message: 'Endpoint documentation',
+        data: compact ? buildCompactDocumentation() : buildEndpointDocumentation()
+      } as DevAgentEnvelope)
+    );
     return;
   }
 
@@ -959,7 +1055,14 @@ const handleRequest = async (req: any, res: any) => {
         body = safeJsonParse(bodyStr);
         if (body === undefined) {
           res.statusCode = 400;
-          res.end(JSON.stringify({ ok: false, error: 'Invalid JSON in request body' }));
+          res.end(
+            JSON.stringify({
+              v: '1.0',
+              ok: false,
+              code: 'VALIDATION_ERROR',
+              message: 'Invalid JSON in request body'
+            } as DevAgentEnvelope)
+          );
           return;
         }
       }
@@ -968,18 +1071,33 @@ const handleRequest = async (req: any, res: any) => {
     try {
       const result = await route.handler({ pathParams, query: url.searchParams, body });
       res.statusCode = 200;
-      res.end(JSON.stringify(result));
+      res.end(JSON.stringify(toDevAgentEnvelope(result)));
     } catch (err: unknown) {
       res.statusCode = 500;
       const message = err instanceof Error ? err.message : 'Internal error';
-      res.end(JSON.stringify({ ok: false, error: message }));
+      res.end(
+        JSON.stringify({
+          v: '1.0',
+          ok: false,
+          code: 'INTERNAL_ERROR',
+          message
+        } as DevAgentEnvelope)
+      );
     }
     return;
   }
 
   // No route matched
   res.statusCode = 404;
-  res.end(JSON.stringify({ ok: false, error: 'Not found', hint: 'GET / for available endpoints' }));
+  res.end(
+    JSON.stringify({
+      v: '1.0',
+      ok: false,
+      code: 'NOT_FOUND',
+      message: 'Not found',
+      data: { hint: 'GET / for available endpoints' }
+    } as DevAgentEnvelope)
+  );
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1142,7 +1260,7 @@ export const buildStartupMessage = (params: {
   const lines: string[] = [];
 
   // Header
-  lines.push(`--- DEV MODE: ${projectName} -> ${stage} (${region}) ---`);
+  lines.push(formatCommandHeaderLine({ action: 'DEV MODE', projectName, stageName: stage, region }));
   lines.push('');
 
   // Agent info

@@ -15,10 +15,12 @@ class DependencyInstaller {
 
   install = async ({
     rootProjectDirPath,
-    progressLogger
+    progressLogger,
+    phase = 'BUILD_AND_PACKAGE'
   }: {
     rootProjectDirPath: string;
     progressLogger: ProgressLogger;
+    phase?: DeploymentPhase;
   }) => {
     const readPkgResult = await readPkgUp({ cwd: rootProjectDirPath }).catch(() => ({ path: null }));
     const packagePath = readPkgResult?.path || null;
@@ -52,7 +54,7 @@ class DependencyInstaller {
       await progressLogger.startEvent({
         eventType: 'INSTALL_DEPENDENCIES',
         description: 'Installing dependencies',
-        phase: 'BUILD_AND_PACKAGE'
+        phase
       });
       let result: ExecaReturnValue<string>;
       try {
@@ -69,7 +71,7 @@ class DependencyInstaller {
         });
       }
 
-      await progressLogger.finishEvent({ eventType: 'INSTALL_DEPENDENCIES', phase: 'BUILD_AND_PACKAGE' });
+      await progressLogger.finishEvent({ eventType: 'INSTALL_DEPENDENCIES', phase });
       return result;
     })();
 

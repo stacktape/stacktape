@@ -10,27 +10,35 @@ import type {
 import { eventManager } from '@application-services/event-manager';
 import { INVOKED_FROM_ENV_VAR_NAME, IS_DEV, linksMap } from '@config';
 import { getRelativePath, transformToUnixPath } from '@shared/utils/fs-utils';
-import { logCollectorStream } from '@utils/log-collector';
-import {
-  box as clackBox,
-  log as clackLog,
-  note as clackNote,
-  S_BAR,
-  S_BAR_END,
-  S_BAR_START,
-  updateSettings as clackUpdateSettings
-} from '@clack/prompts';
-import ci from 'ci-info';
+
+import type { Instance } from 'ink';
+import { render } from 'ink';
 import kleur from 'kleur';
+import React from 'react';
+import boxen from 'boxen';
+import stringWidth from 'string-width';
 import terminalLink from 'terminal-link';
-import { renderErrorToString, renderNextStepsToString, renderStackErrorsToString } from './non-tty-renderer';
-import { PromptManager } from './prompts';
-import { NonTtyRenderer, TtyRenderer } from './renderer';
+import { ConsoleInterceptor } from './console-interceptor';
+import { TuiApp } from './components/TuiApp';
+import type { JsonlEventDetail } from './jsonl-types';
+import { renderErrorToString, renderStackErrorsToString } from './non-tty-renderer';
+import { getOutputModeProfile, resolveOutputMode, type OutputMode } from './output-mode';
+import type { OutputRecord } from './output-record';
+import { OutputRouter } from './output-router';
+import { PromptSink } from './prompt-sink';
+import { UserCancelledError } from './prompts';
+import { NonTtyRenderer } from './state-non-tty-renderer';
 import { createSpinner, createSpinnerProgressLogger, MultiSpinner, setSpinnerGuidedMode } from './spinners';
 import { tuiState } from './state';
+import { TuiStateSink } from './tui-state-sink';
+import {
+  COMMAND_HEADER_BOX_MIN_WIDTH,
+  formatCommandHeaderProgressMessage,
+  formatCommandHeaderTarget
+} from './command-header';
 import { formatDuration, stripAnsi } from './utils';
 
-export { UserCancelledError } from './prompts';
+export { UserCancelledError };
 export type { Spinner } from './spinners';
 export { MultiSpinner } from './spinners';
 export { tuiState } from './state';
@@ -46,13 +54,6 @@ export type {
   TuiWarning
 } from './types';
 
-export type NextStep = {
-  text: string;
-  command?: string;
-  details?: string[];
-  links?: string[];
-};
-
 export type ErrorDisplayData = {
   errorType: string;
   message: string;
@@ -63,34 +64,33 @@ export type ErrorDisplayData = {
   isExpected?: boolean;
 };
 
-/**
- * TuiManager handles all terminal output for Stacktape CLI.
- *
- * Architecture:
- * - TTY mode: Uses log-update for dynamic content that updates in place
- * - Non-TTY mode: Uses plain console.info for append-only output
- * - Prompts: Uses @clack/prompts for interactive input
- *
- * No React/Ink dependencies - simple and reliable.
- */
 class TuiManager {
-  private ttyRenderer: TtyRenderer | null = null;
+  private inkInstance: Instance | null = null;
   private nonTtyRenderer: NonTtyRenderer | null = null;
-  private promptManager: PromptManager | null = null;
-  private renderInterval: ReturnType<typeof setInterval> | null = null;
   private unsubscribe: (() => void) | null = null;
 
-  private isTTY: boolean;
+  private outputMode: OutputMode = resolveOutputMode({ forceTty: process.env.FORCE_TTY === '1' });
+  private outputRouter: OutputRouter;
+  private stateSink = new TuiStateSink();
+  private promptSink = new PromptSink(this.colorize.bind(this));
+  private consoleInterceptor = new ConsoleInterceptor();
+  private explicitOutputMode?: OutputMode;
   private _isEnabled = false;
-  private _isPaused = false;
   private _wasEverStarted = false;
-  private _headerCommitted = false;
   private _devTuiActive = false;
   private _guidedMode = false;
   private logLevel: LogLevel = 'info';
 
   constructor() {
-    this.isTTY = (process.stdout.isTTY || process.env.FORCE_TTY === '1') && !ci.isCI;
+    this.outputRouter = new OutputRouter(this.outputMode);
+  }
+
+  get isTTY(): boolean {
+    return this.outputMode === 'tty';
+  }
+
+  get mode(): OutputMode {
+    return this.outputMode;
   }
 
   get enabled(): boolean {
@@ -101,10 +101,6 @@ class TuiManager {
     return this._wasEverStarted;
   }
 
-  get isPaused(): boolean {
-    return this._isPaused;
-  }
-
   get devTuiActive(): boolean {
     return this._devTuiActive;
   }
@@ -113,59 +109,54 @@ class TuiManager {
     return this._guidedMode;
   }
 
-  /**
-   * Enable agent mode - forces non-TTY output for LLM/programmatic consumption.
-   * Must be called after init() but before start().
-   */
+  /** @deprecated Use setOutputFormat() instead. Kept for backward compatibility. */
   setAgentMode(enabled: boolean) {
     if (enabled) {
-      this.isTTY = false;
-      // Reinitialize prompt manager with non-TTY mode
-      this.promptManager = new PromptManager(this.colorize.bind(this), false);
+      this.setOutputFormat('jsonl');
     }
   }
 
-  // ─── Lifecycle ───
+  setOutputFormat(mode: OutputMode) {
+    this.explicitOutputMode = mode;
+    this.outputMode = resolveOutputMode({
+      explicitMode: this.explicitOutputMode,
+      forceTty: process.env.FORCE_TTY === '1'
+    });
+    this.outputRouter.reconfigure(this.outputMode);
+    this.reconfigureConsoleForMode();
+  }
 
   init(options: { logLevel?: LogLevel } = {}) {
     this.logLevel = options.logLevel || 'info';
-    this.isTTY = (process.stdout.isTTY || process.env.FORCE_TTY === '1') && !ci.isCI;
-    this.promptManager = new PromptManager(this.colorize.bind(this), this.isTTY);
-    clackUpdateSettings({ withGuide: false });
+    this.outputMode = resolveOutputMode({
+      explicitMode: this.explicitOutputMode,
+      forceTty: process.env.FORCE_TTY === '1'
+    });
+    this.outputRouter.reconfigure(this.outputMode);
+    this.reconfigureConsoleForMode();
+    this.outputRouter.reset();
   }
 
-  /**
-   * Start the TUI for deploy/delete commands.
-   * Uses log-update for TTY, plain console for non-TTY.
-   */
   start() {
     this._isEnabled = true;
     this._wasEverStarted = true;
-    this._headerCommitted = false;
-    tuiState.reset();
+    this.stateSink.reset();
+    const profile = getOutputModeProfile(this.outputMode);
 
-    if (this.isTTY) {
-      this.ttyRenderer = new TtyRenderer(this.colorize.bind(this), this.makeBold.bind(this));
-      this.ttyRenderer.start();
+    if (profile.useJsonlStdout) {
+      return;
+    }
 
-      // Subscribe to state changes and re-render (skip while paused)
-      this.unsubscribe = tuiState.subscribe((state) => {
-        if (!this._isPaused && this.ttyRenderer) {
-          // Commit header once (uses clackBox, writes directly to stdout)
-          if (state.header && !this._headerCommitted) {
-            this._headerCommitted = true;
-            this.ttyRenderer.commitHeader(state);
-          }
-          this.ttyRenderer.render(state);
-        }
-      });
+    if (profile.usePlainStdout) {
+      return;
+    }
 
-      // Set up render interval for spinner animation
-      this.renderInterval = setInterval(() => {
-        if (this.ttyRenderer && !this._isPaused) {
-          this.ttyRenderer.render(tuiState.getState());
-        }
-      }, 100);
+    if (profile.useTtyUi) {
+      const renderOptions: any = {
+        patchConsole: false,
+        concurrent: true
+      };
+      this.inkInstance = render(React.createElement(TuiApp, { isTTY: true }), renderOptions);
     } else {
       this.nonTtyRenderer = new NonTtyRenderer();
       this.unsubscribe = tuiState.subscribe((state) => {
@@ -174,35 +165,19 @@ class TuiManager {
     }
   }
 
-  /**
-   * Stop the TUI and clean up.
-   */
   async stop() {
     tuiState.setFinalizing();
-
-    // Give time for final render
     await new Promise((resolve) => setTimeout(resolve, 100));
 
     this.stopInternal();
   }
 
-  /**
-   * Synchronously stop the TUI - used during interrupt handling (Ctrl+C).
-   * On Windows, skips final render to avoid encoding corruption when console resets.
-   */
   stopSync() {
     tuiState.setFinalizing();
 
-    if (this.renderInterval) {
-      clearInterval(this.renderInterval);
-      this.renderInterval = null;
-    }
-
-    if (this.ttyRenderer) {
-      // On interrupt, just clear without trying to render/persist.
-      // This avoids encoding issues on Windows where Ctrl+C resets console state.
-      this.ttyRenderer.clearAndStop();
-      this.ttyRenderer = null;
+    if (this.inkInstance) {
+      this.inkInstance.unmount();
+      this.inkInstance = null;
     }
 
     if (this.nonTtyRenderer) {
@@ -216,26 +191,13 @@ class TuiManager {
     }
 
     this._isEnabled = false;
-    this._isPaused = false;
+    this.consoleInterceptor.stop();
   }
 
   private stopInternal() {
-    if (this.renderInterval) {
-      clearInterval(this.renderInterval);
-      this.renderInterval = null;
-    }
-
-    if (this.ttyRenderer) {
-      // Final render to commit completed phases
-      this.ttyRenderer.render(tuiState.getState());
-      // Clear dynamic content and stop spinner
-      this.ttyRenderer.stop();
-      // Commit summary using clack note
-      const state = tuiState.getState();
-      if (state.summary) {
-        this.ttyRenderer.commitSummary(state);
-      }
-      this.ttyRenderer = null;
+    if (this.inkInstance) {
+      this.inkInstance.unmount();
+      this.inkInstance = null;
     }
 
     if (this.nonTtyRenderer) {
@@ -250,74 +212,49 @@ class TuiManager {
     }
 
     this._isEnabled = false;
-    this._isPaused = false;
+    this.consoleInterceptor.stop();
   }
 
-  /**
-   * Pause the TUI (for external prompts).
-   */
-  pause() {
-    if (!this._isEnabled || this._isPaused) return;
-    this._isPaused = true;
-
-    if (this.ttyRenderer) {
-      this.ttyRenderer.pause(tuiState.getState());
+  private reconfigureConsoleForMode() {
+    const interceptDisabled = process.env.STP_DISABLE_CONSOLE_INTERCEPT === 'true';
+    const profile = getOutputModeProfile(this.outputMode);
+    process.env.STP_REDIRECT_STDIO_TO_CONSOLE = profile.interceptConsole && !interceptDisabled ? 'true' : 'false';
+    if (profile.interceptConsole && !interceptDisabled) {
+      this.consoleInterceptor.start({
+        onMessage: ({ level, source, message }) => {
+          this.outputRouter.emit({ type: 'log', level, source, message });
+        }
+      });
+      return;
     }
-  }
-
-  /**
-   * Resume the TUI after pausing.
-   */
-  resume() {
-    if (!this._isEnabled || !this._isPaused) return;
-    this._isPaused = false;
-
-    if (this.isTTY && this.ttyRenderer) {
-      this.ttyRenderer.resume();
-    }
+    this.consoleInterceptor.stop();
   }
 
   setDevTuiActive(active: boolean) {
     this._devTuiActive = active;
   }
 
-  /**
-   * Start a guided command session with intro header and left border guide.
-   * Use this for simple commands that don't need the full deploy/delete TUI.
-   * All subsequent logs, prompts, and spinners will render within the guide.
-   */
   intro(title: string) {
     if (!this.isTTY) {
-      console.info(`\n● ${title}\n`);
+      console.info(`\n[i] ${title}\n`);
       return;
     }
     this._guidedMode = true;
     setSpinnerGuidedMode(true);
-    clackUpdateSettings({ withGuide: true });
-    // Custom intro with cyan dot indicator
-    process.stdout.write(`${this.colorize('cyan', S_BAR_START)}  ${title}\n`);
+    process.stdout.write(`${title}\n\n`);
   }
 
-  /**
-   * End a guided command session with outro message.
-   * Shows a green checkmark to indicate success.
-   * Resets the guide mode.
-   */
   outro(message?: string) {
     if (!this.isTTY) {
       if (message) console.info(`\n✓ ${message}\n`);
       return;
     }
-    // Custom outro with green checkmark
-    const checkmark = this.colorize('green', '✓');
+    const checkmark = this.colorize('green', '√');
     const outroMessage = message ? `${checkmark} ${message}` : '';
-    process.stdout.write(`${this.colorize('gray', S_BAR)}\n${this.colorize('green', S_BAR_END)}  ${outroMessage}\n`);
+    process.stdout.write(`${outroMessage}\n\n`);
     this._guidedMode = false;
     setSpinnerGuidedMode(false);
-    clackUpdateSettings({ withGuide: false });
   }
-
-  // ─── Spinners ───
 
   createSpinner({ text }: { text: string }) {
     return createSpinner(text, this.colorize.bind(this));
@@ -334,8 +271,6 @@ class TuiManager {
   ) {
     return createSpinnerProgressLogger(spinner, instanceId, parentEventType);
   }
-
-  // ─── Logging ───
 
   info(message: string) {
     this.log('info', message);
@@ -358,79 +293,79 @@ class TuiManager {
     this.log('hint', message);
   }
 
-  question(message: string) {
-    this.log('question', message);
-  }
-
   announcement(message: string, highlight?: boolean) {
     const formattedMessage = highlight ? `★  ${this.makeBold(message)}` : message;
     this.log('announcement', formattedMessage);
   }
 
+  private emitOutputRecord(record: OutputRecord) {
+    this.outputRouter.emit(record);
+  }
+
+  emitCollectorLog({
+    level,
+    source,
+    message,
+    data
+  }: {
+    level: 'info' | 'warn' | 'error';
+    source: string;
+    message: string;
+    data?: Record<string, unknown>;
+  }) {
+    this.outputRouter.emitCollectorLog({ level, source, message, data });
+  }
+
   private log(type: TuiMessageType, message: string) {
-    // If TUI is running in TTY mode with an active phase, add to state (will be rendered)
-    // For simple commands (no phase), print directly to console
-    const hasActivePhase = tuiState.getState().currentPhase !== undefined;
-    if (this._isEnabled && this.isTTY && !this._isPaused && hasActivePhase) {
-      tuiState.addMessage(type, type, message);
+    const level: 'info' | 'warn' | 'error' = type === 'error' ? 'error' : type === 'warn' ? 'warn' : 'info';
+
+    this.emitOutputRecord({ type: 'log', level, source: 'cli', message });
+
+    if (this.outputMode === 'plain') return;
+
+    const hasActivePhase = this.stateSink.getState().currentPhase !== undefined;
+    if (this._isEnabled && this.isTTY && hasActivePhase) {
+      this.stateSink.addMessage(type, message);
       return;
     }
 
-    // Print to console directly for non-TTY, paused TUI, or no active phase
     if (!this._devTuiActive) {
       this.printToConsole(type, message);
     }
-    logCollectorStream.write(message);
   }
 
   private printToConsole(type: TuiMessageType, message: string) {
     if (this.isTTY) {
-      switch (type) {
-        case 'info':
-          clackLog.message(message, { symbol: this.colorize('cyan', '●') });
-          break;
-        case 'success':
-          clackLog.message(message, { symbol: this.colorize('green', '✓') });
-          break;
-        case 'error':
-          clackLog.message(message, { symbol: this.colorize('red', '✖') });
-          break;
-        case 'warn':
-          clackLog.message(message, { symbol: this.colorize('yellow', '▲') });
-          break;
-        case 'debug':
-          clackLog.message(this.colorize('gray', message), { symbol: this.colorize('gray', '○') });
-          break;
-        case 'hint':
-          clackLog.message(this.colorize('blue', message), { symbol: this.colorize('blue', '●') });
-          break;
-        case 'question':
-          clackLog.message(message, { symbol: this.colorize('cyan', '?') });
-          break;
-        case 'start':
-        case 'announcement':
-          clackLog.message(message, { symbol: this.colorize('cyan', '▶') });
-          break;
-        default:
-          clackLog.message(message);
-      }
-    } else {
       const symbols: Record<TuiMessageType, string> = {
-        info: '[i]',
-        success: '[+]',
-        error: '[x]',
-        warn: '[!]',
-        debug: '[.]',
-        hint: '[?]',
-        question: '[?]',
-        start: '[>]',
-        announcement: '[*]'
+        info: this.colorize('cyan', 'ℹ'),
+        success: this.colorize('green', '✓'),
+        error: this.colorize('red', '✖'),
+        warn: this.colorize('yellow', '▲'),
+        debug: this.colorize('gray', '·'),
+        hint: this.colorize('blue', 'ℹ'),
+        start: this.colorize('cyan', '▶'),
+        announcement: this.colorize('cyan', '▶')
       };
-      console.info(`${symbols[type] || '[*]'} ${message}`);
+      const rendered = type === 'debug' ? this.colorize('gray', message) : message;
+      const line = `${symbols[type] || this.colorize('cyan', 'ℹ')} ${rendered}`;
+      console.info(line);
+      console.info('');
+      return;
     }
-  }
 
-  // ─── TUI State Management ───
+    const symbols: Record<TuiMessageType, string> = {
+      info: '[i]',
+      success: '[+]',
+      error: '[x]',
+      warn: '[!]',
+      debug: '[.]',
+      hint: '[?]',
+      start: '[>]',
+      announcement: '[*]'
+    };
+    console.info(`${symbols[type] || '[*]'} ${message}`);
+    console.info('');
+  }
 
   configureForDelete() {
     tuiState.configureForDelete();
@@ -448,24 +383,57 @@ class TuiManager {
     tuiState.setShowPhaseHeaders(show);
   }
 
-  setHeader(header: TuiDeploymentHeader) {
-    tuiState.setHeader(header);
+  private setHeader(header: TuiDeploymentHeader) {
+    const wasUpdated = this.stateSink.setHeader(header);
+    if (!wasUpdated) return;
+
+    this.emitOutputRecord({
+      type: 'progress',
+      phase: 'INITIALIZE',
+      message: formatCommandHeaderProgressMessage(header)
+    });
   }
 
-  /**
-   * Enable simple mode - hides phase headers and shows flat event list.
-   * Useful for commands like script:run that don't need phase-based UI.
-   */
+  showCommandHeader(header: TuiDeploymentHeader, options: { renderStandalone?: boolean } = {}) {
+    this.setHeader(header);
+    if (!options.renderStandalone) return;
+    if (this._isEnabled || !this.isTTY || this.outputMode !== 'tty') return;
+
+    const rendered = this.renderCommandHeaderBox(header);
+    for (const line of rendered) {
+      console.info(line);
+    }
+  }
+
+  private renderCommandHeaderBox(header: TuiDeploymentHeader): string[] {
+    const actionLine = this.makeBold(this.colorize('cyan', header.action));
+    const targetLine = `${header.projectName} ${this.colorize('gray', '→')} ${header.stageName} ${this.colorize('gray', `(${header.region})`)}`;
+    const plainTarget = formatCommandHeaderTarget(header);
+    const totalWidth = Math.max(COMMAND_HEADER_BOX_MIN_WIDTH, this.getVisibleWidth(plainTarget) + 4);
+    const innerWidth = totalWidth - 2;
+    const textWidth = innerWidth - 2;
+
+    const top = `╭${'─'.repeat(innerWidth)}╮`;
+    const actionPadding = Math.max(0, textWidth - this.getVisibleWidth(actionLine));
+    const targetPadding = Math.max(0, textWidth - this.getVisibleWidth(targetLine));
+    const actionRow = `│ ${actionLine}${' '.repeat(actionPadding)} │`;
+    const targetRow = `│ ${targetLine}${' '.repeat(targetPadding)} │`;
+    const bottom = `╰${'─'.repeat(innerWidth)}╯`;
+
+    return [top, actionRow, targetRow, bottom];
+  }
+
   setSimpleMode(enabled: boolean) {
     tuiState.setShowPhaseHeaders(!enabled);
   }
 
   setPhase(phase: DeploymentPhase) {
-    tuiState.setCurrentPhase(phase);
+    this.emitOutputRecord({ type: 'progress', phase, message: `Entering phase ${phase}` });
+    this.stateSink.setPhase(phase);
   }
 
   finishPhase() {
-    tuiState.finishCurrentPhase();
+    this.stateSink.finishPhase();
   }
 
   startEvent(params: {
@@ -473,34 +441,85 @@ class TuiManager {
     description: string;
     phase?: DeploymentPhase;
     parentEventType?: LoggableEventType;
+    parentInstanceId?: string;
     instanceId?: string;
   }) {
-    tuiState.startEvent(params);
+    const { phase } = this.stateSink.startEvent(params);
+    this.emitOutputRecord({
+      type: 'event',
+      phase,
+      eventType: params.eventType,
+      status: 'started',
+      message: params.description,
+      instanceId: params.instanceId,
+      parentEventType: params.parentEventType,
+      parentInstanceId: params.parentInstanceId
+    });
   }
 
   updateEvent(params: {
     eventType: LoggableEventType;
     additionalMessage?: string;
+    detail?: JsonlEventDetail;
     description?: string;
     parentEventType?: LoggableEventType;
+    parentInstanceId?: string;
     instanceId?: string;
   }) {
-    tuiState.updateEvent(params);
+    const updated = this.stateSink.updateEvent(params);
+    if (!updated) return;
+    this.emitOutputRecord({
+      type: 'event',
+      phase: updated.phase,
+      eventType: params.eventType,
+      status: 'running',
+      message: updated.message,
+      instanceId: params.instanceId,
+      parentEventType: params.parentEventType,
+      parentInstanceId: params.parentInstanceId,
+      detail: params.detail
+    });
   }
 
   finishEvent(params: {
     eventType: LoggableEventType;
     finalMessage?: string;
-    data?: Record<string, any>;
+    detail?: JsonlEventDetail;
     parentEventType?: LoggableEventType;
+    parentInstanceId?: string;
     instanceId?: string;
     status?: TuiEventStatus;
   }) {
-    tuiState.finishEvent(params);
+    const finished = this.stateSink.finishEvent(params);
+    this.emitOutputRecord({
+      type: 'event',
+      phase: finished.phase,
+      eventType: params.eventType,
+      status: 'completed',
+      message: finished.message,
+      instanceId: params.instanceId,
+      parentEventType: params.parentEventType,
+      parentInstanceId: params.parentInstanceId,
+      detail: params.detail
+    });
   }
 
-  appendEventOutput(params: { eventType: LoggableEventType; lines: string[]; instanceId?: string }) {
-    tuiState.appendEventOutput(params);
+  appendEventOutput(params: {
+    eventType: LoggableEventType;
+    lines: string[];
+    instanceId?: string;
+    parentEventType?: LoggableEventType;
+    parentInstanceId?: string;
+  }) {
+    this.emitOutputRecord({
+      type: 'output',
+      eventType: params.eventType,
+      instanceId: params.instanceId,
+      parentEventType: params.parentEventType,
+      parentInstanceId: params.parentInstanceId,
+      lines: params.lines
+    });
+    this.stateSink.appendEventOutput(params);
   }
 
   setComplete(success: boolean, message: string, links: TuiLink[] = [], consoleUrl?: string) {
@@ -515,8 +534,6 @@ class TuiManager {
     tuiState.commitPendingCompletion();
   }
 
-  // ─── Cancel Deployment ───
-
   setCancelDeployment(cancelDeployment: TuiCancelDeployment) {
     tuiState.setCancelDeployment(cancelDeployment);
   }
@@ -529,31 +546,8 @@ class TuiManager {
     tuiState.clearCancelDeployment();
   }
 
-  // ─── Prompts ───
-
   async promptSelect(config: { message: string; options: TuiSelectOption[]; defaultValue?: string }): Promise<string> {
-    // Pause TUI while prompting
-    const wasRunning = this._isEnabled && this.isTTY;
-    if (wasRunning) this.pause();
-
-    try {
-      if (!this.promptManager) {
-        this.promptManager = new PromptManager(this.colorize.bind(this), this.isTTY);
-      }
-      const result = await this.promptManager.select(config);
-
-      // Log selection only in non-TTY mode (clack already renders it in TTY)
-      if (!this.isTTY) {
-        const selectedOption = config.options.find((o) => o.value === result);
-        console.info(
-          `${this.colorize('cyan', 'ℹ')} ${config.message} ${this.colorize('cyan', selectedOption?.label || result)}`
-        );
-      }
-
-      return result;
-    } finally {
-      if (wasRunning) this.resume();
-    }
+    return this.promptSink.select({ config, isEnabled: this._isEnabled, isTTY: this.isTTY });
   }
 
   async promptMultiSelect(config: {
@@ -561,47 +555,11 @@ class TuiManager {
     options: TuiSelectOption[];
     defaultValues?: string[];
   }): Promise<string[]> {
-    const wasRunning = this._isEnabled && this.isTTY;
-    if (wasRunning) this.pause();
-
-    try {
-      if (!this.promptManager) {
-        this.promptManager = new PromptManager(this.colorize.bind(this), this.isTTY);
-      }
-      const result = await this.promptManager.multiSelect(config);
-
-      if (!this.isTTY) {
-        const selectedLabels = result.map((v) => config.options.find((o) => o.value === v)?.label || v).join(', ');
-        console.info(
-          `${this.colorize('cyan', 'ℹ')} ${config.message} ${this.colorize('cyan', selectedLabels || '(none)')}`
-        );
-      }
-
-      return result;
-    } finally {
-      if (wasRunning) this.resume();
-    }
+    return this.promptSink.multiSelect({ config, isEnabled: this._isEnabled, isTTY: this.isTTY });
   }
 
   async promptConfirm(config: { message: string; defaultValue?: boolean }): Promise<boolean> {
-    const wasRunning = this._isEnabled && this.isTTY;
-    if (wasRunning) this.pause();
-
-    try {
-      if (!this.promptManager) {
-        this.promptManager = new PromptManager(this.colorize.bind(this), this.isTTY);
-      }
-      const result = await this.promptManager.confirm(config);
-
-      if (!this.isTTY) {
-        const answer = result ? this.colorize('green', 'Yes') : this.colorize('red', 'No');
-        console.info(`${this.colorize('cyan', 'ℹ')} ${config.message} ${answer}`);
-      }
-
-      return result;
-    } finally {
-      if (wasRunning) this.resume();
-    }
+    return this.promptSink.confirm({ config, isEnabled: this._isEnabled, isTTY: this.isTTY });
   }
 
   async promptText(config: {
@@ -611,27 +569,8 @@ class TuiManager {
     description?: string;
     defaultValue?: string;
   }): Promise<string> {
-    const wasRunning = this._isEnabled && this.isTTY;
-    if (wasRunning) this.pause();
-
-    try {
-      if (!this.promptManager) {
-        this.promptManager = new PromptManager(this.colorize.bind(this), this.isTTY);
-      }
-      const result = await this.promptManager.text(config);
-
-      if (!this.isTTY) {
-        const displayValue = config.isPassword ? '*'.repeat(result.length) : result;
-        console.info(`${this.colorize('cyan', 'ℹ')} ${config.message} ${this.colorize('cyan', displayValue)}`);
-      }
-
-      return result;
-    } finally {
-      if (wasRunning) this.resume();
-    }
+    return this.promptSink.text({ config, isEnabled: this._isEnabled, isTTY: this.isTTY });
   }
-
-  // ─── Formatting Helpers ───
 
   colorize(color: string, text: string): string {
     if (!this.isTTY) return text;
@@ -722,9 +661,15 @@ class TuiManager {
     return rendered;
   }
 
-  // ─── Error Display ───
+  error(message: string): void;
+  error(error: UnexpectedError | ExpectedError): void;
+  error(input: string | UnexpectedError | ExpectedError) {
+    if (typeof input === 'string') {
+      this.log('error', input);
+      return;
+    }
 
-  error(error: UnexpectedError | ExpectedError) {
+    const error = input;
     const { hint } = error as ExpectedError;
     const { prettyStackTrace, errorType, sentryEventId } = error.details;
 
@@ -756,17 +701,11 @@ class TuiManager {
   }
 
   displayError(errorData: ErrorDisplayData) {
-    tuiState.markAllRunningAsErrored();
+    this.stateSink.markAllRunningAsErrored();
 
-    // Final render to commit errored phases before stopping
-    if (this.ttyRenderer) {
-      this.ttyRenderer.render(tuiState.getState());
-      this.ttyRenderer.stop();
-      this.ttyRenderer = null;
-    }
-    if (this.renderInterval) {
-      clearInterval(this.renderInterval);
-      this.renderInterval = null;
+    if (this.inkInstance) {
+      this.inkInstance.unmount();
+      this.inkInstance = null;
     }
     if (this.unsubscribe) {
       this.unsubscribe();
@@ -774,7 +713,18 @@ class TuiManager {
     }
 
     this._isEnabled = false;
-    this._isPaused = false;
+
+    this.emitOutputRecord({
+      type: 'log',
+      level: 'error',
+      source: 'cli',
+      message: `[${errorData.errorType}] ${errorData.message}`,
+      ...(errorData.hints ? { data: { hints: errorData.hints } } : {})
+    });
+
+    if (this.outputMode === 'jsonl') {
+      return;
+    }
 
     if (this.isTTY) {
       this.displayErrorWithClack(errorData);
@@ -782,27 +732,22 @@ class TuiManager {
       const errorString = renderErrorToString(errorData, this.colorize.bind(this), this.makeBold.bind(this));
       console.error(errorString);
     }
-
-    logCollectorStream.write(`[${errorData.errorType}] ${errorData.message}`);
   }
 
   private displayErrorWithClack(errorData: ErrorDisplayData) {
     const typeLabel = errorData.isExpected === false ? 'Unexpected Error' : this.getErrorLabel(errorData.errorType);
 
-    // Error header without box
     console.error('');
     console.error(this.colorize('red', `[x] ${typeLabel}`));
     console.error('');
     console.error(errorData.message);
 
-    // User stack trace (for config errors - shows where in user's code the error occurred)
     if (errorData.userStackTrace) {
       console.error('');
       console.error(this.makeBold('Stack trace in your code:'));
       console.error(this.colorize('cyan', errorData.userStackTrace));
     }
 
-    // Hints
     const hints = errorData.hints || [];
     if (hints.length > 0) {
       console.error('');
@@ -812,14 +757,12 @@ class TuiManager {
       }
     }
 
-    // Stack trace (internal)
     if (errorData.stackTrace) {
       console.error('');
       console.error(this.makeBold('Stack trace:'));
       console.error(this.colorize('gray', errorData.stackTrace));
     }
 
-    // Error ID
     if (errorData.sentryEventId) {
       console.error('');
       console.error(this.colorize('gray', `Error ID: ${errorData.sentryEventId}`));
@@ -864,8 +807,6 @@ class TuiManager {
     return labels[errorType] || `${errorType.replace(/_/g, ' ')} Error`;
   }
 
-  // ─── Special Output ───
-
   printStacktapeLog(stacktapeLog: { type: string; data: Record<string, any> }) {
     const message = { ...stacktapeLog, timestamp: Date.now() };
     if (process.env[INVOKED_FROM_ENV_VAR_NAME] === 'sdk') {
@@ -875,7 +816,22 @@ class TuiManager {
     } else {
       console.info(message);
     }
-    logCollectorStream.write(message);
+    const level: 'info' | 'warn' | 'error' = stacktapeLog.type === 'ERROR' ? 'error' : 'info';
+    this.emitOutputRecord({ type: 'log', level, source: 'stacktape-log', message: JSON.stringify(message) });
+  }
+
+  emitJsonlResult({
+    ok,
+    code,
+    message,
+    data
+  }: {
+    ok: boolean;
+    code: string;
+    message: string;
+    data?: Record<string, any>;
+  }) {
+    this.emitOutputRecord({ type: 'result', ok, code, message, data });
   }
 
   printTable({ header, rows }: { header: string[]; rows: string[][] }) {
@@ -885,15 +841,15 @@ class TuiManager {
   printLines(lines: string[]) {
     for (const line of lines) {
       console.info(line);
-      logCollectorStream.write(line);
+      this.emitOutputRecord({ type: 'log', level: 'info', source: 'cli', message: line });
     }
   }
 
   private printAsciiTable(header: string[], rows: string[][]) {
-    const widths = header.map((h) => stripAnsi(h).length);
+    const widths = header.map((h) => this.getVisibleWidth(h));
     for (const row of rows) {
       for (let i = 0; i < row.length; i++) {
-        const cellLength = stripAnsi(row[i] || '').length;
+        const cellLength = this.getVisibleWidth(row[i] || '');
         if (cellLength > (widths[i] || 0)) {
           widths[i] = cellLength;
         }
@@ -903,28 +859,63 @@ class TuiManager {
     const horizontalLine = `+${widths.map((w) => '-'.repeat(w + 2)).join('+')}+`;
     const formatRow = (cells: string[]) => {
       const paddedCells = cells.map((cell, i) => {
-        const visibleLength = stripAnsi(cell || '').length;
+        const visibleLength = this.getVisibleWidth(cell || '');
         const padding = (widths[i] || 0) - visibleLength;
         return (cell || '') + ' '.repeat(Math.max(0, padding));
       });
       return `| ${paddedCells.join(' | ')} |`;
     };
 
-    console.info(horizontalLine);
-    console.info(formatRow(header));
-    console.info(horizontalLine);
-    for (const row of rows) {
-      console.info(formatRow(row));
+    const allLines = [horizontalLine, formatRow(header), horizontalLine, ...rows.map(formatRow), horizontalLine];
+    for (const line of allLines) {
+      console.info(line);
     }
-    console.info(horizontalLine);
+    this.emitOutputRecord({ type: 'log', level: 'info', source: 'cli', message: allLines.join('\n') });
+  }
 
-    logCollectorStream.write(horizontalLine);
-    logCollectorStream.write(formatRow(header));
-    logCollectorStream.write(horizontalLine);
-    for (const row of rows) {
-      logCollectorStream.write(formatRow(row));
+  private renderSimpleBox({
+    title,
+    lines,
+    minWidth = 0
+  }: {
+    title: string;
+    lines: string[];
+    minWidth?: number;
+  }): string[] {
+    const content = (lines.length > 0 ? lines : ['']).join('\n');
+    const visibleLines = lines.length > 0 ? lines : [''];
+    const titleWidth = this.getVisibleWidth(title);
+    const widestLine = Math.max(0, ...visibleLines.map((line) => this.getVisibleWidth(line)));
+    const naturalWidth = Math.max(titleWidth, widestLine) + 4;
+    const terminalWidth = this.isTTY ? Math.max(20, (process.stdout.columns || 120) - 1) : naturalWidth;
+    const width = Math.min(Math.max(minWidth, naturalWidth), terminalWidth);
+    const rendered = boxen(content, {
+      title: this.makeBold(title),
+      titleAlignment: 'left',
+      borderStyle: 'round',
+      borderColor: 'cyan',
+      padding: { top: 0, right: 1, bottom: 0, left: 1 },
+      width,
+      ...(this.isTTY ? {} : { dimBorder: false })
+    });
+
+    return rendered.split('\n');
+  }
+
+  private printTitledNote(title: string, lines: string[]) {
+    const rendered = this.renderSimpleBox({ title, lines });
+    for (const line of rendered) {
+      console.info(line);
     }
-    logCollectorStream.write(horizontalLine);
+    console.info('');
+  }
+
+  private getVisibleWidth(value: string): number {
+    return stringWidth(stripAnsi(value));
+  }
+
+  printBox({ title, lines }: { title: string; lines: string[] }) {
+    this.printTitledNote(title, lines);
   }
 
   printListStack(listStacksResult: any[]) {
@@ -966,27 +957,6 @@ class TuiManager {
     this.printTable({ header, rows });
   }
 
-  showNextSteps(steps: NextStep[]) {
-    if (this._isEnabled && this.isTTY) {
-      this.pause();
-    }
-
-    if (this.isTTY) {
-      const noteLines: string[] = [];
-      steps.forEach((step, index) => {
-        let stepLine = `${this.colorize('cyan', `${index + 1}.`)} ${step.text}`;
-        if (step.command) stepLine += ` ${step.command}`;
-        noteLines.push(stepLine);
-        step.details?.forEach((detail) => noteLines.push(`   ${this.colorize('gray', '→')} ${detail}`));
-        step.links?.forEach((link) => noteLines.push(`   ${this.colorize('gray', '→')} ${link}`));
-      });
-      clackNote(noteLines.join('\n'), 'Next steps', { format: (line: string) => line });
-    } else {
-      const output = renderNextStepsToString(steps, this.colorize.bind(this), this.makeBold.bind(this));
-      console.info(output);
-    }
-  }
-
   printDevContainerReady({ ports, isWatchMode }: { ports: number[]; isWatchMode: boolean }) {
     const contentLines: string[] = [];
 
@@ -1002,12 +972,7 @@ class TuiManager {
       : `Type '${this.makeBold('rs + enter')}' to rebuild and restart`;
     contentLines.push(hint);
 
-    clackBox(contentLines.join('\n'), `${this.colorize('green', '✓')} Container ready`, {
-      rounded: true,
-      width: 'auto',
-      titleAlign: 'left',
-      contentAlign: 'left'
-    });
+    this.printTitledNote(`${this.colorize('green', '✓')} Container ready`, contentLines);
   }
 
   printWhoami({

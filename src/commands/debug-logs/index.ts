@@ -132,14 +132,14 @@ export const commandDebugLogs = async () => {
       return null;
     }
 
-    console.info(
+    tuiManager.printLines([
       limitedEvents
         .map(
           (event) =>
             `${tuiManager.colorize('yellow', new Date(event.timestamp).toLocaleString())}\t${event.logStreamName}\n${event.message}`
         )
         .join('\n')
-    );
+    ]);
   }
 
   return null;
