@@ -11,6 +11,48 @@ import { isAgentMode } from '../_utils/agent-mode';
 import { initializeStackServicesForWorkingWithDeployedStack } from '../_utils/initialization';
 
 const SUPPORTED_DB_TYPES = ['relational-database'] as const;
+const READ_ONLY_SQL_PREFIXES = ['select', 'show', 'describe', 'explain', '\\d'] as const;
+
+const parseConnectionString = ({ connectionString }: { connectionString: string }) => {
+  let url: URL;
+  try {
+    url = new URL(connectionString);
+  } catch {
+    throw new ExpectedError(
+      'CLI',
+      'Could not parse database connection string',
+      `Connection string format not recognized: ${connectionString.substring(0, 30)}...`
+    );
+  }
+
+  const protocol = url.protocol.replace(':', '');
+  if (protocol !== 'postgresql' && protocol !== 'mysql') {
+    throw new ExpectedError('CLI', `Unsupported SQL protocol in connection string: ${protocol}`);
+  }
+
+  const username = decodeURIComponent(url.username);
+  const password = decodeURIComponent(url.password);
+  const host = url.hostname;
+  const port = Number(url.port || (protocol === 'postgresql' ? 5432 : 3306));
+  const database = decodeURIComponent(url.pathname.replace(/^\//, '') || 'defdb');
+
+  if (!username || !password || !host || !port) {
+    throw new ExpectedError('CLI', 'Could not parse complete database credentials from connection string');
+  }
+
+  return { protocol, username, password, host, port, database };
+};
+
+const validateReadOnlySql = ({ sql }: { sql: string }) => {
+  const sqlLower = sql.toLowerCase().trim();
+  if (!READ_ONLY_SQL_PREFIXES.some((prefix) => sqlLower.startsWith(prefix))) {
+    throw new ExpectedError(
+      'CLI',
+      'debug:sql only supports read-only queries',
+      'Use SELECT, SHOW, DESCRIBE, or EXPLAIN statements only'
+    );
+  }
+};
 
 export const commandDebugSql = async () => {
   await initializeStackServicesForWorkingWithDeployedStack({
@@ -53,11 +95,13 @@ export const commandDebugSql = async () => {
     string,
     { value: unknown; ssmParameterName?: string } | undefined
   >;
-  const host = params.host?.value as string;
-  const port = params.port?.value as number;
+
+  const readerConnectionStringSsmParam = params.readerConnectionString?.ssmParameterName;
+  const primaryConnectionStringSsmParam = params.connectionString?.ssmParameterName;
+  const shouldUseReaderEndpoint = !!readerConnectionStringSsmParam;
+  const connectionStringSsmParam = readerConnectionStringSsmParam || primaryConnectionStringSsmParam;
 
   // Fetch connection string from SSM (contains credentials)
-  const connectionStringSsmParam = params.connectionString?.ssmParameterName;
   if (!connectionStringSsmParam) {
     throw new ExpectedError(
       'CLI',
@@ -77,45 +121,41 @@ export const commandDebugSql = async () => {
     );
   }
 
-  // Parse connection string: postgresql://user:password@host:port/dbname
-  const connStringMatch = connectionString.match(/^(postgresql|mysql):\/\/([^:]+):([^@]+)@([^:]+):(\d+)\/(.+)$/);
-  if (!connStringMatch) {
-    throw new ExpectedError(
-      'CLI',
-      'Could not parse database connection string',
-      `Connection string format not recognized: ${connectionString.substring(0, 30)}...`
-    );
-  }
-
-  const [, protocol, username, password, _connHost, _connPort, dbName] = connStringMatch;
+  const {
+    protocol,
+    username,
+    password,
+    host: parsedHost,
+    port: parsedPort,
+    database
+  } = parseConnectionString({
+    connectionString
+  });
   const isPostgres = protocol === 'postgresql';
-
-  if (!host || !port) {
-    throw new ExpectedError(
-      'CLI',
-      'Could not retrieve database connection parameters',
-      'Ensure the database is deployed and accessible'
-    );
-  }
 
   // Check if database is VPC-only (needs tunneling)
   // We detect this by trying to see if bastion tunneling targets exist
   let tunnels: SsmPortForwardingTunnel[] = [];
-  let connectionHost = host;
-  let connectionPort = port;
+  let connectionHost = parsedHost;
+  let connectionPort = parsedPort;
 
   // Try to establish tunnel if bastion is specified or if connection fails
   if (bastionResource) {
-    const targets = deployedStackOverviewManager.resolveBastionTunnelsForTarget({
+    const allTargets = deployedStackOverviewManager.resolveBastionTunnelsForTarget({
       targetStpName: resourceName,
       bastionStpName: bastionResource
     });
 
-    if (targets.length > 0) {
-      tunnels = await startPortForwardingSessions({ targets });
+    const targetLabel = shouldUseReaderEndpoint ? 'reader' : 'primary';
+    const selectedTarget = allTargets.find(({ label }) => label === targetLabel) || allTargets[0];
+
+    if (selectedTarget) {
+      tunnels = await startPortForwardingSessions({ targets: [selectedTarget] });
       connectionHost = '127.0.0.1';
       connectionPort = tunnels[0].localPort;
-      tuiManager.info(`Tunnel established: localhost:${connectionPort} -> ${host}:${port}`);
+      tuiManager.info(
+        `Tunnel established: localhost:${connectionPort} -> ${selectedTarget.remoteHost}:${selectedTarget.remotePort}`
+      );
     }
   }
 
@@ -131,35 +171,21 @@ export const commandDebugSql = async () => {
     port: connectionPort,
     user: username,
     password,
-    database: dbName || 'defdb',
+    database,
     // RDS requires SSL; use rejectUnauthorized: false for self-signed certs
     ssl: { rejectUnauthorized: false }
   };
 
-  // Validate query is read-only
-  const sqlLower = sql.toLowerCase().trim();
-  const isReadOnly =
-    sqlLower.startsWith('select') ||
-    sqlLower.startsWith('show') ||
-    sqlLower.startsWith('describe') ||
-    sqlLower.startsWith('explain') ||
-    sqlLower.startsWith('\\d'); // PostgreSQL meta-commands
+  validateReadOnlySql({ sql });
 
-  if (!isReadOnly) {
-    throw new ExpectedError(
-      'CLI',
-      'debug:sql only supports read-only queries',
-      'Use SELECT, SHOW, DESCRIBE, or EXPLAIN statements only'
-    );
-  }
-
-  // Execute query based on engine type
-  const queryFn = isPostgres ? postgresQuery : mysqlQuery;
-  const result = await queryFn(conn, { sql, limit, timeout });
-
-  // Close tunnels
-  if (tunnels.length > 0) {
-    await Promise.all(tunnels.map((t) => t.kill()));
+  let result: Awaited<ReturnType<typeof postgresQuery>>;
+  try {
+    const queryFn = isPostgres ? postgresQuery : mysqlQuery;
+    result = await queryFn(conn, { sql, limit, timeout });
+  } finally {
+    if (tunnels.length > 0) {
+      await Promise.all(tunnels.map((t) => t.kill()));
+    }
   }
 
   if (!result.ok) {

@@ -181,7 +181,7 @@ const handleAwsError = (err: unknown): AwsSdkResult => {
       return {
         ok: false,
         error: `Access denied: ${awsErr.message}`,
-        hint: 'This operation may not be allowed by the dev agent IAM policy'
+        hint: 'This operation may not be allowed by the debug agent IAM policy'
       };
     }
 

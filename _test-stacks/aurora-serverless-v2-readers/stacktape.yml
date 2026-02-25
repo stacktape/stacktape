@@ -1,0 +1,13 @@
+resources:
+  db:
+    type: relational-database
+    properties:
+      credentials:
+        masterUserPassword: testPassword123
+      engine:
+        type: aurora-postgresql-serverless-v2
+        properties:
+          version: '16.11'
+          minCapacity: 0.5
+          maxCapacity: 2
+          serverlessReadersCount: 2

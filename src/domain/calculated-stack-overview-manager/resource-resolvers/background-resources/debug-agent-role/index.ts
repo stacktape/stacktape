@@ -291,14 +291,17 @@ export const resolveDebugAgentRole = () => {
                 'rds:DescribeDBInstances',
                 'rds:DescribeDBClusters',
                 'rds:DescribeDBClusterEndpoints',
+                'rds:DescribeDBSubnetGroups',
+                'rds:DescribeDBParameterGroups',
+                'rds:DescribeDBClusterParameterGroups',
+                'rds:DescribeDBEngineVersions',
+                'rds:DescribeOrderableDBInstanceOptions',
                 'rds:DescribeDBSnapshots',
                 'rds:DescribeDBClusterSnapshots',
+                'rds:DescribeEvents',
                 'rds:ListTagsForResource'
               ],
-              Resource: [
-                SubWithoutMapping(`arn:aws:rds:*:\${AWS::AccountId}:db:${stackName}-*`),
-                SubWithoutMapping(`arn:aws:rds:*:\${AWS::AccountId}:cluster:${stackName}-*`)
-              ]
+              Resource: '*'
             }
           ]
         }
@@ -315,9 +318,11 @@ export const resolveDebugAgentRole = () => {
               Action: [
                 'elasticache:DescribeReplicationGroups',
                 'elasticache:DescribeCacheClusters',
+                'elasticache:DescribeCacheSubnetGroups',
+                'elasticache:DescribeEvents',
                 'elasticache:ListTagsForResource'
               ],
-              Resource: SubWithoutMapping(`arn:aws:elasticache:*:\${AWS::AccountId}:replicationgroup:${stackName}-*`)
+              Resource: '*'
             }
           ]
         }

@@ -175,15 +175,32 @@ export const resolveDatabases = async () => {
           definition.engine.type === 'aurora-mysql-serverless-v2' ||
           definition.engine.type === 'aurora-postgresql-serverless-v2'
         ) {
-          calculatedStackOverviewManager.addCfChildResource({
-            cfLogicalName: cfLogicalNames.auroraDbInstance(name, 0),
-            resource: getAuroraDbInstance({
-              stpResourceName: name,
-              resource: definition,
-              instanceNum: 0,
-              instanceSize: 'db.serverless'
-            }),
-            nameChain
+          const instanceCount = (definition.engine.properties.serverlessReadersCount || 0) + 1;
+          const instanceIndexes = Array.from({ length: instanceCount }, (_, index) => index);
+
+          instanceIndexes.forEach((instanceNum) => {
+            calculatedStackOverviewManager.addCfChildResource({
+              cfLogicalName: cfLogicalNames.auroraDbInstance(name, instanceNum),
+              resource: getAuroraDbInstance({
+                stpResourceName: name,
+                resource: definition,
+                instanceNum,
+                instanceSize: 'db.serverless'
+              }),
+              nameChain
+            });
+          });
+
+          calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
+            nameChain,
+            paramName: 'hosts',
+            paramValue: Join(
+              ',',
+              instanceIndexes.map((instanceNum) =>
+                GetAtt(cfLogicalNames.auroraDbInstance(name, instanceNum), 'Endpoint.Address')
+              )
+            ),
+            showDuringPrint: false
           });
         }
         calculatedStackOverviewManager.addCfChildResource({

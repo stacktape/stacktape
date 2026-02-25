@@ -72,6 +72,27 @@ const validateLogOptions = ({ resource }: { resource: StpRelationalDatabase }) =
   }
 };
 
+const validateAuroraServerlessV2ReadersCount = ({ resource }: { resource: StpRelationalDatabase }) => {
+  if (
+    resource.engine.type !== 'aurora-mysql-serverless-v2' &&
+    resource.engine.type !== 'aurora-postgresql-serverless-v2'
+  ) {
+    return;
+  }
+
+  const serverlessReadersCount = resource.engine.properties.serverlessReadersCount;
+  if (serverlessReadersCount === undefined) {
+    return;
+  }
+
+  if (!Number.isInteger(serverlessReadersCount) || serverlessReadersCount < 0) {
+    throw new ExpectedError(
+      'CONFIG_VALIDATION',
+      `Error in ${resource.type} "${resource.name}". Property "serverlessReadersCount" must be a non-negative integer when using engine type ${resource.engine.type}`
+    );
+  }
+};
+
 const isDayTimeStringValid = (dayTimeString: string): boolean => {
   const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   const pattern = /^([A-Z]{3}):(\d{2}):(\d{2})$/i;
@@ -123,5 +144,6 @@ export const validateRelationalDatabaseConfig = ({ resource }: { resource: StpRe
   if (resource.preferredMaintenanceWindow && !isValidDayTimeStringRange(resource.preferredMaintenanceWindow)) {
     throw stpErrors.e123({ stpResourceName: resource.name });
   }
+  validateAuroraServerlessV2ReadersCount({ resource });
   validateLogOptions({ resource });
 };

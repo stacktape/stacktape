@@ -15,6 +15,26 @@ let cachedCredentials: DebugAgentCredentials | null = null;
 let roleArn: string | null = null;
 let externalId: string | null = null;
 
+const getAssumeRoleFailureHint = ({ errorMessage }: { errorMessage: string }) => {
+  if (errorMessage.includes('AccessDenied')) {
+    return 'AssumeRole denied. Verify caller credentials can assume the stack debug role and redeploy to refresh trust policy if needed.';
+  }
+
+  if (errorMessage.includes('ExternalId')) {
+    return 'ExternalId mismatch. This stack metadata may be stale. Redeploy the stack and retry.';
+  }
+
+  if (errorMessage.includes('NoSuchEntity') || errorMessage.includes('cannot be assumed')) {
+    return 'Debug role missing or not assumable. Redeploy stack to recreate debug role outputs.';
+  }
+
+  if (errorMessage.includes('ExpiredToken') || errorMessage.includes('InvalidClientTokenId')) {
+    return 'Base AWS credentials are invalid/expired. Refresh credentials and retry.';
+  }
+
+  return 'Check AWS credentials, stack deployment state, and debug role trust policy.';
+};
+
 /**
  * Initialize debug agent credentials by fetching role info from stack outputs/metadata.
  * Call this after stack is loaded but before running debug commands.
@@ -92,7 +112,10 @@ export const getDebugAgentCredentials = async (): Promise<{
 
     return cachedCredentials;
   } catch (err) {
-    tuiManager.warn(`Failed to assume debug agent role: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+    const roleInfo = roleArn ? ` (${roleArn})` : '';
+    tuiManager.warn(`Failed to assume debug agent role${roleInfo}: ${errorMessage}`);
+    tuiManager.warn(getAssumeRoleFailureHint({ errorMessage }));
     tuiManager.warn('Falling back to user credentials');
 
     const userCreds = globalStateManager.credentials;
