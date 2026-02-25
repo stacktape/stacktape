@@ -10,7 +10,6 @@ import type {
   JsonlOutputEvent,
   JsonlResultEvent
 } from './jsonl-types';
-import { STACKTAPE_JSONL_PROTOCOL, STACKTAPE_JSONL_VERSION } from './jsonl-types';
 
 const now = () => new Date().toISOString();
 
@@ -141,8 +140,6 @@ class JsonlEmitter {
     this.lastEventAt = nowMs;
 
     const payload: JsonlEventEvent = {
-      protocol: STACKTAPE_JSONL_PROTOCOL,
-      version: STACKTAPE_JSONL_VERSION,
       type: 'event',
       ts: now(),
       phase,
@@ -189,8 +186,6 @@ class JsonlEmitter {
 
     const safeData = this.sanitizeData(data);
     const payload: JsonlLogEvent = {
-      protocol: STACKTAPE_JSONL_PROTOCOL,
-      version: STACKTAPE_JSONL_VERSION,
       type: 'log',
       ts: now(),
       level,
@@ -220,8 +215,6 @@ class JsonlEmitter {
     if (!cleaned.length) return undefined;
 
     const payload: JsonlOutputEvent = {
-      protocol: STACKTAPE_JSONL_PROTOCOL,
-      version: STACKTAPE_JSONL_VERSION,
       type: 'output',
       ts: now(),
       ...(eventType ? { eventType } : {}),
@@ -251,8 +244,6 @@ class JsonlEmitter {
     const safeData = this.sanitizeData(data);
 
     const payload: JsonlResultEvent = {
-      protocol: STACKTAPE_JSONL_PROTOCOL,
-      version: STACKTAPE_JSONL_VERSION,
       ts: now(),
       type: 'result',
       ok,

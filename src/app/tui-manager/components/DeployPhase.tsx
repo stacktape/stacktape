@@ -1,8 +1,17 @@
-/* eslint-disable no-control-regex */
 import type { TuiEvent, TuiMessage, TuiPhase, TuiWarning } from '../types';
 import { Spinner } from '@inkjs/ui';
 import { Box, Text } from 'ink';
 import React from 'react';
+import {
+  formatListSummary,
+  getProgressPercent,
+  parseDetailLists,
+  parseEstimatePercent,
+  parseProgressCounts,
+  parseResourceState,
+  parseSummaryCounts,
+  stripDeployMessageAnsi
+} from '../deploy-progress-parser';
 import { formatDuration } from '../utils';
 import { Event } from './Event';
 import { Message } from './Message';
@@ -49,77 +58,6 @@ const getActiveDeployEvent = (events: TuiEvent[]) => {
     );
   if (finishedDeployEvent) return finishedDeployEvent;
   return events.find((event) => DEPLOY_EVENT_TYPES.includes(event.eventType));
-};
-
-const stripAnsi = (message?: string) => {
-  if (!message) return message;
-  return message.replace(/\x1B\[[0-9;]*m/g, '');
-};
-
-const parseEstimatePercent = (message?: string) => {
-  const cleaned = stripAnsi(message);
-  if (!cleaned) return null;
-  const match = cleaned.match(/Estimate:\s*~(<)?(\d+)%/);
-  if (!match) return null;
-  const isLessThan = !!match[1];
-  const value = Number(match[2]);
-  if (!Number.isFinite(value)) return null;
-  return isLessThan ? 1 : value;
-};
-
-const getProgressPercent = (estimatePercent: number | null, status: TuiEvent['status']) => {
-  if (status !== 'running') return 100;
-  if (estimatePercent === null) return null;
-  return Math.max(0, Math.min(100, estimatePercent));
-};
-
-const parseResourceState = (message?: string) => {
-  const cleaned = stripAnsi(message);
-  if (!cleaned) return { active: null, waiting: null };
-  const activeMatch = cleaned.match(/Currently updating:\s*([^.|]+)\./i);
-  const waitingMatch = cleaned.match(/Waiting:\s*([^.|]+)\./i);
-  return {
-    active: activeMatch ? activeMatch[1].trim() : null,
-    waiting: waitingMatch ? waitingMatch[1].trim() : null
-  };
-};
-
-const parseProgressCounts = (message?: string) => {
-  const cleaned = stripAnsi(message);
-  if (!cleaned) return { done: null, total: null };
-  const match = cleaned.match(/Progress:\s*(\d+)\/(\d+)/i);
-  if (!match) return { done: null, total: null };
-  return { done: Number(match[1]), total: Number(match[2]) };
-};
-
-const parseSummaryCounts = (message?: string) => {
-  const cleaned = stripAnsi(message);
-  if (!cleaned) return { created: 0, updated: 0, deleted: 0 };
-  const match = cleaned.match(/Summary:\s*created=(\d+)\s*updated=(\d+)\s*deleted=(\d+)/i);
-  if (!match) return { created: 0, updated: 0, deleted: 0 };
-  return { created: Number(match[1]), updated: Number(match[2]), deleted: Number(match[3]) };
-};
-
-const parseDetailLists = (message?: string) => {
-  const cleaned = stripAnsi(message);
-  if (!cleaned) return { created: null, updated: null, deleted: null };
-  const match = cleaned.match(/Details:\s*created=([^;]+);\s*updated=([^;]+);\s*deleted=([^.]+)\./i);
-  if (!match) return { created: null, updated: null, deleted: null };
-  return { created: match[1].trim(), updated: match[2].trim(), deleted: match[3].trim() };
-};
-
-const formatListSummary = (items: string | null, count: number, maxItems: number) => {
-  if (count === 0) return null;
-  if (!items || items === 'none') return '...';
-  const list = items
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean);
-  if (!list.length) return null;
-  const visible = list.slice(0, maxItems);
-  const overflow = list.length - visible.length;
-  const needsEllipsis = overflow > 0 || count > list.length;
-  return `${visible.join(', ')}${needsEllipsis ? ', ...' : ''}`;
 };
 
 const renderResourceList = (label: string, items: string) => {
@@ -218,7 +156,7 @@ export const DeployPhase: React.FC<DeployPhaseProps> = ({
     !showProgressUI &&
     !isHotswapDeploy &&
     !isDeploymentDone;
-  const simpleStatusMessage = hasSimpleStatusMessage ? stripAnsi(deployEvent?.additionalMessage) : null;
+  const simpleStatusMessage = hasSimpleStatusMessage ? stripDeployMessageAnsi(deployEvent?.additionalMessage) : null;
 
   return (
     <Box flexDirection="column" marginBottom={1}>

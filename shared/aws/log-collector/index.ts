@@ -6,7 +6,7 @@ import { chunkArray, chunkString, removeColoringFromString, wait } from '@shared
 export class LogCollectorStream extends Writable {
   #awsSdkManager: AwsSdkManager;
   #logEvents: InputLogEvent[] = [];
-  #sendInterval: NodeJS.Timeout;
+  #sendInterval: NodeJS.Timeout | undefined;
   #logGroupName: string;
   #logStreamName: string;
   #logStreamExists = false;
@@ -16,7 +16,7 @@ export class LogCollectorStream extends Writable {
   constructor() {
     super({
       write: (chunk, encoding, callback) => {
-        const cleanedMessage = removeColoringFromString(typeof chunk !== 'string' ? JSON.stringify(chunk) : chunk);
+        const cleanedMessage = removeColoringFromString(this.#serializeChunk(chunk, encoding));
         const chunks = chunkString(cleanedMessage, 50 * 1000);
         chunks.forEach((messageChunk) => this.#logEvents.push({ message: messageChunk, timestamp: Date.now() }));
         callback();
@@ -37,7 +37,31 @@ export class LogCollectorStream extends Writable {
     this.#logGroupName = logGroupName;
     this.#logStreamName = logStreamName;
     this.#awsSdkManager = awsSdkManager;
-    this.#sendInterval = setInterval(this.#sendLogs, 3000);
+    this.#sendInterval = setInterval(() => {
+      void this.#sendLogs().catch(() => {
+        // noop: keep retrying on subsequent interval/final flush
+      });
+    }, 3000);
+  };
+
+  #serializeChunk = (chunk: any, encoding: BufferEncoding): string => {
+    if (typeof chunk === 'string') {
+      return chunk;
+    }
+    if (Buffer.isBuffer(chunk)) {
+      return chunk.toString(encoding || 'utf8');
+    }
+    if (chunk === null || chunk === undefined) {
+      return '';
+    }
+    if (typeof chunk === 'object') {
+      try {
+        return JSON.stringify(chunk);
+      } catch {
+        return String(chunk);
+      }
+    }
+    return String(chunk);
   };
 
   #sendLogs = async () => {
@@ -90,7 +114,10 @@ export class LogCollectorStream extends Writable {
   };
 
   makeFinalSend: CleanupHookFunction = async () => {
-    clearInterval(this.#sendInterval);
+    if (this.#sendInterval) {
+      clearInterval(this.#sendInterval);
+      this.#sendInterval = undefined;
+    }
     await wait(1000);
     return this.#sendLogs();
   };

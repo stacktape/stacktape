@@ -397,7 +397,9 @@ class TuiStateManager {
 
     const markEventErrored = (event: TuiEvent): TuiEvent => {
       const children = event.children.map((child) =>
-        child.status === 'running' ? { ...child, status: 'pending' as TuiEventStatus, endTime } : child
+        child.status === 'running'
+          ? { ...child, status: 'error' as TuiEventStatus, endTime, duration: endTime - child.startTime }
+          : child
       );
 
       if (event.status === 'running') {

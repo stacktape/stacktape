@@ -1,5 +1,6 @@
 import kleur from 'kleur';
 import stringWidth from 'string-width';
+import { formatListSummary, parseDetailLists, parseSummaryCounts } from './deploy-progress-parser';
 import type { TuiDeploymentHeader, TuiEvent, TuiMessage, TuiMessageType, TuiPhase, TuiWarning } from './types';
 import { COMMAND_HEADER_BOX_MIN_WIDTH } from './command-header';
 import { formatDuration, stripAnsi } from './utils';
@@ -69,7 +70,7 @@ const getAggregatedChildren = (children: TuiEvent[]): AggregatedEvent[] => {
         id: `agg-${instanceId}`,
         boldPrefix: instanceId,
         description: '',
-        additionalMessage: running ? (running.description || '') : undefined,
+        additionalMessage: running ? running.description || '' : undefined,
         finalMessage: allDone ? last?.finalMessage : undefined,
         status: running ? 'running' : allDone ? (anyError ? 'error' : 'success') : 'running',
         startTime,
@@ -82,7 +83,10 @@ const getAggregatedChildren = (children: TuiEvent[]): AggregatedEvent[] => {
 
 const NEVER_FLATTEN: LoggableEventType[] = ['PACKAGE_ARTIFACTS', 'UPLOAD_DEPLOYMENT_ARTIFACTS', 'SYNC_BUCKET'];
 
-const renderEventToLines = (event: TuiEvent, opts: { isChild?: boolean; isLast?: boolean; depth?: number }): string[] => {
+const renderEventToLines = (
+  event: TuiEvent,
+  opts: { isChild?: boolean; isLast?: boolean; depth?: number }
+): string[] => {
   const { isChild = false, isLast = false, depth = 0 } = opts;
   const lines: string[] = [];
 
@@ -149,42 +153,15 @@ const renderEventToLines = (event: TuiEvent, opts: { isChild?: boolean; isLast?:
 };
 
 export const renderEventToString = (event: TuiEvent): string => {
-  return renderEventToLines(event, {}).join('\n') + '\n';
-};
-
-const parseSummaryCounts = (message?: string) => {
-  const cleaned = stripAnsi(message);
-  if (!cleaned) return { created: 0, updated: 0, deleted: 0 };
-  const match = cleaned.match(/Summary:\s*created=(\d+)\s*updated=(\d+)\s*deleted=(\d+)/i);
-  if (!match) return { created: 0, updated: 0, deleted: 0 };
-  return { created: Number(match[1]), updated: Number(match[2]), deleted: Number(match[3]) };
-};
-
-const parseDetailLists = (message?: string) => {
-  const cleaned = stripAnsi(message);
-  if (!cleaned) return { created: null, updated: null, deleted: null };
-  const match = cleaned.match(/Details:\s*created=([^;]+);\s*updated=([^;]+);\s*deleted=([^.]+)\./i);
-  if (!match) return { created: null, updated: null, deleted: null };
-  return { created: match[1].trim(), updated: match[2].trim(), deleted: match[3].trim() };
-};
-
-const formatListSummary = (items: string | null, count: number, max: number) => {
-  if (count === 0) return null;
-  if (!items || items === 'none') return '...';
-  const list = items.split(',').map((s) => s.trim()).filter(Boolean);
-  if (!list.length) return null;
-  const visible = list.slice(0, max);
-  const overflow = list.length - visible.length;
-  const needsEllipsis = overflow > 0 || count > list.length;
-  return `${visible.join(', ')}${needsEllipsis ? ', ...' : ''}`;
+  return `${renderEventToLines(event, {}).join('\n')}\n`;
 };
 
 const getActiveDeployEvent = (events: TuiEvent[]) => {
   const running = events.find((e) => CF_DEPLOY_EVENT_TYPES.includes(e.eventType) && e.status === 'running');
   if (running) return running;
-  const finished = [...events].reverse().find(
-    (e) => CF_DEPLOY_EVENT_TYPES.includes(e.eventType) && (e.status === 'success' || e.status === 'error')
-  );
+  const finished = [...events]
+    .reverse()
+    .find((e) => CF_DEPLOY_EVENT_TYPES.includes(e.eventType) && (e.status === 'success' || e.status === 'error'));
   if (finished) return finished;
   return events.find((e) => CF_DEPLOY_EVENT_TYPES.includes(e.eventType));
 };
@@ -221,8 +198,8 @@ const renderDeployPhaseBody = (phase: TuiPhase, warnings: TuiWarning[], messages
   if (!isHotswap && isDeployDone && deployEvent) {
     const summaryCounts = parseSummaryCounts(deployEvent.additionalMessage);
     const detailLists = parseDetailLists(deployEvent.additionalMessage);
-    const nothingToUpdate = !isDelete &&
-      summaryCounts.created === 0 && summaryCounts.updated === 0 && summaryCounts.deleted === 0;
+    const nothingToUpdate =
+      !isDelete && summaryCounts.created === 0 && summaryCounts.updated === 0 && summaryCounts.deleted === 0;
 
     const statusChar = deployEvent.status === 'success' ? color('green', '✓') : color('red', '✗');
     const verb = isDelete ? 'Deleting' : 'Deploying';
@@ -298,9 +275,7 @@ export const renderPhaseToString = (
   const hasCfEvents = phase.events.some((e) => CF_DEPLOY_EVENT_TYPES.includes(e.eventType));
 
   if (showPhaseHeader) {
-    const timerStr = phase.duration !== undefined
-      ? ` ${color('gray', formatDuration(phase.duration))}`
-      : '';
+    const timerStr = phase.duration !== undefined ? ` ${color('gray', formatDuration(phase.duration))}` : '';
     lines.push(`${bold(`PHASE ${phaseNumber}`)} • ${bold(phase.name)}${timerStr}`);
     lines.push(color('gray', '─'.repeat(54)));
   }
@@ -317,7 +292,9 @@ export const renderPhaseToString = (
     for (const w of phaseWarnings) {
       const wLines = w.message.split('\n');
       for (let i = 0; i < wLines.length; i++) {
-        lines.push(i === 0 ? `${color('yellow', '⚠')} ${color('yellow', wLines[i])}` : `  ${color('yellow', wLines[i])}`);
+        lines.push(
+          i === 0 ? `${color('yellow', '⚠')} ${color('yellow', wLines[i])}` : `  ${color('yellow', wLines[i])}`
+        );
       }
     }
 
@@ -326,9 +303,9 @@ export const renderPhaseToString = (
   }
 
   lines.push('');
-  return lines.join('\n') + '\n';
+  return `${lines.join('\n')}\n`;
 };
 
 export const renderGlobalMessageToString = (message: TuiMessage): string => {
-  return renderMessageToLines(message).join('\n') + '\n';
+  return `${renderMessageToLines(message).join('\n')}\n`;
 };

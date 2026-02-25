@@ -7,19 +7,7 @@
  * Copy these types into any consumer that needs to parse the output.
  */
 
-// ---------------------------------------------------------------------------
-// Shared primitives
-// ---------------------------------------------------------------------------
-
 export type JsonlLevel = 'info' | 'warn' | 'error';
-
-export const STACKTAPE_JSONL_PROTOCOL = 'stacktape-jsonl' as const;
-export const STACKTAPE_JSONL_VERSION = 1 as const;
-
-export type JsonlProtocolEnvelope = {
-  protocol: typeof STACKTAPE_JSONL_PROTOCOL;
-  version: typeof STACKTAPE_JSONL_VERSION;
-};
 
 export type JsonlStackAction = 'create' | 'update' | 'delete' | 'rollback';
 
@@ -115,7 +103,7 @@ export type JsonlEventEvent = {
   parentInstanceId?: string;
   /** Structured metadata — discriminated by `kind`. */
   detail?: JsonlEventDetail;
-} & JsonlProtocolEnvelope;
+};
 
 /**
  * Informational, warning, or error log line.
@@ -134,7 +122,7 @@ export type JsonlLogEvent = {
   message: string;
   /** Optional structured payload (e.g. error hints). */
   data?: JsonlData;
-} & JsonlProtocolEnvelope;
+};
 
 /**
  * Child-process output (script hooks, builds, etc.).
@@ -156,7 +144,7 @@ export type JsonlOutputEvent = {
   parentInstanceId?: string;
   /** Output lines (ANSI stripped). */
   lines: string[];
-} & JsonlProtocolEnvelope;
+};
 
 /**
  * Exactly one per CLI invocation — the final command outcome.
@@ -175,7 +163,7 @@ export type JsonlResultEvent = {
   message: string;
   /** Command result payload (success) or error details (failure). */
   data?: JsonlData;
-} & JsonlProtocolEnvelope;
+};
 
 /** Union of all JSONL event types. Discriminate on the `type` field. */
 export type JsonlEvent = JsonlEventEvent | JsonlLogEvent | JsonlOutputEvent | JsonlResultEvent;

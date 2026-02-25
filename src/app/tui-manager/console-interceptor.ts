@@ -2,6 +2,7 @@ type ConsoleLogLevel = 'info' | 'warn' | 'error';
 
 type ConsoleInterceptorHandlers = {
   onMessage: (props: { level: ConsoleLogLevel; source: string; message: string }) => void;
+  passthrough?: boolean;
 };
 
 export class ConsoleInterceptor {
@@ -16,7 +17,7 @@ export class ConsoleInterceptor {
 
   private dispatching = false;
 
-  start({ onMessage }: ConsoleInterceptorHandlers) {
+  start({ onMessage, passthrough = false }: ConsoleInterceptorHandlers) {
     if (this.originalConsole) return;
 
     this.originalConsole = {
@@ -34,6 +35,9 @@ export class ConsoleInterceptor {
       this.dispatching = true;
       try {
         onMessage({ level: 'info', source: 'console', message: this.stringifyArgs(args) });
+        if (passthrough) {
+          this.originalConsole?.log(...args);
+        }
       } finally {
         this.dispatching = false;
       }
@@ -46,6 +50,9 @@ export class ConsoleInterceptor {
       this.dispatching = true;
       try {
         onMessage({ level: 'info', source: 'console', message: this.stringifyArgs(args) });
+        if (passthrough) {
+          this.originalConsole?.info(...args);
+        }
       } finally {
         this.dispatching = false;
       }
@@ -58,6 +65,9 @@ export class ConsoleInterceptor {
       this.dispatching = true;
       try {
         onMessage({ level: 'warn', source: 'console', message: this.stringifyArgs(args) });
+        if (passthrough) {
+          this.originalConsole?.warn(...args);
+        }
       } finally {
         this.dispatching = false;
       }
@@ -70,6 +80,9 @@ export class ConsoleInterceptor {
       this.dispatching = true;
       try {
         onMessage({ level: 'error', source: 'console', message: this.stringifyArgs(args) });
+        if (passthrough) {
+          this.originalConsole?.error(...args);
+        }
       } finally {
         this.dispatching = false;
       }

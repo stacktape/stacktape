@@ -1,6 +1,7 @@
 import type { CommonOptions } from 'execa';
 import { EventEmitter } from 'node:events';
 import execa from 'execa';
+import { jsonlEmitter } from '../../src/app/tui-manager/jsonl-emitter';
 import { logCollectorStream } from '../../src/utils/log-collector';
 import { serialize } from './misc';
 import { StreamTransformer } from './streams';
@@ -8,6 +9,18 @@ import { StreamTransformer } from './streams';
 EventEmitter.defaultMaxListeners = 0;
 
 const shouldRedirectStdioToConsole = () => process.env.STP_REDIRECT_STDIO_TO_CONSOLE === 'true';
+
+const emitCollectorLine = ({ line, stream }: { line: string; stream: 'stdout' | 'stderr' }) => {
+  const serialized = jsonlEmitter.emitLog({
+    level: stream === 'stderr' ? 'error' : 'info',
+    source: stream === 'stderr' ? 'child-stderr' : 'child-stdout',
+    message: line,
+    stdout: false
+  });
+  if (serialized) {
+    logCollectorStream.write(serialized);
+  }
+};
 
 type ExecProps = {
   logFailedCommand?: boolean;
@@ -78,7 +91,7 @@ const getChildProcess = (
       setupLineCallback(stdoutStream, (line) => console.info(line));
     } else {
       stdoutStream.pipe(process.stdout);
-      stdoutStream.pipe(logCollectorStream, { end: false });
+      setupLineCallback(stdoutStream, (line) => emitCollectorLine({ line, stream: 'stdout' }));
     }
   }
   if (!disableStderr) {
@@ -94,7 +107,7 @@ const getChildProcess = (
       setupLineCallback(stderrStream, (line) => console.error(line));
     } else {
       stderrStream.pipe(process.stderr);
-      stderrStream.pipe(logCollectorStream, { end: false });
+      setupLineCallback(stderrStream, (line) => emitCollectorLine({ line, stream: 'stderr' }));
     }
   }
   return childProcess;

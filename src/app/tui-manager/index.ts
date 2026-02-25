@@ -27,7 +27,6 @@ import type { OutputRecord } from './output-record';
 import { OutputRouter } from './output-router';
 import { PromptSink } from './prompt-sink';
 import { UserCancelledError } from './prompts';
-import { NonTtyRenderer } from './state-non-tty-renderer';
 import { createSpinner, createSpinnerProgressLogger, MultiSpinner, setSpinnerGuidedMode } from './spinners';
 import { tuiState } from './state';
 import { TuiStateSink } from './tui-state-sink';
@@ -66,14 +65,16 @@ export type ErrorDisplayData = {
 
 class TuiManager {
   private inkInstance: Instance | null = null;
-  private nonTtyRenderer: NonTtyRenderer | null = null;
-  private unsubscribe: (() => void) | null = null;
 
   private outputMode: OutputMode = resolveOutputMode({ forceTty: process.env.FORCE_TTY === '1' });
   private outputRouter: OutputRouter;
   private stateSink = new TuiStateSink();
   private promptSink = new PromptSink(this.colorize.bind(this));
   private consoleInterceptor = new ConsoleInterceptor();
+  private originalStdoutWrite: typeof process.stdout.write | null = null;
+  private originalStderrWrite: typeof process.stderr.write | null = null;
+  private stdoutJsonlBuffer = '';
+  private stderrJsonlBuffer = '';
   private explicitOutputMode?: OutputMode;
   private _isEnabled = false;
   private _wasEverStarted = false;
@@ -157,11 +158,6 @@ class TuiManager {
         concurrent: true
       };
       this.inkInstance = render(React.createElement(TuiApp, { isTTY: true }), renderOptions);
-    } else {
-      this.nonTtyRenderer = new NonTtyRenderer();
-      this.unsubscribe = tuiState.subscribe((state) => {
-        this.nonTtyRenderer?.render(state);
-      });
     }
   }
 
@@ -180,17 +176,9 @@ class TuiManager {
       this.inkInstance = null;
     }
 
-    if (this.nonTtyRenderer) {
-      this.nonTtyRenderer.reset();
-      this.nonTtyRenderer = null;
-    }
-
-    if (this.unsubscribe) {
-      this.unsubscribe();
-      this.unsubscribe = null;
-    }
-
     this._isEnabled = false;
+    this.disableJsonlStdoutGuard();
+    this.disableJsonlStderrGuard();
     this.consoleInterceptor.stop();
   }
 
@@ -200,27 +188,26 @@ class TuiManager {
       this.inkInstance = null;
     }
 
-    if (this.nonTtyRenderer) {
-      this.nonTtyRenderer.render(tuiState.getState());
-      this.nonTtyRenderer.reset();
-      this.nonTtyRenderer = null;
-    }
-
-    if (this.unsubscribe) {
-      this.unsubscribe();
-      this.unsubscribe = null;
-    }
-
     this._isEnabled = false;
+    this.disableJsonlStdoutGuard();
+    this.disableJsonlStderrGuard();
     this.consoleInterceptor.stop();
   }
 
   private reconfigureConsoleForMode() {
     const interceptDisabled = process.env.STP_DISABLE_CONSOLE_INTERCEPT === 'true';
     const profile = getOutputModeProfile(this.outputMode);
+    if (profile.useJsonlStdout) {
+      this.enableJsonlStdoutGuard();
+      this.enableJsonlStderrGuard();
+    } else {
+      this.disableJsonlStdoutGuard();
+      this.disableJsonlStderrGuard();
+    }
     process.env.STP_REDIRECT_STDIO_TO_CONSOLE = profile.interceptConsole && !interceptDisabled ? 'true' : 'false';
     if (profile.interceptConsole && !interceptDisabled) {
       this.consoleInterceptor.start({
+        passthrough: this.outputMode === 'plain',
         onMessage: ({ level, source, message }) => {
           this.outputRouter.emit({ type: 'log', level, source, message });
         }
@@ -228,6 +215,116 @@ class TuiManager {
       return;
     }
     this.consoleInterceptor.stop();
+  }
+
+  private isValidJsonlRecordLine(line: string) {
+    try {
+      const parsed = JSON.parse(line) as { type?: unknown };
+      if (!parsed || typeof parsed !== 'object') return false;
+      return parsed.type === 'event' || parsed.type === 'log' || parsed.type === 'output' || parsed.type === 'result';
+    } catch {
+      return false;
+    }
+  }
+
+  private emitStdoutJsonlViolation(line: string) {
+    const message = line.trim();
+    if (!message) return;
+    this.emitOutputRecord({ type: 'log', level: 'warn', source: 'stdout-raw', message });
+  }
+
+  private enableJsonlStdoutGuard() {
+    if (this.originalStdoutWrite) {
+      return;
+    }
+
+    this.originalStdoutWrite = process.stdout.write.bind(process.stdout) as typeof process.stdout.write;
+    this.stdoutJsonlBuffer = '';
+
+    process.stdout.write = ((chunk: any, encoding?: BufferEncoding | ((error?: Error | null) => void), cb?: any) => {
+      const callback = typeof encoding === 'function' ? encoding : typeof cb === 'function' ? cb : undefined;
+      const resolvedEncoding = typeof encoding === 'string' ? encoding : undefined;
+      const textChunk = Buffer.isBuffer(chunk) ? chunk.toString(resolvedEncoding || 'utf8') : String(chunk ?? '');
+
+      this.stdoutJsonlBuffer += textChunk;
+      const lines = this.stdoutJsonlBuffer.split('\n');
+      this.stdoutJsonlBuffer = lines.pop() || '';
+
+      for (const rawLine of lines) {
+        const trimmed = rawLine.trim();
+        if (!trimmed) {
+          continue;
+        }
+        if (this.isValidJsonlRecordLine(trimmed)) {
+          this.originalStdoutWrite?.(`${trimmed}\n`);
+          continue;
+        }
+        this.emitStdoutJsonlViolation(rawLine);
+      }
+
+      callback?.();
+      return true;
+    }) as typeof process.stdout.write;
+  }
+
+  private disableJsonlStdoutGuard() {
+    if (!this.originalStdoutWrite) {
+      return;
+    }
+
+    if (this.stdoutJsonlBuffer.trim()) {
+      this.emitStdoutJsonlViolation(this.stdoutJsonlBuffer);
+    }
+    this.stdoutJsonlBuffer = '';
+
+    process.stdout.write = this.originalStdoutWrite;
+    this.originalStdoutWrite = null;
+  }
+
+  private emitStderrJsonlLine(line: string) {
+    const message = line.trim();
+    if (!message) return;
+    this.emitOutputRecord({ type: 'log', level: 'error', source: 'stderr', message });
+  }
+
+  private enableJsonlStderrGuard() {
+    if (this.originalStderrWrite) {
+      return;
+    }
+
+    this.originalStderrWrite = process.stderr.write.bind(process.stderr) as typeof process.stderr.write;
+    this.stderrJsonlBuffer = '';
+
+    process.stderr.write = ((chunk: any, encoding?: BufferEncoding | ((error?: Error | null) => void), cb?: any) => {
+      const callback = typeof encoding === 'function' ? encoding : typeof cb === 'function' ? cb : undefined;
+      const resolvedEncoding = typeof encoding === 'string' ? encoding : undefined;
+      const textChunk = Buffer.isBuffer(chunk) ? chunk.toString(resolvedEncoding || 'utf8') : String(chunk ?? '');
+
+      this.stderrJsonlBuffer += textChunk;
+      const lines = this.stderrJsonlBuffer.split('\n');
+      this.stderrJsonlBuffer = lines.pop() || '';
+
+      for (const line of lines) {
+        this.emitStderrJsonlLine(line);
+      }
+
+      callback?.();
+      return true;
+    }) as typeof process.stderr.write;
+  }
+
+  private disableJsonlStderrGuard() {
+    if (!this.originalStderrWrite) {
+      return;
+    }
+
+    if (this.stderrJsonlBuffer.trim()) {
+      this.emitStderrJsonlLine(this.stderrJsonlBuffer);
+    }
+    this.stderrJsonlBuffer = '';
+
+    process.stderr.write = this.originalStderrWrite;
+    this.originalStderrWrite = null;
   }
 
   setDevTuiActive(active: boolean) {
@@ -321,7 +418,7 @@ class TuiManager {
 
     this.emitOutputRecord({ type: 'log', level, source: 'cli', message });
 
-    if (this.outputMode === 'plain') return;
+    if (this.outputMode === 'plain' || this.outputMode === 'jsonl') return;
 
     const hasActivePhase = this.stateSink.getState().currentPhase !== undefined;
     if (this._isEnabled && this.isTTY && hasActivePhase) {
@@ -707,10 +804,6 @@ class TuiManager {
       this.inkInstance.unmount();
       this.inkInstance = null;
     }
-    if (this.unsubscribe) {
-      this.unsubscribe();
-      this.unsubscribe = null;
-    }
 
     this._isEnabled = false;
 
@@ -838,10 +931,17 @@ class TuiManager {
     this.printAsciiTable(header, rows);
   }
 
+  private writeInfoLine(line: string) {
+    if (this.outputMode === 'jsonl') {
+      this.emitOutputRecord({ type: 'log', level: 'info', source: 'cli', message: line });
+      return;
+    }
+    console.info(line);
+  }
+
   printLines(lines: string[]) {
     for (const line of lines) {
-      console.info(line);
-      this.emitOutputRecord({ type: 'log', level: 'info', source: 'cli', message: line });
+      this.writeInfoLine(line);
     }
   }
 
@@ -868,9 +968,8 @@ class TuiManager {
 
     const allLines = [horizontalLine, formatRow(header), horizontalLine, ...rows.map(formatRow), horizontalLine];
     for (const line of allLines) {
-      console.info(line);
+      this.writeInfoLine(line);
     }
-    this.emitOutputRecord({ type: 'log', level: 'info', source: 'cli', message: allLines.join('\n') });
   }
 
   private renderSimpleBox({
@@ -905,9 +1004,9 @@ class TuiManager {
   private printTitledNote(title: string, lines: string[]) {
     const rendered = this.renderSimpleBox({ title, lines });
     for (const line of rendered) {
-      console.info(line);
+      this.writeInfoLine(line);
     }
-    console.info('');
+    this.writeInfoLine('');
   }
 
   private getVisibleWidth(value: string): number {
@@ -1049,16 +1148,16 @@ class TuiManager {
     }>;
   }) {
     if (projects.length === 0) {
-      console.info(this.colorize('gray', 'No projects found.'));
+      this.writeInfoLine(this.colorize('gray', 'No projects found.'));
       return;
     }
 
     for (const project of projects) {
-      console.info(this.makeBold(`Project: ${this.colorize('cyan', project.name)}`));
+      this.writeInfoLine(this.makeBold(`Project: ${this.colorize('cyan', project.name)}`));
 
       if (project.stages.length === 0 && project.undeployedStages.length === 0) {
-        console.info(`  ${this.colorize('gray', 'No stages')}`);
-        console.info('');
+        this.writeInfoLine(`  ${this.colorize('gray', 'No stages')}`);
+        this.writeInfoLine('');
         continue;
       }
 
@@ -1089,12 +1188,12 @@ class TuiManager {
       }
 
       if (project.undeployedStages.length > 0) {
-        console.info(
+        this.writeInfoLine(
           `  ${this.colorize('gray', 'Undeployed stages:')} ${project.undeployedStages.map((s) => s.name).join(', ')}`
         );
       }
 
-      console.info('');
+      this.writeInfoLine('');
     }
   }
 
@@ -1117,7 +1216,7 @@ class TuiManager {
     }>;
   }) {
     if (operations.length === 0) {
-      console.info(this.colorize('gray', 'No operations found.'));
+      this.writeInfoLine(this.colorize('gray', 'No operations found.'));
       return;
     }
 
@@ -1151,16 +1250,16 @@ class TuiManager {
 
     const failedOps = operations.filter((op) => op.success === false && op.description);
     if (failedOps.length > 0) {
-      console.info('');
-      console.info(this.makeBold('Error Details:'));
+      this.writeInfoLine('');
+      this.writeInfoLine(this.makeBold('Error Details:'));
       for (const op of failedOps) {
-        console.info(`  ${this.colorize('red', `[${op.command}]`)} ${op.projectName}-${op.stage}:`);
+        this.writeInfoLine(`  ${this.colorize('red', `[${op.command}]`)} ${op.projectName}-${op.stage}:`);
         const descLines = (op.description || '').split('\n').slice(0, 5);
         for (const line of descLines) {
-          console.info(`    ${this.colorize('gray', line)}`);
+          this.writeInfoLine(`    ${this.colorize('gray', line)}`);
         }
         if ((op.description || '').split('\n').length > 5) {
-          console.info(`    ${this.colorize('gray', '...(truncated)')}`);
+          this.writeInfoLine(`    ${this.colorize('gray', '...(truncated)')}`);
         }
       }
     }

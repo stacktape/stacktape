@@ -46,6 +46,9 @@ const createPlainSink = (): OutputSink => {
         return;
       }
       if (record.type === 'log') {
+        if (record.source === 'console') {
+          return;
+        }
         plainEmitter.emitLog({ level: record.level, message: record.message });
         return;
       }

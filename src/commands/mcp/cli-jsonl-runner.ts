@@ -4,8 +4,6 @@ import { createInterface } from 'node:readline';
 import { existsSync } from 'node:fs';
 
 type JsonlEventEvent = {
-  protocol?: 'stacktape-jsonl';
-  version?: 1;
   type: 'event';
   phase: string;
   eventType: string;
@@ -17,8 +15,6 @@ type JsonlEventEvent = {
 };
 
 type JsonlLogEvent = {
-  protocol?: 'stacktape-jsonl';
-  version?: 1;
   type: 'log';
   level: 'info' | 'warn' | 'error';
   source: string;
@@ -28,8 +24,6 @@ type JsonlLogEvent = {
 };
 
 type JsonlOutputEvent = {
-  protocol?: 'stacktape-jsonl';
-  version?: 1;
   type: 'output';
   eventType?: string;
   instanceId?: string;
@@ -38,8 +32,6 @@ type JsonlOutputEvent = {
 };
 
 type JsonlResultEvent = {
-  protocol?: 'stacktape-jsonl';
-  version?: 1;
   ts?: string;
   type: 'result';
   ok: boolean;
@@ -74,10 +66,8 @@ const pushTailLine = (tail: string[], line: string) => {
 
 const parseJsonlLine = (line: string): JsonlEvent | undefined => {
   try {
-    const parsed = JSON.parse(line) as { type?: unknown; protocol?: unknown; version?: unknown };
+    const parsed = JSON.parse(line) as { type?: unknown };
     if (!parsed || typeof parsed !== 'object' || typeof parsed.type !== 'string') return undefined;
-    if (parsed.protocol !== undefined && parsed.protocol !== 'stacktape-jsonl') return undefined;
-    if (parsed.version !== undefined && parsed.version !== 1) return undefined;
     if (parsed.type === 'event') return parsed as JsonlEventEvent;
     if (parsed.type === 'log') return parsed as JsonlLogEvent;
     if (parsed.type === 'output') return parsed as JsonlOutputEvent;
