@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "remix vite:dev",
     "build": "remix vite:build",
-    "start": "node build/server/index.js"
+    "start": "node build/server/index.js",
+    "build:stp": "npm install --no-audit --no-fund && remix vite:build"
   },
   "dependencies": {
     "@remix-run/node": "^2.16.0",

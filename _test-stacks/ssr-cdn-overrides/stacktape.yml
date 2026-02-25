@@ -1,0 +1,38 @@
+resources:
+  nuxtWeb:
+    type: nuxt-web
+    properties:
+      appDirectory: ../nuxt-web-test
+      cdn:
+        disableInvalidationAfterDeploy: true
+        defaultCachingOptions:
+          minTTL: 120
+          defaultTTL: 120
+        pathCachingOverrides:
+          - path: /nuxt-short
+            cachingOptions:
+              minTTL: 5
+              defaultTTL: 5
+              cacheKeyParameters:
+                headers:
+                  whitelist:
+                    - Referer
+
+  remixWeb:
+    type: remix-web
+    properties:
+      appDirectory: ../remix-web-test
+      cdn:
+        disableInvalidationAfterDeploy: true
+        defaultCachingOptions:
+          minTTL: 120
+          defaultTTL: 120
+        pathCachingOverrides:
+          - path: /remix-short
+            cachingOptions:
+              minTTL: 5
+              defaultTTL: 5
+              cacheKeyParameters:
+                headers:
+                  whitelist:
+                    - Referer

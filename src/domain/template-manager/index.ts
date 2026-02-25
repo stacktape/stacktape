@@ -18,6 +18,7 @@ import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorator
 import { ExpectedError } from '@utils/errors';
 import { saveToCfTemplateFile, saveToInitialCfTemplateFile, saveToStpTemplateFile } from '@utils/temp-files';
 import { validateStackOutput, validateUniqueness } from '@utils/validator';
+import { merge } from 'lodash';
 import set from 'lodash/set';
 import { getInitialCfTemplate } from './utils';
 
@@ -215,6 +216,21 @@ export class TemplateManager {
                 });
                 return;
               }
+            }
+
+            const existingValue = this.template.Resources[cfLogicalName].Properties?.[pathToProp];
+            if (
+              typeof pathToProp === 'string' &&
+              !pathToProp.includes('.') &&
+              value &&
+              typeof value === 'object' &&
+              !Array.isArray(value) &&
+              existingValue &&
+              typeof existingValue === 'object' &&
+              !Array.isArray(existingValue)
+            ) {
+              set(this.template.Resources[cfLogicalName].Properties, pathToProp, merge({}, existingValue, value));
+              return;
             }
 
             set(this.template.Resources[cfLogicalName].Properties, pathToProp, value);

@@ -46,6 +46,54 @@ import { cleanConfigForMinimalTemplateCompilerMode, mergeStacktapeDefaults } fro
 import { runInitialValidations, validateConfigStructure } from './utils/validation';
 import { isDevCommand, isResourceTypeExcludedInDevMode } from '../../commands/dev/dev-mode-utils';
 
+const normalizeCdnPath = ({ path }: { path: string }) => path.replace(/^\//, '');
+
+const applySsrWebPathCachingOverrides = ({
+  routeRewrites,
+  pathCachingOverrides,
+  defaultCachingOptions,
+  defaultForwardingOptions,
+  defaultEdgeFunctions
+}: {
+  routeRewrites: CdnRouteRewrite[];
+  pathCachingOverrides?: SsrWebPathCachingOverride[];
+  defaultCachingOptions: CdnCachingOptions;
+  defaultForwardingOptions: CdnForwardingOptions;
+  defaultEdgeFunctions: EdgeFunctionsConfig;
+}) => {
+  if (!pathCachingOverrides?.length) {
+    return routeRewrites;
+  }
+
+  const mergedRouteRewrites = routeRewrites.map((routeRewrite) => ({ ...routeRewrite }));
+
+  pathCachingOverrides.forEach((pathOverride) => {
+    const matchedRewriteIndex = mergedRouteRewrites.findIndex(
+      ({ path }) => normalizeCdnPath({ path }) === normalizeCdnPath({ path: pathOverride.path })
+    );
+
+    if (matchedRewriteIndex >= 0) {
+      mergedRouteRewrites[matchedRewriteIndex].cachingOptions = {
+        ...(mergedRouteRewrites[matchedRewriteIndex].cachingOptions || {}),
+        ...pathOverride.cachingOptions
+      };
+      return;
+    }
+
+    mergedRouteRewrites.push({
+      path: pathOverride.path,
+      forwardingOptions: defaultForwardingOptions,
+      edgeFunctions: defaultEdgeFunctions,
+      cachingOptions: {
+        ...defaultCachingOptions,
+        ...pathOverride.cachingOptions
+      }
+    });
+  });
+
+  return mergedRouteRewrites;
+};
+
 export class ConfigManager {
   config: StacktapeConfig;
   rawConfig: StacktapeConfig;
@@ -601,6 +649,7 @@ export class ConfigManager {
         useFirewall,
         nameChain: _p,
         warmServerInstances,
+        cdn: customCdnConfiguration,
         _nestedResources: _,
         streamingEnabled,
         ...restProps
@@ -673,89 +722,108 @@ export class ConfigManager {
           onOriginRequest: useEdgeLambda && nestedResourceInfo.serverEdgeFunction.stpReferenceableName
         },
         forwardingOptions: serverForwardingOptions,
-        cachingOptions: serverCachingOptions,
+        cachingOptions: {
+          ...serverCachingOptions,
+          ...(customCdnConfiguration?.defaultCachingOptions || {})
+        },
+        disableInvalidationAfterDeploy: customCdnConfiguration?.disableInvalidationAfterDeploy,
         useFirewall,
         customDomains,
-        routeRewrites: [
-          {
-            path: 'api/*',
-            edgeFunctions: {
-              onRequest: GetAtt(
-                cfLogicalNames.openNextHostHeaderRewriteFunction(name),
-                'FunctionARN'
-              ) as unknown as string,
-              onOriginRequest: useEdgeLambda && nestedResourceInfo.serverEdgeFunction.stpReferenceableName
-            },
-            forwardingOptions: serverForwardingOptions,
-            cachingOptions: serverCachingOptions
+        routeRewrites: applySsrWebPathCachingOverrides({
+          pathCachingOverrides: customCdnConfiguration?.pathCachingOverrides,
+          defaultCachingOptions: {
+            ...serverCachingOptions,
+            ...(customCdnConfiguration?.defaultCachingOptions || {})
           },
-          {
-            path: '_next/data/*',
-            edgeFunctions: {
-              onRequest: GetAtt(
-                cfLogicalNames.openNextHostHeaderRewriteFunction(name),
-                'FunctionARN'
-              ) as unknown as string,
-              onOriginRequest: useEdgeLambda && nestedResourceInfo.serverEdgeFunction.stpReferenceableName
-            },
-            forwardingOptions: serverForwardingOptions,
-            cachingOptions: serverCachingOptions
+          defaultForwardingOptions: serverForwardingOptions,
+          defaultEdgeFunctions: {
+            onRequest: GetAtt(
+              cfLogicalNames.openNextHostHeaderRewriteFunction(name),
+              'FunctionARN'
+            ) as unknown as string,
+            onOriginRequest: useEdgeLambda && nestedResourceInfo.serverEdgeFunction.stpReferenceableName
           },
-          {
-            path: '_next/image*',
-            forwardingOptions: imageLambdaForwardingOptions,
-            cachingOptions: imageLambdaCachingOptions,
-            routeTo: {
-              type: 'function',
-              properties: {
-                functionName: nestedResourceInfo.imageFunction.stpReferenceableName
+          routeRewrites: [
+            {
+              path: 'api/*',
+              edgeFunctions: {
+                onRequest: GetAtt(
+                  cfLogicalNames.openNextHostHeaderRewriteFunction(name),
+                  'FunctionARN'
+                ) as unknown as string,
+                onOriginRequest: useEdgeLambda && nestedResourceInfo.serverEdgeFunction.stpReferenceableName
+              },
+              forwardingOptions: serverForwardingOptions,
+              cachingOptions: serverCachingOptions
+            },
+            {
+              path: '_next/data/*',
+              edgeFunctions: {
+                onRequest: GetAtt(
+                  cfLogicalNames.openNextHostHeaderRewriteFunction(name),
+                  'FunctionARN'
+                ) as unknown as string,
+                onOriginRequest: useEdgeLambda && nestedResourceInfo.serverEdgeFunction.stpReferenceableName
+              },
+              forwardingOptions: serverForwardingOptions,
+              cachingOptions: serverCachingOptions
+            },
+            {
+              path: '_next/image*',
+              forwardingOptions: imageLambdaForwardingOptions,
+              cachingOptions: imageLambdaCachingOptions,
+              routeTo: {
+                type: 'function',
+                properties: {
+                  functionName: nestedResourceInfo.imageFunction.stpReferenceableName
+                }
+              }
+            },
+            // this is cache behaviour for all static content
+            // however the path patterns are only known later on (after packaging) and therefore this route rewrite is modified using template override
+            {
+              path: '<<TBD_STATIC>>',
+              forwardingOptions: staticBucketDataForwardingOptions,
+              cachingOptions: staticBucketDataCachingOptions,
+              routePrefix: '/_assets',
+              routeTo: {
+                type: 'bucket',
+                properties: {
+                  bucketName: nestedResourceInfo.bucket.stpReferenceableName,
+                  disableUrlNormalization: true
+                }
               }
             }
-          },
-          // this is cache behaviour for all static content
-          // however the path patterns are only known later on (after packaging) and therefore this route rewrite is modified using template override
-          {
-            path: '<<TBD_STATIC>>',
-            forwardingOptions: staticBucketDataForwardingOptions,
-            cachingOptions: staticBucketDataCachingOptions,
-            routePrefix: '/_assets',
-            routeTo: {
-              type: 'bucket',
-              properties: {
-                bucketName: nestedResourceInfo.bucket.stpReferenceableName,
-                disableUrlNormalization: true
-              }
-            }
-          }
-          // {
-          //   path: '_next/*',
-          //   forwardingOptions: staticBucketDataForwardingOptions,
-          //   cachingOptions: staticBucketDataCachingOptions,
-          //   routePrefix: '/_assets',
-          //   routeTo: {
-          //     type: 'bucket',
-          //     properties: {
-          //       bucketName: nestedResourceInfo.bucket.stpReferenceableName,
-          //       disableUrlNormalization: true
-          //     }
-          //   }
-          // }
-          // maybe this will better be done with template override (in resolver)
-          // ...(existsSync(`${appDirectory}/public`) ? readdirSync(`${appDirectory}/public`) : []).map((path) => ({
-          //   path,
-          //   forwardingOptions: staticBucketDataForwardingOptions,
-          //   cachingOptions: staticBucketDataCachingOptions,
-          //   routePrefix: '/_assets',
-          //   routeTo: !useEdgeLambda
-          //     ? ({
-          //         type: 'bucket',
-          //         properties: {
-          //           bucketName: nestedResourceInfo.bucket.stpReferenceableName
-          //         }
-          //       } as CdnBucketRoute)
-          //     : undefined
-          // }))
-        ]
+            // {
+            //   path: '_next/*',
+            //   forwardingOptions: staticBucketDataForwardingOptions,
+            //   cachingOptions: staticBucketDataCachingOptions,
+            //   routePrefix: '/_assets',
+            //   routeTo: {
+            //     type: 'bucket',
+            //     properties: {
+            //       bucketName: nestedResourceInfo.bucket.stpReferenceableName,
+            //       disableUrlNormalization: true
+            //     }
+            //   }
+            // }
+            // maybe this will better be done with template override (in resolver)
+            // ...(existsSync(`${appDirectory}/public`) ? readdirSync(`${appDirectory}/public`) : []).map((path) => ({
+            //   path,
+            //   forwardingOptions: staticBucketDataForwardingOptions,
+            //   cachingOptions: staticBucketDataCachingOptions,
+            //   routePrefix: '/_assets',
+            //   routeTo: !useEdgeLambda
+            //     ? ({
+            //         type: 'bucket',
+            //         properties: {
+            //           bucketName: nestedResourceInfo.bucket.stpReferenceableName
+            //         }
+            //       } as CdnBucketRoute)
+            //     : undefined
+            // }))
+          ]
+        })
       };
 
       return {
@@ -1138,6 +1206,7 @@ export class ConfigManager {
         buildCommand: _b,
         dev: _dev,
         serverLambda,
+        cdn: customCdnConfiguration,
         useFirewall,
         nameChain: _p,
         _nestedResources: _
@@ -1185,23 +1254,41 @@ export class ConfigManager {
           ) as unknown as string
         },
         forwardingOptions: serverForwardingOptions,
-        cachingOptions: serverCachingOptions,
+        cachingOptions: {
+          ...serverCachingOptions,
+          ...(customCdnConfiguration?.defaultCachingOptions || {})
+        },
+        disableInvalidationAfterDeploy: customCdnConfiguration?.disableInvalidationAfterDeploy,
         useFirewall,
         customDomains,
-        routeRewrites: [
-          {
-            path: '_astro/*',
-            forwardingOptions: staticBucketDataForwardingOptions,
-            cachingOptions: staticBucketDataCachingOptions,
-            routeTo: {
-              type: 'bucket',
-              properties: {
-                bucketName: nestedResourceInfo.bucket.stpReferenceableName,
-                disableUrlNormalization: true
+        routeRewrites: applySsrWebPathCachingOverrides({
+          pathCachingOverrides: customCdnConfiguration?.pathCachingOverrides,
+          defaultCachingOptions: {
+            ...serverCachingOptions,
+            ...(customCdnConfiguration?.defaultCachingOptions || {})
+          },
+          defaultForwardingOptions: serverForwardingOptions,
+          defaultEdgeFunctions: {
+            onRequest: GetAtt(
+              cfLogicalNames.ssrWebHostHeaderRewriteFunction(name, 'astro-web'),
+              'FunctionARN'
+            ) as unknown as string
+          },
+          routeRewrites: [
+            {
+              path: '_astro/*',
+              forwardingOptions: staticBucketDataForwardingOptions,
+              cachingOptions: staticBucketDataCachingOptions,
+              routeTo: {
+                type: 'bucket',
+                properties: {
+                  bucketName: nestedResourceInfo.bucket.stpReferenceableName,
+                  disableUrlNormalization: true
+                }
               }
             }
-          }
-        ]
+          ]
+        })
       };
 
       return {
@@ -1300,6 +1387,7 @@ export class ConfigManager {
         buildCommand: _b,
         dev: _dev,
         serverLambda,
+        cdn: customCdnConfiguration,
         useFirewall,
         nameChain: _p,
         _nestedResources: _
@@ -1347,23 +1435,41 @@ export class ConfigManager {
           ) as unknown as string
         },
         forwardingOptions: serverForwardingOptions,
-        cachingOptions: serverCachingOptions,
+        cachingOptions: {
+          ...serverCachingOptions,
+          ...(customCdnConfiguration?.defaultCachingOptions || {})
+        },
+        disableInvalidationAfterDeploy: customCdnConfiguration?.disableInvalidationAfterDeploy,
         useFirewall,
         customDomains,
-        routeRewrites: [
-          {
-            path: '_nuxt/*',
-            forwardingOptions: staticBucketDataForwardingOptions,
-            cachingOptions: staticBucketDataCachingOptions,
-            routeTo: {
-              type: 'bucket',
-              properties: {
-                bucketName: nestedResourceInfo.bucket.stpReferenceableName,
-                disableUrlNormalization: true
+        routeRewrites: applySsrWebPathCachingOverrides({
+          pathCachingOverrides: customCdnConfiguration?.pathCachingOverrides,
+          defaultCachingOptions: {
+            ...serverCachingOptions,
+            ...(customCdnConfiguration?.defaultCachingOptions || {})
+          },
+          defaultForwardingOptions: serverForwardingOptions,
+          defaultEdgeFunctions: {
+            onRequest: GetAtt(
+              cfLogicalNames.ssrWebHostHeaderRewriteFunction(name, 'nuxt-web'),
+              'FunctionARN'
+            ) as unknown as string
+          },
+          routeRewrites: [
+            {
+              path: '_nuxt/*',
+              forwardingOptions: staticBucketDataForwardingOptions,
+              cachingOptions: staticBucketDataCachingOptions,
+              routeTo: {
+                type: 'bucket',
+                properties: {
+                  bucketName: nestedResourceInfo.bucket.stpReferenceableName,
+                  disableUrlNormalization: true
+                }
               }
             }
-          }
-        ]
+          ]
+        })
       };
 
       return {
@@ -1462,6 +1568,7 @@ export class ConfigManager {
         buildCommand: _b,
         dev: _dev,
         serverLambda,
+        cdn: customCdnConfiguration,
         useFirewall,
         nameChain: _p,
         _nestedResources: _
@@ -1509,23 +1616,41 @@ export class ConfigManager {
           ) as unknown as string
         },
         forwardingOptions: serverForwardingOptions,
-        cachingOptions: serverCachingOptions,
+        cachingOptions: {
+          ...serverCachingOptions,
+          ...(customCdnConfiguration?.defaultCachingOptions || {})
+        },
+        disableInvalidationAfterDeploy: customCdnConfiguration?.disableInvalidationAfterDeploy,
         useFirewall,
         customDomains,
-        routeRewrites: [
-          {
-            path: '_app/*',
-            forwardingOptions: staticBucketDataForwardingOptions,
-            cachingOptions: staticBucketDataCachingOptions,
-            routeTo: {
-              type: 'bucket',
-              properties: {
-                bucketName: nestedResourceInfo.bucket.stpReferenceableName,
-                disableUrlNormalization: true
+        routeRewrites: applySsrWebPathCachingOverrides({
+          pathCachingOverrides: customCdnConfiguration?.pathCachingOverrides,
+          defaultCachingOptions: {
+            ...serverCachingOptions,
+            ...(customCdnConfiguration?.defaultCachingOptions || {})
+          },
+          defaultForwardingOptions: serverForwardingOptions,
+          defaultEdgeFunctions: {
+            onRequest: GetAtt(
+              cfLogicalNames.ssrWebHostHeaderRewriteFunction(name, 'sveltekit-web'),
+              'FunctionARN'
+            ) as unknown as string
+          },
+          routeRewrites: [
+            {
+              path: '_app/*',
+              forwardingOptions: staticBucketDataForwardingOptions,
+              cachingOptions: staticBucketDataCachingOptions,
+              routeTo: {
+                type: 'bucket',
+                properties: {
+                  bucketName: nestedResourceInfo.bucket.stpReferenceableName,
+                  disableUrlNormalization: true
+                }
               }
             }
-          }
-        ]
+          ]
+        })
       };
 
       return {
@@ -1624,6 +1749,7 @@ export class ConfigManager {
         buildCommand: _b,
         dev: _dev,
         serverLambda,
+        cdn: customCdnConfiguration,
         useFirewall,
         nameChain: _p,
         _nestedResources: _
@@ -1671,23 +1797,41 @@ export class ConfigManager {
           ) as unknown as string
         },
         forwardingOptions: serverForwardingOptions,
-        cachingOptions: serverCachingOptions,
+        cachingOptions: {
+          ...serverCachingOptions,
+          ...(customCdnConfiguration?.defaultCachingOptions || {})
+        },
+        disableInvalidationAfterDeploy: customCdnConfiguration?.disableInvalidationAfterDeploy,
         useFirewall,
         customDomains,
-        routeRewrites: [
-          {
-            path: '_build/*',
-            forwardingOptions: staticBucketDataForwardingOptions,
-            cachingOptions: staticBucketDataCachingOptions,
-            routeTo: {
-              type: 'bucket',
-              properties: {
-                bucketName: nestedResourceInfo.bucket.stpReferenceableName,
-                disableUrlNormalization: true
+        routeRewrites: applySsrWebPathCachingOverrides({
+          pathCachingOverrides: customCdnConfiguration?.pathCachingOverrides,
+          defaultCachingOptions: {
+            ...serverCachingOptions,
+            ...(customCdnConfiguration?.defaultCachingOptions || {})
+          },
+          defaultForwardingOptions: serverForwardingOptions,
+          defaultEdgeFunctions: {
+            onRequest: GetAtt(
+              cfLogicalNames.ssrWebHostHeaderRewriteFunction(name, 'solidstart-web'),
+              'FunctionARN'
+            ) as unknown as string
+          },
+          routeRewrites: [
+            {
+              path: '_build/*',
+              forwardingOptions: staticBucketDataForwardingOptions,
+              cachingOptions: staticBucketDataCachingOptions,
+              routeTo: {
+                type: 'bucket',
+                properties: {
+                  bucketName: nestedResourceInfo.bucket.stpReferenceableName,
+                  disableUrlNormalization: true
+                }
               }
             }
-          }
-        ]
+          ]
+        })
       };
 
       return {
@@ -1786,6 +1930,7 @@ export class ConfigManager {
         buildCommand: _b,
         dev: _dev,
         serverLambda,
+        cdn: customCdnConfiguration,
         useFirewall,
         nameChain: _p,
         _nestedResources: _
@@ -1833,23 +1978,41 @@ export class ConfigManager {
           ) as unknown as string
         },
         forwardingOptions: serverForwardingOptions,
-        cachingOptions: serverCachingOptions,
+        cachingOptions: {
+          ...serverCachingOptions,
+          ...(customCdnConfiguration?.defaultCachingOptions || {})
+        },
+        disableInvalidationAfterDeploy: customCdnConfiguration?.disableInvalidationAfterDeploy,
         useFirewall,
         customDomains,
-        routeRewrites: [
-          {
-            path: '_build/*',
-            forwardingOptions: staticBucketDataForwardingOptions,
-            cachingOptions: staticBucketDataCachingOptions,
-            routeTo: {
-              type: 'bucket',
-              properties: {
-                bucketName: nestedResourceInfo.bucket.stpReferenceableName,
-                disableUrlNormalization: true
+        routeRewrites: applySsrWebPathCachingOverrides({
+          pathCachingOverrides: customCdnConfiguration?.pathCachingOverrides,
+          defaultCachingOptions: {
+            ...serverCachingOptions,
+            ...(customCdnConfiguration?.defaultCachingOptions || {})
+          },
+          defaultForwardingOptions: serverForwardingOptions,
+          defaultEdgeFunctions: {
+            onRequest: GetAtt(
+              cfLogicalNames.ssrWebHostHeaderRewriteFunction(name, 'tanstack-web'),
+              'FunctionARN'
+            ) as unknown as string
+          },
+          routeRewrites: [
+            {
+              path: '_build/*',
+              forwardingOptions: staticBucketDataForwardingOptions,
+              cachingOptions: staticBucketDataCachingOptions,
+              routeTo: {
+                type: 'bucket',
+                properties: {
+                  bucketName: nestedResourceInfo.bucket.stpReferenceableName,
+                  disableUrlNormalization: true
+                }
               }
             }
-          }
-        ]
+          ]
+        })
       };
 
       return {
@@ -1948,6 +2111,7 @@ export class ConfigManager {
         buildCommand: _b,
         dev: _dev,
         serverLambda,
+        cdn: customCdnConfiguration,
         useFirewall,
         nameChain: _p,
         _nestedResources: _
@@ -1995,23 +2159,41 @@ export class ConfigManager {
           ) as unknown as string
         },
         forwardingOptions: serverForwardingOptions,
-        cachingOptions: serverCachingOptions,
+        cachingOptions: {
+          ...serverCachingOptions,
+          ...(customCdnConfiguration?.defaultCachingOptions || {})
+        },
+        disableInvalidationAfterDeploy: customCdnConfiguration?.disableInvalidationAfterDeploy,
         useFirewall,
         customDomains,
-        routeRewrites: [
-          {
-            path: 'assets/*',
-            forwardingOptions: staticBucketDataForwardingOptions,
-            cachingOptions: staticBucketDataCachingOptions,
-            routeTo: {
-              type: 'bucket',
-              properties: {
-                bucketName: nestedResourceInfo.bucket.stpReferenceableName,
-                disableUrlNormalization: true
+        routeRewrites: applySsrWebPathCachingOverrides({
+          pathCachingOverrides: customCdnConfiguration?.pathCachingOverrides,
+          defaultCachingOptions: {
+            ...serverCachingOptions,
+            ...(customCdnConfiguration?.defaultCachingOptions || {})
+          },
+          defaultForwardingOptions: serverForwardingOptions,
+          defaultEdgeFunctions: {
+            onRequest: GetAtt(
+              cfLogicalNames.ssrWebHostHeaderRewriteFunction(name, 'remix-web'),
+              'FunctionARN'
+            ) as unknown as string
+          },
+          routeRewrites: [
+            {
+              path: 'assets/*',
+              forwardingOptions: staticBucketDataForwardingOptions,
+              cachingOptions: staticBucketDataCachingOptions,
+              routeTo: {
+                type: 'bucket',
+                properties: {
+                  bucketName: nestedResourceInfo.bucket.stpReferenceableName,
+                  disableUrlNormalization: true
+                }
               }
             }
-          }
-        ]
+          ]
+        })
       };
 
       return {

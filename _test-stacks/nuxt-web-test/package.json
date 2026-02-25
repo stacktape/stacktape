@@ -6,7 +6,8 @@
     "build": "nuxt build",
     "dev": "nuxt dev",
     "generate": "nuxt generate",
-    "preview": "nuxt preview"
+    "preview": "nuxt preview",
+    "build:stp": "npm install --no-audit --no-fund && nuxi build"
   },
   "dependencies": {
     "nuxt": "^3.16.0",

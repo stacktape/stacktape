@@ -41,3 +41,48 @@ interface SsrWebDevConfig {
    */
   workingDirectory?: string;
 }
+
+/**
+ * CDN configuration shared by all SSR web resources
+ */
+interface SsrWebCdnConfig {
+  /**
+   * #### Skip clearing the CDN cache after each deploy.
+   *
+   * ---
+   *
+   * By default, all cached content is flushed on every deploy so users see the latest version.
+   * Set to `true` if you manage cache invalidation yourself or want to keep cached content between deploys.
+   *
+   * @default false
+   */
+  disableInvalidationAfterDeploy?: boolean;
+  /**
+   * #### Override default SSR caching behavior for all routes handled by the server.
+   *
+   * ---
+   *
+   * Useful when you want to cache SSR responses longer than the framework defaults.
+   */
+  defaultCachingOptions?: CdnCachingOptions;
+  /**
+   * #### Override caching for specific CDN path patterns.
+   *
+   * ---
+   *
+   * Matches existing framework-managed paths (e.g. `_astro/*`, `_next/data/*`) or adds
+   * new server-path caching rules (e.g. `/_server-islands/*`) while preserving managed routing.
+   */
+  pathCachingOverrides?: SsrWebPathCachingOverride[];
+}
+
+interface SsrWebPathCachingOverride {
+  /**
+   * #### URL path pattern to match (e.g., `/api/*`, `/_server-islands/*`).
+   */
+  path: string;
+  /**
+   * #### Caching behavior override for this path pattern.
+   */
+  cachingOptions: CdnCachingOptions;
+}

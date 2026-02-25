@@ -50,6 +50,10 @@ interface AstroWebProps extends ResourceAccessProps {
    * #### Set custom headers (e.g., `Cache-Control`) for static files matching a pattern.
    */
   fileOptions?: DirectoryUploadFilter[];
+  /**
+   * #### CDN cache controls for SSR routes and specific path patterns.
+   */
+  cdn?: SsrWebCdnConfig;
 }
 
 interface AstroWebServerLambdaConfig {

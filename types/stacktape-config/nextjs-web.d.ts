@@ -86,6 +86,10 @@ interface NextjsWebProps extends ResourceAccessProps {
    * @default false
    */
   streamingEnabled?: boolean;
+  /**
+   * #### CDN cache controls for SSR routes and specific path patterns.
+   */
+  cdn?: SsrWebCdnConfig;
 }
 
 type StpNextjsWeb = NextjsWeb['properties'] & {
