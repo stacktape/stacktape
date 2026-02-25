@@ -13,9 +13,20 @@ import { wait } from '@shared/utils/misc';
 import { isPortInUse } from '@shared/utils/ports';
 import execa from 'execa';
 import findFreePorts from 'find-free-ports';
+import { chmod } from 'fs-extra';
 import pRetry from 'p-retry';
 import { awsSdkManager } from './aws-sdk-manager';
 import { SsmExecuteScriptCloudwatchLogPrinter } from './cloudwatch-logs';
+
+let sessionManagerPluginPrepared = false;
+
+const ensureSessionManagerPluginExecutable = async () => {
+  if (sessionManagerPluginPrepared || process.platform === 'win32') {
+    return;
+  }
+  await chmod(fsPaths.sessionManagerPath(), 0o755);
+  sessionManagerPluginPrepared = true;
+};
 
 export class SsmPortForwardingTunnel {
   #instanceId: string;
@@ -54,6 +65,20 @@ export class SsmPortForwardingTunnel {
 
   connect = async () => {
     return new Promise((resolve, reject) => {
+      let settled = false;
+      const finishResolve = () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        resolve(true);
+      };
+      const finishReject = (error: unknown) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        reject(error);
+      };
+
       const startSessionCommandInput: StartSessionCommandInput = {
         Target: this.#instanceId,
         DocumentName: 'AWS-StartPortForwardingSessionToRemoteHost',
@@ -66,8 +91,9 @@ export class SsmPortForwardingTunnel {
       };
       pRetry(
         async () => {
-          return awsSdkManager.startSsmSession(startSessionCommandInput).then((startSessionResponse) => {
+          return awsSdkManager.startSsmSession(startSessionCommandInput).then(async (startSessionResponse) => {
             this.#ssmSessionId = startSessionResponse.SessionId;
+            await ensureSessionManagerPluginExecutable();
             this.#tunnelProcess = execa(fsPaths.sessionManagerPath(), [
               JSON.stringify(startSessionResponse),
               this.#region,
@@ -83,9 +109,13 @@ export class SsmPortForwardingTunnel {
               })
               .on('line', (line) => {
                 if (line.includes('Waiting for connections')) {
-                  resolve(true);
+                  finishResolve();
                 }
               });
+
+            this.#tunnelProcess.catch((error) => {
+              finishReject(error);
+            });
           });
         },
         {
@@ -97,18 +127,18 @@ export class SsmPortForwardingTunnel {
             tuiManager.debug(`Tunnel via ${this.#instanceId} failed. Reconnecting...`);
           }
         }
-      ).catch((error) => reject(error));
+      ).catch((error) => finishReject(error));
 
       // automatically send reject after 10 seconds
       // if the Promise was already resolved, this will do nothing
       // otherwise this helps for process not to keep hanging
       // it is up to caller of this function to actually kill the process (if it is not dead already)
-      setTimeout(() => {
+      const timeout = setTimeout(() => {
         // if (this.#tunnelProcess.exitCode) {
         //   console.log('exit code', this.#tunnelProcess.exitCode);
         //   console.log('stderr', this.#tunnelProcess.);
         // }
-        reject(new Error(`Opening tunnel connection to ${this.#remoteHost}:${this.#remotePort} timed out.`));
+        finishReject(new Error(`Opening tunnel connection to ${this.#remoteHost}:${this.#remotePort} timed out.`));
       }, 10000);
     });
   };
@@ -135,6 +165,7 @@ export const runBastionSsmShellSession = async ({ instanceId, region }: { instan
   const startSessionResponse = await awsSdkManager.startSsmSession(startSessionCommandInput);
 
   try {
+    await ensureSessionManagerPluginExecutable();
     await execa(
       fsPaths.sessionManagerPath(),
       [JSON.stringify(startSessionResponse), region, 'StartSession', '', JSON.stringify(startSessionCommandInput)],
@@ -173,6 +204,7 @@ export const runEcsExecSsmShellSession = async ({
   const startSessionTargetParams = { Target: `ecs:${clusterName}_${taskId}_${targetContainerRuntimeId}` };
 
   try {
+    await ensureSessionManagerPluginExecutable();
     await execa(
       fsPaths.sessionManagerPath(),
       [JSON.stringify(startSessionResponse), region, 'StartSession', '', JSON.stringify(startSessionTargetParams)],
@@ -222,6 +254,7 @@ export const runEcsExecCommand = async ({
   const startSessionTargetParams = { Target: `ecs:${clusterName}_${taskId}_${targetContainerRuntimeId}` };
 
   try {
+    await ensureSessionManagerPluginExecutable();
     const result = await execa(
       fsPaths.sessionManagerPath(),
       [

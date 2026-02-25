@@ -20,6 +20,9 @@ bun run build:npm --version 3.4.0
 # Development mode
 bun dev dev --projectName dev-mode --region eu-west-1 --stage {some-unique-stage} --cp {path-to-stacktape-config} ...options...
 
+# Skip helper-lambdas packaging in dev mode (useful when running multiple bun dev commands in parallel)
+SPHL=1 bun dev ...
+
 # Deploy stack
 # Use meaningful, but unique name for stage. Must by at most 10 characters
 bun dev deploy --projectName ai-tests --stage {stage} --region eu-west-1 --configPath {configPath}

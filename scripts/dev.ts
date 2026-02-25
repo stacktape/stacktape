@@ -7,8 +7,24 @@ import { config } from 'dotenv';
 
 const skipPackagingHelperLambdas = Boolean(process.env.SPHL);
 const skipLoadingEnv = Boolean(process.env.SKIP_LOADING_ENV);
+const hasArgValue = ({ flag, value }: { flag: string; value: string }) => {
+  const args = process.argv;
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (!arg) continue;
+    if (arg === `${flag}=${value}`) return true;
+    if (arg === flag && args[i + 1] === value) return true;
+  }
+  return false;
+};
+
+const requestedJsonlOutput =
+  hasArgValue({ flag: '--outputFormat', value: 'jsonl' }) || hasArgValue({ flag: '--ofmt', value: 'jsonl' });
 const isMachineMode =
-  process.argv.includes('--agent') || process.argv.includes('--agentPort') || process.argv.includes('-ap');
+  process.argv.includes('--agent') ||
+  process.argv.includes('--agentPort') ||
+  process.argv.includes('-ap') ||
+  requestedJsonlOutput;
 const isMcpMode = process.argv.includes('mcp');
 
 if (isMachineMode || isMcpMode) {
