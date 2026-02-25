@@ -183,7 +183,6 @@
   "devDependencies": {
     "@antfu/eslint-config": "^6.2.0",
     "@apidevtools/json-schema-ref-parser": "^15.2.1",
-    "@cspell/eslint-plugin": "^9.2.2",
     "@emotion/react": "^11.14.0",
     "@eslint-react/eslint-plugin": "^2.3.9",
     "@types/adm-zip": "^0.5.7",
