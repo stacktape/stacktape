@@ -1938,6 +1938,7 @@ export const stacktapeConfigSchema = z.object({
               "dbName": z.string().optional().describe("#### Name of the initial database.").default("defdb"),
               "minCapacity": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### Minimum ACUs (0.5-128 in 0.5 increments). ~1 ACU ≈ 2 GB RAM.\n\n---\n\nSet low (0.5) for dev/staging to minimize cost. The database scales up instantly under load.").default(0.5),
               "maxCapacity": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### Maximum ACUs (0.5-128 in 0.5 increments). Caps your scaling and cost.").default(10),
+              "serverlessReadersCount": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### Number of reader instances in the Aurora Serverless v2 cluster.\n\n---\n\nAurora Serverless v2 always has one writer instance. This value adds additional readers\n(`0` means writer only, `2` means writer + 2 readers).").default(0),
               "version": z.string().describe("#### Engine version (e.g., `16.6` for PostgreSQL, `8.0.36` for MySQL)."),
               "disableAutoMinorVersionUpgrade": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Skip automatic minor version upgrades (e.g., 16.4 → 16.5).").default(false) }).strict()
           }).strict()
@@ -3803,6 +3804,62 @@ export const stacktapeConfigSchema = z.object({
         ).optional().describe("#### Attach custom domains with auto-managed DNS records and TLS certificates.\n\n---\n\n**Prerequisite:** A Route 53 hosted zone for your domain must exist in your AWS account.").optional(),
         "useFirewall": z.string().optional().describe("#### Name of a `web-app-firewall` resource to protect this app. Firewall `scope` must be `cdn`.").optional(),
         "streamingEnabled": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Stream SSR responses for faster Time to First Byte and up to 20 MB response size (vs 6 MB default).\n\n---\n\nNot compatible with `useEdgeLambda: true`.").default(false),
+        "cdn": z.object({
+          "disableInvalidationAfterDeploy": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Skip clearing the CDN cache after each deploy.\n\n---\n\nBy default, all cached content is flushed on every deploy so users see the latest version.\nSet to `true` if you manage cache invalidation yourself or want to keep cached content between deploys.").default(false),
+          "defaultCachingOptions": z.object({
+            "cacheMethods": z.array(z.enum(["GET","HEAD","OPTIONS"])).optional().describe("#### HTTP methods to cache. Use `['GET', 'HEAD', 'OPTIONS']` if your API uses CORS preflight.").optional(),
+            "minTTL": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### Minimum cache time (seconds). Overrides `Cache-Control: max-age` if the origin sets a lower value.").optional(),
+            "maxTTL": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### Maximum cache time (seconds). Caps how long the CDN caches content, even if the origin says longer.").optional(),
+            "defaultTTL": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### Default cache time (seconds). Used when the origin response has no `Cache-Control` or `Expires` header.").optional(),
+            "disableCompression": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Disable automatic Gzip/Brotli compression. Compression is on by default and reduces transfer size/cost.").default(false),
+            "cacheKeyParameters": z.object({
+              "cookies": z.object({
+                "none": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### No cookies are included in the cache key.").optional(),
+                "whitelist": z.array(z.string()).optional().describe("#### Only the listed cookies are included in the cache key.").optional(),
+                "allExcept": z.array(z.string()).optional().describe("#### All cookies except the listed ones are included in the cache key.").optional(),
+                "all": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### All cookies are included in the cache key.").optional() }).strict()
+              .optional().describe("#### Which cookies to include in the cache key. Different cookie values = different cached responses.").optional(),
+              "headers": z.object({
+                "none": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### No headers are included in the cache key.").optional(),
+                "whitelist": z.array(z.string()).optional().describe("#### Only the listed headers are included in the cache key.").optional() }).strict()
+              .optional().describe("#### Which headers to include in the cache key. Different header values = different cached responses.").optional(),
+              "queryString": z.object({
+                "all": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### All query parameters are included in the cache key.").optional(),
+                "none": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### No query parameters are included in the cache key.").optional(),
+                "whitelist": z.array(z.string()).optional().describe("#### Only the listed query parameters are included in the cache key.").optional() }).strict()
+              .optional().describe("#### Which query params to include in the cache key. Different param values = different cached responses.").optional() }).strict()
+            .optional().describe("#### Which headers, cookies, and query params make responses unique in the cache.\n\n---\n\nDefaults: **Bucket** = URL path only. **API/ALB** = URL path + query string.\nValues included in the cache key are always forwarded to the origin.").optional(),
+            "cachePolicyId": z.string().optional().describe("#### Use a pre-existing AWS cache policy ID instead of configuring TTL and cache key options here.").optional() }).strict()
+          .optional().describe("#### Override default SSR caching behavior for all routes handled by the server.\n\n---\n\nUseful when you want to cache SSR responses longer than the framework defaults.").optional(),
+          "pathCachingOverrides": z.array(z.object({
+            "path": z.string().describe("#### URL path pattern to match (e.g., `/api/*`, `/_server-islands/*`)."),
+            "cachingOptions": z.object({
+              "cacheMethods": z.array(z.enum(["GET","HEAD","OPTIONS"])).optional().describe("#### HTTP methods to cache. Use `['GET', 'HEAD', 'OPTIONS']` if your API uses CORS preflight.").optional(),
+              "minTTL": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### Minimum cache time (seconds). Overrides `Cache-Control: max-age` if the origin sets a lower value.").optional(),
+              "maxTTL": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### Maximum cache time (seconds). Caps how long the CDN caches content, even if the origin says longer.").optional(),
+              "defaultTTL": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### Default cache time (seconds). Used when the origin response has no `Cache-Control` or `Expires` header.").optional(),
+              "disableCompression": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Disable automatic Gzip/Brotli compression. Compression is on by default and reduces transfer size/cost.").default(false),
+              "cacheKeyParameters": z.object({
+                "cookies": z.object({
+                  "none": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### No cookies are included in the cache key.").optional(),
+                  "whitelist": z.array(z.string()).optional().describe("#### Only the listed cookies are included in the cache key.").optional(),
+                  "allExcept": z.array(z.string()).optional().describe("#### All cookies except the listed ones are included in the cache key.").optional(),
+                  "all": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### All cookies are included in the cache key.").optional() }).strict()
+                .optional().describe("#### Which cookies to include in the cache key. Different cookie values = different cached responses.").optional(),
+                "headers": z.object({
+                  "none": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### No headers are included in the cache key.").optional(),
+                  "whitelist": z.array(z.string()).optional().describe("#### Only the listed headers are included in the cache key.").optional() }).strict()
+                .optional().describe("#### Which headers to include in the cache key. Different header values = different cached responses.").optional(),
+                "queryString": z.object({
+                  "all": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### All query parameters are included in the cache key.").optional(),
+                  "none": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### No query parameters are included in the cache key.").optional(),
+                  "whitelist": z.array(z.string()).optional().describe("#### Only the listed query parameters are included in the cache key.").optional() }).strict()
+                .optional().describe("#### Which query params to include in the cache key. Different param values = different cached responses.").optional() }).strict()
+              .optional().describe("#### Which headers, cookies, and query params make responses unique in the cache.\n\n---\n\nDefaults: **Bucket** = URL path only. **API/ALB** = URL path + query string.\nValues included in the cache key are always forwarded to the origin.").optional(),
+              "cachePolicyId": z.string().optional().describe("#### Use a pre-existing AWS cache policy ID instead of configuring TTL and cache key options here.").optional() }).strict()
+            .describe("#### Caching behavior override for this path pattern.") }).strict()
+          ).optional().describe("#### Override caching for specific CDN path patterns.\n\n---\n\nMatches existing framework-managed paths (e.g. `_astro/*`, `_next/data/*`) or adds\nnew server-path caching rules (e.g. `/_server-islands/*`) while preserving managed routing.").optional() }).strict()
+        .optional().describe("#### CDN cache controls for SSR routes and specific path patterns.").optional(),
         "connectTo": z.array(z.string()).optional().describe("#### Give this resource access to other resources in your stack.\n\n---\n\nList the names of resources this workload needs to communicate with. Stacktape automatically:\n- **Grants IAM permissions** (e.g., S3 read/write, SQS send/receive)\n- **Opens network access** (security group rules for databases, Redis)\n- **Injects environment variables** with connection details: `STP_[RESOURCE_NAME]_[PARAM]`\n\nExample: `connectTo: [\"myDatabase\", \"myBucket\"]` gives this workload full access to both\nresources and injects `STP_MY_DATABASE_CONNECTION_STRING`, `STP_MY_BUCKET_NAME`, etc.\n\n---\n\n#### What each resource type provides:\n\n**`Bucket`** — read/write/delete objects → `NAME`, `ARN`\n\n**`DynamoDbTable`** — CRUD + scan/query → `NAME`, `ARN`, `STREAM_ARN`\n\n**`RelationalDatabase`** — network access + connection details → `CONNECTION_STRING`, `HOST`, `PORT`.\nAurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.\n\n**`MongoDbAtlasCluster`** — temporary credential-less access → `CONNECTION_STRING`\n\n**`RedisCluster`** — network access → `HOST`, `READER_HOST`, `PORT`\n\n**`Function`** — invoke permission → `ARN`\n\n**`BatchJob`** — submit/list/terminate → `JOB_DEFINITION_ARN`, `STATE_MACHINE_ARN`\n\n**`EventBus`** — publish events → `ARN`\n\n**`UserAuthPool`** — full control → `ID`, `CLIENT_ID`, `ARN`\n\n**`SqsQueue`** — send/receive/delete → `ARN`, `NAME`, `URL`\n\n**`SnsTopic`** — publish/subscribe → `ARN`, `NAME`\n\n**`UpstashRedis`** → `HOST`, `PORT`, `PASSWORD`, `REST_TOKEN`, `REST_URL`, `REDIS_URL`\n\n**`PrivateService`** → `ADDRESS`\n\n**`aws:ses`** — full SES email sending permissions").optional(),
         "iamRoleStatements": z.array(z.object({
           "Sid": z.string().optional().describe("#### Optional identifier for this statement (for readability).").optional(),
@@ -4526,6 +4583,62 @@ export const stacktapeConfigSchema = z.object({
             "value": z.string().describe("#### Value") }).strict()
           ).optional().describe("#### Tags for matching files. Can be used to target files with `lifecycleRules`.").optional() }).strict()
         ).optional().describe("#### Set custom headers (e.g., `Cache-Control`) for static files matching a pattern.").optional(),
+        "cdn": z.object({
+          "disableInvalidationAfterDeploy": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Skip clearing the CDN cache after each deploy.\n\n---\n\nBy default, all cached content is flushed on every deploy so users see the latest version.\nSet to `true` if you manage cache invalidation yourself or want to keep cached content between deploys.").default(false),
+          "defaultCachingOptions": z.object({
+            "cacheMethods": z.array(z.enum(["GET","HEAD","OPTIONS"])).optional().describe("#### HTTP methods to cache. Use `['GET', 'HEAD', 'OPTIONS']` if your API uses CORS preflight.").optional(),
+            "minTTL": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### Minimum cache time (seconds). Overrides `Cache-Control: max-age` if the origin sets a lower value.").optional(),
+            "maxTTL": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### Maximum cache time (seconds). Caps how long the CDN caches content, even if the origin says longer.").optional(),
+            "defaultTTL": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### Default cache time (seconds). Used when the origin response has no `Cache-Control` or `Expires` header.").optional(),
+            "disableCompression": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Disable automatic Gzip/Brotli compression. Compression is on by default and reduces transfer size/cost.").default(false),
+            "cacheKeyParameters": z.object({
+              "cookies": z.object({
+                "none": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### No cookies are included in the cache key.").optional(),
+                "whitelist": z.array(z.string()).optional().describe("#### Only the listed cookies are included in the cache key.").optional(),
+                "allExcept": z.array(z.string()).optional().describe("#### All cookies except the listed ones are included in the cache key.").optional(),
+                "all": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### All cookies are included in the cache key.").optional() }).strict()
+              .optional().describe("#### Which cookies to include in the cache key. Different cookie values = different cached responses.").optional(),
+              "headers": z.object({
+                "none": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### No headers are included in the cache key.").optional(),
+                "whitelist": z.array(z.string()).optional().describe("#### Only the listed headers are included in the cache key.").optional() }).strict()
+              .optional().describe("#### Which headers to include in the cache key. Different header values = different cached responses.").optional(),
+              "queryString": z.object({
+                "all": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### All query parameters are included in the cache key.").optional(),
+                "none": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### No query parameters are included in the cache key.").optional(),
+                "whitelist": z.array(z.string()).optional().describe("#### Only the listed query parameters are included in the cache key.").optional() }).strict()
+              .optional().describe("#### Which query params to include in the cache key. Different param values = different cached responses.").optional() }).strict()
+            .optional().describe("#### Which headers, cookies, and query params make responses unique in the cache.\n\n---\n\nDefaults: **Bucket** = URL path only. **API/ALB** = URL path + query string.\nValues included in the cache key are always forwarded to the origin.").optional(),
+            "cachePolicyId": z.string().optional().describe("#### Use a pre-existing AWS cache policy ID instead of configuring TTL and cache key options here.").optional() }).strict()
+          .optional().describe("#### Override default SSR caching behavior for all routes handled by the server.\n\n---\n\nUseful when you want to cache SSR responses longer than the framework defaults.").optional(),
+          "pathCachingOverrides": z.array(z.object({
+            "path": z.string().describe("#### URL path pattern to match (e.g., `/api/*`, `/_server-islands/*`)."),
+            "cachingOptions": z.object({
+              "cacheMethods": z.array(z.enum(["GET","HEAD","OPTIONS"])).optional().describe("#### HTTP methods to cache. Use `['GET', 'HEAD', 'OPTIONS']` if your API uses CORS preflight.").optional(),
+              "minTTL": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### Minimum cache time (seconds). Overrides `Cache-Control: max-age` if the origin sets a lower value.").optional(),
+              "maxTTL": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### Maximum cache time (seconds). Caps how long the CDN caches content, even if the origin says longer.").optional(),
+              "defaultTTL": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### Default cache time (seconds). Used when the origin response has no `Cache-Control` or `Expires` header.").optional(),
+              "disableCompression": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Disable automatic Gzip/Brotli compression. Compression is on by default and reduces transfer size/cost.").default(false),
+              "cacheKeyParameters": z.object({
+                "cookies": z.object({
+                  "none": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### No cookies are included in the cache key.").optional(),
+                  "whitelist": z.array(z.string()).optional().describe("#### Only the listed cookies are included in the cache key.").optional(),
+                  "allExcept": z.array(z.string()).optional().describe("#### All cookies except the listed ones are included in the cache key.").optional(),
+                  "all": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### All cookies are included in the cache key.").optional() }).strict()
+                .optional().describe("#### Which cookies to include in the cache key. Different cookie values = different cached responses.").optional(),
+                "headers": z.object({
+                  "none": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### No headers are included in the cache key.").optional(),
+                  "whitelist": z.array(z.string()).optional().describe("#### Only the listed headers are included in the cache key.").optional() }).strict()
+                .optional().describe("#### Which headers to include in the cache key. Different header values = different cached responses.").optional(),
+                "queryString": z.object({
+                  "all": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### All query parameters are included in the cache key.").optional(),
+                  "none": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### No query parameters are included in the cache key.").optional(),
+                  "whitelist": z.array(z.string()).optional().describe("#### Only the listed query parameters are included in the cache key.").optional() }).strict()
+                .optional().describe("#### Which query params to include in the cache key. Different param values = different cached responses.").optional() }).strict()
+              .optional().describe("#### Which headers, cookies, and query params make responses unique in the cache.\n\n---\n\nDefaults: **Bucket** = URL path only. **API/ALB** = URL path + query string.\nValues included in the cache key are always forwarded to the origin.").optional(),
+              "cachePolicyId": z.string().optional().describe("#### Use a pre-existing AWS cache policy ID instead of configuring TTL and cache key options here.").optional() }).strict()
+            .describe("#### Caching behavior override for this path pattern.") }).strict()
+          ).optional().describe("#### Override caching for specific CDN path patterns.\n\n---\n\nMatches existing framework-managed paths (e.g. `_astro/*`, `_next/data/*`) or adds\nnew server-path caching rules (e.g. `/_server-islands/*`) while preserving managed routing.").optional() }).strict()
+        .optional().describe("#### CDN cache controls for SSR routes and specific path patterns.").optional(),
         "connectTo": z.array(z.string()).optional().describe("#### Give this resource access to other resources in your stack.\n\n---\n\nList the names of resources this workload needs to communicate with. Stacktape automatically:\n- **Grants IAM permissions** (e.g., S3 read/write, SQS send/receive)\n- **Opens network access** (security group rules for databases, Redis)\n- **Injects environment variables** with connection details: `STP_[RESOURCE_NAME]_[PARAM]`\n\nExample: `connectTo: [\"myDatabase\", \"myBucket\"]` gives this workload full access to both\nresources and injects `STP_MY_DATABASE_CONNECTION_STRING`, `STP_MY_BUCKET_NAME`, etc.\n\n---\n\n#### What each resource type provides:\n\n**`Bucket`** — read/write/delete objects → `NAME`, `ARN`\n\n**`DynamoDbTable`** — CRUD + scan/query → `NAME`, `ARN`, `STREAM_ARN`\n\n**`RelationalDatabase`** — network access + connection details → `CONNECTION_STRING`, `HOST`, `PORT`.\nAurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.\n\n**`MongoDbAtlasCluster`** — temporary credential-less access → `CONNECTION_STRING`\n\n**`RedisCluster`** — network access → `HOST`, `READER_HOST`, `PORT`\n\n**`Function`** — invoke permission → `ARN`\n\n**`BatchJob`** — submit/list/terminate → `JOB_DEFINITION_ARN`, `STATE_MACHINE_ARN`\n\n**`EventBus`** — publish events → `ARN`\n\n**`UserAuthPool`** — full control → `ID`, `CLIENT_ID`, `ARN`\n\n**`SqsQueue`** — send/receive/delete → `ARN`, `NAME`, `URL`\n\n**`SnsTopic`** — publish/subscribe → `ARN`, `NAME`\n\n**`UpstashRedis`** → `HOST`, `PORT`, `PASSWORD`, `REST_TOKEN`, `REST_URL`, `REDIS_URL`\n\n**`PrivateService`** → `ADDRESS`\n\n**`aws:ses`** — full SES email sending permissions").optional(),
         "iamRoleStatements": z.array(z.object({
           "Sid": z.string().optional().describe("#### Optional identifier for this statement (for readability).").optional(),
@@ -4598,6 +4711,62 @@ export const stacktapeConfigSchema = z.object({
             "value": z.string().describe("#### Value") }).strict()
           ).optional().describe("#### Tags for matching files. Can be used to target files with `lifecycleRules`.").optional() }).strict()
         ).optional().describe("#### Set custom headers (e.g., `Cache-Control`) for static files matching a pattern.").optional(),
+        "cdn": z.object({
+          "disableInvalidationAfterDeploy": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Skip clearing the CDN cache after each deploy.\n\n---\n\nBy default, all cached content is flushed on every deploy so users see the latest version.\nSet to `true` if you manage cache invalidation yourself or want to keep cached content between deploys.").default(false),
+          "defaultCachingOptions": z.object({
+            "cacheMethods": z.array(z.enum(["GET","HEAD","OPTIONS"])).optional().describe("#### HTTP methods to cache. Use `['GET', 'HEAD', 'OPTIONS']` if your API uses CORS preflight.").optional(),
+            "minTTL": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### Minimum cache time (seconds). Overrides `Cache-Control: max-age` if the origin sets a lower value.").optional(),
+            "maxTTL": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### Maximum cache time (seconds). Caps how long the CDN caches content, even if the origin says longer.").optional(),
+            "defaultTTL": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### Default cache time (seconds). Used when the origin response has no `Cache-Control` or `Expires` header.").optional(),
+            "disableCompression": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Disable automatic Gzip/Brotli compression. Compression is on by default and reduces transfer size/cost.").default(false),
+            "cacheKeyParameters": z.object({
+              "cookies": z.object({
+                "none": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### No cookies are included in the cache key.").optional(),
+                "whitelist": z.array(z.string()).optional().describe("#### Only the listed cookies are included in the cache key.").optional(),
+                "allExcept": z.array(z.string()).optional().describe("#### All cookies except the listed ones are included in the cache key.").optional(),
+                "all": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### All cookies are included in the cache key.").optional() }).strict()
+              .optional().describe("#### Which cookies to include in the cache key. Different cookie values = different cached responses.").optional(),
+              "headers": z.object({
+                "none": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### No headers are included in the cache key.").optional(),
+                "whitelist": z.array(z.string()).optional().describe("#### Only the listed headers are included in the cache key.").optional() }).strict()
+              .optional().describe("#### Which headers to include in the cache key. Different header values = different cached responses.").optional(),
+              "queryString": z.object({
+                "all": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### All query parameters are included in the cache key.").optional(),
+                "none": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### No query parameters are included in the cache key.").optional(),
+                "whitelist": z.array(z.string()).optional().describe("#### Only the listed query parameters are included in the cache key.").optional() }).strict()
+              .optional().describe("#### Which query params to include in the cache key. Different param values = different cached responses.").optional() }).strict()
+            .optional().describe("#### Which headers, cookies, and query params make responses unique in the cache.\n\n---\n\nDefaults: **Bucket** = URL path only. **API/ALB** = URL path + query string.\nValues included in the cache key are always forwarded to the origin.").optional(),
+            "cachePolicyId": z.string().optional().describe("#### Use a pre-existing AWS cache policy ID instead of configuring TTL and cache key options here.").optional() }).strict()
+          .optional().describe("#### Override default SSR caching behavior for all routes handled by the server.\n\n---\n\nUseful when you want to cache SSR responses longer than the framework defaults.").optional(),
+          "pathCachingOverrides": z.array(z.object({
+            "path": z.string().describe("#### URL path pattern to match (e.g., `/api/*`, `/_server-islands/*`)."),
+            "cachingOptions": z.object({
+              "cacheMethods": z.array(z.enum(["GET","HEAD","OPTIONS"])).optional().describe("#### HTTP methods to cache. Use `['GET', 'HEAD', 'OPTIONS']` if your API uses CORS preflight.").optional(),
+              "minTTL": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### Minimum cache time (seconds). Overrides `Cache-Control: max-age` if the origin sets a lower value.").optional(),
+              "maxTTL": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### Maximum cache time (seconds). Caps how long the CDN caches content, even if the origin says longer.").optional(),
+              "defaultTTL": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### Default cache time (seconds). Used when the origin response has no `Cache-Control` or `Expires` header.").optional(),
+              "disableCompression": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Disable automatic Gzip/Brotli compression. Compression is on by default and reduces transfer size/cost.").default(false),
+              "cacheKeyParameters": z.object({
+                "cookies": z.object({
+                  "none": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### No cookies are included in the cache key.").optional(),
+                  "whitelist": z.array(z.string()).optional().describe("#### Only the listed cookies are included in the cache key.").optional(),
+                  "allExcept": z.array(z.string()).optional().describe("#### All cookies except the listed ones are included in the cache key.").optional(),
+                  "all": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### All cookies are included in the cache key.").optional() }).strict()
+                .optional().describe("#### Which cookies to include in the cache key. Different cookie values = different cached responses.").optional(),
+                "headers": z.object({
+                  "none": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### No headers are included in the cache key.").optional(),
+                  "whitelist": z.array(z.string()).optional().describe("#### Only the listed headers are included in the cache key.").optional() }).strict()
+                .optional().describe("#### Which headers to include in the cache key. Different header values = different cached responses.").optional(),
+                "queryString": z.object({
+                  "all": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### All query parameters are included in the cache key.").optional(),
+                  "none": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### No query parameters are included in the cache key.").optional(),
+                  "whitelist": z.array(z.string()).optional().describe("#### Only the listed query parameters are included in the cache key.").optional() }).strict()
+                .optional().describe("#### Which query params to include in the cache key. Different param values = different cached responses.").optional() }).strict()
+              .optional().describe("#### Which headers, cookies, and query params make responses unique in the cache.\n\n---\n\nDefaults: **Bucket** = URL path only. **API/ALB** = URL path + query string.\nValues included in the cache key are always forwarded to the origin.").optional(),
+              "cachePolicyId": z.string().optional().describe("#### Use a pre-existing AWS cache policy ID instead of configuring TTL and cache key options here.").optional() }).strict()
+            .describe("#### Caching behavior override for this path pattern.") }).strict()
+          ).optional().describe("#### Override caching for specific CDN path patterns.\n\n---\n\nMatches existing framework-managed paths (e.g. `_astro/*`, `_next/data/*`) or adds\nnew server-path caching rules (e.g. `/_server-islands/*`) while preserving managed routing.").optional() }).strict()
+        .optional().describe("#### CDN cache controls for SSR routes and specific path patterns.").optional(),
         "connectTo": z.array(z.string()).optional().describe("#### Give this resource access to other resources in your stack.\n\n---\n\nList the names of resources this workload needs to communicate with. Stacktape automatically:\n- **Grants IAM permissions** (e.g., S3 read/write, SQS send/receive)\n- **Opens network access** (security group rules for databases, Redis)\n- **Injects environment variables** with connection details: `STP_[RESOURCE_NAME]_[PARAM]`\n\nExample: `connectTo: [\"myDatabase\", \"myBucket\"]` gives this workload full access to both\nresources and injects `STP_MY_DATABASE_CONNECTION_STRING`, `STP_MY_BUCKET_NAME`, etc.\n\n---\n\n#### What each resource type provides:\n\n**`Bucket`** — read/write/delete objects → `NAME`, `ARN`\n\n**`DynamoDbTable`** — CRUD + scan/query → `NAME`, `ARN`, `STREAM_ARN`\n\n**`RelationalDatabase`** — network access + connection details → `CONNECTION_STRING`, `HOST`, `PORT`.\nAurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.\n\n**`MongoDbAtlasCluster`** — temporary credential-less access → `CONNECTION_STRING`\n\n**`RedisCluster`** — network access → `HOST`, `READER_HOST`, `PORT`\n\n**`Function`** — invoke permission → `ARN`\n\n**`BatchJob`** — submit/list/terminate → `JOB_DEFINITION_ARN`, `STATE_MACHINE_ARN`\n\n**`EventBus`** — publish events → `ARN`\n\n**`UserAuthPool`** — full control → `ID`, `CLIENT_ID`, `ARN`\n\n**`SqsQueue`** — send/receive/delete → `ARN`, `NAME`, `URL`\n\n**`SnsTopic`** — publish/subscribe → `ARN`, `NAME`\n\n**`UpstashRedis`** → `HOST`, `PORT`, `PASSWORD`, `REST_TOKEN`, `REST_URL`, `REDIS_URL`\n\n**`PrivateService`** → `ADDRESS`\n\n**`aws:ses`** — full SES email sending permissions").optional(),
         "iamRoleStatements": z.array(z.object({
           "Sid": z.string().optional().describe("#### Optional identifier for this statement (for readability).").optional(),
@@ -4670,6 +4839,62 @@ export const stacktapeConfigSchema = z.object({
             "value": z.string().describe("#### Value") }).strict()
           ).optional().describe("#### Tags for matching files. Can be used to target files with `lifecycleRules`.").optional() }).strict()
         ).optional().describe("#### Set custom headers (e.g., `Cache-Control`) for static files matching a pattern.").optional(),
+        "cdn": z.object({
+          "disableInvalidationAfterDeploy": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Skip clearing the CDN cache after each deploy.\n\n---\n\nBy default, all cached content is flushed on every deploy so users see the latest version.\nSet to `true` if you manage cache invalidation yourself or want to keep cached content between deploys.").default(false),
+          "defaultCachingOptions": z.object({
+            "cacheMethods": z.array(z.enum(["GET","HEAD","OPTIONS"])).optional().describe("#### HTTP methods to cache. Use `['GET', 'HEAD', 'OPTIONS']` if your API uses CORS preflight.").optional(),
+            "minTTL": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### Minimum cache time (seconds). Overrides `Cache-Control: max-age` if the origin sets a lower value.").optional(),
+            "maxTTL": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### Maximum cache time (seconds). Caps how long the CDN caches content, even if the origin says longer.").optional(),
+            "defaultTTL": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### Default cache time (seconds). Used when the origin response has no `Cache-Control` or `Expires` header.").optional(),
+            "disableCompression": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Disable automatic Gzip/Brotli compression. Compression is on by default and reduces transfer size/cost.").default(false),
+            "cacheKeyParameters": z.object({
+              "cookies": z.object({
+                "none": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### No cookies are included in the cache key.").optional(),
+                "whitelist": z.array(z.string()).optional().describe("#### Only the listed cookies are included in the cache key.").optional(),
+                "allExcept": z.array(z.string()).optional().describe("#### All cookies except the listed ones are included in the cache key.").optional(),
+                "all": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### All cookies are included in the cache key.").optional() }).strict()
+              .optional().describe("#### Which cookies to include in the cache key. Different cookie values = different cached responses.").optional(),
+              "headers": z.object({
+                "none": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### No headers are included in the cache key.").optional(),
+                "whitelist": z.array(z.string()).optional().describe("#### Only the listed headers are included in the cache key.").optional() }).strict()
+              .optional().describe("#### Which headers to include in the cache key. Different header values = different cached responses.").optional(),
+              "queryString": z.object({
+                "all": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### All query parameters are included in the cache key.").optional(),
+                "none": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### No query parameters are included in the cache key.").optional(),
+                "whitelist": z.array(z.string()).optional().describe("#### Only the listed query parameters are included in the cache key.").optional() }).strict()
+              .optional().describe("#### Which query params to include in the cache key. Different param values = different cached responses.").optional() }).strict()
+            .optional().describe("#### Which headers, cookies, and query params make responses unique in the cache.\n\n---\n\nDefaults: **Bucket** = URL path only. **API/ALB** = URL path + query string.\nValues included in the cache key are always forwarded to the origin.").optional(),
+            "cachePolicyId": z.string().optional().describe("#### Use a pre-existing AWS cache policy ID instead of configuring TTL and cache key options here.").optional() }).strict()
+          .optional().describe("#### Override default SSR caching behavior for all routes handled by the server.\n\n---\n\nUseful when you want to cache SSR responses longer than the framework defaults.").optional(),
+          "pathCachingOverrides": z.array(z.object({
+            "path": z.string().describe("#### URL path pattern to match (e.g., `/api/*`, `/_server-islands/*`)."),
+            "cachingOptions": z.object({
+              "cacheMethods": z.array(z.enum(["GET","HEAD","OPTIONS"])).optional().describe("#### HTTP methods to cache. Use `['GET', 'HEAD', 'OPTIONS']` if your API uses CORS preflight.").optional(),
+              "minTTL": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### Minimum cache time (seconds). Overrides `Cache-Control: max-age` if the origin sets a lower value.").optional(),
+              "maxTTL": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### Maximum cache time (seconds). Caps how long the CDN caches content, even if the origin says longer.").optional(),
+              "defaultTTL": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### Default cache time (seconds). Used when the origin response has no `Cache-Control` or `Expires` header.").optional(),
+              "disableCompression": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Disable automatic Gzip/Brotli compression. Compression is on by default and reduces transfer size/cost.").default(false),
+              "cacheKeyParameters": z.object({
+                "cookies": z.object({
+                  "none": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### No cookies are included in the cache key.").optional(),
+                  "whitelist": z.array(z.string()).optional().describe("#### Only the listed cookies are included in the cache key.").optional(),
+                  "allExcept": z.array(z.string()).optional().describe("#### All cookies except the listed ones are included in the cache key.").optional(),
+                  "all": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### All cookies are included in the cache key.").optional() }).strict()
+                .optional().describe("#### Which cookies to include in the cache key. Different cookie values = different cached responses.").optional(),
+                "headers": z.object({
+                  "none": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### No headers are included in the cache key.").optional(),
+                  "whitelist": z.array(z.string()).optional().describe("#### Only the listed headers are included in the cache key.").optional() }).strict()
+                .optional().describe("#### Which headers to include in the cache key. Different header values = different cached responses.").optional(),
+                "queryString": z.object({
+                  "all": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### All query parameters are included in the cache key.").optional(),
+                  "none": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### No query parameters are included in the cache key.").optional(),
+                  "whitelist": z.array(z.string()).optional().describe("#### Only the listed query parameters are included in the cache key.").optional() }).strict()
+                .optional().describe("#### Which query params to include in the cache key. Different param values = different cached responses.").optional() }).strict()
+              .optional().describe("#### Which headers, cookies, and query params make responses unique in the cache.\n\n---\n\nDefaults: **Bucket** = URL path only. **API/ALB** = URL path + query string.\nValues included in the cache key are always forwarded to the origin.").optional(),
+              "cachePolicyId": z.string().optional().describe("#### Use a pre-existing AWS cache policy ID instead of configuring TTL and cache key options here.").optional() }).strict()
+            .describe("#### Caching behavior override for this path pattern.") }).strict()
+          ).optional().describe("#### Override caching for specific CDN path patterns.\n\n---\n\nMatches existing framework-managed paths (e.g. `_astro/*`, `_next/data/*`) or adds\nnew server-path caching rules (e.g. `/_server-islands/*`) while preserving managed routing.").optional() }).strict()
+        .optional().describe("#### CDN cache controls for SSR routes and specific path patterns.").optional(),
         "connectTo": z.array(z.string()).optional().describe("#### Give this resource access to other resources in your stack.\n\n---\n\nList the names of resources this workload needs to communicate with. Stacktape automatically:\n- **Grants IAM permissions** (e.g., S3 read/write, SQS send/receive)\n- **Opens network access** (security group rules for databases, Redis)\n- **Injects environment variables** with connection details: `STP_[RESOURCE_NAME]_[PARAM]`\n\nExample: `connectTo: [\"myDatabase\", \"myBucket\"]` gives this workload full access to both\nresources and injects `STP_MY_DATABASE_CONNECTION_STRING`, `STP_MY_BUCKET_NAME`, etc.\n\n---\n\n#### What each resource type provides:\n\n**`Bucket`** — read/write/delete objects → `NAME`, `ARN`\n\n**`DynamoDbTable`** — CRUD + scan/query → `NAME`, `ARN`, `STREAM_ARN`\n\n**`RelationalDatabase`** — network access + connection details → `CONNECTION_STRING`, `HOST`, `PORT`.\nAurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.\n\n**`MongoDbAtlasCluster`** — temporary credential-less access → `CONNECTION_STRING`\n\n**`RedisCluster`** — network access → `HOST`, `READER_HOST`, `PORT`\n\n**`Function`** — invoke permission → `ARN`\n\n**`BatchJob`** — submit/list/terminate → `JOB_DEFINITION_ARN`, `STATE_MACHINE_ARN`\n\n**`EventBus`** — publish events → `ARN`\n\n**`UserAuthPool`** — full control → `ID`, `CLIENT_ID`, `ARN`\n\n**`SqsQueue`** — send/receive/delete → `ARN`, `NAME`, `URL`\n\n**`SnsTopic`** — publish/subscribe → `ARN`, `NAME`\n\n**`UpstashRedis`** → `HOST`, `PORT`, `PASSWORD`, `REST_TOKEN`, `REST_URL`, `REDIS_URL`\n\n**`PrivateService`** → `ADDRESS`\n\n**`aws:ses`** — full SES email sending permissions").optional(),
         "iamRoleStatements": z.array(z.object({
           "Sid": z.string().optional().describe("#### Optional identifier for this statement (for readability).").optional(),
@@ -4742,6 +4967,62 @@ export const stacktapeConfigSchema = z.object({
             "value": z.string().describe("#### Value") }).strict()
           ).optional().describe("#### Tags for matching files. Can be used to target files with `lifecycleRules`.").optional() }).strict()
         ).optional().describe("#### Set custom headers (e.g., `Cache-Control`) for static files matching a pattern.").optional(),
+        "cdn": z.object({
+          "disableInvalidationAfterDeploy": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Skip clearing the CDN cache after each deploy.\n\n---\n\nBy default, all cached content is flushed on every deploy so users see the latest version.\nSet to `true` if you manage cache invalidation yourself or want to keep cached content between deploys.").default(false),
+          "defaultCachingOptions": z.object({
+            "cacheMethods": z.array(z.enum(["GET","HEAD","OPTIONS"])).optional().describe("#### HTTP methods to cache. Use `['GET', 'HEAD', 'OPTIONS']` if your API uses CORS preflight.").optional(),
+            "minTTL": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### Minimum cache time (seconds). Overrides `Cache-Control: max-age` if the origin sets a lower value.").optional(),
+            "maxTTL": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### Maximum cache time (seconds). Caps how long the CDN caches content, even if the origin says longer.").optional(),
+            "defaultTTL": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### Default cache time (seconds). Used when the origin response has no `Cache-Control` or `Expires` header.").optional(),
+            "disableCompression": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Disable automatic Gzip/Brotli compression. Compression is on by default and reduces transfer size/cost.").default(false),
+            "cacheKeyParameters": z.object({
+              "cookies": z.object({
+                "none": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### No cookies are included in the cache key.").optional(),
+                "whitelist": z.array(z.string()).optional().describe("#### Only the listed cookies are included in the cache key.").optional(),
+                "allExcept": z.array(z.string()).optional().describe("#### All cookies except the listed ones are included in the cache key.").optional(),
+                "all": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### All cookies are included in the cache key.").optional() }).strict()
+              .optional().describe("#### Which cookies to include in the cache key. Different cookie values = different cached responses.").optional(),
+              "headers": z.object({
+                "none": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### No headers are included in the cache key.").optional(),
+                "whitelist": z.array(z.string()).optional().describe("#### Only the listed headers are included in the cache key.").optional() }).strict()
+              .optional().describe("#### Which headers to include in the cache key. Different header values = different cached responses.").optional(),
+              "queryString": z.object({
+                "all": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### All query parameters are included in the cache key.").optional(),
+                "none": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### No query parameters are included in the cache key.").optional(),
+                "whitelist": z.array(z.string()).optional().describe("#### Only the listed query parameters are included in the cache key.").optional() }).strict()
+              .optional().describe("#### Which query params to include in the cache key. Different param values = different cached responses.").optional() }).strict()
+            .optional().describe("#### Which headers, cookies, and query params make responses unique in the cache.\n\n---\n\nDefaults: **Bucket** = URL path only. **API/ALB** = URL path + query string.\nValues included in the cache key are always forwarded to the origin.").optional(),
+            "cachePolicyId": z.string().optional().describe("#### Use a pre-existing AWS cache policy ID instead of configuring TTL and cache key options here.").optional() }).strict()
+          .optional().describe("#### Override default SSR caching behavior for all routes handled by the server.\n\n---\n\nUseful when you want to cache SSR responses longer than the framework defaults.").optional(),
+          "pathCachingOverrides": z.array(z.object({
+            "path": z.string().describe("#### URL path pattern to match (e.g., `/api/*`, `/_server-islands/*`)."),
+            "cachingOptions": z.object({
+              "cacheMethods": z.array(z.enum(["GET","HEAD","OPTIONS"])).optional().describe("#### HTTP methods to cache. Use `['GET', 'HEAD', 'OPTIONS']` if your API uses CORS preflight.").optional(),
+              "minTTL": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### Minimum cache time (seconds). Overrides `Cache-Control: max-age` if the origin sets a lower value.").optional(),
+              "maxTTL": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### Maximum cache time (seconds). Caps how long the CDN caches content, even if the origin says longer.").optional(),
+              "defaultTTL": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### Default cache time (seconds). Used when the origin response has no `Cache-Control` or `Expires` header.").optional(),
+              "disableCompression": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Disable automatic Gzip/Brotli compression. Compression is on by default and reduces transfer size/cost.").default(false),
+              "cacheKeyParameters": z.object({
+                "cookies": z.object({
+                  "none": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### No cookies are included in the cache key.").optional(),
+                  "whitelist": z.array(z.string()).optional().describe("#### Only the listed cookies are included in the cache key.").optional(),
+                  "allExcept": z.array(z.string()).optional().describe("#### All cookies except the listed ones are included in the cache key.").optional(),
+                  "all": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### All cookies are included in the cache key.").optional() }).strict()
+                .optional().describe("#### Which cookies to include in the cache key. Different cookie values = different cached responses.").optional(),
+                "headers": z.object({
+                  "none": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### No headers are included in the cache key.").optional(),
+                  "whitelist": z.array(z.string()).optional().describe("#### Only the listed headers are included in the cache key.").optional() }).strict()
+                .optional().describe("#### Which headers to include in the cache key. Different header values = different cached responses.").optional(),
+                "queryString": z.object({
+                  "all": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### All query parameters are included in the cache key.").optional(),
+                  "none": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### No query parameters are included in the cache key.").optional(),
+                  "whitelist": z.array(z.string()).optional().describe("#### Only the listed query parameters are included in the cache key.").optional() }).strict()
+                .optional().describe("#### Which query params to include in the cache key. Different param values = different cached responses.").optional() }).strict()
+              .optional().describe("#### Which headers, cookies, and query params make responses unique in the cache.\n\n---\n\nDefaults: **Bucket** = URL path only. **API/ALB** = URL path + query string.\nValues included in the cache key are always forwarded to the origin.").optional(),
+              "cachePolicyId": z.string().optional().describe("#### Use a pre-existing AWS cache policy ID instead of configuring TTL and cache key options here.").optional() }).strict()
+            .describe("#### Caching behavior override for this path pattern.") }).strict()
+          ).optional().describe("#### Override caching for specific CDN path patterns.\n\n---\n\nMatches existing framework-managed paths (e.g. `_astro/*`, `_next/data/*`) or adds\nnew server-path caching rules (e.g. `/_server-islands/*`) while preserving managed routing.").optional() }).strict()
+        .optional().describe("#### CDN cache controls for SSR routes and specific path patterns.").optional(),
         "connectTo": z.array(z.string()).optional().describe("#### Give this resource access to other resources in your stack.\n\n---\n\nList the names of resources this workload needs to communicate with. Stacktape automatically:\n- **Grants IAM permissions** (e.g., S3 read/write, SQS send/receive)\n- **Opens network access** (security group rules for databases, Redis)\n- **Injects environment variables** with connection details: `STP_[RESOURCE_NAME]_[PARAM]`\n\nExample: `connectTo: [\"myDatabase\", \"myBucket\"]` gives this workload full access to both\nresources and injects `STP_MY_DATABASE_CONNECTION_STRING`, `STP_MY_BUCKET_NAME`, etc.\n\n---\n\n#### What each resource type provides:\n\n**`Bucket`** — read/write/delete objects → `NAME`, `ARN`\n\n**`DynamoDbTable`** — CRUD + scan/query → `NAME`, `ARN`, `STREAM_ARN`\n\n**`RelationalDatabase`** — network access + connection details → `CONNECTION_STRING`, `HOST`, `PORT`.\nAurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.\n\n**`MongoDbAtlasCluster`** — temporary credential-less access → `CONNECTION_STRING`\n\n**`RedisCluster`** — network access → `HOST`, `READER_HOST`, `PORT`\n\n**`Function`** — invoke permission → `ARN`\n\n**`BatchJob`** — submit/list/terminate → `JOB_DEFINITION_ARN`, `STATE_MACHINE_ARN`\n\n**`EventBus`** — publish events → `ARN`\n\n**`UserAuthPool`** — full control → `ID`, `CLIENT_ID`, `ARN`\n\n**`SqsQueue`** — send/receive/delete → `ARN`, `NAME`, `URL`\n\n**`SnsTopic`** — publish/subscribe → `ARN`, `NAME`\n\n**`UpstashRedis`** → `HOST`, `PORT`, `PASSWORD`, `REST_TOKEN`, `REST_URL`, `REDIS_URL`\n\n**`PrivateService`** → `ADDRESS`\n\n**`aws:ses`** — full SES email sending permissions").optional(),
         "iamRoleStatements": z.array(z.object({
           "Sid": z.string().optional().describe("#### Optional identifier for this statement (for readability).").optional(),
@@ -4814,6 +5095,62 @@ export const stacktapeConfigSchema = z.object({
             "value": z.string().describe("#### Value") }).strict()
           ).optional().describe("#### Tags for matching files. Can be used to target files with `lifecycleRules`.").optional() }).strict()
         ).optional().describe("#### Set custom headers (e.g., `Cache-Control`) for static files matching a pattern.").optional(),
+        "cdn": z.object({
+          "disableInvalidationAfterDeploy": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Skip clearing the CDN cache after each deploy.\n\n---\n\nBy default, all cached content is flushed on every deploy so users see the latest version.\nSet to `true` if you manage cache invalidation yourself or want to keep cached content between deploys.").default(false),
+          "defaultCachingOptions": z.object({
+            "cacheMethods": z.array(z.enum(["GET","HEAD","OPTIONS"])).optional().describe("#### HTTP methods to cache. Use `['GET', 'HEAD', 'OPTIONS']` if your API uses CORS preflight.").optional(),
+            "minTTL": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### Minimum cache time (seconds). Overrides `Cache-Control: max-age` if the origin sets a lower value.").optional(),
+            "maxTTL": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### Maximum cache time (seconds). Caps how long the CDN caches content, even if the origin says longer.").optional(),
+            "defaultTTL": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### Default cache time (seconds). Used when the origin response has no `Cache-Control` or `Expires` header.").optional(),
+            "disableCompression": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Disable automatic Gzip/Brotli compression. Compression is on by default and reduces transfer size/cost.").default(false),
+            "cacheKeyParameters": z.object({
+              "cookies": z.object({
+                "none": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### No cookies are included in the cache key.").optional(),
+                "whitelist": z.array(z.string()).optional().describe("#### Only the listed cookies are included in the cache key.").optional(),
+                "allExcept": z.array(z.string()).optional().describe("#### All cookies except the listed ones are included in the cache key.").optional(),
+                "all": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### All cookies are included in the cache key.").optional() }).strict()
+              .optional().describe("#### Which cookies to include in the cache key. Different cookie values = different cached responses.").optional(),
+              "headers": z.object({
+                "none": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### No headers are included in the cache key.").optional(),
+                "whitelist": z.array(z.string()).optional().describe("#### Only the listed headers are included in the cache key.").optional() }).strict()
+              .optional().describe("#### Which headers to include in the cache key. Different header values = different cached responses.").optional(),
+              "queryString": z.object({
+                "all": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### All query parameters are included in the cache key.").optional(),
+                "none": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### No query parameters are included in the cache key.").optional(),
+                "whitelist": z.array(z.string()).optional().describe("#### Only the listed query parameters are included in the cache key.").optional() }).strict()
+              .optional().describe("#### Which query params to include in the cache key. Different param values = different cached responses.").optional() }).strict()
+            .optional().describe("#### Which headers, cookies, and query params make responses unique in the cache.\n\n---\n\nDefaults: **Bucket** = URL path only. **API/ALB** = URL path + query string.\nValues included in the cache key are always forwarded to the origin.").optional(),
+            "cachePolicyId": z.string().optional().describe("#### Use a pre-existing AWS cache policy ID instead of configuring TTL and cache key options here.").optional() }).strict()
+          .optional().describe("#### Override default SSR caching behavior for all routes handled by the server.\n\n---\n\nUseful when you want to cache SSR responses longer than the framework defaults.").optional(),
+          "pathCachingOverrides": z.array(z.object({
+            "path": z.string().describe("#### URL path pattern to match (e.g., `/api/*`, `/_server-islands/*`)."),
+            "cachingOptions": z.object({
+              "cacheMethods": z.array(z.enum(["GET","HEAD","OPTIONS"])).optional().describe("#### HTTP methods to cache. Use `['GET', 'HEAD', 'OPTIONS']` if your API uses CORS preflight.").optional(),
+              "minTTL": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### Minimum cache time (seconds). Overrides `Cache-Control: max-age` if the origin sets a lower value.").optional(),
+              "maxTTL": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### Maximum cache time (seconds). Caps how long the CDN caches content, even if the origin says longer.").optional(),
+              "defaultTTL": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### Default cache time (seconds). Used when the origin response has no `Cache-Control` or `Expires` header.").optional(),
+              "disableCompression": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Disable automatic Gzip/Brotli compression. Compression is on by default and reduces transfer size/cost.").default(false),
+              "cacheKeyParameters": z.object({
+                "cookies": z.object({
+                  "none": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### No cookies are included in the cache key.").optional(),
+                  "whitelist": z.array(z.string()).optional().describe("#### Only the listed cookies are included in the cache key.").optional(),
+                  "allExcept": z.array(z.string()).optional().describe("#### All cookies except the listed ones are included in the cache key.").optional(),
+                  "all": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### All cookies are included in the cache key.").optional() }).strict()
+                .optional().describe("#### Which cookies to include in the cache key. Different cookie values = different cached responses.").optional(),
+                "headers": z.object({
+                  "none": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### No headers are included in the cache key.").optional(),
+                  "whitelist": z.array(z.string()).optional().describe("#### Only the listed headers are included in the cache key.").optional() }).strict()
+                .optional().describe("#### Which headers to include in the cache key. Different header values = different cached responses.").optional(),
+                "queryString": z.object({
+                  "all": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### All query parameters are included in the cache key.").optional(),
+                  "none": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### No query parameters are included in the cache key.").optional(),
+                  "whitelist": z.array(z.string()).optional().describe("#### Only the listed query parameters are included in the cache key.").optional() }).strict()
+                .optional().describe("#### Which query params to include in the cache key. Different param values = different cached responses.").optional() }).strict()
+              .optional().describe("#### Which headers, cookies, and query params make responses unique in the cache.\n\n---\n\nDefaults: **Bucket** = URL path only. **API/ALB** = URL path + query string.\nValues included in the cache key are always forwarded to the origin.").optional(),
+              "cachePolicyId": z.string().optional().describe("#### Use a pre-existing AWS cache policy ID instead of configuring TTL and cache key options here.").optional() }).strict()
+            .describe("#### Caching behavior override for this path pattern.") }).strict()
+          ).optional().describe("#### Override caching for specific CDN path patterns.\n\n---\n\nMatches existing framework-managed paths (e.g. `_astro/*`, `_next/data/*`) or adds\nnew server-path caching rules (e.g. `/_server-islands/*`) while preserving managed routing.").optional() }).strict()
+        .optional().describe("#### CDN cache controls for SSR routes and specific path patterns.").optional(),
         "connectTo": z.array(z.string()).optional().describe("#### Give this resource access to other resources in your stack.\n\n---\n\nList the names of resources this workload needs to communicate with. Stacktape automatically:\n- **Grants IAM permissions** (e.g., S3 read/write, SQS send/receive)\n- **Opens network access** (security group rules for databases, Redis)\n- **Injects environment variables** with connection details: `STP_[RESOURCE_NAME]_[PARAM]`\n\nExample: `connectTo: [\"myDatabase\", \"myBucket\"]` gives this workload full access to both\nresources and injects `STP_MY_DATABASE_CONNECTION_STRING`, `STP_MY_BUCKET_NAME`, etc.\n\n---\n\n#### What each resource type provides:\n\n**`Bucket`** — read/write/delete objects → `NAME`, `ARN`\n\n**`DynamoDbTable`** — CRUD + scan/query → `NAME`, `ARN`, `STREAM_ARN`\n\n**`RelationalDatabase`** — network access + connection details → `CONNECTION_STRING`, `HOST`, `PORT`.\nAurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.\n\n**`MongoDbAtlasCluster`** — temporary credential-less access → `CONNECTION_STRING`\n\n**`RedisCluster`** — network access → `HOST`, `READER_HOST`, `PORT`\n\n**`Function`** — invoke permission → `ARN`\n\n**`BatchJob`** — submit/list/terminate → `JOB_DEFINITION_ARN`, `STATE_MACHINE_ARN`\n\n**`EventBus`** — publish events → `ARN`\n\n**`UserAuthPool`** — full control → `ID`, `CLIENT_ID`, `ARN`\n\n**`SqsQueue`** — send/receive/delete → `ARN`, `NAME`, `URL`\n\n**`SnsTopic`** — publish/subscribe → `ARN`, `NAME`\n\n**`UpstashRedis`** → `HOST`, `PORT`, `PASSWORD`, `REST_TOKEN`, `REST_URL`, `REDIS_URL`\n\n**`PrivateService`** → `ADDRESS`\n\n**`aws:ses`** — full SES email sending permissions").optional(),
         "iamRoleStatements": z.array(z.object({
           "Sid": z.string().optional().describe("#### Optional identifier for this statement (for readability).").optional(),
@@ -4886,6 +5223,62 @@ export const stacktapeConfigSchema = z.object({
             "value": z.string().describe("#### Value") }).strict()
           ).optional().describe("#### Tags for matching files. Can be used to target files with `lifecycleRules`.").optional() }).strict()
         ).optional().describe("#### Set custom headers (e.g., `Cache-Control`) for static files matching a pattern.").optional(),
+        "cdn": z.object({
+          "disableInvalidationAfterDeploy": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Skip clearing the CDN cache after each deploy.\n\n---\n\nBy default, all cached content is flushed on every deploy so users see the latest version.\nSet to `true` if you manage cache invalidation yourself or want to keep cached content between deploys.").default(false),
+          "defaultCachingOptions": z.object({
+            "cacheMethods": z.array(z.enum(["GET","HEAD","OPTIONS"])).optional().describe("#### HTTP methods to cache. Use `['GET', 'HEAD', 'OPTIONS']` if your API uses CORS preflight.").optional(),
+            "minTTL": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### Minimum cache time (seconds). Overrides `Cache-Control: max-age` if the origin sets a lower value.").optional(),
+            "maxTTL": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### Maximum cache time (seconds). Caps how long the CDN caches content, even if the origin says longer.").optional(),
+            "defaultTTL": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### Default cache time (seconds). Used when the origin response has no `Cache-Control` or `Expires` header.").optional(),
+            "disableCompression": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Disable automatic Gzip/Brotli compression. Compression is on by default and reduces transfer size/cost.").default(false),
+            "cacheKeyParameters": z.object({
+              "cookies": z.object({
+                "none": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### No cookies are included in the cache key.").optional(),
+                "whitelist": z.array(z.string()).optional().describe("#### Only the listed cookies are included in the cache key.").optional(),
+                "allExcept": z.array(z.string()).optional().describe("#### All cookies except the listed ones are included in the cache key.").optional(),
+                "all": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### All cookies are included in the cache key.").optional() }).strict()
+              .optional().describe("#### Which cookies to include in the cache key. Different cookie values = different cached responses.").optional(),
+              "headers": z.object({
+                "none": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### No headers are included in the cache key.").optional(),
+                "whitelist": z.array(z.string()).optional().describe("#### Only the listed headers are included in the cache key.").optional() }).strict()
+              .optional().describe("#### Which headers to include in the cache key. Different header values = different cached responses.").optional(),
+              "queryString": z.object({
+                "all": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### All query parameters are included in the cache key.").optional(),
+                "none": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### No query parameters are included in the cache key.").optional(),
+                "whitelist": z.array(z.string()).optional().describe("#### Only the listed query parameters are included in the cache key.").optional() }).strict()
+              .optional().describe("#### Which query params to include in the cache key. Different param values = different cached responses.").optional() }).strict()
+            .optional().describe("#### Which headers, cookies, and query params make responses unique in the cache.\n\n---\n\nDefaults: **Bucket** = URL path only. **API/ALB** = URL path + query string.\nValues included in the cache key are always forwarded to the origin.").optional(),
+            "cachePolicyId": z.string().optional().describe("#### Use a pre-existing AWS cache policy ID instead of configuring TTL and cache key options here.").optional() }).strict()
+          .optional().describe("#### Override default SSR caching behavior for all routes handled by the server.\n\n---\n\nUseful when you want to cache SSR responses longer than the framework defaults.").optional(),
+          "pathCachingOverrides": z.array(z.object({
+            "path": z.string().describe("#### URL path pattern to match (e.g., `/api/*`, `/_server-islands/*`)."),
+            "cachingOptions": z.object({
+              "cacheMethods": z.array(z.enum(["GET","HEAD","OPTIONS"])).optional().describe("#### HTTP methods to cache. Use `['GET', 'HEAD', 'OPTIONS']` if your API uses CORS preflight.").optional(),
+              "minTTL": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### Minimum cache time (seconds). Overrides `Cache-Control: max-age` if the origin sets a lower value.").optional(),
+              "maxTTL": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### Maximum cache time (seconds). Caps how long the CDN caches content, even if the origin says longer.").optional(),
+              "defaultTTL": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### Default cache time (seconds). Used when the origin response has no `Cache-Control` or `Expires` header.").optional(),
+              "disableCompression": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Disable automatic Gzip/Brotli compression. Compression is on by default and reduces transfer size/cost.").default(false),
+              "cacheKeyParameters": z.object({
+                "cookies": z.object({
+                  "none": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### No cookies are included in the cache key.").optional(),
+                  "whitelist": z.array(z.string()).optional().describe("#### Only the listed cookies are included in the cache key.").optional(),
+                  "allExcept": z.array(z.string()).optional().describe("#### All cookies except the listed ones are included in the cache key.").optional(),
+                  "all": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### All cookies are included in the cache key.").optional() }).strict()
+                .optional().describe("#### Which cookies to include in the cache key. Different cookie values = different cached responses.").optional(),
+                "headers": z.object({
+                  "none": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### No headers are included in the cache key.").optional(),
+                  "whitelist": z.array(z.string()).optional().describe("#### Only the listed headers are included in the cache key.").optional() }).strict()
+                .optional().describe("#### Which headers to include in the cache key. Different header values = different cached responses.").optional(),
+                "queryString": z.object({
+                  "all": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### All query parameters are included in the cache key.").optional(),
+                  "none": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### No query parameters are included in the cache key.").optional(),
+                  "whitelist": z.array(z.string()).optional().describe("#### Only the listed query parameters are included in the cache key.").optional() }).strict()
+                .optional().describe("#### Which query params to include in the cache key. Different param values = different cached responses.").optional() }).strict()
+              .optional().describe("#### Which headers, cookies, and query params make responses unique in the cache.\n\n---\n\nDefaults: **Bucket** = URL path only. **API/ALB** = URL path + query string.\nValues included in the cache key are always forwarded to the origin.").optional(),
+              "cachePolicyId": z.string().optional().describe("#### Use a pre-existing AWS cache policy ID instead of configuring TTL and cache key options here.").optional() }).strict()
+            .describe("#### Caching behavior override for this path pattern.") }).strict()
+          ).optional().describe("#### Override caching for specific CDN path patterns.\n\n---\n\nMatches existing framework-managed paths (e.g. `_astro/*`, `_next/data/*`) or adds\nnew server-path caching rules (e.g. `/_server-islands/*`) while preserving managed routing.").optional() }).strict()
+        .optional().describe("#### CDN cache controls for SSR routes and specific path patterns.").optional(),
         "connectTo": z.array(z.string()).optional().describe("#### Give this resource access to other resources in your stack.\n\n---\n\nList the names of resources this workload needs to communicate with. Stacktape automatically:\n- **Grants IAM permissions** (e.g., S3 read/write, SQS send/receive)\n- **Opens network access** (security group rules for databases, Redis)\n- **Injects environment variables** with connection details: `STP_[RESOURCE_NAME]_[PARAM]`\n\nExample: `connectTo: [\"myDatabase\", \"myBucket\"]` gives this workload full access to both\nresources and injects `STP_MY_DATABASE_CONNECTION_STRING`, `STP_MY_BUCKET_NAME`, etc.\n\n---\n\n#### What each resource type provides:\n\n**`Bucket`** — read/write/delete objects → `NAME`, `ARN`\n\n**`DynamoDbTable`** — CRUD + scan/query → `NAME`, `ARN`, `STREAM_ARN`\n\n**`RelationalDatabase`** — network access + connection details → `CONNECTION_STRING`, `HOST`, `PORT`.\nAurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.\n\n**`MongoDbAtlasCluster`** — temporary credential-less access → `CONNECTION_STRING`\n\n**`RedisCluster`** — network access → `HOST`, `READER_HOST`, `PORT`\n\n**`Function`** — invoke permission → `ARN`\n\n**`BatchJob`** — submit/list/terminate → `JOB_DEFINITION_ARN`, `STATE_MACHINE_ARN`\n\n**`EventBus`** — publish events → `ARN`\n\n**`UserAuthPool`** — full control → `ID`, `CLIENT_ID`, `ARN`\n\n**`SqsQueue`** — send/receive/delete → `ARN`, `NAME`, `URL`\n\n**`SnsTopic`** — publish/subscribe → `ARN`, `NAME`\n\n**`UpstashRedis`** → `HOST`, `PORT`, `PASSWORD`, `REST_TOKEN`, `REST_URL`, `REDIS_URL`\n\n**`PrivateService`** → `ADDRESS`\n\n**`aws:ses`** — full SES email sending permissions").optional(),
         "iamRoleStatements": z.array(z.object({
           "Sid": z.string().optional().describe("#### Optional identifier for this statement (for readability).").optional(),

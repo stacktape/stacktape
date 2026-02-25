@@ -38,6 +38,7 @@ docs/out
 __dist
 .next
 .env.local
+.nuxt
 
 # Ignore Gradle project-specific cache directory
 .gradle

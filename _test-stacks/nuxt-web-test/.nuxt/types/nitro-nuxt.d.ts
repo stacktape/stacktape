@@ -2,7 +2,7 @@
 /// <reference path="nitro-layouts.d.ts" />
 /// <reference path="app.config.d.ts" />
 /// <reference path="runtime-config.d.ts" />
-/// <reference types="C:/Projects/stacktape/_test-stacks/nuxt-web-test/node_modules/@nuxt/nitro-server/dist/index.mjs" />
+/// <reference types="/Users/congy/Desktop/projects/stacktape/_test-stacks/nuxt-web-test/node_modules/@nuxt/nitro-server/dist/index.mjs" />
 /// <reference path="nitro-middleware.d.ts" />
 /// <reference path="./schema.d.ts" />
 
