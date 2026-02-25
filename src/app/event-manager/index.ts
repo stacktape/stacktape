@@ -9,6 +9,7 @@ import { getExecutableScriptFunction } from 'src/commands/script-run/utils';
 import { EventLog } from './event-log';
 
 type HookMap = { [lifecycleEvent: string]: ((args: ScriptFn) => any)[] };
+type HookFailure = { hookEvent: HookableEvent; error: unknown };
 
 // afterDeploy hooks need to use literal (locally resolved) results of runtime directives.
 // during template resource resolving all runtime directives are resolved and cached for purposes of template (references, not literal results)
@@ -26,6 +27,7 @@ export class EventManager implements ProgressLogger {
   finalActions: AnyFunction[];
   currentPhase: DeploymentPhase | null = null;
   private _silentMode = false;
+  private _hookFailures: HookFailure[] = [];
 
   /**
    * Context for this logger instance. Used by child loggers to inherit context.
@@ -73,6 +75,14 @@ export class EventManager implements ProgressLogger {
   get lastEvent() {
     return this.formattedEventLogData[this.formattedEventLogData.length - 1] || null;
   }
+
+  get hookFailures() {
+    return this._hookFailures;
+  }
+
+  clearHookFailures = () => {
+    this._hookFailures = [];
+  };
 
   init = async () => {
     // noop
@@ -130,9 +140,11 @@ export class EventManager implements ProgressLogger {
   };
 
   processHooks = async ({
-    captureType
+    captureType,
+    continueOnError = false
   }: {
     captureType: 'START' | 'FINISH';
+    continueOnError?: boolean;
     // commenting out eventType and error - they are not used at the moment but can be in future
     // eventType?: LoggableEventType;
     // error?: any;
@@ -151,7 +163,17 @@ export class EventManager implements ProgressLogger {
     const hooksForCurrentEvent = this.hookMap[handledEvent];
     if (hooksForCurrentEvent) {
       for (const hook of hooksForCurrentEvent) {
-        await hook({ hookType });
+        try {
+          await hook({ hookType });
+        } catch (error) {
+          if (!continueOnError) {
+            throw error;
+          }
+          this._hookFailures.push({ hookEvent: handledEvent, error });
+          const fullErrorMessage = error instanceof Error ? error.message : `${error}`;
+          const shortErrorMessage = fullErrorMessage.split('\n').find(Boolean) || 'Unknown hook failure';
+          tuiManager.warn(`Non-blocking ${handledEvent} hook failed: ${shortErrorMessage}`);
+        }
       }
     }
     // after beforeDeploy hooks are done, we need to invalidate results of runtime directives

@@ -1248,79 +1248,84 @@ export class StackManager {
   #getDetailOfSelectedResources = (resources: StackResourceSummary[]): Promise<EnrichedStackResourceInfo[]> => {
     return Promise.all(
       resources.map(async (resource) => {
-        if (
-          resource.ResourceType === 'AWS::ECS::Service' ||
-          resource.ResourceType === 'Stacktape::ECSBlueGreenV1::Service'
-        ) {
-          const ecsService = await awsSdkManager.getEcsService({
-            serviceArn: resource.PhysicalResourceId
-          });
-          if (!ecsService) {
+        try {
+          if (
+            resource.ResourceType === 'AWS::ECS::Service' ||
+            resource.ResourceType === 'Stacktape::ECSBlueGreenV1::Service'
+          ) {
+            const ecsService = await awsSdkManager.getEcsService({
+              serviceArn: resource.PhysicalResourceId
+            });
+            if (!ecsService) {
+              return {
+                ...resource,
+                ecsService: undefined,
+                ecsServiceTaskDefinition: {},
+                ecsServiceTaskDefinitionTags: []
+              };
+            }
+            const taskDefinitionInUse =
+              ecsService.deployments?.find(
+                ({ status, rolloutState }) => status === 'PRIMARY' && rolloutState !== DeploymentRolloutState.FAILED
+              )?.taskDefinition ||
+              ecsService.deployments
+                ?.filter(
+                  ({ status, rolloutState }) => status === 'ACTIVE' && rolloutState !== DeploymentRolloutState.FAILED
+                )
+                ?.sort(({ createdAt: ca1 }, { createdAt: ca2 }) => new Date(ca2).getTime() - new Date(ca1).getTime())
+                ?.at(0)?.taskDefinition ||
+              ecsService.taskSets?.find(({ status }) => status === 'PRIMARY')?.taskDefinition;
+
+            const { tags = [], taskDefinition = {} } = taskDefinitionInUse
+              ? await awsSdkManager.getEcsTaskDefinition({
+                  ecsTaskDefinitionFamily: taskDefinitionInUse
+                })
+              : {};
             return {
               ...resource,
-              ecsService: undefined,
-              ecsServiceTaskDefinition: {},
-              ecsServiceTaskDefinitionTags: []
+              ecsService,
+              ecsServiceTaskDefinition: taskDefinition,
+              ecsServiceTaskDefinitionTags: tags
             };
           }
-          const taskDefinitionInUse =
-            // rolling deployments
-            ecsService.deployments?.find(
-              ({ status, rolloutState }) => status === 'PRIMARY' && rolloutState !== DeploymentRolloutState.FAILED
-            )?.taskDefinition ||
-            ecsService.deployments
-              ?.filter(
-                ({ status, rolloutState }) => status === 'ACTIVE' && rolloutState !== DeploymentRolloutState.FAILED
-              )
-              ?.sort(({ createdAt: ca1 }, { createdAt: ca2 }) => new Date(ca2).getTime() - new Date(ca1).getTime())
-              ?.at(0)?.taskDefinition ||
-            // bg deployments
-            ecsService.taskSets?.find(({ status }) => status === 'PRIMARY')?.taskDefinition;
-
-          const { tags = [], taskDefinition = {} } = taskDefinitionInUse
-            ? await awsSdkManager.getEcsTaskDefinition({
-                ecsTaskDefinitionFamily: taskDefinitionInUse
+          if (resource.ResourceType === 'AWS::Lambda::Function') {
+            const lambdaArn = arns.lambdaFromFullName({
+              accountId: globalStateManager.targetAwsAccount.awsAccountId,
+              region: globalStateManager.region,
+              lambdaAwsName: resource.PhysicalResourceId
+            });
+            const resourceTags: Tag[] = Object.entries(
+              await awsSdkManager.getLambdaTags({
+                lambdaArn
               })
-            : {};
-          return {
-            ...resource,
-            ecsService,
-            ecsServiceTaskDefinition: taskDefinition,
-            ecsServiceTaskDefinitionTags: tags
-          };
+            ).map(([key, value]) => ({ key, value }));
+            return { ...resource, tags: resourceTags };
+          }
+          if (resource.ResourceType === 'AWS::AutoScaling::AutoScalingGroup') {
+            const asgDetail = await awsSdkManager.getAutoscalingGroupInfo({
+              autoscalingGroupAwsName: resource.PhysicalResourceId
+            });
+            return { ...resource, asgDetail };
+          }
+          if (resource.ResourceType === 'AWS::RDS::DBInstance') {
+            const rdsInstanceDetail = await awsSdkManager.getRdsInstanceDetail({
+              rdsInstanceIdentifier: resource.PhysicalResourceId
+            });
+            return { ...resource, rdsInstanceDetail };
+          }
+          if (resource.ResourceType === 'AWS::RDS::DBCluster') {
+            const auroraClusterDetail = await awsSdkManager.getRdsClusterDetail({
+              rdsClusterIdentifier: resource.PhysicalResourceId
+            });
+            return { ...resource, auroraClusterDetail };
+          }
+          return resource;
+        } catch (error) {
+          tuiManager.debug(
+            `[STP_DEBUG] Unable to enrich resource details for ${resource.LogicalResourceId} (${resource.ResourceType}): ${error}`
+          );
+          return resource;
         }
-        if (resource.ResourceType === 'AWS::Lambda::Function') {
-          const lambdaArn = arns.lambdaFromFullName({
-            accountId: globalStateManager.targetAwsAccount.awsAccountId,
-            region: globalStateManager.region,
-            lambdaAwsName: resource.PhysicalResourceId
-          });
-          const resourceTags: Tag[] = Object.entries(
-            await awsSdkManager.getLambdaTags({
-              lambdaArn
-            })
-          ).map(([key, value]) => ({ key, value }));
-          return { ...resource, tags: resourceTags };
-        }
-        if (resource.ResourceType === 'AWS::AutoScaling::AutoScalingGroup') {
-          const asgDetail = await awsSdkManager.getAutoscalingGroupInfo({
-            autoscalingGroupAwsName: resource.PhysicalResourceId
-          });
-          return { ...resource, asgDetail };
-        }
-        if (resource.ResourceType === 'AWS::RDS::DBInstance') {
-          const rdsInstanceDetail = await awsSdkManager.getRdsInstanceDetail({
-            rdsInstanceIdentifier: resource.PhysicalResourceId
-          });
-          return { ...resource, rdsInstanceDetail };
-        }
-        if (resource.ResourceType === 'AWS::RDS::DBCluster') {
-          const auroraClusterDetail = await awsSdkManager.getRdsClusterDetail({
-            rdsClusterIdentifier: resource.PhysicalResourceId
-          });
-          return { ...resource, auroraClusterDetail };
-        }
-        return resource;
       })
     );
   };

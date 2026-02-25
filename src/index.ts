@@ -136,7 +136,18 @@ export const runCommand = async (opts: StacktapeProgrammaticOptions) => {
 
     const executor = getCommandExecutor(globalStateManager.command);
     commandResult = await executor();
-    await eventManager.processHooks({ captureType: 'FINISH' });
+    eventManager.clearHookFailures();
+    const shouldContinueAfterHookFailure = globalStateManager.command === 'deploy';
+    await eventManager.processHooks({
+      captureType: 'FINISH',
+      continueOnError: shouldContinueAfterHookFailure
+    });
+
+    if (shouldContinueAfterHookFailure && eventManager.hookFailures.length) {
+      tuiManager.warn(
+        `${eventManager.hookFailures.length} afterDeploy hook(s) failed. Deployment is complete, but post-deploy tasks need attention.`
+      );
+    }
 
     // Commit pending completion (from setPendingCompletion) before stopping
     tuiManager.commitPendingCompletion();
@@ -155,7 +166,19 @@ export const runCommand = async (opts: StacktapeProgrammaticOptions) => {
       ok: true,
       code: 'OK',
       message: `${globalStateManager.command} completed`,
-      ...(commandResult !== undefined ? { data: { result: commandResult } } : {})
+      ...((commandResult !== undefined || eventManager.hookFailures.length) && {
+        data: {
+          ...(commandResult !== undefined ? { result: commandResult } : {}),
+          ...(eventManager.hookFailures.length
+            ? {
+                hookFailures: eventManager.hookFailures.map(({ hookEvent, error }) => ({
+                  hookEvent,
+                  message: error instanceof Error ? error.message : `${error}`
+                }))
+              }
+            : {})
+        }
+      })
     });
   } catch (err) {
     if (applicationManager.isInterrupted) {

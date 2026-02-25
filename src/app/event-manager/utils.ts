@@ -1,22 +1,67 @@
 import { getFirstAndLastItem } from '@shared/utils/misc';
 
-export const groupByEventType = <T extends { eventType: string }>(data: T[]) => {
-  const res: { [eventType: string]: T[] } = {};
-  for (const eventData of data) {
-    if (!res[eventData.eventType]) {
-      res[eventData.eventType] = [];
+type LifecycleGroup = {
+  eventType: LoggableEventType;
+  entries: (EventLogEntry | ChildEventLogEntry)[];
+  started: number;
+};
+
+const groupEventLifecycles = (data: (EventLogEntry | ChildEventLogEntry)[]): LifecycleGroup[] => {
+  const activeByEventType: Partial<Record<LoggableEventType, LifecycleGroup>> = {};
+  const completedGroups: LifecycleGroup[] = [];
+
+  for (const event of data) {
+    const eventType = event.eventType;
+    const active = activeByEventType[eventType];
+
+    if (event.captureType === 'START') {
+      if (active) {
+        completedGroups.push(active);
+      }
+      activeByEventType[eventType] = {
+        eventType,
+        entries: [event],
+        started: event.timestamp
+      };
+      continue;
     }
-    res[eventData.eventType].push(eventData);
+
+    if (active) {
+      active.entries.push(event);
+      if (event.captureType === 'FINISH') {
+        completedGroups.push(active);
+        delete activeByEventType[eventType];
+      }
+      continue;
+    }
+
+    const standaloneGroup: LifecycleGroup = {
+      eventType,
+      entries: [event],
+      started: event.timestamp
+    };
+
+    if (event.captureType === 'FINISH') {
+      completedGroups.push(standaloneGroup);
+    } else {
+      activeByEventType[eventType] = standaloneGroup;
+    }
   }
-  return res;
+
+  for (const openGroup of Object.values(activeByEventType)) {
+    if (!openGroup) continue;
+    completedGroups.push(openGroup);
+  }
+
+  return completedGroups.sort((a, b) => a.started - b.started);
 };
 
 export const getGroupedEventsWithDetails = (
   data: (EventLogEntry | ChildEventLogEntry)[]
 ): Omit<FormattedEventData, 'childEvents'>[] => {
   const res: FormattedEventData[] = [];
-  const groupedEvents = groupByEventType(data);
-  Object.entries(groupedEvents).forEach(([eventType, allEvents]) => {
+  const lifecycleGroups = groupEventLifecycles(data);
+  lifecycleGroups.forEach(({ eventType, entries: allEvents }) => {
     const { first, last } = getFirstAndLastItem(allEvents);
     const isFinished = last.captureType === 'FINISH';
     const duration = isFinished ? last.timestamp - first.timestamp : null;
