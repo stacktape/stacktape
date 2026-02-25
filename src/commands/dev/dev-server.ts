@@ -6,13 +6,9 @@ import { serialize } from '@shared/utils/misc';
 import { createCleanupHook } from './cleanup-utils';
 import { DEV_CONFIG } from './dev-config';
 import { createFrameworkParser, detectFramework, type FrameworkType } from './framework-parsers';
-import {
-  extractPortFromCommand,
-  getDefaultPort,
-  isPortAvailable,
-  killProcessOnPort,
-  parsePortFromError
-} from './port-utils';
+import { ensureNamedProxyRoute, removeNamedProxyRoute } from './named-proxy/manager';
+import { injectFrameworkFlags } from './named-proxy/utils';
+import { extractPortFromCommand, findAvailablePort, getDefaultPort, isPortAvailable } from './port-utils';
 
 const { readyTimeoutMs: DEV_SERVER_READY_TIMEOUT_MS, readyDelayMs: DEV_SERVER_READY_DELAY_MS } = DEV_CONFIG.devServer;
 
@@ -42,6 +38,76 @@ type DevServerCallbacks = {
 
 const runningDevServers: Map<string, ChildProcess> = new Map();
 const runningDevServerFrameworks: Map<string, FrameworkType> = new Map();
+
+const overrideCommandPortArgs = (args: string[], port: number): string[] => {
+  const output: string[] = [];
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+
+    if (arg === '--port' || arg === '-p') {
+      output.push(arg, String(port));
+      if (args[i + 1] && !args[i + 1].startsWith('-')) {
+        i++;
+      }
+      continue;
+    }
+
+    if (arg.startsWith('--port=')) {
+      output.push(`--port=${port}`);
+      continue;
+    }
+
+    if (arg.startsWith('-p=')) {
+      output.push(`-p=${port}`);
+      continue;
+    }
+
+    output.push(arg);
+  }
+
+  return output;
+};
+
+const injectPackageScriptFlags = ({
+  commandWithArgs,
+  port,
+  framework
+}: {
+  commandWithArgs: string[];
+  port: number;
+  framework: FrameworkType;
+}): void => {
+  const [cmd, ...rest] = commandWithArgs;
+  if (cmd !== 'bun' && cmd !== 'npm' && cmd !== 'pnpm' && cmd !== 'yarn') return;
+
+  const isRunCommand = (cmd === 'bun' || cmd === 'npm' || cmd === 'pnpm') && rest.length >= 2 && rest[0] === 'run';
+  const isYarnScriptCommand = cmd === 'yarn' && rest.length >= 1 && rest[0] !== 'run';
+  if (!isRunCommand && !isYarnScriptCommand) return;
+
+  if (commandWithArgs.includes('--port') || commandWithArgs.some((arg) => arg.startsWith('--port='))) return;
+
+  const needsStrictPort = framework === 'vite' || framework === 'sveltekit' || framework === 'turbopack';
+  const addHostFlag = framework !== 'next';
+
+  if (cmd === 'yarn') {
+    commandWithArgs.push('--port', String(port));
+    if (addHostFlag) {
+      commandWithArgs.push('--host', '127.0.0.1');
+    }
+    if (needsStrictPort) {
+      commandWithArgs.push('--strictPort');
+    }
+    return;
+  }
+
+  commandWithArgs.push('--', '--port', String(port));
+  if (addHostFlag) {
+    commandWithArgs.push('--host', '127.0.0.1');
+  }
+  if (needsStrictPort) {
+    commandWithArgs.push('--strictPort');
+  }
+};
 
 const waitForProcessExit = async (proc: ChildProcess, timeoutMs: number): Promise<boolean> => {
   if (proc.exitCode !== null || proc.signalCode !== null) {
@@ -130,6 +196,7 @@ export const stopDevServer = async (name: string): Promise<void> => {
 
   runningDevServers.delete(name);
   runningDevServerFrameworks.delete(name);
+  removeNamedProxyRoute(name);
 };
 
 /**
@@ -163,6 +230,7 @@ export const stopDevServerSync = (name: string): void => {
 
   runningDevServers.delete(name);
   runningDevServerFrameworks.delete(name);
+  removeNamedProxyRoute(name);
 };
 
 export const startDevServer = async ({
@@ -197,22 +265,12 @@ export const startDevServer = async ({
   const commandParts = config.command.match(/(?:[^\s"]+|"[^"]*")+/g) || [config.command];
   const [command, ...args] = commandParts.map((part) => part.replace(/^"|"$/g, ''));
 
-  // Determine port - from config, command, or framework default
+  // Determine port preference - from config, command, or framework default
   const commandPort = extractPortFromCommand(config.command);
-  const targetPort = config.port || commandPort || getDefaultPort(framework);
+  const preferredPort = config.port || commandPort || getDefaultPort(framework);
+  const targetPort = (await findAvailablePort(preferredPort, 300)) || preferredPort;
 
-  const ensureTargetPortAvailable = async (): Promise<boolean> => {
-    if (await isPortAvailable(targetPort)) return true;
-
-    await killProcessOnPort(targetPort);
-
-    const startTime = Date.now();
-    while (Date.now() - startTime < 5000) {
-      if (await isPortAvailable(targetPort)) return true;
-      await new Promise((resolve) => setTimeout(resolve, 200));
-    }
-    return false;
-  };
+  const ensureTargetPortAvailable = async (): Promise<boolean> => isPortAvailable(targetPort);
 
   // Build environment with PORT for frameworks that support it
   const env: Record<string, string> = {
@@ -220,11 +278,8 @@ export const startDevServer = async ({
     FORCE_COLOR: '1'
   };
 
-  // Set PORT env var (most frameworks respect this)
-  // Only set if not already specified in command to avoid conflicts
-  if (!commandPort) {
-    env.PORT = String(targetPort);
-  }
+  env.PORT = String(targetPort);
+  env.HOST = '127.0.0.1';
 
   let currentState: DevServerState = { status: 'starting' };
   callbacks?.onStateChange?.(currentState);
@@ -236,10 +291,8 @@ export const startDevServer = async ({
     return currentState;
   }
 
-  // Track if we've already retried after port conflict
-  let portConflictRetried = false;
-  // Buffer to collect error output for EADDRINUSE detection
-  let errorBuffer = '';
+  let routedTargetPort = targetPort;
+  let proxyRoute = await ensureNamedProxyRoute({ resourceName: name, targetPort: routedTargetPort });
 
   const spawnDevServer = (): Promise<DevServerState> => {
     return new Promise((resolve) => {
@@ -247,7 +300,14 @@ export const startDevServer = async ({
       // so create a fresh one for each spawn/retry attempt.
       const parseOutput = createFrameworkParser(framework);
 
-      const proc = spawn(command, args, {
+      const patchedArgs = overrideCommandPortArgs(args, targetPort);
+      const commandWithArgs = [command, ...patchedArgs];
+      injectFrameworkFlags(commandWithArgs, targetPort);
+      injectPackageScriptFlags({ commandWithArgs, port: targetPort, framework });
+
+      const [spawnCommandName, ...spawnArgs] = commandWithArgs;
+
+      const proc = spawn(spawnCommandName, spawnArgs, {
         cwd: workingDir,
         env,
         stdio: ['ignore', 'pipe', 'pipe'],
@@ -270,9 +330,6 @@ export const startDevServer = async ({
       const processLine = (line: string) => {
         callbacks?.onOutput?.(line);
 
-        // Collect error output for EADDRINUSE detection
-        errorBuffer += `${line}\n`;
-
         // Use framework-aware parser
         const parsed = parseOutput(line);
 
@@ -281,8 +338,16 @@ export const startDevServer = async ({
         if (parsed.status) {
           newState.status = parsed.status;
         }
-        if (parsed.url) {
-          newState.url = parsed.url;
+        if (parsed.url) newState.url = parsed.url;
+        if (parsed.port && parsed.port !== routedTargetPort) {
+          routedTargetPort = parsed.port;
+          ensureNamedProxyRoute({ resourceName: name, targetPort: routedTargetPort })
+            .then((updatedRoute) => {
+              proxyRoute = updatedRoute;
+            })
+            .catch(() => {
+              // Best effort - keep existing route
+            });
         }
         if (parsed.compileTime) {
           newState.lastCompileTime = parsed.compileTime;
@@ -297,6 +362,10 @@ export const startDevServer = async ({
           newState.lastCompileTime !== currentState.lastCompileTime;
 
         if (stateChanged) {
+          if (newState.status === 'ready') {
+            newState.url = proxyRoute.url;
+          }
+
           currentState = newState;
           callbacks?.onStateChange?.(currentState);
 
@@ -333,6 +402,7 @@ export const startDevServer = async ({
         callbacks?.onStateChange?.(currentState);
         runningDevServers.delete(name);
         runningDevServerFrameworks.delete(name);
+        removeNamedProxyRoute(name);
         resolveOnce(currentState);
       });
 
@@ -343,6 +413,7 @@ export const startDevServer = async ({
         }
         runningDevServers.delete(name);
         runningDevServerFrameworks.delete(name);
+        removeNamedProxyRoute(name);
         resolveOnce(currentState);
       });
 
@@ -352,6 +423,7 @@ export const startDevServer = async ({
           // If we got a URL but no ready signal, consider it ready
           if (currentState.url) {
             currentState = { ...currentState, status: 'ready' };
+            currentState.url = proxyRoute.url;
             callbacks?.onStateChange?.(currentState);
           }
           resolveOnce(currentState);
@@ -360,34 +432,7 @@ export const startDevServer = async ({
     });
   };
 
-  // First attempt
-  let result = await spawnDevServer();
-
-  // Check for EADDRINUSE error and retry after killing the port holder
-  if (result.status === 'error' && !portConflictRetried) {
-    const conflictPort = parsePortFromError(errorBuffer);
-    if (conflictPort) {
-      portConflictRetried = true;
-
-      callbacks?.onOutput?.(`Port ${conflictPort} is already in use. Retrying dev server startup...`);
-
-      // Try to kill the process using the port
-      const killed = await killProcessOnPort(conflictPort);
-      if (killed) {
-        // Wait for port to be released
-        await new Promise((r) => setTimeout(r, 500));
-
-        // Reset state and retry
-        currentState = { status: 'starting' };
-        callbacks?.onStateChange?.(currentState);
-        errorBuffer = '';
-
-        result = await spawnDevServer();
-      }
-    }
-  }
-
-  return result;
+  return spawnDevServer();
 };
 
 /** Get the detected framework for a running dev server */

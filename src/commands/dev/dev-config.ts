@@ -16,7 +16,9 @@ export const DEV_CONFIG = {
   /** Lambda environment manager configuration */
   lambda: {
     updateRetryAttempts: 3,
-    updateRetryDelayMs: 2000
+    updateRetryDelayMs: 2000,
+    updateWaitTimeoutMs: 30000,
+    updatePollIntervalMs: 1000
   },
 
   /** Local resource defaults */

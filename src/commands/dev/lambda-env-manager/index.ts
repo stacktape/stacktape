@@ -21,10 +21,35 @@ type LambdaEnvBackup = {
 
 const envBackups: LambdaEnvBackup[] = [];
 
-const { updateRetryAttempts: LAMBDA_UPDATE_RETRY_ATTEMPTS, updateRetryDelayMs: LAMBDA_UPDATE_RETRY_DELAY_MS } =
-  DEV_CONFIG.lambda;
+const {
+  updateRetryAttempts: LAMBDA_UPDATE_RETRY_ATTEMPTS,
+  updateRetryDelayMs: LAMBDA_UPDATE_RETRY_DELAY_MS,
+  updateWaitTimeoutMs: LAMBDA_UPDATE_WAIT_TIMEOUT_MS,
+  updatePollIntervalMs: LAMBDA_UPDATE_POLL_INTERVAL_MS
+} = DEV_CONFIG.lambda;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const waitForLambdaUpdateCompletion = async (client: LambdaClient, functionName: string): Promise<void> => {
+  const start = Date.now();
+
+  while (Date.now() - start < LAMBDA_UPDATE_WAIT_TIMEOUT_MS) {
+    const config = await client.send(new GetFunctionConfigurationCommand({ FunctionName: functionName }));
+    const status = config.LastUpdateStatus;
+
+    if (status === 'Successful') {
+      return;
+    }
+
+    if (status === 'Failed') {
+      throw new Error(`Lambda update failed for ${functionName}: ${config.LastUpdateStatusReason || 'unknown reason'}`);
+    }
+
+    await sleep(LAMBDA_UPDATE_POLL_INTERVAL_MS);
+  }
+
+  throw new Error(`Timed out waiting for Lambda update completion: ${functionName}`);
+};
 
 // Cached Lambda client for performance
 let cachedLambdaClient: LambdaClient | null = null;
@@ -238,6 +263,7 @@ const updateLambdaWithRetry = async (
           Environment: { Variables: envVars }
         })
       );
+      await waitForLambdaUpdateCompletion(client, functionName);
       return;
     } catch (err) {
       // ResourceConflictException means Lambda is being updated by another process

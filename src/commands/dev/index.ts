@@ -45,6 +45,7 @@ import { findAvailablePort } from './port-utils';
 import { registerLambdaEnvCleanupHook } from './lambda-env-manager';
 import { registerTunnelCleanupHook } from './tunnel-manager';
 import { registerCredentialCleanupHook } from './utils';
+import { registerNamedProxyCleanupHook } from './named-proxy/manager';
 
 type DevCompatibleResource = {
   name: string;
@@ -389,6 +390,7 @@ export const commandDev = async () => {
   registerDevServerCleanupHook();
   registerTunnelCleanupHook();
   registerLambdaEnvCleanupHook();
+  registerNamedProxyCleanupHook();
 
   const devMode = getDevModeType();
   const isLegacy = isLegacyDevMode();

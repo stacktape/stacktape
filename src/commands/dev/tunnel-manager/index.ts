@@ -1,5 +1,5 @@
 import { spawn, type ChildProcess } from 'node:child_process';
-import { stat } from 'node:fs/promises';
+import { chmod, stat } from 'node:fs/promises';
 import { applicationManager } from '@application-services/application-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { fsPaths } from '@shared/naming/fs-paths';
@@ -35,6 +35,15 @@ const verifyBoreBinaryExists = async (): Promise<string> => {
   const borePath = fsPaths.borePath();
   try {
     await stat(borePath);
+
+    if (process.platform !== 'win32') {
+      try {
+        await chmod(borePath, 0o755);
+      } catch {
+        // Best effort. Spawn will report a clear error if this fails.
+      }
+    }
+
     return borePath;
   } catch {
     throw new Error(

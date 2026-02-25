@@ -30,6 +30,8 @@ import { startNextjsWebDevServer } from '../nextjs-web';
 import { startSsrWebDevServer } from '../ssr-web';
 import type { SsrWebResourceType } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/_utils/ssr-web-shared';
 import { startTunnel } from '../tunnel-manager';
+import { ensureNamedProxyRoute } from '../named-proxy/manager';
+import { isPortAvailable } from '../port-utils';
 import {
   clearCredentialExpiryTimer,
   getBastionTunnelsForResource,
@@ -50,6 +52,12 @@ type WorkloadInfo = {
   sourceFiles: string[];
   rebuild: () => Promise<void>;
   envVars?: Record<string, string>;
+};
+
+type ContainerPortBinding = {
+  primaryHostPort: number;
+  hostPortOffset: number;
+  hostPorts: number[];
 };
 
 type ParallelRunnerState = {
@@ -218,13 +226,18 @@ export const runParallelWorkloads = async (
   }
 
   // Compute env vars and addresses for local container workloads (only for workloads explicitly referenced)
+  const containerPortBindings = await allocateContainerPortBindings(
+    filteredResources.filter((r) => r.category === 'container')
+  );
+
   const {
     envVars: localWorkloadEnvVars,
     addresses: localWorkloadAddresses,
     stackInfoWorkloads
   } = getLocalWorkloadInfo(
     filteredResources.filter((r) => r.category === 'container'),
-    allReferencedResources
+    allReferencedResources,
+    containerPortBindings
   );
 
   // Inject local workload info into deployedStackOverviewManager so $ResourceParam directives can resolve them
@@ -287,7 +300,8 @@ export const runParallelWorkloads = async (
         resource.type,
         allLocalEnvVars,
         deployedResourceNames,
-        localWorkloadAddresses
+        localWorkloadAddresses,
+        containerPortBindings.get(resource.name)
       );
     } else if (resource.category === 'function') {
       return startFunctionWorkload(resource.name);
@@ -424,7 +438,8 @@ type LocalWorkloadInfoResult = {
  */
 const getLocalWorkloadInfo = (
   containerResources: { name: string; type: string }[],
-  allReferencedResources: Set<string>
+  allReferencedResources: Set<string>,
+  containerPortBindings: Map<string, ContainerPortBinding>
 ): LocalWorkloadInfoResult => {
   const envVars: Record<string, string> = {};
   const addresses: Record<string, string> = {};
@@ -446,12 +461,14 @@ const getLocalWorkloadInfo = (
     });
     const containerDefinition = configManager.allContainerWorkloadContainers.find((job) => job.jobName === jobName);
     const port = containerDefinition?.events?.[0]?.properties?.containerPort;
+    const binding = containerPortBindings.get(resource.name);
+    const hostPort = binding?.primaryHostPort || port;
 
-    if (port) {
+    if (hostPort) {
       // For private-service, set ADDRESS (format: host:port)
       // For web-service/worker-service, set URL (format: http://host:port)
       if (workload.configParentResourceType === 'private-service') {
-        const address = `${tunnelHost}:${port}`;
+        const address = `${tunnelHost}:${hostPort}`;
         // Only set env vars for referenced workloads
         if (allReferencedResources.has(resource.name)) {
           envVars[injectedParameterEnvVarName(resource.name, 'address')] = address;
@@ -460,7 +477,7 @@ const getLocalWorkloadInfo = (
         // Always add to stackInfoWorkloads for $ResourceParam resolution
         stackInfoWorkloads.push({ name: resource.name, resourceType: 'private-service', address });
       } else {
-        const url = `http://${tunnelHost}:${port}`;
+        const url = `http://${tunnelHost}:${hostPort}`;
         // Only set env vars for referenced workloads
         if (allReferencedResources.has(resource.name)) {
           envVars[injectedParameterEnvVarName(resource.name, 'url')] = url;
@@ -475,12 +492,83 @@ const getLocalWorkloadInfo = (
   return { envVars, addresses, stackInfoWorkloads };
 };
 
+const allocateContainerPortBindings = async (
+  containerResources: { name: string; type: string; category: WorkloadType }[]
+): Promise<Map<string, ContainerPortBinding>> => {
+  const bindings = new Map<string, ContainerPortBinding>();
+  const reserved = new Set<number>();
+
+  const canUsePrimaryPort = async ({
+    primaryPort,
+    candidatePrimary,
+    containerPorts
+  }: {
+    primaryPort: number;
+    candidatePrimary: number;
+    containerPorts: number[];
+  }): Promise<boolean> => {
+    const offset = candidatePrimary - primaryPort;
+    for (const port of containerPorts) {
+      const hostPort = port + offset;
+      if (reserved.has(hostPort)) return false;
+      if (!(await isPortAvailable(hostPort))) return false;
+    }
+    return true;
+  };
+
+  for (const resource of containerResources) {
+    const workload = getConfigResource(resource.name, resource.type) as StpContainerWorkload | undefined;
+    if (!workload) continue;
+
+    const containerDef = workload.containers[0];
+    const jobName = getJobName({
+      workloadName: resource.name,
+      workloadType: workload.configParentResourceType,
+      containerName: containerDef.name
+    });
+    const containerDefinition = configManager.allContainerWorkloadContainers.find((job) => job.jobName === jobName);
+    const containerPorts = (containerDefinition?.events || [])
+      .map((event: any) => event.properties.containerPort)
+      .filter((port: number | undefined) => typeof port === 'number' && port > 0) as number[];
+
+    const primaryPort = containerPorts[0];
+    if (!primaryPort) continue;
+
+    let candidatePrimary = primaryPort;
+    let chosenPrimary: number | null = null;
+    for (let i = 0; i < 1000; i++) {
+      if (await canUsePrimaryPort({ primaryPort, candidatePrimary, containerPorts })) {
+        chosenPrimary = candidatePrimary;
+        break;
+      }
+      candidatePrimary++;
+    }
+
+    if (!chosenPrimary) {
+      throw new ExpectedError('DOCKER', `Could not allocate host ports for container workload "${resource.name}"`);
+    }
+
+    const offset = chosenPrimary - primaryPort;
+    const hostPorts = containerPorts.map((port) => port + offset);
+    hostPorts.forEach((port) => reserved.add(port));
+
+    bindings.set(resource.name, {
+      primaryHostPort: chosenPrimary,
+      hostPortOffset: offset,
+      hostPorts
+    });
+  }
+
+  return bindings;
+};
+
 const startContainerWorkload = async (
   resourceName: string,
   resourceType: string,
   localResourceEnvVars: Record<string, string>,
   deployedConnectTo: string[],
-  localWorkloadAddresses: Record<string, string>
+  localWorkloadAddresses: Record<string, string>,
+  portBinding?: ContainerPortBinding
 ): Promise<void> => {
   const useDevTui = devTuiManager.running;
 
@@ -514,6 +602,13 @@ const startContainerWorkload = async (
 
   const ports = (containerDefinition.events || []).map((event: any) => event.properties.containerPort);
   const primaryPort = ports[0];
+  const hostPortOffset = portBinding?.hostPortOffset || 0;
+  const hostPorts = ports.map((port: number) => port + hostPortOffset);
+  const primaryHostPort = portBinding?.primaryHostPort || primaryPort;
+
+  const proxyRoute = primaryHostPort
+    ? await ensureNamedProxyRoute({ resourceName, targetPort: primaryHostPort })
+    : undefined;
 
   const resourceDeployedConnectTo = (resource.connectTo || []).filter((c) => deployedConnectTo.includes(c));
   // Skip AWS credentials for locally-injected resources (not deployed to AWS)
@@ -528,7 +623,7 @@ const startContainerWorkload = async (
       tunnels: state.tunnels.filter((t) => resourceDeployedConnectTo.includes(t.targetInfo.targetStpName)),
       localResourceEnvVars,
       skipAwsCredentials,
-      port: primaryPort,
+      port: primaryHostPort,
       localWorkloadAddresses
     });
   };
@@ -536,7 +631,7 @@ const startContainerWorkload = async (
   // Get environment (including fresh AWS credentials)
   const environment = await getFreshEnvironment();
   // Auto-stop conflicting containers when DevTUI is active (can't prompt user)
-  await resolveRunningContainersWithSamePort({ ports, autoStopConflicting: useDevTui });
+  await resolveRunningContainersWithSamePort({ ports: hostPorts, autoStopConflicting: useDevTui });
 
   const command = (containerDefinition.packaging as any)?.properties?.command;
 
@@ -550,20 +645,20 @@ const startContainerWorkload = async (
       image: imageResult.imageName,
       command,
       environment,
-      portMappings: ports.map((port: number) => ({ containerPort: port, hostPort: port })),
+      portMappings: ports.map((port: number) => ({ containerPort: port, hostPort: port + hostPortOffset })),
       volumeMounts: imageResult.distFolderPath ? [{ hostPath: imageResult.distFolderPath, containerPath: '/app' }] : [],
       onStart: () => {
         started = true;
         if (useDevTui) {
           devTuiManager.setWorkloadStatus(resourceName, 'running', {
-            port: primaryPort,
-            url: `http://localhost:${primaryPort}`,
+            port: primaryHostPort,
+            url: proxyRoute?.url || `http://localhost:${primaryHostPort}`,
             size: imageResult.details // Image size info
           });
-          devTuiManager.log(resourceName, `Container started on port ${primaryPort}`);
+          devTuiManager.log(resourceName, `Container started on port ${primaryHostPort}`);
         } else {
           tuiManager.info(
-            `[${resourceName}] Container started on port${ports.length > 1 ? 's' : ''} ${ports.join(', ')}`
+            `[${resourceName}] Container started on port${hostPorts.length > 1 ? 's' : ''} ${hostPorts.join(', ')}`
           );
         }
         resolve();
@@ -649,14 +744,14 @@ const startContainerWorkload = async (
         image: newImage.imageName,
         command,
         environment: rebuiltEnvironment,
-        portMappings: ports.map((port: number) => ({ containerPort: port, hostPort: port })),
+        portMappings: ports.map((port: number) => ({ containerPort: port, hostPort: port + hostPortOffset })),
         volumeMounts: newImage.distFolderPath ? [{ hostPath: newImage.distFolderPath, containerPath: '/app' }] : [],
         onStart: () => {
           if (!inRebuildPhase) {
             if (useDevTui) {
               devTuiManager.setWorkloadStatus(resourceName, 'running', {
-                port: primaryPort,
-                url: `http://localhost:${primaryPort}`
+                port: primaryHostPort,
+                url: proxyRoute?.url || `http://localhost:${primaryHostPort}`
               });
               devTuiManager.log(resourceName, 'Container restarted');
             } else {
