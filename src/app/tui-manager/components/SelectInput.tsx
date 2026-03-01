@@ -1,6 +1,19 @@
 import type { TuiSelectOption } from '../types';
 import { Box, Text, useInput, useStdout } from 'ink';
-import React, { memo, useCallback, useMemo, useState } from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
+
+const useTerminalRows = (stdout: NodeJS.WriteStream | undefined): number => {
+  const [rows, setRows] = useState(stdout?.rows || 24);
+  useEffect(() => {
+    if (!stdout) return;
+    const onResize = () => setRows(stdout.rows);
+    stdout.on('resize', onResize);
+    return () => {
+      stdout.off('resize', onResize);
+    };
+  }, [stdout]);
+  return rows;
+};
 
 type SelectInputProps = {
   options: TuiSelectOption[];
@@ -40,14 +53,13 @@ export const SelectInput: React.FC<SelectInputProps> = ({
 }) => {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const { stdout } = useStdout();
+  const terminalRows = useTerminalRows(stdout);
 
   const visibleCount = useMemo(() => {
     if (maxVisibleOptions) return maxVisibleOptions;
-
-    const terminalHeight = stdout?.rows || 24;
-    const availableLines = Math.max(minVisibleOptions, terminalHeight - 10);
+    const availableLines = Math.max(minVisibleOptions, terminalRows - 10);
     return Math.min(options.length, availableLines, 20);
-  }, [stdout?.rows, options.length, maxVisibleOptions, minVisibleOptions]);
+  }, [terminalRows, options.length, maxVisibleOptions, minVisibleOptions]);
 
   const { startIndex, endIndex, visibleOptions } = useMemo(() => {
     const halfWindow = Math.floor(visibleCount / 2);

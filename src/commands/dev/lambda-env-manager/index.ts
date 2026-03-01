@@ -2,6 +2,7 @@ import type { LocalResourceInstance } from '../local-resources';
 import type { TunnelInfo } from '../tunnel-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
+import { createFetchHandler } from '@shared/aws/fetch-handler';
 import {
   GetFunctionConfigurationCommand,
   LambdaClient,
@@ -64,7 +65,7 @@ const getLambdaClient = (): LambdaClient | null => {
   if (cachedLambdaClient && cachedRegion === region) {
     return cachedLambdaClient;
   }
-  cachedLambdaClient = new LambdaClient({ region });
+  cachedLambdaClient = new LambdaClient({ region, requestHandler: createFetchHandler() });
   cachedRegion = region;
   return cachedLambdaClient;
 };

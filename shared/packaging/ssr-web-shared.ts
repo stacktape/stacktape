@@ -3,7 +3,7 @@ import { eventManager } from '@application-services/event-manager';
 import { getJobName } from '@shared/naming/utils';
 import { exec } from '@shared/utils/exec';
 import { raiseError, serialize } from '@shared/utils/misc';
-import { copy, ensureDir, move, outputFile, pathExists, remove, writeFile } from 'fs-extra';
+import { copy, ensureDir, outputFile, pathExists, remove, writeFile } from 'fs-extra';
 import { buildUsingCustomArtifact } from './custom-artifact';
 
 /**

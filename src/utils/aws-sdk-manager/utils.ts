@@ -4,6 +4,7 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { GetCallerIdentityCommand, STSClient } from '@aws-sdk/client-sts';
 import { hintMessages } from '@errors';
+import { createFetchHandler } from '@shared/aws/fetch-handler';
 import { retryPlugin } from '@shared/aws/sdk-manager/utils';
 import { awsResourceNames } from '@shared/naming/aws-resource-names';
 import { serialize } from '@shared/utils/misc';
@@ -107,7 +108,11 @@ export const getAwsCredentialsIdentity = async ({ credentials }: { credentials: 
   const errHandler = getErrorHandler(
     `Unable to get identity for credentials (access key id: ${credentials.accessKeyId}).`
   );
-  const tempStsCli = new STSClient({ credentials, region: globalStateManager.region });
+  const tempStsCli = new STSClient({
+    credentials,
+    region: globalStateManager.region,
+    requestHandler: createFetchHandler()
+  });
   tempStsCli.middlewareStack.use(loggingPlugin);
   tempStsCli.middlewareStack.use(retryPlugin);
   return tempStsCli.send(new GetCallerIdentityCommand({})).catch(errHandler);

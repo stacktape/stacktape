@@ -1,7 +1,8 @@
 import type { ExecaReturnValue } from 'execa';
 import { getLockFileData } from '@shared/packaging/bundlers/es/utils';
 import ci from 'ci-info';
-import { remove, stat, writeFile } from 'fs-extra';
+import { pathExists, readFile, remove, stat, writeFile } from 'fs-extra';
+import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import readPkgUp from 'read-pkg-up';
 import { checkExecutableInPath } from './bin-executable';
@@ -14,13 +15,63 @@ const wait = async ({ ms }: { ms: number }) => {
   return new Promise((resolve) => setTimeout(resolve, ms));
 };
 
-const withInstallLock = async <T>({
+const INSTALL_HASH_FILE = '.stacktape-install-hash';
+
+const computeLockfileHash = async ({
   installDir,
+  lockfilePath
+}: {
+  installDir: string;
+  lockfilePath: string | null;
+}) => {
+  const hashTarget = lockfilePath || join(installDir, 'package.json');
+  try {
+    const content = await readFile(hashTarget);
+    return createHash('sha256').update(content).digest('hex');
+  } catch {
+    return null;
+  }
+};
+
+const isDepsInstallNeeded = async ({
+  installDir,
+  lockfilePath
+}: {
+  installDir: string;
+  lockfilePath: string | null;
+}) => {
+  if (!(await pathExists(join(installDir, 'node_modules')))) return true;
+  const currentHash = await computeLockfileHash({ installDir, lockfilePath });
+  if (!currentHash) return true;
+  try {
+    const storedHash = (await readFile(join(installDir, 'node_modules', INSTALL_HASH_FILE), 'utf-8')).trim();
+    return storedHash !== currentHash;
+  } catch {
+    return true;
+  }
+};
+
+const saveInstallHash = async ({ installDir, lockfilePath }: { installDir: string; lockfilePath: string | null }) => {
+  const hash = await computeLockfileHash({ installDir, lockfilePath });
+  if (hash) {
+    await writeFile(join(installDir, 'node_modules', INSTALL_HASH_FILE), hash).catch(() => {});
+  }
+};
+
+/**
+ * Acquires a filesystem-level lock, then runs `installFn` only if deps are still needed.
+ * This prevents redundant installs when multiple Stacktape processes target the same directory:
+ * process B waits for A's lock, then re-checks the hash — if A already installed, B skips.
+ */
+const withInstallLock = async ({
+  installDir,
+  lockfilePath,
   installFn
 }: {
   installDir: string;
-  installFn: () => Promise<T>;
-}): Promise<T> => {
+  lockfilePath: string | null;
+  installFn: () => Promise<ExecaReturnValue<string>>;
+}): Promise<ExecaReturnValue<string> | null> => {
   const lockPath = join(installDir, '.stacktape-install.lock');
   const startedAt = Date.now();
   const staleLockAfterMs = 5 * 60 * 1000;
@@ -61,14 +112,20 @@ const withInstallLock = async <T>({
   }
 
   try {
-    return await installFn();
+    // Re-check after acquiring lock — another process may have already installed
+    if (!(await isDepsInstallNeeded({ installDir, lockfilePath }))) {
+      return null;
+    }
+    const result = await installFn();
+    await saveInstallHash({ installDir, lockfilePath });
+    return result;
   } finally {
     await remove(lockPath).catch(() => {});
   }
 };
 
 class DependencyInstaller {
-  pendingInstalls: Record<string, Promise<ExecaReturnValue<string>>> = {};
+  pendingInstalls: Record<string, Promise<ExecaReturnValue<string> | void>> = {};
 
   install = async ({
     rootProjectDirPath,
@@ -97,6 +154,12 @@ class DependencyInstaller {
       return this.pendingInstalls[installKey];
     }
 
+    // Skip install if lockfile/package.json hasn't changed since last install
+    if (!(await isDepsInstallNeeded({ installDir, lockfilePath: lockFileInfo.lockfilePath }))) {
+      this.pendingInstalls[installKey] = Promise.resolve();
+      return;
+    }
+
     const isNodeInstalled = checkExecutableInPath('node') || checkExecutableInPath('nodejs');
     if (!isNodeInstalled) {
       raiseError({
@@ -114,10 +177,11 @@ class DependencyInstaller {
         description: 'Installing dependencies',
         phase
       });
-      let result: ExecaReturnValue<string>;
+
       try {
-        result = await withInstallLock({
+        await withInstallLock({
           installDir,
+          lockfilePath: lockFileInfo.lockfilePath,
           installFn: async () =>
             exec(installScript[0], installScript.slice(1), {
               inheritEnvVarsExcept: [],
@@ -134,7 +198,6 @@ class DependencyInstaller {
       }
 
       await progressLogger.finishEvent({ eventType: 'INSTALL_DEPENDENCIES', phase });
-      return result;
     })();
 
     return this.pendingInstalls[installKey];

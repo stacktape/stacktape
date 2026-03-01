@@ -4,6 +4,7 @@ import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { S3Client } from '@aws-sdk/client-s3';
 import { SUPPORTED_CF_INFRASTRUCTURE_MODULES } from '@config';
+import { createFetchHandler } from '@shared/aws/fetch-handler';
 import { retryPlugin } from '@shared/aws/sdk-manager/utils';
 import { cfRegistryNames } from '@shared/naming/cf-registry-types';
 import { UNKNOWN_CLOUDFORMATION_PRIVATE_TYPE_VERSION_IDENTIFIER } from '@shared/utils/constants';
@@ -48,7 +49,8 @@ export class CloudformationRegistryManager {
   get privateTypePackagesS3Client() {
     const privateTypePackagesS3Client = new S3Client({
       region: globalStateManager.cloudformationRegistryBucketRegion,
-      credentials: globalStateManager.credentials
+      credentials: globalStateManager.credentials,
+      requestHandler: createFetchHandler()
     });
     privateTypePackagesS3Client.middlewareStack.use(loggingPlugin);
     privateTypePackagesS3Client.middlewareStack.use(retryPlugin);

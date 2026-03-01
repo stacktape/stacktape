@@ -4,14 +4,17 @@ This document provides guidelines for AI coding agents working in the Stacktape 
 
 ## Useful commands
 
-**Runtime:** Bun (v1.2.23). Always use `bun`.
+**Runtime:** Bun (v1.3.9). Always use `bun`.
 
 ```bash
-# Lint (with auto-fix)
-bunx eslint ./src ./shared ./scripts ./helper-lambdas --fix
+# Validate (default LLM loop): typecheck + lint (warnings visible)
+bun run validate
 
-# Type check
-bun run tsc
+# Validate with fixes first (mutating)
+bun run validate:fix
+
+# Validate (strict/full): typecheck + full lint output
+bun run validate:full
 
 # Generates types and build the npm package to ./__release-npm/*
 # Use when you need to test the generated Stacktape config.
@@ -37,6 +40,14 @@ bun run gen:schema
 ## Project Structure
 
 ```
+
+## Validation Workflow
+
+- ESLint cache lives in `node_modules/.cache/eslint` (keeps repo root clean)
+- Always use `bun run validate` during normal coding loops
+- Use `bun run validate:fix` at checkpoints (before commit / handoff)
+- Use `bun run validate:full` only when strict/full verification is needed
+- Avoid running autofix on every iteration, because large rewrites make agent context stale
 src/                    # Main source code
   commands/             # CLI commands (deploy, delete, dev, etc.)
   domain/               # Domain services (managers)
@@ -74,6 +85,8 @@ import { ... } from '@errors';                 // ./src/config/error-messages.ts
 - **Never use barrel exports**
 - **Never use dynamic require**
 - Use single console write (no multiple console.log in sequence)
+- `console.log` is considered temporary debugging output. Do not leave it in committed code.
+- Use `console.info` for intentional informational output (or `warn`/`error` when semantically correct).
 
 ### Imports
 

@@ -667,6 +667,28 @@ export class StackManager {
       tuiManager.clearCancelDeployment();
     };
 
+    const getEarlyStartupFailureMessage = () => {
+      const failedEcsPoller = Object.values(this.#ecsDeploymentStatusPoller).find((poller) => poller.hasFailedTask);
+      if (failedEcsPoller) {
+        const details = failedEcsPoller.getFailureMessage();
+        return details
+          ? `Service failed to start\n\n${details}`
+          : 'Service failed to start. Check ECS task logs for details.';
+      }
+
+      const failedLambdaPoller = Object.values(this.#lambdaProvisionedConcurrencyPoller).find(
+        (poller) => poller.hasFailure
+      );
+      if (failedLambdaPoller) {
+        const details = failedLambdaPoller.getFailureMessage();
+        return details
+          ? `Lambda provisioned concurrency failed\n\n${details}`
+          : 'Lambda provisioned concurrency failed. Check CloudWatch logs for details.';
+      }
+
+      return undefined;
+    };
+
     // Function to show cancel banner when ECS task failure is detected
     const showCancelBannerIfNeeded = (resolveFn: (result: { warningMessages?: string[] }) => void) => {
       if (cancelBannerShown || cancelRequested) return;
@@ -1093,6 +1115,17 @@ export class StackManager {
           ) {
             return afterStackOperationFailure();
           }
+          const earlyFailureMessage = getEarlyStartupFailureMessage();
+          if (earlyFailureMessage) {
+            cleanupMonitoring();
+            return reject(
+              new ExpectedError(
+                'STACK',
+                `Stack action ${this.stackActionType} failed.\n\n  1.\n     ${earlyFailureMessage}`
+              )
+            );
+          }
+
           // Check if we should show the cancel banner (ECS task failed)
           showCancelBannerIfNeeded(resolve);
         } catch (err) {

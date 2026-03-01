@@ -10,11 +10,13 @@
     "stacktape": "./index.js"
   },
   "engines": {
-    "bun": "1.2.23"
+    "bun": "1.3.9"
   },
   "scripts": {
     "dev": "bun run scripts/dev.ts",
-    "lint": "bunx eslint ./src ./shared ./scripts ./helper-lambdas --fix",
+    "lint:llm": "bunx eslint ./src ./shared ./scripts ./helper-lambdas --cache --cache-strategy content --cache-location node_modules/.cache/eslint",
+    "lint": "bunx eslint ./src ./shared ./scripts ./helper-lambdas --cache --cache-strategy content --cache-location node_modules/.cache/eslint",
+    "lint:fix": "bunx eslint ./src ./shared ./scripts ./helper-lambdas --fix --cache --cache-strategy content --cache-location node_modules/.cache/eslint",
     "build:dist": "bun scripts/build-dist-package.ts",
     "build:npm": "bun --max_old_space_size=32768 scripts/build-npm.ts",
     "build:npm:main": "bun --max_old_space_size=32768 scripts/build-npm-main-export.ts",
@@ -32,9 +34,12 @@
     "analyze:bundle": "bun scripts/analyze-bundle.ts",
     "pkg:hl": "bun scripts/package-helper-lambdas.ts",
     "tsc": "node_modules/.bin/tsc --skipLibCheck --noEmit",
+    "typecheck": "bun run tsc",
     "clean": "node_modules/.bin/rimraf __stacktape-dist __source-maps __publish-folder .stacktape __starter-projects __binary-dist __release __release-npm __platform-packages",
     "docker:clean": "docker system prune --all --force --volumes",
-    "validate": "bunx eslint . && bunx tsc --skipLibCheck",
+    "validate": "bun run typecheck && bun run lint:llm",
+    "validate:full": "bun run typecheck && bun run lint",
+    "validate:fix": "bun run lint:fix && bun run validate:full",
     "reinstall": "node_modules/.bin/rimraf node_modules && bun install",
     "push:gh:repo": "bun scripts/push-to-github-repo.ts",
     "push:starters": "bun scripts/push-starter-projects.ts",
@@ -110,6 +115,7 @@
     "@octokit/rest": "22.0.1",
     "@sentry/bun": "10.28.0",
     "@slack/web-api": "^7.9.3",
+    "@smithy/fetch-http-handler": "^5.0.0",
     "@trpc/client": "^11.7.1",
     "@trpc/server": "^11.7.1",
     "@types/mime": "^3.0.4",

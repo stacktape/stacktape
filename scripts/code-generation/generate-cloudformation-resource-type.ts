@@ -251,7 +251,6 @@ function typeNameToAwsType(typeName: string): string {
 
   if (!serviceName) {
     // Fallback: try to split on capital letters
-    // eslint-disable-next-line regexp/no-super-linear-backtracking
     const match = withoutPrefix.match(/^([A-Z][a-z0-9]*)(.*)$/);
     if (match) {
       serviceName = match[1];
@@ -426,8 +425,8 @@ ${resourceTypeUnion}
 // For testing
 if (process.argv[1]?.includes('generate-cloudformation-resource-type')) {
   const result = generateCloudFormationResourceType();
-  console.log('Generated CloudFormationResource type');
-  console.log('Total types:', result.split('\n').filter((l) => l.includes('| {')).length);
-  console.log('\nFirst 3000 chars:');
-  console.log(result.substring(0, 3000));
+  console.info('Generated CloudFormationResource type');
+  console.info('Total types:', result.split('\n').filter((l) => l.includes('| {')).length);
+  console.info('\nFirst 3000 chars:');
+  console.info(result.substring(0, 3000));
 }

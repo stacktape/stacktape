@@ -2,6 +2,37 @@
  * Type definitions for the split bundler module.
  */
 
+/** Bun.build metafile input entry */
+export type MetafileInput = {
+  bytes: number;
+  imports: Array<{
+    path: string;
+    kind: string;
+    external?: boolean;
+  }>;
+  format?: string;
+};
+
+/** Bun.build metafile output entry */
+export type MetafileOutput = {
+  bytes: number;
+  inputs: Record<string, { bytesInOutput: number }>;
+  imports: Array<{
+    path: string;
+    kind: string;
+    external?: boolean;
+  }>;
+  exports: string[];
+  entryPoint?: string;
+  cssBundle?: string | null;
+};
+
+/** Bun.build metafile structure */
+export type BuildMetafile = {
+  inputs: Record<string, MetafileInput>;
+  outputs: Record<string, MetafileOutput>;
+};
+
 /** Lambda entrypoint configuration for split bundling */
 export type LambdaEntrypoint = {
   /** Lambda function name */

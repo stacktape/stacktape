@@ -1,4 +1,5 @@
 import color from 'picocolors';
+import stripAnsi from 'strip-ansi';
 
 export const TODO_ENV_VAR_PLACEHOLDER = 'TODO_SET_VALUE';
 
@@ -8,7 +9,9 @@ export const formatPrice = (price: number): string => {
   return color.yellow(`$${price.toFixed(2)}`);
 };
 
-export const getResourceCostLabel = (costInfo?: { priceInfo: { totalMonthlyFlat: number; costBreakdown: any[] } }): string => {
+export const getResourceCostLabel = (costInfo?: {
+  priceInfo: { totalMonthlyFlat: number; costBreakdown: any[] };
+}): string => {
   if (!costInfo) return color.dim('-');
   const monthly = costInfo.priceInfo.totalMonthlyFlat;
   if (monthly > 0) return `~${formatPrice(monthly)}/mo`;
@@ -57,10 +60,6 @@ export const formatResourceType = (type: string, resource?: any): string => {
   };
 
   return typeLabels[type] || type;
-};
-
-export const stripAnsi = (str: string): string => {
-  return str.replace(/\x1B\[[0-9;]*m/g, '');
 };
 
 export const appendResourceRows = ({

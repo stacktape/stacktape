@@ -1,5 +1,6 @@
 {
   "lockfileVersion": 1,
+  "configVersion": 0,
   "workspaces": {
     "": {
       "name": "stacktape",
@@ -61,6 +62,7 @@
         "@octokit/rest": "22.0.1",
         "@sentry/bun": "10.28.0",
         "@slack/web-api": "^7.9.3",
+        "@smithy/fetch-http-handler": "^5.0.0",
         "@trpc/client": "^11.7.1",
         "@trpc/server": "^11.7.1",
         "@types/mime": "^3.0.4",

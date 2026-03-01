@@ -155,7 +155,8 @@ class TuiManager {
     if (profile.useTtyUi) {
       const renderOptions: any = {
         patchConsole: false,
-        concurrent: true
+        concurrent: false,
+        incrementalRendering: false
       };
       this.inkInstance = render(React.createElement(TuiApp, { isTTY: true }), renderOptions);
     }
@@ -170,9 +171,13 @@ class TuiManager {
 
   stopSync() {
     tuiState.setFinalizing();
+    tuiState.flushPendingNotifications();
+    tuiState.destroy();
 
     if (this.inkInstance) {
-      this.inkInstance.unmount();
+      try {
+        this.inkInstance.unmount();
+      } catch {}
       this.inkInstance = null;
     }
 
@@ -183,8 +188,13 @@ class TuiManager {
   }
 
   private stopInternal() {
+    tuiState.flushPendingNotifications();
+    tuiState.destroy();
+
     if (this.inkInstance) {
-      this.inkInstance.unmount();
+      try {
+        this.inkInstance.unmount();
+      } catch {}
       this.inkInstance = null;
     }
 
@@ -799,9 +809,13 @@ class TuiManager {
 
   displayError(errorData: ErrorDisplayData) {
     this.stateSink.markAllRunningAsErrored();
+    tuiState.flushPendingNotifications();
+    tuiState.destroy();
 
     if (this.inkInstance) {
-      this.inkInstance.unmount();
+      try {
+        this.inkInstance.unmount();
+      } catch {}
       this.inkInstance = null;
     }
 

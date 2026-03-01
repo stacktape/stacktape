@@ -11,7 +11,7 @@
  *   bun run scripts/test-mcp-server.ts --dry-run          # Show test cases only
  */
 
-import { mkdir, writeFile, readFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -365,7 +365,8 @@ const TEST_CASES: TestCase[] = [
   {
     id: 'ops-4',
     category: 'ops',
-    prompt: 'Create a new Stacktape secret called "my-api-key" with value "sk-test123" in eu-west-1 for project "ai-tests" stage "dev".',
+    prompt:
+      'Create a new Stacktape secret called "my-api-key" with value "sk-test123" in eu-west-1 for project "ai-tests" stage "dev".',
     expectedTools: ['stacktape_ops'],
     description: 'Create a secret',
     expectedParams: { operation: 'secret_create' }
@@ -401,21 +402,24 @@ const TEST_CASES: TestCase[] = [
   {
     id: 'compound-1',
     category: 'compound',
-    prompt: 'I want to build a REST API with a PostgreSQL database using Stacktape. Search the docs for the right configuration.',
+    prompt:
+      'I want to build a REST API with a PostgreSQL database using Stacktape. Search the docs for the right configuration.',
     expectedTools: ['stacktape_docs'],
     description: 'API + DB config from docs'
   },
   {
     id: 'compound-2',
     category: 'compound',
-    prompt: 'Look up how to configure a web-service in Stacktape docs, and also check what stacks I have deployed in eu-west-1.',
+    prompt:
+      'Look up how to configure a web-service in Stacktape docs, and also check what stacks I have deployed in eu-west-1.',
     expectedTools: ['stacktape_docs', 'stacktape_diagnose'],
     description: 'Docs lookup + list stacks'
   },
   {
     id: 'compound-3',
     category: 'compound',
-    prompt: 'I want to deploy a full-stack app: React frontend on a hosting bucket and Node.js API on Lambda with DynamoDB. Search Stacktape docs for how to configure each piece.',
+    prompt:
+      'I want to deploy a full-stack app: React frontend on a hosting bucket and Node.js API on Lambda with DynamoDB. Search Stacktape docs for how to configure each piece.',
     expectedTools: ['stacktape_docs'],
     description: 'Full-stack config from docs'
   },
@@ -429,7 +433,8 @@ const TEST_CASES: TestCase[] = [
   {
     id: 'compound-5',
     category: 'compound',
-    prompt: 'Search Stacktape docs for how to set up Redis, and also search for how to configure environment variables.',
+    prompt:
+      'Search Stacktape docs for how to set up Redis, and also search for how to configure environment variables.',
     expectedTools: ['stacktape_docs'],
     description: 'Multiple doc searches'
   },
@@ -447,7 +452,7 @@ const TEST_CASES: TestCase[] = [
   {
     id: 'vague-2',
     category: 'vague',
-    prompt: "My API is slow. How can I debug it with Stacktape?",
+    prompt: 'My API is slow. How can I debug it with Stacktape?',
     expectedTools: ['stacktape_docs'],
     description: 'Debugging question'
   },
@@ -503,7 +508,8 @@ const TEST_CASES: TestCase[] = [
   {
     id: 'vague-10',
     category: 'vague',
-    prompt: "I'm building an AI chatbot. I need an API, a database, and file storage. Help me set it up with Stacktape.",
+    prompt:
+      "I'm building an AI chatbot. I need an API, a database, and file storage. Help me set it up with Stacktape.",
     expectedTools: ['stacktape_docs'],
     description: 'AI chatbot architecture'
   },
@@ -723,8 +729,7 @@ const TEST_CASES: TestCase[] = [
   {
     id: 'ops-14',
     category: 'ops',
-    prompt:
-      'Delete the stack for projectName "ai-tests", stage "mcpt2", in eu-west-1. Yes, I confirm the deletion.',
+    prompt: 'Delete the stack for projectName "ai-tests", stage "mcpt2", in eu-west-1. Yes, I confirm the deletion.',
     expectedTools: ['stacktape_ops'],
     description: 'Delete simple Lambda stack',
     expectedParams: { operation: 'delete' },
@@ -791,8 +796,7 @@ const TEST_CASES: TestCase[] = [
   {
     id: 'diag-1',
     category: 'diagnose',
-    prompt:
-      'Show me the logs for the Lambda function "api" in project "ai-tests", stage "mcpt1", region "eu-west-1".',
+    prompt: 'Show me the logs for the Lambda function "api" in project "ai-tests", stage "mcpt1", region "eu-west-1".',
     expectedTools: ['stacktape_diagnose'],
     description: 'View Lambda logs',
     expectedParams: { operation: 'logs' }
@@ -809,8 +813,7 @@ const TEST_CASES: TestCase[] = [
   {
     id: 'diag-3',
     category: 'diagnose',
-    prompt:
-      'Show me the CPU metrics for the resource "api" in project "ai-tests", stage "mcpt1", region "eu-west-1".',
+    prompt: 'Show me the CPU metrics for the resource "api" in project "ai-tests", stage "mcpt1", region "eu-west-1".',
     expectedTools: ['stacktape_diagnose'],
     description: 'View resource metrics',
     expectedParams: { operation: 'metrics' }
@@ -818,8 +821,7 @@ const TEST_CASES: TestCase[] = [
   {
     id: 'diag-4',
     category: 'diagnose',
-    prompt:
-      'Check the alarm states for resource "api" in project "ai-tests", stage "mcpt1", region "eu-west-1".',
+    prompt: 'Check the alarm states for resource "api" in project "ai-tests", stage "mcpt1", region "eu-west-1".',
     expectedTools: ['stacktape_diagnose'],
     description: 'Check alarms',
     expectedParams: { operation: 'alarms' }
@@ -870,8 +872,7 @@ const TEST_CASES: TestCase[] = [
   {
     id: 'diag-10',
     category: 'diagnose',
-    prompt:
-      'List my recent deployment operations for project "console-app" in eu-west-1. Show the last 5.',
+    prompt: 'List my recent deployment operations for project "console-app" in eu-west-1. Show the last 5.',
     expectedTools: ['stacktape_diagnose'],
     description: 'Operations with limit',
     expectedParams: { operation: 'info_operations' }
@@ -1041,7 +1042,7 @@ const TEST_CASES: TestCase[] = [
     prompt: 'I need separate staging and production environments in Stacktape. How do I set that up?',
     expectedTools: ['stacktape_docs'],
     description: 'Multi-stage environments'
-  },
+  }
 ];
 
 // ─── CLI Runner ────────────────────────────────────────────────────────────────
@@ -1141,7 +1142,8 @@ const parseResults = (testCase: TestCase, events: StreamEvent[]): TestResult => 
   let totalOutputTokens = 0;
   if (resultEvent?.modelUsage) {
     for (const usage of Object.values(resultEvent.modelUsage)) {
-      totalInputTokens += (usage.inputTokens || 0) + (usage.cacheReadInputTokens || 0) + (usage.cacheCreationInputTokens || 0);
+      totalInputTokens +=
+        (usage.inputTokens || 0) + (usage.cacheReadInputTokens || 0) + (usage.cacheCreationInputTokens || 0);
       totalOutputTokens += usage.outputTokens || 0;
     }
   }
@@ -1214,7 +1216,9 @@ const scoreResult = ({
     mcpActivation = 1;
     scoringNotes.push('MCP server connected with all 4 tools available');
   } else {
-    scoringNotes.push(`MCP server ${mcpConnected ? 'connected' : 'FAILED'}, ${mcpToolsAvailable.length} tools available`);
+    scoringNotes.push(
+      `MCP server ${mcpConnected ? 'connected' : 'FAILED'}, ${mcpToolsAvailable.length} tools available`
+    );
   }
 
   // 2. Tool Selection (0-3)
@@ -1253,7 +1257,9 @@ const scoreResult = ({
     } else if (calledToolNames.length > 0) {
       // Called some MCP tool but wrong one
       toolSelection = 1;
-      scoringNotes.push(`Wrong tool selection: called ${calledToolNames.join(', ')}, expected ${testCase.expectedTools.join(', ')}`);
+      scoringNotes.push(
+        `Wrong tool selection: called ${calledToolNames.join(', ')}, expected ${testCase.expectedTools.join(', ')}`
+      );
     } else {
       toolSelection = 0;
       scoringNotes.push(`No MCP tools called. Expected: ${testCase.expectedTools.join(', ')}`);
@@ -1301,7 +1307,10 @@ const scoreResult = ({
       }
 
       const hasCodeBlock = finalResponse.includes('```');
-      if (hasCodeBlock && (testCase.prompt.includes('config') || testCase.prompt.includes('example') || testCase.prompt.includes('show'))) {
+      if (
+        hasCodeBlock &&
+        (testCase.prompt.includes('config') || testCase.prompt.includes('example') || testCase.prompt.includes('show'))
+      ) {
         responseQuality++;
         scoringNotes.push('Response includes code examples');
       } else if (responseQuality < 3) {
@@ -1347,7 +1356,6 @@ const scoreResult = ({
 
 const generateReport = (results: TestResult[]): string => {
   const lines: string[] = [];
-  const now = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
 
   lines.push('# Stacktape MCP Server Test Report');
   lines.push(`\nGenerated: ${new Date().toISOString()}`);
@@ -1361,9 +1369,7 @@ const generateReport = (results: TestResult[]): string => {
   const totalCost = results.reduce((sum, r) => sum + r.costUsd, 0);
   const totalDuration = results.reduce((sum, r) => sum + r.durationMs, 0);
   const mcpConnectRate = results.filter((r) => r.mcpConnected).length / results.length;
-  const toolSelectionRate =
-    results.filter((r) => r.scores.toolSelection >= 2).length /
-    results.length;
+  const toolSelectionRate = results.filter((r) => r.scores.toolSelection >= 2).length / results.length;
 
   lines.push('## Summary');
   lines.push('');
@@ -1381,17 +1387,20 @@ const generateReport = (results: TestResult[]): string => {
   // Results table
   lines.push('## Results by Test Case');
   lines.push('');
-  lines.push(
-    '| ID | Category | MCP | Tool | Quality | Tokens | Score | Cost | Duration | Tools Called |'
-  );
-  lines.push(
-    '|----|----------|-----|------|---------|--------|-------|------|----------|-------------|'
-  );
+  lines.push('| ID | Category | MCP | Tool | Quality | Tokens | Score | Cost | Duration | Tools Called |');
+  lines.push('|----|----------|-----|------|---------|--------|-------|------|----------|-------------|');
 
   for (const r of results) {
-    const mcpTools = r.toolCalls.filter((tc) => tc.isMcp).map((tc) => tc.name).join(', ');
-    const otherTools = r.toolCalls.filter((tc) => !tc.isMcp).map((tc) => tc.name).join(', ');
-    const toolsDisplay = [mcpTools && `MCP: ${mcpTools}`, otherTools && `Other: ${otherTools}`].filter(Boolean).join('; ') || '-';
+    const mcpTools = r.toolCalls
+      .filter((tc) => tc.isMcp)
+      .map((tc) => tc.name)
+      .join(', ');
+    const otherTools = r.toolCalls
+      .filter((tc) => !tc.isMcp)
+      .map((tc) => tc.name)
+      .join(', ');
+    const toolsDisplay =
+      [mcpTools && `MCP: ${mcpTools}`, otherTools && `Other: ${otherTools}`].filter(Boolean).join('; ') || '-';
     lines.push(
       `| ${r.testCase.id} | ${r.testCase.category} | ${r.scores.mcpActivation}/1 | ${r.scores.toolSelection}/3 | ${r.scores.responseQuality}/3 | ${r.scores.tokenEfficiency}/3 | **${r.scores.total.toFixed(1)}**/10 | $${r.costUsd.toFixed(4)} | ${(r.durationMs / 1000).toFixed(1)}s | ${toolsDisplay} |`
     );
@@ -1424,11 +1433,17 @@ const generateReport = (results: TestResult[]): string => {
     lines.push(`**MCP connected:** ${r.mcpConnected ? 'Yes' : 'NO'}`);
     const mcpToolCalls = r.toolCalls.filter((tc) => tc.isMcp);
     const otherToolCalls = r.toolCalls.filter((tc) => !tc.isMcp);
-    lines.push(`**MCP tools called:** ${mcpToolCalls.map((tc) => `${tc.name}(${JSON.stringify(tc.input)})`).join(', ') || 'none'}`);
+    lines.push(
+      `**MCP tools called:** ${mcpToolCalls.map((tc) => `${tc.name}(${JSON.stringify(tc.input)})`).join(', ') || 'none'}`
+    );
     if (otherToolCalls.length > 0) {
-      lines.push(`**Other tools used:** ${otherToolCalls.map((tc) => `${tc.name}(${JSON.stringify(tc.input).slice(0, 100)})`).join(', ')}`);
+      lines.push(
+        `**Other tools used:** ${otherToolCalls.map((tc) => `${tc.name}(${JSON.stringify(tc.input).slice(0, 100)})`).join(', ')}`
+      );
     }
-    lines.push(`**Turns:** ${r.numTurns} | **Cost:** $${r.costUsd.toFixed(4)} | **Duration:** ${(r.durationMs / 1000).toFixed(1)}s | **Output tokens:** ${r.totalOutputTokens}`);
+    lines.push(
+      `**Turns:** ${r.numTurns} | **Cost:** $${r.costUsd.toFixed(4)} | **Duration:** ${(r.durationMs / 1000).toFixed(1)}s | **Output tokens:** ${r.totalOutputTokens}`
+    );
     lines.push('');
 
     lines.push('**Scoring notes:**');
@@ -1472,9 +1487,7 @@ const generateReport = (results: TestResult[]): string => {
   lines.push('');
 
   // MCP tool description analysis
-  const noMcpCalls = results.filter(
-    (r) => r.testCase.expectedTools.length > 0 && r.toolCalls.length === 0
-  );
+  const noMcpCalls = results.filter((r) => r.testCase.expectedTools.length > 0 && r.toolCalls.length === 0);
   if (noMcpCalls.length > 0) {
     lines.push(`### Tool Selection Failures (${noMcpCalls.length} tests)`);
     lines.push('');
@@ -1499,15 +1512,15 @@ const generateReport = (results: TestResult[]): string => {
     lines.push('');
   }
 
-  const falsePositives = results.filter(
-    (r) => r.testCase.expectedTools.length === 0 && r.toolCalls.length > 0
-  );
+  const falsePositives = results.filter((r) => r.testCase.expectedTools.length === 0 && r.toolCalls.length > 0);
   if (falsePositives.length > 0) {
     lines.push(`### False Positive MCP Calls (${falsePositives.length} tests)`);
     lines.push('');
     lines.push('These tests should NOT have triggered MCP tools but did:');
     for (const r of falsePositives) {
-      lines.push(`- **${r.testCase.id}**: "${r.testCase.prompt}" → called ${r.toolCalls.map((tc) => tc.name).join(', ')}`);
+      lines.push(
+        `- **${r.testCase.id}**: "${r.testCase.prompt}" → called ${r.toolCalls.map((tc) => tc.name).join(', ')}`
+      );
     }
     lines.push('');
   }
@@ -1534,16 +1547,16 @@ const main = async () => {
     cases = cases.filter((tc) => tc.category === cat);
   }
 
-  console.log(`\n=== Stacktape MCP Server Test Suite ===`);
-  console.log(`Tests to run: ${cases.length}`);
-  console.log('');
+  console.info(`\n=== Stacktape MCP Server Test Suite ===`);
+  console.info(`Tests to run: ${cases.length}`);
+  console.info('');
 
   if (dryRun) {
     for (const tc of cases) {
-      console.log(`  ${tc.id} [${tc.category}] - ${tc.description}`);
-      console.log(`    Prompt: "${tc.prompt}"`);
-      console.log(`    Expected: ${tc.expectedTools.join(', ') || 'none'}`);
-      console.log('');
+      console.info(`  ${tc.id} [${tc.category}] - ${tc.description}`);
+      console.info(`    Prompt: "${tc.prompt}"`);
+      console.info(`    Expected: ${tc.expectedTools.join(', ') || 'none'}`);
+      console.info('');
     }
     return;
   }
@@ -1555,7 +1568,7 @@ const main = async () => {
 
   for (let i = 0; i < cases.length; i++) {
     const tc = cases[i];
-    console.log(`[${i + 1}/${cases.length}] Running ${tc.id}: ${tc.description}...`);
+    console.info(`[${i + 1}/${cases.length}] Running ${tc.id}: ${tc.description}...`);
 
     try {
       const events = await runClaudeCode(tc);
@@ -1563,16 +1576,13 @@ const main = async () => {
       results.push(result);
 
       // Save raw events for this test
-      await writeFile(
-        join(resultsDir, `${tc.id}-raw.json`),
-        JSON.stringify(events, null, 2)
-      );
+      await writeFile(join(resultsDir, `${tc.id}-raw.json`), JSON.stringify(events, null, 2));
 
-      console.log(
+      console.info(
         `  → Score: ${result.scores.total.toFixed(1)}/10 | Tools: ${result.toolCalls.map((tc) => tc.name).join(', ') || 'none'} | Cost: $${result.costUsd.toFixed(4)} | ${(result.durationMs / 1000).toFixed(1)}s`
       );
     } catch (err) {
-      console.log(`  → ERROR: ${(err as Error).message}`);
+      console.info(`  → ERROR: ${(err as Error).message}`);
       results.push({
         testCase: tc,
         mcpConnected: false,
@@ -1622,15 +1632,15 @@ const main = async () => {
     )
   );
 
-  console.log(`\n=== Test Suite Complete ===`);
-  console.log(`Report: ${reportPath}`);
-  console.log(`Results JSON: ${structuredPath}`);
-  console.log(`Raw events: ${resultsDir}/<test-id>-raw.json`);
+  console.info(`\n=== Test Suite Complete ===`);
+  console.info(`Report: ${reportPath}`);
+  console.info(`Results JSON: ${structuredPath}`);
+  console.info(`Raw events: ${resultsDir}/<test-id>-raw.json`);
 
   // Quick summary
   const avgScore = results.reduce((sum, r) => sum + r.scores.total, 0) / results.length;
   const totalCost = results.reduce((sum, r) => sum + r.costUsd, 0);
-  console.log(`\nAvg Score: ${avgScore.toFixed(1)}/10 | Total Cost: $${totalCost.toFixed(4)}`);
+  console.info(`\nAvg Score: ${avgScore.toFixed(1)}/10 | Total Cost: $${totalCost.toFixed(4)}`);
 };
 
 main().catch((err) => {

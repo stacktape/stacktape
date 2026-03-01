@@ -26,6 +26,7 @@ export { assignChunksToLayers } from './layer-assignment';
 export { createLayerArtifacts } from './layer-builder';
 
 export type {
+  BuildMetafile,
   BuildSplitBundleOptions,
   ChunkLayerAssignment,
   ChunkUsageAnalysis,
@@ -34,6 +35,8 @@ export type {
   LayerArtifact,
   LayerAssignmentResult,
   LayerConfig,
+  MetafileInput,
+  MetafileOutput,
   ModuleInfo,
   ProgressLogger,
   SplitBundleResult

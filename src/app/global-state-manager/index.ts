@@ -254,7 +254,7 @@ export class GlobalStateManager {
         awsAccountId: '123456789999',
         connectionMode: 'BASIC',
         name: 'Dummy'
-      } as GlobalStateConnectedAwsAccount;
+      } as unknown as GlobalStateConnectedAwsAccount;
     }
     const awsAccount = this.args.awsAccount || this.persistedState?.cliArgsDefaults.awsAccount;
     if (awsAccount) {

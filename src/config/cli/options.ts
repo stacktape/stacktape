@@ -404,6 +404,11 @@ export const documentId = z.string().describe(`#### Document ID
 ---
 ID of the document to retrieve (for OpenSearch get operation).`);
 
+export const onlyWorkloads = z.array(z.string()).describe(`#### Only Workloads
+---
+Package only the specified workloads. Provide a comma-separated list of workload names to package.
+Other workloads will be skipped. Example: \`--onlyWorkloads myFunction,myContainer\`.`);
+
 // ============ Arg Groups ============
 
 export const universalArgs = {
@@ -511,7 +516,8 @@ export const argAliases = {
   execCommand: 'exec',
   taskArn: 'ta',
   organizationName: 'onm',
-  organizationId: 'oid'
+  organizationId: 'oid',
+  onlyWorkloads: 'ow'
 } as const;
 
 // ============ Combined Args Schema ============
@@ -608,7 +614,8 @@ export const allCliArgsSchema = z.object({
   pattern: redisPattern.optional(),
   section: redisSection.optional(),
 
-  id: documentId.optional()
+  id: documentId.optional(),
+  onlyWorkloads: onlyWorkloads.optional()
 });
 
 // Inferred type from Zod schema

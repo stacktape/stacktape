@@ -35,6 +35,7 @@ export class ApplicationManager {
   // by SIGINT, etc.
   isInterrupted = false;
   usesStdinWatch = false;
+  private signalHandlers: { signal: string; handler: (...args: any[]) => void }[] = [];
 
   init = async () => {
     if (!this.isInitialized) {
@@ -112,7 +113,7 @@ export class ApplicationManager {
       process.stdin.destroy();
     }
     await this.cleanUp({ success: false, interrupted: true });
-    process.removeAllListeners();
+    this.removeOwnProcessListeners();
     process.exitCode = 0;
     if (globalStateManager.command === 'dev') {
       process.exit(0);
@@ -190,25 +191,54 @@ export class ApplicationManager {
     this.cancelPendingPromises(err);
   };
 
+  private removeOwnProcessListeners = () => {
+    for (const { signal, handler } of this.signalHandlers) {
+      process.removeListener(signal, handler);
+    }
+    this.signalHandlers = [];
+  };
+
   private registerProcessListeners = () => {
     process.removeAllListeners('uncaughtException');
     process.removeAllListeners('unhandledRejection');
-    process.on('uncaughtException', (err) => {
-      this.handleUnhandledError({
-        err,
-        type: 'UNCAUGHT EXCEPTION'
-      });
-    });
-    process.on('unhandledRejection', (err) => {
+
+    const onUncaughtException = (err: Error) => {
+      this.handleUnhandledError({ err, type: 'UNCAUGHT EXCEPTION' });
+    };
+    const onUnhandledRejection = (err: unknown) => {
       this.handleUnhandledError({
         err: err instanceof Error ? err : new Error(`Unknown error: ${JSON.stringify(err)}`),
         type: 'UNHANDLED PROMISE REJECTION'
       });
-    });
-    process.on('SIGINT', () => this.handleExitSignal('SIGINT')); // catch ctrl-c
-    process.on('SIGTERM', () => this.handleExitSignal('SIGTERM')); // catch kill
-    process.on('SIGHUP', () => this.handleExitSignal('SIGHUP')); // when console is closed. on windows this forces node process to exit within 10 seconds even if you have handler so better hurry up
-    process.on('SIGQUIT', () => this.handleExitSignal('SIGQUIT'));
+    };
+    const onSigint = () => this.handleExitSignal('SIGINT');
+    const onSigterm = () => this.handleExitSignal('SIGTERM');
+    const onSighup = () => this.handleExitSignal('SIGHUP');
+    const onSigquit = () => this.handleExitSignal('SIGQUIT');
+    const onExit = () => {
+      // Restore cursor visibility in case a spinner hid it and the process crashed
+      try {
+        process.stdout.write('\x1B[?25h');
+      } catch {}
+    };
+
+    process.on('uncaughtException', onUncaughtException);
+    process.on('unhandledRejection', onUnhandledRejection);
+    process.on('SIGINT', onSigint); // catch ctrl-c
+    process.on('SIGTERM', onSigterm); // catch kill
+    process.on('SIGHUP', onSighup); // when console is closed. on windows this forces node process to exit within 10 seconds even if you have handler so better hurry up
+    process.on('SIGQUIT', onSigquit);
+    process.on('exit', onExit);
+
+    this.signalHandlers = [
+      { signal: 'uncaughtException', handler: onUncaughtException },
+      { signal: 'unhandledRejection', handler: onUnhandledRejection },
+      { signal: 'SIGINT', handler: onSigint },
+      { signal: 'SIGTERM', handler: onSigterm },
+      { signal: 'SIGHUP', handler: onSighup },
+      { signal: 'SIGQUIT', handler: onSigquit },
+      { signal: 'exit', handler: onExit }
+    ];
   };
 }
 

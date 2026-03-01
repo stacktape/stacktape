@@ -17,7 +17,7 @@ const MESSAGE_ICONS: Record<TuiMessageType, { symbol: string; color: string }> =
   announcement: { symbol: '★', color: 'magenta' }
 };
 
-export const Message: React.FC<MessageProps> = ({ message }) => {
+export const Message: React.FC<MessageProps> = React.memo(({ message }) => {
   const { symbol, color } = MESSAGE_ICONS[message.type];
   const lines = message.message.split('\n');
 
@@ -37,4 +37,6 @@ export const Message: React.FC<MessageProps> = ({ message }) => {
       ))}
     </Box>
   );
-};
+});
+
+Message.displayName = 'Message';

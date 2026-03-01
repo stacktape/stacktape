@@ -3,7 +3,6 @@ import type Distribution from '@cloudform/cloudFront/distribution';
 import { join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
 import CloudfrontFunction from '@cloudform/cloudFront/function';
-import { awsResourceNames } from '@shared/naming/aws-resource-names';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import { readdir, stat, pathExists } from 'fs-extra';
 

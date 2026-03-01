@@ -144,19 +144,12 @@ export const buildEsCode = async ({
     const allDependenciesToInstallInDocker: ModuleInfo[] = [];
     const externalModules: { name: string; note: string }[] = [];
     const allModules: string[] = [];
-    const sourceFilesSet = new Set<string>();
+    // Note: Source file tracking moved to metafile.inputs (more accurate, no plugin overhead)
 
     // Bun plugin to analyze dependencies (port of stp-analyze-deps-plugin)
     const stpAnalyzeDepsPlugin: BunPlugin = {
       name: 'stp-analyze-deps-plugin',
       setup(build) {
-        // Track source files via onLoad
-        build.onLoad({ filter: /\.(ts|tsx|js|jsx|mjs|cjs)$/ }, async (args) => {
-          // Convert to Unix paths for consistency
-          sourceFilesSet.add(transformToUnixPath(args.path));
-          return undefined; // Let Bun handle the actual loading
-        });
-
         // Analyze dependencies via onResolve
         build.onResolve(
           { filter: /^[^.]/ },
@@ -241,6 +234,16 @@ export const buildEsCode = async ({
             }
 
             if (IGNORED_MODULES.concat(excludeDependencies || []).includes(moduleName)) {
+              if (modulePath) {
+                const pkgInfo = await getInfoFromPackageJson({
+                  directoryPath: modulePath,
+                  parentModule: null,
+                  dependencyType: 'root'
+                }).catch(() => null);
+                if (pkgInfo) {
+                  allDependenciesToInstallInDocker.push({ ...pkgInfo, note: 'IGNORED' });
+                }
+              }
               externalModules.push({ name: moduleName, note: 'IGNORED' });
               return { path: args.path, external: true };
             }
@@ -418,7 +421,9 @@ export const buildEsCode = async ({
         define: { ...esmDefines, ...define },
         plugins: allBunPlugins,
         root: buildRoot,
-        banner: shouldInjectBanner && banner.js ? banner.js : undefined
+        banner: shouldInjectBanner && banner.js ? banner.js : undefined,
+        // Enable metafile for accurate source file tracking
+        metafile: true
       });
     } catch (err: any) {
       // Bun can throw AggregateError with message "Bundle failed" for severe errors
@@ -499,18 +504,16 @@ export const buildEsCode = async ({
       }
     }
 
-    // Convert source files set to array
-    const sourceFiles = Array.from(sourceFilesSet)
+    // Extract source files from metafile (more accurate than onLoad tracking)
+    const buildMetafile = buildResult.metafile as { inputs: Record<string, unknown>; outputs: Record<string, unknown> };
+    const sourceFiles = Object.keys(buildMetafile?.inputs || {})
+      .filter((inputPath) => !inputPath.includes('node_modules'))
       .filter(filterDuplicates)
-      .map((p) => ({ path: p }));
+      .map((inputPath) => ({ path: inputPath }));
 
-    // Write metafile if requested (for compatibility)
+    // Write metafile if requested (for compatibility with external tools)
     if (metafile && distPath) {
-      const metafileData = {
-        inputs: Object.fromEntries(sourceFiles.map((f) => [f.path, { bytes: 0 }])),
-        outputs: Object.fromEntries(buildResult.outputs.map((o) => [o.path, { bytes: o.size }]))
-      };
-      await writeJson(join(dirname(distPath), metafile), metafileData);
+      await writeJson(join(dirname(distPath), metafile), buildMetafile);
     }
 
     return {

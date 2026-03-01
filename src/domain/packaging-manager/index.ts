@@ -602,14 +602,23 @@ export class PackagingManager {
   };
 
   packageAllWorkloads = async ({
-    commandCanUseCache
+    commandCanUseCache,
+    onlyWorkloads
   }: {
     commandCanUseCache: boolean;
+    /** If provided, only package workloads whose names are in this list */
+    onlyWorkloads?: string[];
   }): Promise<PackageWorkloadOutput[]> => {
     await eventManager.startEvent({
       eventType: 'PACKAGE_ARTIFACTS',
       description: 'Packaging workloads'
     });
+
+    // Helper to check if a workload should be packaged based on onlyWorkloads filter
+    const shouldPackageWorkload = (workloadName: string): boolean => {
+      if (!onlyWorkloads || onlyWorkloads.length === 0) return true;
+      return onlyWorkloads.includes(workloadName);
+    };
 
     // Setup Docker if running
     if (await isDockerRunning()) {
@@ -620,20 +629,23 @@ export class PackagingManager {
     }
 
     // Identify Node.js Lambda functions (excluding edge functions which need separate handling)
-    const nodeLambdas = configManager.allUserCodeLambdas.filter(({ packaging, type }) => {
+    const nodeLambdas = configManager.allUserCodeLambdas.filter(({ name, packaging, type }) => {
+      if (!shouldPackageWorkload(name)) return false;
       const ext = getFileExtension((packaging?.properties as { entryfilePath?: string })?.entryfilePath || '');
       // Exclude edge functions from split bundling - they don't support ESM with top-level await
       return ['js', 'ts', 'jsx', 'mjs', 'tsx'].includes(ext) && type !== 'edge-lambda-function';
     });
 
     // Edge Lambda functions - need to be packaged separately with CJS
-    const edgeLambdas = configManager.allUserCodeLambdas.filter(({ packaging, type }) => {
+    const edgeLambdas = configManager.allUserCodeLambdas.filter(({ name, packaging, type }) => {
+      if (!shouldPackageWorkload(name)) return false;
       const ext = getFileExtension((packaging?.properties as { entryfilePath?: string })?.entryfilePath || '');
       return ['js', 'ts', 'jsx', 'mjs', 'tsx'].includes(ext) && type === 'edge-lambda-function';
     });
 
     // Non-Node.js lambdas
-    const nonNodeLambdas = configManager.allUserCodeLambdas.filter(({ packaging }) => {
+    const nonNodeLambdas = configManager.allUserCodeLambdas.filter(({ name, packaging }) => {
+      if (!shouldPackageWorkload(name)) return false;
       const ext = getFileExtension((packaging?.properties as { entryfilePath?: string })?.entryfilePath || '');
       return !['js', 'ts', 'jsx', 'mjs', 'tsx'].includes(ext);
     });
@@ -641,11 +653,11 @@ export class PackagingManager {
     // In dev mode, skip container and hosting bucket builds (they run locally)
     const skipContainersAndHosting = isDevCommand();
 
-    // Hosting bucket builds (skip in dev mode)
+    // Hosting bucket builds (skip in dev mode, filter by onlyWorkloads)
     const hostingBucketBuildJobs = skipContainersAndHosting
       ? []
       : configManager.hostingBuckets
-          .filter(({ build }) => build)
+          .filter(({ name, build }) => build && shouldPackageWorkload(name))
           .map(({ name, build }) => {
             return () =>
               buildHostingBucket({
@@ -658,53 +670,63 @@ export class PackagingManager {
               });
           });
 
-    // Container packaging jobs (skip in dev mode)
+    // Container packaging jobs (skip in dev mode, filter by onlyWorkloads)
     const containerPackagingJobs = skipContainersAndHosting
       ? []
-      : configManager.allContainersRequiringPackaging.map(({ jobName, packaging, workloadName, resources }) => {
-          return () =>
-            this.packageWorkload({
-              commandCanUseCache,
-              jobName,
-              packaging,
-              workloadName,
-              dockerBuildOutputArchitecture: this.getTargetCpuArchitectureForContainer(resources)
-            });
-        });
+      : configManager.allContainersRequiringPackaging
+          .filter(({ workloadName }) => shouldPackageWorkload(workloadName))
+          .map(({ jobName, packaging, workloadName, resources }) => {
+            return () =>
+              this.packageWorkload({
+                commandCanUseCache,
+                jobName,
+                packaging,
+                workloadName,
+                dockerBuildOutputArchitecture: this.getTargetCpuArchitectureForContainer(resources)
+              });
+          });
 
-    // NextJS packaging jobs (skip in dev mode)
+    // NextJS packaging jobs (skip in dev mode, filter by onlyWorkloads)
     const nextjsPackagingJobs = skipContainersAndHosting
       ? []
-      : configManager.nextjsWebs.map((resource) => {
-          return () =>
-            this.packageNextjsWeb({
-              nextjsWebResource: resource,
-              commandCanUseCache
-            });
-        });
+      : configManager.nextjsWebs
+          .filter((resource) => shouldPackageWorkload(resource.name))
+          .map((resource) => {
+            return () =>
+              this.packageNextjsWeb({
+                nextjsWebResource: resource,
+                commandCanUseCache
+              });
+          });
 
-    // SSR Web packaging jobs (Astro, Nuxt, SvelteKit, SolidStart, TanStack, Remix) - skip in dev mode
+    // SSR Web packaging jobs (Astro, Nuxt, SvelteKit, SolidStart, TanStack, Remix) - skip in dev mode, filter by onlyWorkloads
     const ssrWebPackagingJobs = skipContainersAndHosting
       ? []
       : [
-          ...configManager.astroWebs.map(
-            (resource) => () => this.packageSsrWeb({ resource, resourceType: 'astro-web', commandCanUseCache })
-          ),
-          ...configManager.nuxtWebs.map(
-            (resource) => () => this.packageSsrWeb({ resource, resourceType: 'nuxt-web', commandCanUseCache })
-          ),
-          ...configManager.sveltekitWebs.map(
-            (resource) => () => this.packageSsrWeb({ resource, resourceType: 'sveltekit-web', commandCanUseCache })
-          ),
-          ...configManager.solidstartWebs.map(
-            (resource) => () => this.packageSsrWeb({ resource, resourceType: 'solidstart-web', commandCanUseCache })
-          ),
-          ...configManager.tanstackWebs.map(
-            (resource) => () => this.packageSsrWeb({ resource, resourceType: 'tanstack-web', commandCanUseCache })
-          ),
-          ...configManager.remixWebs.map(
-            (resource) => () => this.packageSsrWeb({ resource, resourceType: 'remix-web', commandCanUseCache })
-          )
+          ...configManager.astroWebs
+            .filter((resource) => shouldPackageWorkload(resource.name))
+            .map((resource) => () => this.packageSsrWeb({ resource, resourceType: 'astro-web', commandCanUseCache })),
+          ...configManager.nuxtWebs
+            .filter((resource) => shouldPackageWorkload(resource.name))
+            .map((resource) => () => this.packageSsrWeb({ resource, resourceType: 'nuxt-web', commandCanUseCache })),
+          ...configManager.sveltekitWebs
+            .filter((resource) => shouldPackageWorkload(resource.name))
+            .map(
+              (resource) => () => this.packageSsrWeb({ resource, resourceType: 'sveltekit-web', commandCanUseCache })
+            ),
+          ...configManager.solidstartWebs
+            .filter((resource) => shouldPackageWorkload(resource.name))
+            .map(
+              (resource) => () => this.packageSsrWeb({ resource, resourceType: 'solidstart-web', commandCanUseCache })
+            ),
+          ...configManager.tanstackWebs
+            .filter((resource) => shouldPackageWorkload(resource.name))
+            .map(
+              (resource) => () => this.packageSsrWeb({ resource, resourceType: 'tanstack-web', commandCanUseCache })
+            ),
+          ...configManager.remixWebs
+            .filter((resource) => shouldPackageWorkload(resource.name))
+            .map((resource) => () => this.packageSsrWeb({ resource, resourceType: 'remix-web', commandCanUseCache }))
         ];
 
     // Prepare other packaging jobs (containers, non-Node lambdas, nextjs, ssr-web)

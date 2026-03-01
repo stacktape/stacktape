@@ -5,16 +5,22 @@ import { packagingManager } from '@domain-services/packaging-manager';
 import { loadUserCredentials } from '../_utils/initialization';
 
 export const commandPackageWorkloads = async () => {
+  const { onlyWorkloads } = globalStateManager.args as StacktapeCliArgs;
+
   await loadUserCredentials();
   await globalStateManager.loadTargetStackInfo();
   await configManager.init({ configRequired: true });
 
   await packagingManager.init();
 
-  const packagedWorkloads = await packagingManager.packageAllWorkloads({ commandCanUseCache: false });
+  const packagedWorkloads = await packagingManager.packageAllWorkloads({
+    commandCanUseCache: false,
+    onlyWorkloads
+  });
 
+  const workloadsList = onlyWorkloads?.length ? ` (${onlyWorkloads.join(', ')})` : '';
   tuiManager.success(
-    `Packaged compute resources for stack ${tuiManager.prettyStackName(globalStateManager.targetStack.stackName)}.`
+    `Packaged compute resources${workloadsList} for stack ${tuiManager.prettyStackName(globalStateManager.targetStack.stackName)}.`
   );
 
   return packagedWorkloads;

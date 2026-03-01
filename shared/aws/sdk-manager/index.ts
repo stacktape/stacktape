@@ -41,7 +41,6 @@ import type { Policy } from '@cloudform/iam/role';
 import type { Stats } from 'node:fs';
 import type { Readable } from 'node:stream';
 import { Buffer } from 'node:buffer';
-import { Agent as HttpsAgent } from 'node:https';
 import path from 'node:path';
 import {
   ACMClient,
@@ -84,14 +83,8 @@ import {
   GetInvalidationCommand,
   ListDistributionsCommand
 } from '@aws-sdk/client-cloudfront';
-import {
-  CloudWatchClient,
-  DescribeAlarmsCommand,
-  GetMetricDataCommand,
-  StateValue,
-  type MetricDataQuery,
-  type MetricDataResult
-} from '@aws-sdk/client-cloudwatch';
+import type { StateValue, MetricDataQuery, MetricDataResult } from '@aws-sdk/client-cloudwatch';
+import { CloudWatchClient, DescribeAlarmsCommand, GetMetricDataCommand } from '@aws-sdk/client-cloudwatch';
 import {
   CloudWatchLogsClient,
   CreateLogGroupCommand,
@@ -253,7 +246,7 @@ import {
   wait
 } from '@shared/utils/misc';
 import { parseYaml } from '@shared/utils/yaml';
-import { NodeHttpHandler } from '@smithy/node-http-handler';
+import { createFetchHandler } from '@shared/aws/fetch-handler';
 import { kebabCase, pascalCase } from 'change-case';
 import fsExtra from 'fs-extra';
 import pRetry from 'p-retry';
@@ -312,16 +305,10 @@ export class AwsSdkManager {
   }
 
   #getClientArgs() {
-    // Use explicit timeouts and disable keep-alive for stable connections in Lambda environment
-    const httpsAgent = new HttpsAgent({ keepAlive: false });
     return {
       region: this.region,
       credentials: this.credentials,
-      requestHandler: new NodeHttpHandler({
-        connectionTimeout: 10000,
-        socketTimeout: 20000,
-        httpsAgent
-      })
+      requestHandler: createFetchHandler()
     };
   }
 
@@ -350,16 +337,9 @@ export class AwsSdkManager {
   }
 
   #cloudformation() {
-    // for CF only, ensure fresh sockets (keepAlive false)
-    const cfAgent = new HttpsAgent({ keepAlive: false });
     const cloudformation = new CloudFormationClient({
       ...this.#getClientArgs(),
-      apiVersion: '2015-07-09',
-      requestHandler: new NodeHttpHandler({
-        connectionTimeout: 10000,
-        socketTimeout: 20000,
-        httpsAgent: cfAgent
-      })
+      apiVersion: '2015-07-09'
     });
     this.plugins.forEach(cloudformation.middlewareStack.use);
     return cloudformation;
@@ -507,10 +487,10 @@ export class AwsSdkManager {
 
   #lambda() {
     const lambda = new LambdaClient({
+      ...this.#getClientArgs(),
       // In order to honor the overall maximum timeout set for the target process when invoking lambda,
       // the default 2 minutes from AWS SDK has to be overridden
-      requestHandler: new NodeHttpHandler({ socketTimeout: 900000 }),
-      ...this.#getClientArgs()
+      requestHandler: createFetchHandler({ requestTimeout: 900_000 })
     });
     this.plugins.forEach(lambda.middlewareStack.use);
     return lambda;

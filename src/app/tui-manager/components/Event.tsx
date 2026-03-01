@@ -133,100 +133,97 @@ const getAggregatedHotswapChildren = (children: TuiEvent[]): AggregatedEvent[] =
   });
 };
 
-export const Event: React.FC<EventProps> = ({
-  event,
-  isChild = false,
-  isLast = false,
-  depth = 0,
-  isTTY = false,
-  isSnapshot
-}) => {
-  const prefix = isChild ? (isLast ? '└' : '├') : '';
-  const indent = isChild ? ' '.repeat(depth) : '';
+export const Event: React.FC<EventProps> = React.memo(
+  ({ event, isChild = false, isLast = false, depth = 0, isTTY = false, isSnapshot }) => {
+    const prefix = isChild ? (isLast ? '└' : '├') : '';
+    const indent = isChild ? ' '.repeat(depth) : '';
 
-  const hasChildren = event.children.length > 0;
-  const hasOutputLines = event.outputLines && event.outputLines.length > 0;
-  const allChildrenFinished = event.children.every((c) => c.status === 'success' || c.status === 'error');
-  const shouldHideChildren = event.hideChildrenWhenFinished && event.status === 'success' && allChildrenFinished;
+    const hasChildren = event.children.length > 0;
+    const hasOutputLines = event.outputLines && event.outputLines.length > 0;
+    const allChildrenFinished = event.children.every((c) => c.status === 'success' || c.status === 'error');
+    const shouldHideChildren = event.hideChildrenWhenFinished && event.status === 'success' && allChildrenFinished;
 
-  const isHotswapParent = event.eventType === 'HOTSWAP_UPDATE';
-  const shouldAggregateHotswap = isTTY && hasChildren && isHotswapParent;
-  const shouldAggregateNormal = isTTY && hasChildren && !isHotswapParent;
+    const isHotswapParent = event.eventType === 'HOTSWAP_UPDATE';
+    const shouldAggregateHotswap = isTTY && hasChildren && isHotswapParent;
+    const shouldAggregateNormal = isTTY && hasChildren && !isHotswapParent;
 
-  let displayChildren: AggregatedEvent[];
-  if (shouldAggregateHotswap) {
-    displayChildren = getAggregatedHotswapChildren(event.children);
-  } else if (shouldAggregateNormal) {
-    displayChildren = getAggregatedChildren(event.children);
-  } else {
-    displayChildren = event.children;
-  }
+    let displayChildren: AggregatedEvent[];
+    if (shouldAggregateHotswap) {
+      displayChildren = getAggregatedHotswapChildren(event.children);
+    } else if (shouldAggregateNormal) {
+      displayChildren = getAggregatedChildren(event.children);
+    } else {
+      displayChildren = event.children;
+    }
 
-  const NEVER_FLATTEN_EVENT_TYPES: LoggableEventType[] = [
-    'PACKAGE_ARTIFACTS',
-    'UPLOAD_DEPLOYMENT_ARTIFACTS',
-    'SYNC_BUCKET'
-  ];
-  const shouldFlatten =
-    isTTY && displayChildren.length === 1 && !hasOutputLines && !NEVER_FLATTEN_EVENT_TYPES.includes(event.eventType);
-  const flattenedChild = shouldFlatten ? displayChildren[0] : null;
+    const NEVER_FLATTEN_EVENT_TYPES: LoggableEventType[] = [
+      'PACKAGE_ARTIFACTS',
+      'UPLOAD_DEPLOYMENT_ARTIFACTS',
+      'SYNC_BUCKET'
+    ];
+    const shouldFlatten =
+      isTTY && displayChildren.length === 1 && !hasOutputLines && !NEVER_FLATTEN_EVENT_TYPES.includes(event.eventType);
+    const flattenedChild = shouldFlatten ? displayChildren[0] : null;
 
-  const displayStatus = flattenedChild ? flattenedChild.status : event.status;
-  const displayDuration = flattenedChild ? flattenedChild.duration : event.duration;
-  const displayFinalMessage = flattenedChild ? flattenedChild.finalMessage : event.finalMessage;
-  const displayAdditionalMessage = flattenedChild ? flattenedChild.additionalMessage : event.additionalMessage;
+    const displayStatus = flattenedChild ? flattenedChild.status : event.status;
+    const displayDuration = flattenedChild ? flattenedChild.duration : event.duration;
+    const displayFinalMessage = flattenedChild ? flattenedChild.finalMessage : event.finalMessage;
+    const displayAdditionalMessage = flattenedChild ? flattenedChild.additionalMessage : event.additionalMessage;
 
-  const boldPrefix = flattenedChild?.boldPrefix ?? (event as AggregatedEvent).boldPrefix;
-  const descriptionPrefix = event.description;
-  const descriptionSuffix = flattenedChild?.description || '';
+    const boldPrefix = flattenedChild?.boldPrefix ?? (event as AggregatedEvent).boldPrefix;
+    const descriptionPrefix = event.description;
+    const descriptionSuffix = flattenedChild?.description || '';
 
-  return (
-    <Box flexDirection="column">
-      <Box>
-        <Text>{indent}</Text>
-        {isChild && <Text color="gray">{prefix} </Text>}
-        <StatusIcon status={displayStatus} isSnapshot={isSnapshot} />
-        <Text> </Text>
-        {descriptionPrefix && <Text>{descriptionPrefix}</Text>}
-        {descriptionPrefix && boldPrefix && <Text> </Text>}
-        {boldPrefix && <Text bold>{boldPrefix}</Text>}
-        {descriptionSuffix && <Text>: {descriptionSuffix}</Text>}
-        {displayDuration !== undefined && displayStatus !== 'running' && (
-          <Text color="yellow"> {formatDuration(displayDuration)}</Text>
+    return (
+      <Box flexDirection="column">
+        <Box>
+          <Text>{indent}</Text>
+          {isChild && <Text color="gray">{prefix} </Text>}
+          <StatusIcon status={displayStatus} isSnapshot={isSnapshot} />
+          <Text> </Text>
+          {descriptionPrefix && <Text>{descriptionPrefix}</Text>}
+          {descriptionPrefix && boldPrefix && <Text> </Text>}
+          {boldPrefix && <Text bold>{boldPrefix}</Text>}
+          {descriptionSuffix && <Text>: {descriptionSuffix}</Text>}
+          {displayDuration !== undefined && displayStatus !== 'running' && (
+            <Text color="yellow"> {formatDuration(displayDuration)}</Text>
+          )}
+          {displayFinalMessage && displayStatus !== 'running' && <Text color="gray"> {displayFinalMessage}</Text>}
+          {displayAdditionalMessage && displayStatus === 'running' && (
+            <Text color="gray"> {displayAdditionalMessage}</Text>
+          )}
+        </Box>
+
+        {hasOutputLines && (
+          <Box flexDirection="column" marginLeft={3}>
+            {event
+              .outputLines!.filter((line) => line.trim())
+              .map((line, index) => (
+                <Text key={index} dimColor>
+                  {line}
+                </Text>
+              ))}
+          </Box>
         )}
-        {displayFinalMessage && displayStatus !== 'running' && <Text color="gray"> {displayFinalMessage}</Text>}
-        {displayAdditionalMessage && displayStatus === 'running' && (
-          <Text color="gray"> {displayAdditionalMessage}</Text>
+
+        {hasChildren && !shouldHideChildren && !shouldFlatten && (
+          <Box flexDirection="column" marginLeft={2}>
+            {displayChildren.map((child, index) => (
+              <Event
+                key={child.id}
+                event={child}
+                isChild
+                isLast={index === displayChildren.length - 1}
+                depth={depth + 1}
+                isTTY={isTTY}
+                isSnapshot={isSnapshot}
+              />
+            ))}
+          </Box>
         )}
       </Box>
+    );
+  }
+);
 
-      {hasOutputLines && (
-        <Box flexDirection="column" marginLeft={3}>
-          {event
-            .outputLines!.filter((line) => line.trim())
-            .map((line, index) => (
-              <Text key={index} dimColor>
-                {line}
-              </Text>
-            ))}
-        </Box>
-      )}
-
-      {hasChildren && !shouldHideChildren && !shouldFlatten && (
-        <Box flexDirection="column" marginLeft={2}>
-          {displayChildren.map((child, index) => (
-            <Event
-              key={child.id}
-              event={child}
-              isChild
-              isLast={index === displayChildren.length - 1}
-              depth={depth + 1}
-              isTTY={isTTY}
-              isSnapshot={isSnapshot}
-            />
-          ))}
-        </Box>
-      )}
-    </Box>
-  );
-};
+Event.displayName = 'Event';

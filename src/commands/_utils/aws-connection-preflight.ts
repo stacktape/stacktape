@@ -8,6 +8,7 @@ import {
   StackStatus
 } from '@aws-sdk/client-cloudformation';
 import { fromIni, fromEnv } from '@aws-sdk/credential-providers';
+import { createFetchHandler } from '@shared/aws/fetch-handler';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
@@ -79,7 +80,11 @@ const runAutoAwsConnection = async (
       localCreds.profile && localCreds.profile !== 'environment' ? fromIni({ profile: localCreds.profile }) : fromEnv();
 
     // Stack must be deployed in eu-west-1 (where the Stacktape lambdas are)
-    const cfClient = new CloudFormationClient({ region: 'eu-west-1', credentials });
+    const cfClient = new CloudFormationClient({
+      region: 'eu-west-1',
+      credentials,
+      requestHandler: createFetchHandler()
+    });
 
     // 3. Deploy the CloudFormation stack
     await cfClient.send(

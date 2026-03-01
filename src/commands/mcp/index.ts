@@ -255,7 +255,7 @@ const toToolText = (payload: ToolOutput | Record<string, unknown>) => {
     text = JSON.stringify(withoutTail, null, 2);
 
     if (text.length > MAX_RESPONSE_CHARS) {
-      text = text.slice(0, MAX_RESPONSE_CHARS) + '\n\n... [response truncated at ' + MAX_RESPONSE_CHARS + ' chars]';
+      text = `${text.slice(0, MAX_RESPONSE_CHARS)}\n\n... [response truncated at ${MAX_RESPONSE_CHARS} chars]`;
     }
   }
 

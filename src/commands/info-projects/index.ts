@@ -22,7 +22,8 @@ export const commandInfoProjects = async () => {
       const erroredCount = project.stages.filter((stage) => stage.isErrored).length;
       const thisMonthTotal = project.stages.reduce((sum, stage) => sum + (stage.thisMonthCosts?.total || 0), 0);
       const prevMonthTotal = project.stages.reduce((sum, stage) => sum + (stage.previousMonthCosts?.total || 0), 0);
-      const currencyCode = project.stages.find((stage) => stage.thisMonthCosts?.currencyCode)?.thisMonthCosts?.currencyCode || 'USD';
+      const currencyCode =
+        project.stages.find((stage) => stage.thisMonthCosts?.currencyCode)?.thisMonthCosts?.currencyCode || 'USD';
       const formatCost = (value: number) =>
         value > 0 ? `${value.toFixed(2)} ${currencyCode}` : tuiManager.colorize('gray', `0.00 ${currencyCode}`);
 

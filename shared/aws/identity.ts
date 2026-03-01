@@ -3,6 +3,7 @@ import { Sha256 } from '@aws-crypto/sha256-browser';
 import { GetCallerIdentityCommand, STSClient } from '@aws-sdk/client-sts';
 import { SignatureV4 } from '@aws-sdk/signature-v4';
 import { createRequest } from '@aws-sdk/util-create-request';
+import { createFetchHandler } from '@shared/aws/fetch-handler';
 
 type SignedRequest = { headers: Record<string, string>; [key: string]: unknown };
 
@@ -14,7 +15,7 @@ export const getSignedGetCallerIdentityRequest = async ({
   region: string;
 }): Promise<SignedRequest> => {
   const rawRequest = await (createRequest as unknown as (client: any, command: any) => Promise<HttpRequest>)(
-    new STSClient({ region, credentials }),
+    new STSClient({ region, credentials, requestHandler: createFetchHandler() }),
     new GetCallerIdentityCommand({})
   );
   const signer = new SignatureV4({

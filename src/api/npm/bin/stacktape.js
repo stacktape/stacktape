@@ -420,18 +420,6 @@ async function ensureBinary() {
   }
 }
 
-function getManualInstallCommand(platformKey) {
-  const commands = {
-    'win32-x64': 'iwr https://installs.stacktape.com/windows.ps1 -useb | iex',
-    'linux-x64': 'curl -L https://installs.stacktape.com/linux.sh | sh',
-    'linux-arm64': 'curl -L https://installs.stacktape.com/linux-arm.sh | sh',
-    'linux-x64-musl': 'curl -L https://installs.stacktape.com/alpine.sh | sh',
-    'darwin-x64': 'curl -L https://installs.stacktape.com/macos.sh | sh',
-    'darwin-arm64': 'curl -L https://installs.stacktape.com/macos-arm.sh | sh'
-  };
-  return commands[platformKey] || 'See https://docs.stacktape.com for installation instructions';
-}
-
 function getGlobalBinaryPathIfVersionMatches() {
   const binaryName = platform() === 'win32' ? 'stacktape.exe' : 'stacktape';
   const globalDir = join(homedir(), '.stacktape', 'bin');

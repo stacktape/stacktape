@@ -8,7 +8,6 @@ import { emptyDir, ensureDir, pathExists, readFile, readdir, writeFile } from 'f
 const TYPES_DIR = 'types/stacktape-config';
 const CURATED_DOCS_DIR = 'docs/_curated-docs';
 const COMMANDS_FILE = 'src/config/cli/commands.ts';
-const OPTIONS_FILE = 'src/config/cli/options.ts';
 
 const SYNONYM_MAP: Record<string, string[]> = {
   function: ['lambda', 'serverless', 'faas'],
@@ -171,12 +170,6 @@ const cleanTypeContent = (content: string): string => {
   cleaned = cleaned.replace(/\n{3,}/g, '\n\n');
   return cleaned.trim();
 };
-
-const kebabCase = (str: string): string =>
-  str
-    .replace(/([a-z])([A-Z])/g, '$1-$2')
-    .replace(/\s+/g, '-')
-    .toLowerCase();
 
 // ─── Config Reference Generator ─────────────────────────────────────────────
 
@@ -409,7 +402,7 @@ const copyCuratedDocs = async (distPath: string): Promise<ManifestEntry[]> => {
 
       if (!cleanedBody) continue;
 
-      const outputFileName = basename(file, '.mdx') + '.md';
+      const outputFileName = `${basename(file, '.mdx')}.md`;
       const relativePath = `${docType}/${outputFileName}`;
 
       // Build tags from title words + category

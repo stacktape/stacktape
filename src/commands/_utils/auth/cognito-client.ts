@@ -8,9 +8,13 @@ import {
   ResendConfirmationCodeCommand
 } from '@aws-sdk/client-cognito-identity-provider';
 import { COGNITO_CONFIG } from 'src/config/params';
+import { createFetchHandler } from '@shared/aws/fetch-handler';
 import { openBrowser } from '../browser';
 
-const cognitoClient = new CognitoIdentityProviderClient({ region: COGNITO_CONFIG.region });
+const cognitoClient = new CognitoIdentityProviderClient({
+  region: COGNITO_CONFIG.region,
+  requestHandler: createFetchHandler()
+});
 
 export type SignUpResult = {
   success: boolean;

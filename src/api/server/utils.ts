@@ -11,7 +11,6 @@ export const directivesUsableWithDummyCompileTemplate = [
 
 export const hasDirectivesOtherThan = (input: string, directiveNames: string[]): boolean => {
   // Matches $DirectiveName('arg1', 'arg2', ...)
-  // eslint-disable-next-line regexp/no-unused-capturing-group
   const directiveRegex = /\$([a-z_]\w*)\s*\(([^)]*)\)/gi;
 
   let match;

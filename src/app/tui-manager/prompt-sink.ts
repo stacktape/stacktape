@@ -135,14 +135,14 @@ export class PromptSink {
   private resolveAndClear = <T>(resolve: (value: T) => void) => {
     return (value: T) => {
       tuiState.clearActivePrompt();
-      setTimeout(() => resolve(value), 0);
+      queueMicrotask(() => resolve(value));
     };
   };
 
   private rejectAndClear = (reject: (reason?: unknown) => void) => {
     return () => {
       tuiState.clearActivePrompt();
-      setTimeout(() => reject(new UserCancelledError()), 0);
+      queueMicrotask(() => reject(new UserCancelledError()));
     };
   };
 }

@@ -1,7 +1,20 @@
-import { formatDuration } from './utils';
-import { stripAnsi } from './utils';
+import { formatDuration, stripAnsi } from './utils';
 
 const SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+
+const activeSpinnerIntervals = new Set<NodeJS.Timeout>();
+
+let exitCleanupRegistered = false;
+const ensureExitCleanup = () => {
+  if (exitCleanupRegistered) return;
+  exitCleanupRegistered = true;
+  process.on('exit', () => {
+    for (const interval of activeSpinnerIntervals) {
+      clearInterval(interval);
+    }
+    activeSpinnerIntervals.clear();
+  });
+};
 
 export type Spinner = {
   update: (text: string) => void;
@@ -107,6 +120,11 @@ export const createSpinner = (text: string, colorize: (color: string, text: stri
       }, 90)
     : null;
 
+  if (spinnerInterval) {
+    ensureExitCleanup();
+    activeSpinnerIntervals.add(spinnerInterval);
+  }
+
   return {
     update: (newText: string) => {
       if (_devTuiActive || stopped) return;
@@ -118,7 +136,10 @@ export const createSpinner = (text: string, colorize: (color: string, text: stri
     success: (options?: { text?: string; details?: string }) => {
       if (_devTuiActive || stopped) return;
       stopped = true;
-      if (spinnerInterval) clearInterval(spinnerInterval);
+      if (spinnerInterval) {
+        clearInterval(spinnerInterval);
+        activeSpinnerIntervals.delete(spinnerInterval);
+      }
       const duration = colorize('yellow', formatDuration(Date.now() - startTime));
       const finalText = options?.text || baseText;
       const details = options?.details ? ` ${colorize('gray', options.details)}` : '';
@@ -132,7 +153,10 @@ export const createSpinner = (text: string, colorize: (color: string, text: stri
     error: (errorText?: string) => {
       if (_devTuiActive || stopped) return;
       stopped = true;
-      if (spinnerInterval) clearInterval(spinnerInterval);
+      if (spinnerInterval) {
+        clearInterval(spinnerInterval);
+        activeSpinnerIntervals.delete(spinnerInterval);
+      }
       const duration = colorize('yellow', formatDuration(Date.now() - startTime));
       renderLine(`${colorize('red', '✖')} ${errorText || `${baseText} failed`} ${duration}`);
       if (canInlineUpdate) {

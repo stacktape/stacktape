@@ -150,7 +150,7 @@ If you want to disable local emulation, use the ${tuiManager.prettyOption('disab
       type: 'CONFIG_VALIDATION',
       message: [
         'This command requires a Stacktape config. Provide it in one of these ways:',
-        ` - Stacktape auto-detects config files named ${VALID_CONFIG_PATHS.map(p => tuiManager.makeBold(p)).join(', ')} in your project root.`,
+        ` - Stacktape auto-detects config files named ${VALID_CONFIG_PATHS.map((p) => tuiManager.makeBold(p)).join(', ')} in your project root.`,
         ` - Specify the config path using ${tuiManager.prettyOption('configPath')}.`,
         ` - Specify a console template ID using ${tuiManager.prettyOption('templateId')}.`
       ].join('\n'),

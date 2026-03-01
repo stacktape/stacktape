@@ -23,6 +23,20 @@ type ProgressMessage = {
   type: 'progress' | 'error' | 'success';
 };
 
+const withTimeout = async <T>({ promise, timeoutMs }: { promise: Promise<T>; timeoutMs: number }) => {
+  let timeoutRef: NodeJS.Timeout | undefined;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutRef = setTimeout(() => reject(new Error(`Notification timed out after ${timeoutMs}ms`)), timeoutMs);
+  });
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    if (timeoutRef) {
+      clearTimeout(timeoutRef);
+    }
+  }
+};
+
 export class NotificationManager {
   isInitialized: boolean;
   #deploymentNotifications: DeploymentNotificationDefinition[] = [];
@@ -54,12 +68,16 @@ export class NotificationManager {
           });
           switch (notification.integration.type) {
             case 'slack': {
-              return this.#sendSlackNotification({ ...notification.integration.properties, message }).catch(errHandler);
+              return withTimeout({
+                promise: this.#sendSlackNotification({ ...notification.integration.properties, message }),
+                timeoutMs: 10000
+              }).catch(errHandler);
             }
             case 'ms-teams': {
-              return this.#sendMsTeamsNotification({ ...notification.integration.properties, message }).catch(
-                errHandler
-              );
+              return withTimeout({
+                promise: this.#sendMsTeamsNotification({ ...notification.integration.properties, message }),
+                timeoutMs: 10000
+              }).catch(errHandler);
             }
             case 'email': {
               // @todo

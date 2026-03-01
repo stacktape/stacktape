@@ -19,23 +19,27 @@ export class AnnouncementsManager {
   };
 
   checkForUpdates = async () => {
-    if (IS_DEV) {
-      return;
-    }
-    const currentVersion = getStacktapeVersion();
-    if (currentVersion.includes('beta') || currentVersion.includes('alpha')) {
-      return;
-    }
-    const latestVersion = await getLatestStacktapeVersion();
-    const normalizedCurrentVersion = currentVersion.replace('dev-', '').split('.').slice(0, 3).join('.');
-    const isNewerVersionAvailable = gt(latestVersion, normalizedCurrentVersion);
+    try {
+      if (IS_DEV) {
+        return;
+      }
+      const currentVersion = getStacktapeVersion();
+      if (currentVersion.includes('beta') || currentVersion.includes('alpha')) {
+        return;
+      }
+      const latestVersion = await getLatestStacktapeVersion();
+      const normalizedCurrentVersion = currentVersion.replace('dev-', '').split('.').slice(0, 3).join('.');
+      const isNewerVersionAvailable = gt(latestVersion, normalizedCurrentVersion);
 
-    if (isNewerVersionAvailable) {
-      tuiManager.info(
-        `Update available. Current: ${tuiManager.makeBold(currentVersion)}. Latest: ${tuiManager.makeBold(
-          latestVersion
-        )}.\nRun: \`${tuiManager.prettyCommand('upgrade')}\``
-      );
+      if (isNewerVersionAvailable) {
+        tuiManager.info(
+          `Update available. Current: ${tuiManager.makeBold(currentVersion)}. Latest: ${tuiManager.makeBold(
+            latestVersion
+          )}.\nRun: \`${tuiManager.prettyCommand('upgrade')}\``
+        );
+      }
+    } catch {
+      // update check must never block command completion
     }
   };
 }

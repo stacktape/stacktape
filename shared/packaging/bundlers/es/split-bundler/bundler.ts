@@ -1,10 +1,14 @@
 /**
  * Bundles multiple Lambda entrypoints together with code splitting enabled,
  * automatically creating shared chunks for code used by multiple functions.
+ *
+ * Uses Bun's metafile feature for efficient chunk dependency analysis
+ * instead of reading and parsing chunk files manually.
  */
 import type { BunPlugin } from 'bun';
 import type { PackageJsonDepsInfo } from '../utils';
 import type {
+  BuildMetafile,
   BuildSplitBundleOptions,
   ChunkUsageAnalysis,
   LambdaSplitOutput,
@@ -12,8 +16,9 @@ import type {
   SplitBundleResult
 } from './types';
 import { existsSync } from 'node:fs';
-import { basename, join, relative } from 'node:path';
+import { basename, join } from 'node:path';
 import { dependencyInstaller } from '@shared/utils/dependency-installer';
+import { transformToUnixPath } from '@shared/utils/fs-utils';
 import { builtinModules, filterDuplicates, getError, getTsconfigAliases } from '@shared/utils/misc';
 import { findProjectRoot } from '@shared/utils/monorepo';
 import { copy, ensureDir, outputJSON, readFile, writeFile } from 'fs-extra';
@@ -25,7 +30,7 @@ import {
   ESM_SOURCE_MAP_BANNER,
   getInfoFromPackageJson
 } from '../utils';
-import { findChunkImports, rewriteChunkImports } from './chunk-rewriter';
+import { rewriteChunkImports } from './chunk-rewriter';
 
 /**
  * Bundle multiple Lambda entrypoints together using Bun's code splitting.
@@ -36,6 +41,8 @@ import { findChunkImports, rewriteChunkImports } from './chunk-rewriter';
  *   - chunks/chunk-[hash].js (shared code)
  *
  * Each Lambda package includes its entry file + all chunks it imports.
+ *
+ * Uses Bun's metafile for efficient dependency analysis - no need to read/parse chunks.
  */
 export const buildSplitBundle = async ({
   entrypoints,
@@ -61,15 +68,15 @@ export const buildSplitBundle = async ({
   // Setup tsconfig aliases and path resolution
   const aliases = tsConfigPath ? await getTsconfigAliases(tsConfigPath) : {};
 
-  // Find monorepo root for resolving workspace packages
+  // Find monorepo root for resolving workspace package paths in resolver plugin.
   const monorepoRoot = await findProjectRoot(cwd);
 
-  // Track dependencies and source files during bundling
+  // Track dependencies during bundling (source files now come from metafile)
   const tracker = createDependencyTracker();
   const shouldIgnoreAllDeps = dependenciesToExcludeFromBundle.includes('*');
 
-  // Build all entrypoints together with code splitting
-  const buildResult = await executeBunBuild({
+  // Build all entrypoints together with code splitting (with metafile enabled)
+  const { buildResult, metafile } = await executeBunBuild({
     entrypoints,
     sharedOutdir,
     cwd,
@@ -84,23 +91,26 @@ export const buildSplitBundle = async ({
     tracker
   });
 
-  // Separate entry files from chunk files
-  const { entryFiles, chunkFiles } = categorizeOutputFiles(buildResult.outputs);
+  // Extract source files from metafile (replaces onLoad plugin tracking)
+  const sourceFiles = getSourceFilesFromMetafile(metafile);
 
-  // Process each lambda and track chunk usage
-  // Use monorepo root for path matching since Bun outputs files relative to buildRoot
-  const buildRoot = monorepoRoot || cwd;
-  const { lambdaOutputs, chunkUsageMap, chunkContentCache } = await processLambdaOutputs({
+  // Separate entry files from chunk files
+  const { chunkFiles } = categorizeOutputFiles(buildResult.outputs);
+
+  // Build mapping from metafile relative paths to absolute paths on disk
+  const metafileToAbsolutePath = buildMetafilePathMapping(buildResult.outputs, sharedOutdir);
+
+  // Process lambdas using metafile for chunk dependency analysis
+  const { lambdaOutputs, chunkUsageMap } = await processLambdaOutputsWithMetafile({
     entrypoints,
-    entryFiles,
-    chunkFiles,
-    sharedOutdir,
-    buildRoot,
-    tracker
+    metafile,
+    tracker,
+    sourceFiles,
+    metafileToAbsolutePath
   });
 
-  // Build chunk usage analysis for layer optimization (includes dependency tracking)
-  const chunkAnalysis = buildChunkAnalysis(chunkUsageMap, chunkContentCache, chunkFiles);
+  // Build chunk usage analysis from metafile (no file reading needed)
+  const chunkAnalysis = buildChunkAnalysisFromMetafile(metafile, chunkUsageMap, metafileToAbsolutePath);
 
   return {
     lambdaOutputs,
@@ -118,22 +128,20 @@ const createNoopLogger = (): ProgressLogger => ({
   finishEvent: async () => {}
 });
 
-/** Dependency tracking state during bundling */
+/** Dependency tracking state during bundling (source files now from metafile) */
 type DependencyTracker = {
   resolvedModules: Set<string>;
   dependenciesToInstallInDocker: PackageJsonDepsInfo[];
   externalModules: Array<{ name: string; note: string }>;
-  sourceFiles: Set<string>;
 };
 
 const createDependencyTracker = (): DependencyTracker => ({
   resolvedModules: new Set(),
   dependenciesToInstallInDocker: [],
-  externalModules: [],
-  sourceFiles: new Set()
+  externalModules: []
 });
 
-/** Execute Bun.build with all plugins and configuration */
+/** Execute Bun.build with all plugins and configuration, returns build result and metafile */
 const executeBunBuild = async ({
   entrypoints,
   sharedOutdir,
@@ -160,7 +168,7 @@ const executeBunBuild = async ({
   shouldIgnoreAllDeps: boolean;
   aliases: Record<string, string>;
   tracker: DependencyTracker;
-}): Promise<Awaited<ReturnType<typeof Bun.build>>> => {
+}): Promise<{ buildResult: Awaited<ReturnType<typeof Bun.build>>; metafile: BuildMetafile }> => {
   const analyzePlugin = createAnalyzePlugin({
     cwd,
     monorepoRoot,
@@ -199,7 +207,9 @@ const executeBunBuild = async ({
       naming: {
         entry: '[dir]/[name].js',
         chunk: 'chunks/chunk-[hash].js'
-      }
+      },
+      // Enable metafile for efficient chunk dependency analysis
+      metafile: true
     });
 
     if (!result.success) {
@@ -213,7 +223,10 @@ const executeBunBuild = async ({
       });
     }
 
-    return result;
+    return {
+      buildResult: result,
+      metafile: result.metafile as BuildMetafile
+    };
   } catch (err: any) {
     const errorDetails = err.errors
       ? err.errors.map((e: any) => e?.message || e?.toString()).join('\n')
@@ -252,11 +265,7 @@ const createAnalyzePlugin = ({
   return {
     name: 'stp-analyze-deps',
     setup(build) {
-      // Track source files
-      build.onLoad({ filter: /\.(ts|tsx|js|jsx|mjs|cjs)$/ }, async (args) => {
-        tracker.sourceFiles.add(args.path);
-        return undefined;
-      });
+      // Note: Source file tracking moved to metafile.inputs (more accurate, no plugin overhead)
 
       // Analyze and handle external dependencies
       build.onResolve({ filter: /^[^.]/ }, async (args): Promise<{ path: string; external?: boolean } | undefined> => {
@@ -301,6 +310,16 @@ const createAnalyzePlugin = ({
 
         // Handle ignored modules
         if (IGNORED_MODULES.concat(excludeDependencies).includes(moduleName)) {
+          if (modulePath) {
+            const pkgInfo = await getInfoFromPackageJson({
+              directoryPath: modulePath,
+              parentModule: null,
+              dependencyType: 'root'
+            }).catch(() => null);
+            if (pkgInfo) {
+              tracker.dependenciesToInstallInDocker.push({ ...pkgInfo, note: 'IGNORED' });
+            }
+          }
           tracker.externalModules.push({ name: moduleName, note: 'IGNORED' });
           return { path: args.path, external: true };
         }
@@ -399,6 +418,30 @@ const getSourceMapBanner = (bannerType: 'node_modules' | 'pre-compiled' | 'disab
   return undefined;
 };
 
+/** Build mapping from metafile relative paths to absolute paths on disk */
+const buildMetafilePathMapping = (outputs: Array<{ path: string }>, sharedOutdir: string): Map<string, string> => {
+  const mapping = new Map<string, string>();
+  const normalizedOutdir = transformToUnixPath(sharedOutdir);
+
+  for (const output of outputs) {
+    const absolutePath = output.path;
+    const normalizedAbsPath = transformToUnixPath(absolutePath);
+
+    // Convert absolute path to the relative format used in metafile keys
+    // e.g., "C:/Projects/.stp/shared/server/lambdas/auth.js" -> "./server/lambdas/auth.js"
+    const relativePath = normalizedAbsPath.replace(normalizedOutdir, '').replace(/^\//, './');
+
+    mapping.set(relativePath, absolutePath);
+
+    // Also add without leading ./ for flexibility
+    if (relativePath.startsWith('./')) {
+      mapping.set(relativePath.slice(2), absolutePath);
+    }
+  }
+
+  return mapping;
+};
+
 /** Categorize build outputs into entry files and chunk files */
 const categorizeOutputFiles = (outputs: Array<{ path: string }>): { entryFiles: string[]; chunkFiles: string[] } => {
   const entryFiles: string[] = [];
@@ -416,39 +459,106 @@ const categorizeOutputFiles = (outputs: Array<{ path: string }>): { entryFiles: 
   return { entryFiles, chunkFiles };
 };
 
-/** Process lambda outputs and track chunk usage */
-const processLambdaOutputs = async ({
+/** Extract source files from metafile inputs (replaces onLoad plugin tracking) */
+const getSourceFilesFromMetafile = (metafile: BuildMetafile): Array<{ path: string }> => {
+  return Object.keys(metafile.inputs)
+    .filter((inputPath) => !inputPath.includes('node_modules'))
+    .filter(filterDuplicates)
+    .map((inputPath) => ({ path: inputPath }));
+};
+
+/** Find all chunks required by an output (direct + transitive) using metafile */
+const findAllChunksFromMetafile = (outputPath: string, metafile: BuildMetafile): Set<string> => {
+  const allChunks = new Set<string>();
+  const toProcess = [outputPath];
+  const processed = new Set<string>();
+
+  while (toProcess.length > 0) {
+    const current = toProcess.pop()!;
+    if (processed.has(current)) continue;
+    processed.add(current);
+
+    const outputMeta = metafile.outputs[current];
+    if (!outputMeta) continue;
+
+    for (const imp of outputMeta.imports) {
+      // Normalize path for comparison (handle both / and \)
+      const normalizedPath = transformToUnixPath(imp.path);
+      if (normalizedPath.includes('chunk-') && normalizedPath.endsWith('.js')) {
+        // Find the full output path that matches this import
+        const fullChunkPath = Object.keys(metafile.outputs).find((outPath) => {
+          const normalizedOutPath = transformToUnixPath(outPath);
+          return normalizedOutPath.endsWith(normalizedPath) || normalizedPath.endsWith(basename(normalizedOutPath));
+        });
+        if (fullChunkPath && !allChunks.has(fullChunkPath)) {
+          allChunks.add(fullChunkPath);
+          toProcess.push(fullChunkPath);
+        }
+      }
+    }
+  }
+
+  return allChunks;
+};
+
+/** Check if two paths refer to the same file (handles absolute vs relative, different separators) */
+const pathsMatch = (path1: string, path2: string): boolean => {
+  const norm1 = transformToUnixPath(path1);
+  const norm2 = transformToUnixPath(path2);
+
+  // Exact match
+  if (norm1 === norm2) return true;
+
+  // Check if one ends with the other (handles absolute vs relative)
+  // e.g., "C:/Projects/console-app/server/lambda.ts" vs "../console-app/server/lambda.ts"
+  if (norm1.endsWith(norm2) || norm2.endsWith(norm1)) return true;
+
+  // Extract the significant path portion (after any ../ or drive letter)
+  // and compare the last N segments
+  const getSignificantPath = (p: string): string => {
+    // Remove leading ../ segments and drive letters
+    return p.replace(/^(\.\.\/)+/, '').replace(/^[A-Za-z]:\//, '');
+  };
+
+  const sig1 = getSignificantPath(norm1);
+  const sig2 = getSignificantPath(norm2);
+
+  if (sig1 === sig2) return true;
+  if (sig1.endsWith(sig2) || sig2.endsWith(sig1)) return true;
+
+  return false;
+};
+
+/** Process lambda outputs using metafile for chunk dependency analysis */
+const processLambdaOutputsWithMetafile = async ({
   entrypoints,
-  entryFiles,
-  chunkFiles,
-  sharedOutdir,
-  buildRoot,
-  tracker
+  metafile,
+  tracker,
+  sourceFiles,
+  metafileToAbsolutePath
 }: {
   entrypoints: BuildSplitBundleOptions['entrypoints'];
-  entryFiles: string[];
-  chunkFiles: string[];
-  sharedOutdir: string;
-  buildRoot: string;
+  metafile: BuildMetafile;
   tracker: DependencyTracker;
+  sourceFiles: Array<{ path: string }>;
+  metafileToAbsolutePath: Map<string, string>;
 }): Promise<{
   lambdaOutputs: Map<string, LambdaSplitOutput>;
   chunkUsageMap: Map<string, Set<string>>;
-  chunkContentCache: Map<string, string>;
 }> => {
   const lambdaOutputs = new Map<string, LambdaSplitOutput>();
   const chunkUsageMap = new Map<string, Set<string>>();
 
-  // Pre-read all chunk files once (they're shared across lambdas)
-  const chunkContentCache = new Map<string, string>();
-  await Promise.all(
-    chunkFiles.map(async (chunkPath) => {
-      const content = await readFile(chunkPath, 'utf-8');
-      chunkContentCache.set(chunkPath, content);
-    })
-  );
+  // Build a map from entryPoint path to output path using metafile
+  const entryPointToOutput = new Map<string, string>();
+  for (const [outputPath, outputMeta] of Object.entries(metafile.outputs)) {
+    if (outputMeta.entryPoint) {
+      // Normalize paths for matching
+      entryPointToOutput.set(transformToUnixPath(outputMeta.entryPoint), outputPath);
+    }
+  }
 
-  // Pre-create all lambda directories BEFORE parallel processing to avoid ensureDir contention
+  // Pre-create all lambda directories
   await Promise.all(
     entrypoints.map(async (ep) => {
       await ensureDir(ep.distFolderPath);
@@ -457,96 +567,96 @@ const processLambdaOutputs = async ({
   );
 
   // Process all lambdas in parallel
-  const results = await Promise.all(
-    entrypoints.map((entrypoint) =>
-      processLambdaEntrypoint({
+  await Promise.all(
+    entrypoints.map(async (entrypoint) => {
+      // Find output file for this entrypoint using metafile's entryPoint field
+      const normalizedEntryPath = transformToUnixPath(entrypoint.entryfilePath);
+      let outputPath: string | undefined;
+
+      // Try to find matching entry in metafile
+      for (const [entryPath, outPath] of entryPointToOutput) {
+        if (pathsMatch(normalizedEntryPath, entryPath)) {
+          outputPath = outPath;
+          break;
+        }
+      }
+
+      if (!outputPath) {
+        throw getError({
+          type: 'PACKAGING',
+          message: `Could not find output for lambda: ${entrypoint.name}.\nEntry: ${normalizedEntryPath}\nAvailable entries: ${Array.from(entryPointToOutput.keys()).join(', ')}`
+        });
+      }
+
+      // Find all required chunks using metafile (no file reading needed!)
+      const allRequiredChunks = findAllChunksFromMetafile(outputPath, metafile);
+
+      // Track chunk usage for layer analysis
+      for (const chunk of allRequiredChunks) {
+        if (!chunkUsageMap.has(chunk)) {
+          chunkUsageMap.set(chunk, new Set());
+        }
+        chunkUsageMap.get(chunk)!.add(entrypoint.name);
+      }
+
+      // Convert metafile relative paths to absolute paths for file operations
+      const absoluteOutputPath = metafileToAbsolutePath.get(outputPath);
+      if (!absoluteOutputPath) {
+        throw getError({
+          type: 'PACKAGING',
+          message: `Could not resolve absolute path for: ${outputPath}`
+        });
+      }
+
+      const absoluteChunkPaths = new Set<string>();
+      for (const chunkPath of allRequiredChunks) {
+        const absPath = metafileToAbsolutePath.get(chunkPath);
+        if (absPath) {
+          absoluteChunkPaths.add(absPath);
+        }
+      }
+
+      // Process the entry file (still need to read for rewriting imports)
+      await processLambdaEntrypointWithMetafile({
         entrypoint,
-        entryFiles,
-        chunkFiles,
-        sharedOutdir,
-        buildRoot,
-        chunkContentCache
-      })
-    )
+        outputPath: absoluteOutputPath,
+        allRequiredChunks: absoluteChunkPaths
+      });
+
+      lambdaOutputs.set(entrypoint.name, {
+        name: entrypoint.name,
+        entryFile: join(entrypoint.distFolderPath, 'index.js'),
+        files: [join(entrypoint.distFolderPath, 'index.js')],
+        sourceFiles,
+        dependenciesToInstallInDocker: tracker.dependenciesToInstallInDocker,
+        resolvedModules: Array.from(tracker.resolvedModules)
+      });
+    })
   );
 
-  // Collect results
-  for (let i = 0; i < entrypoints.length; i++) {
-    const entrypoint = entrypoints[i];
-    const { allRequiredChunks } = results[i];
-
-    // Track chunk usage
-    for (const chunk of allRequiredChunks) {
-      if (!chunkUsageMap.has(chunk)) {
-        chunkUsageMap.set(chunk, new Set());
-      }
-      chunkUsageMap.get(chunk)!.add(entrypoint.name);
-    }
-
-    lambdaOutputs.set(entrypoint.name, {
-      name: entrypoint.name,
-      entryFile: join(entrypoint.distFolderPath, 'index.js'),
-      files: [join(entrypoint.distFolderPath, 'index.js')],
-      sourceFiles: Array.from(tracker.sourceFiles)
-        .filter(filterDuplicates)
-        .map((p) => ({ path: p })),
-      dependenciesToInstallInDocker: tracker.dependenciesToInstallInDocker,
-      resolvedModules: Array.from(tracker.resolvedModules)
-    });
-  }
-
-  return { lambdaOutputs, chunkUsageMap, chunkContentCache };
+  return { lambdaOutputs, chunkUsageMap };
 };
 
-/** Process a single lambda entrypoint */
-const processLambdaEntrypoint = async ({
+/** Process a single lambda entrypoint (simplified - chunk deps already known from metafile) */
+const processLambdaEntrypointWithMetafile = async ({
   entrypoint,
-  entryFiles,
-  chunkFiles,
-  sharedOutdir,
-  buildRoot,
-  chunkContentCache
+  outputPath,
+  allRequiredChunks
 }: {
   entrypoint: BuildSplitBundleOptions['entrypoints'][0];
-  entryFiles: string[];
-  chunkFiles: string[];
-  sharedOutdir: string;
-  buildRoot: string;
-  chunkContentCache: Map<string, string>;
-}): Promise<{
-  entryFile: string;
+  outputPath: string;
   allRequiredChunks: Set<string>;
-}> => {
-  // Find output file matching input entrypoint
-  // Use buildRoot (monorepoRoot or cwd) since Bun outputs files relative to it
-  const inputRelative = relative(buildRoot, entrypoint.entryfilePath)
-    .replace(/\.(ts|tsx|jsx|mjs)$/, '.js')
-    .replace(/\\/g, '/');
+}): Promise<void> => {
+  // Read and process entry file
+  let entryContent = await readFile(outputPath, 'utf-8');
 
-  const entryFile = entryFiles.find((ef) => {
-    const efRelative = relative(sharedOutdir, ef).replace(/\\/g, '/');
-    return efRelative === inputRelative;
-  });
-
-  if (!entryFile) {
-    const availableFiles = entryFiles.map((ef) => relative(sharedOutdir, ef).replace(/\\/g, '/'));
-    throw getError({
-      type: 'PACKAGING',
-      message: `Could not find output file for lambda: ${entrypoint.name}.\nExpected: ${inputRelative}\nAvailable: ${availableFiles.join(', ')}`
-    });
-  }
-
-  // Find all required chunks (direct and transitive) using cached content
-  let entryContent = await readFile(entryFile, 'utf-8');
-  const allRequiredChunks = findAllRequiredChunksSync(entryContent, chunkFiles, chunkContentCache);
-
-  // Rewrite chunk imports
+  // Rewrite chunk imports to local path
   entryContent = rewriteChunkImports(entryContent, './chunks/');
 
-  // Ensure default export exists - if user exports `handler` but not `default`, re-export it
+  // Ensure default export exists
   entryContent = ensureDefaultExport(entryContent);
 
-  // Fix sourceMappingURL to point to index.js.map (Bun uses original entry name)
+  // Fix sourceMappingURL
   entryContent = entryContent.replace(/\/\/# sourceMappingURL=.+\.js\.map/, '//# sourceMappingURL=index.js.map');
 
   // Write entry file
@@ -555,90 +665,61 @@ const processLambdaEntrypoint = async ({
 
   const chunksDestDir = join(entrypoint.distFolderPath, 'chunks');
 
-  // Copy chunks to lambda package in parallel
+  // Copy and rewrite chunks in parallel
   await Promise.all(
-    Array.from(allRequiredChunks).map(async (chunk) => {
-      const chunkDest = join(chunksDestDir, basename(chunk));
-      const chunkContent = rewriteChunkImports(chunkContentCache.get(chunk)!, './');
+    Array.from(allRequiredChunks).map(async (chunkPath) => {
+      const chunkDest = join(chunksDestDir, basename(chunkPath));
+      let chunkContent = await readFile(chunkPath, 'utf-8');
+      chunkContent = rewriteChunkImports(chunkContent, './');
       await writeFile(chunkDest, chunkContent);
-    })
-  );
 
-  // Copy source maps
-  await Promise.all(
-    Array.from(allRequiredChunks).map(async (chunk) => {
-      const chunkDest = join(chunksDestDir, basename(chunk));
-      const chunkMapPath = `${chunk}.map`;
+      // Copy source map if exists
+      const chunkMapPath = `${chunkPath}.map`;
       if (existsSync(chunkMapPath)) {
         await copy(chunkMapPath, `${chunkDest}.map`);
       }
     })
   );
-  const sourceMapPath = `${entryFile}.map`;
+
+  // Copy entry source map
+  const sourceMapPath = `${outputPath}.map`;
   if (existsSync(sourceMapPath)) {
     await copy(sourceMapPath, join(entrypoint.distFolderPath, 'index.js.map'));
   }
 
   // Create package.json for ESM
   await outputJSON(join(entrypoint.distFolderPath, 'package.json'), { type: 'module' });
-
-  return { entryFile, allRequiredChunks };
 };
 
-/** Find all chunks required by entry content (including transitive dependencies) - sync version using cache */
-const findAllRequiredChunksSync = (
-  entryContent: string,
-  chunkFiles: string[],
-  chunkContentCache: Map<string, string>
-): Set<string> => {
-  const directChunks = findChunkImports(entryContent, chunkFiles);
-  const allChunks = new Set(directChunks);
-  const toProcess = [...directChunks];
-  const processed = new Set<string>();
-
-  while (toProcess.length > 0) {
-    const chunk = toProcess.pop()!;
-    if (processed.has(chunk)) continue;
-    processed.add(chunk);
-
-    const chunkContent = chunkContentCache.get(chunk);
-    if (!chunkContent) continue;
-
-    const nestedChunks = findChunkImports(chunkContent, chunkFiles);
-    for (const nested of nestedChunks) {
-      if (!allChunks.has(nested)) {
-        allChunks.add(nested);
-        toProcess.push(nested);
-      }
-    }
-  }
-
-  return allChunks;
-};
-
-/** Build chunk usage analysis for layer optimization */
-const buildChunkAnalysis = (
+/** Build chunk usage analysis from metafile (no file reading needed) */
+const buildChunkAnalysisFromMetafile = (
+  metafile: BuildMetafile,
   chunkUsageMap: Map<string, Set<string>>,
-  chunkContentCache: Map<string, string>,
-  allChunkPaths: string[]
+  metafileToAbsolutePath: Map<string, string>
 ): ChunkUsageAnalysis[] => {
   const analysis: ChunkUsageAnalysis[] = [];
 
-  for (const [chunkPath, lambdaNames] of chunkUsageMap) {
-    const chunkName = basename(chunkPath);
-    const sizeBytes = Bun.file(chunkPath).size;
+  for (const [relativeChunkPath, lambdaNames] of chunkUsageMap) {
+    const chunkMeta = metafile.outputs[relativeChunkPath];
+    if (!chunkMeta) continue;
+
+    // Convert to absolute path for file operations
+    const absoluteChunkPath = metafileToAbsolutePath.get(relativeChunkPath) || relativeChunkPath;
+
+    const chunkName = basename(relativeChunkPath);
+    const sizeBytes = chunkMeta.bytes; // Direct from metafile - no filesystem call!
     const usedByLambdas = Array.from(lambdaNames);
     const usageCount = usedByLambdas.length;
     const deduplicationValue = sizeBytes * (usageCount - 1);
 
-    // Find which other chunks this chunk depends on
-    const chunkContent = chunkContentCache.get(chunkPath) || '';
-    const dependsOnPaths = findChunkImports(chunkContent, allChunkPaths);
-    const dependsOn = dependsOnPaths.map((p) => basename(p));
+    // Get chunk dependencies directly from metafile imports
+    const dependsOn = chunkMeta.imports
+      .filter((imp) => imp.path.includes('chunk-') && imp.path.endsWith('.js'))
+      .map((imp) => basename(imp.path));
 
     analysis.push({
       chunkName,
-      chunkPath,
+      chunkPath: absoluteChunkPath,
       sizeBytes,
       usedByLambdas,
       usageCount,

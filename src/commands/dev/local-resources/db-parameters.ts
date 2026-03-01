@@ -1,6 +1,7 @@
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { DescribeEngineDefaultParametersCommand, RDSClient } from '@aws-sdk/client-rds';
+import { createFetchHandler } from '@shared/aws/fetch-handler';
 import { configManager } from '@domain-services/config-manager';
 
 type DbEngine = 'postgres' | 'mysql' | 'mariadb';
@@ -192,7 +193,7 @@ export const fetchAwsDefaultParameters = async (parameterGroupFamily: string): P
   const params: DbParameterSet = {};
 
   try {
-    const client = new RDSClient({ region: globalStateManager.region });
+    const client = new RDSClient({ region: globalStateManager.region, requestHandler: createFetchHandler() });
     let marker: string | undefined;
 
     do {

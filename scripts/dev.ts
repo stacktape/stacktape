@@ -77,6 +77,7 @@ export const runDev = async () => {
     if (err.details === undefined) {
       logError(err, '- UNHANDLED ERROR -');
     }
+    process.exitCode = 1;
     if (!isSilentMode) {
       logWarn('----- FINISHED WITH ERROR -----');
     }
@@ -84,5 +85,18 @@ export const runDev = async () => {
 };
 
 if (import.meta.main) {
-  runDev();
+  runDev().finally(() => {
+    if (process.env.STP_DEBUG_ACTIVE_HANDLES === '1') {
+      const activeResources = (process as any).getActiveResourcesInfo?.() || [];
+      const activeHandles = ((process as any)._getActiveHandles?.() || []).map(
+        (h: any) => h?.constructor?.name || 'Unknown'
+      );
+      const activeRequests = ((process as any)._getActiveRequests?.() || []).map(
+        (r: any) => r?.constructor?.name || 'Unknown'
+      );
+      logWarn(`[DEV EXIT DEBUG] active resources: ${JSON.stringify(activeResources)}`);
+      logWarn(`[DEV EXIT DEBUG] active handles: ${JSON.stringify(activeHandles)}`);
+      logWarn(`[DEV EXIT DEBUG] active requests: ${JSON.stringify(activeRequests)}`);
+    }
+  });
 }

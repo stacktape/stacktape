@@ -490,5 +490,5 @@ const formatAnswer = (results: SearchResult[], mode: 'answer' | 'reference' | 's
 
 // ─── Exports ─────────────────────────────────────────────────────────────────
 
-export type { DocType, DocsResponse, IndexedDoc, LexicalIndex, QueryOptions, SearchResult };
+export type { DocsResponse, DocType, IndexedDoc, LexicalIndex, QueryOptions, SearchResult };
 export { buildIndex, expandQuery, formatAnswer, search, tokenize };

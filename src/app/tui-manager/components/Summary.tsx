@@ -7,7 +7,7 @@ type SummaryProps = {
   summary: TuiSummary;
 };
 
-export const Summary: React.FC<SummaryProps> = ({ summary }) => {
+export const Summary: React.FC<SummaryProps> = React.memo(({ summary }) => {
   const { success, message, links, consoleUrl } = summary;
 
   return (
@@ -40,4 +40,6 @@ export const Summary: React.FC<SummaryProps> = ({ summary }) => {
       <Text> </Text>
     </Box>
   );
-};
+});
+
+Summary.displayName = 'Summary';

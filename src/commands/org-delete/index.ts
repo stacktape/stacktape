@@ -19,7 +19,11 @@ export const commandOrgDelete = async () => {
 
   if (isAgentMode()) {
     if (!organizationId) {
-      throw new ExpectedError('CLI', 'Missing required flag: --organizationId', 'Provide --organizationId <organization-id>');
+      throw new ExpectedError(
+        'CLI',
+        'Missing required flag: --organizationId',
+        'Provide --organizationId <organization-id>'
+      );
     }
   } else if (!organizationId) {
     organizationId = await tuiManager.promptSelect({

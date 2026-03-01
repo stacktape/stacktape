@@ -1,3 +1,4 @@
+import { createFetchHandler } from '@shared/aws/fetch-handler';
 import { DynamoDBClient, DescribeTableCommand } from '@aws-sdk/client-dynamodb';
 import {
   DynamoDBDocumentClient,
@@ -1214,11 +1215,13 @@ const getDynamoClient = (conn: DynamoDbConnectionOpts) => {
       ? new DynamoDBClient({
           endpoint: `http://localhost:${conn.port}`,
           region: 'local',
-          credentials: { accessKeyId: 'local', secretAccessKey: 'local' }
+          credentials: { accessKeyId: 'local', secretAccessKey: 'local' },
+          requestHandler: createFetchHandler()
         })
       : new DynamoDBClient({
           region: conn.region,
-          credentials: conn.credentials
+          credentials: conn.credentials,
+          requestHandler: createFetchHandler()
         });
   return DynamoDBDocumentClient.from(dynamoClient, {
     marshallOptions: { removeUndefinedValues: true }

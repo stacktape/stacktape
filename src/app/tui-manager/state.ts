@@ -30,6 +30,7 @@ class TuiStateManager {
   private phaseOrder: DeploymentPhase[] = PHASE_ORDER;
   private phaseNames: Record<DeploymentPhase, string> = PHASE_NAMES;
   private notifyTimeout: NodeJS.Timeout | undefined;
+  private destroyed = false;
 
   constructor() {
     this.state = this.createInitialState();
@@ -66,10 +67,36 @@ class TuiStateManager {
   }
 
   reset() {
+    this.destroyed = false;
+    if (this.notifyTimeout) {
+      clearTimeout(this.notifyTimeout);
+      this.notifyTimeout = undefined;
+    }
     this.phaseOrder = PHASE_ORDER;
     this.phaseNames = PHASE_NAMES;
     this.state = this.createInitialState();
     this.notifyListeners();
+  }
+
+  flushPendingNotifications() {
+    if (this.notifyTimeout) {
+      clearTimeout(this.notifyTimeout);
+      this.notifyTimeout = undefined;
+    }
+    for (const listener of this.listeners) {
+      try {
+        listener(this.state);
+      } catch {}
+    }
+  }
+
+  destroy() {
+    this.destroyed = true;
+    if (this.notifyTimeout) {
+      clearTimeout(this.notifyTimeout);
+      this.notifyTimeout = undefined;
+    }
+    this.listeners.clear();
   }
 
   setShowPhaseHeaders(show: boolean) {
@@ -107,15 +134,24 @@ class TuiStateManager {
 
   subscribe(listener: StateListener): () => void {
     this.listeners.add(listener);
-    return () => this.listeners.delete(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
   }
 
+  getSnapshot = (): TuiState => {
+    return this.state;
+  };
+
   private notifyListeners() {
-    if (this.notifyTimeout) return;
+    if (this.destroyed || this.notifyTimeout) return;
     this.notifyTimeout = setTimeout(() => {
       this.notifyTimeout = undefined;
+      if (this.destroyed) return;
       for (const listener of this.listeners) {
-        listener(this.state);
+        try {
+          listener(this.state);
+        } catch {}
       }
     }, 16);
   }
@@ -131,23 +167,24 @@ class TuiStateManager {
 
   setCurrentPhase(phase: DeploymentPhase) {
     const currentPhaseIndex = this.phaseOrder.indexOf(phase);
+    const now = Date.now();
 
-    this.state.phases = this.state.phases.map((p, index) => {
+    const newPhases = this.state.phases.map((p, index) => {
       if (index < currentPhaseIndex && p.status !== 'success' && p.status !== 'error') {
         return {
           ...p,
           status: 'success' as TuiEventStatus,
-          endTime: Date.now(),
-          duration: p.startTime ? Date.now() - p.startTime : 0
+          endTime: now,
+          duration: p.startTime ? now - p.startTime : 0
         };
       }
       if (p.id === phase && p.status === 'pending') {
-        return { ...p, status: 'running' as TuiEventStatus, startTime: Date.now() };
+        return { ...p, status: 'running' as TuiEventStatus, startTime: now };
       }
       return p;
     });
 
-    this.state = { ...this.state, currentPhase: phase };
+    this.state = { ...this.state, phases: newPhases, currentPhase: phase };
     this.notifyListeners();
   }
 
@@ -347,7 +384,7 @@ class TuiStateManager {
 
   addWarning(message: string, phase?: DeploymentPhase) {
     const warning: TuiWarning = {
-      id: `warning-${Date.now()}`,
+      id: `warning-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
       message,
       timestamp: Date.now(),
       phase: phase || this.state.currentPhase

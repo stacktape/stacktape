@@ -1,11 +1,7 @@
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { configGenManager, getPhaseDisplayName, type ConfigGenPhaseInfo } from '@utils/config-gen';
-import {
-  publicApiClient,
-  type ProductionReadiness,
-  type StackPriceEstimationResponse
-} from '@shared/trpc/public';
+import { publicApiClient, type ProductionReadiness, type StackPriceEstimationResponse } from '@shared/trpc/public';
 import { stringify } from 'yaml';
 import { basename, relative, join, isAbsolute } from 'node:path';
 import {
@@ -190,7 +186,9 @@ export const initUsingAiConfigGen = async (options: InitUsingAiConfigGenOptions 
     });
 
     if (hasCosts && costEstimation?.costs) {
-      lines.push(`\n${color.dim('Estimated total costs:')} ~${formatPrice(costEstimation.costs.flatMonthlyCost || 0)}/mo + pay-per-use costs`);
+      lines.push(
+        `\n${color.dim('Estimated total costs:')} ~${formatPrice(costEstimation.costs.flatMonthlyCost || 0)}/mo + pay-per-use costs`
+      );
     }
 
     if (unresolvedEnvVars > 0) {
@@ -202,8 +200,10 @@ export const initUsingAiConfigGen = async (options: InitUsingAiConfigGenOptions 
 
     lines.push('');
     lines.push(tuiManager.makeBold('Next steps:'));
-    lines.push(`  ${tuiManager.prettyCommand('dev --projectName ' + projectName + ' --stage {stage} --region {region}')}`);
-    lines.push(`  ${tuiManager.prettyCommand('deploy --projectName ' + projectName + ' --stage {stage} --region {region}')}`);
+    lines.push(`  ${tuiManager.prettyCommand(`dev --projectName ${projectName} --stage {stage} --region {region}`)}`);
+    lines.push(
+      `  ${tuiManager.prettyCommand(`deploy --projectName ${projectName} --stage {stage} --region {region}`)}`
+    );
 
     tuiManager.printBox({ title: 'Configuration', lines });
   } catch (error) {
