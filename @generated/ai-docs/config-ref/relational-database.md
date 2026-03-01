@@ -454,6 +454,17 @@ interface AuroraServerlessV2EngineProperties extends SharedEngineProperties {
    * @default 10
    */
   maxCapacity?: number;
+  /**
+   * #### Number of reader instances in the Aurora Serverless v2 cluster.
+   *
+   * ---
+   *
+   * Aurora Serverless v2 always has one writer instance. This value adds additional readers
+   * (`0` means writer only, `2` means writer + 2 readers).
+   *
+   * @default 0
+   */
+  serverlessReadersCount?: number;
 }
 
 interface AuroraEngineProperties extends SharedEngineProperties {

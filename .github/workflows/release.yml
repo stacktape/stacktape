@@ -48,7 +48,7 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.2.23
+          bun-version: 1.3.9
 
       - name: Cache Bun install cache
         uses: actions/cache@v4
@@ -72,7 +72,7 @@ jobs:
         run: |
           docker run --rm -v $(pwd):/workspace -w /workspace node:22-alpine sh -c "
             apk add --no-cache curl bash git
-            curl -fsSL https://bun.sh/install | bash -s -- bun-v1.2.23
+            curl -fsSL https://bun.sh/install | bash -s -- bun-v1.3.9
             export PATH=\$HOME/.bun/bin:\$PATH
             bun install
             bun run scripts/build-dist-package.ts --platform alpine --version ${{ inputs.version }}
@@ -101,7 +101,7 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.2.23
+          bun-version: 1.3.9
 
       - name: Cache Bun install cache
         uses: actions/cache@v4
