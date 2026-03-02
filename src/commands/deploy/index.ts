@@ -116,6 +116,8 @@ export const commandDeploy = async () => {
     await performFullDeploy();
   }
 
+  eventManager.setPhase('POST_DEPLOY');
+
   // refreshing stack details is only useful if we used full deploy
   if (!useHotswap) {
     await Promise.all([

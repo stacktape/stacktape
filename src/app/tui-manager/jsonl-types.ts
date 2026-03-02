@@ -79,7 +79,7 @@ export type JsonlEventEvent = {
   type: 'event';
   /** ISO-8601 timestamp of emission. */
   ts: string;
-  /** High-level command phase: INITIALIZE, BUILD_AND_PACKAGE, UPLOAD, DEPLOY, SUMMARY, etc. */
+  /** High-level command phase: INITIALIZE, BUILD_AND_PACKAGE, UPLOAD, DEPLOY, POST_DEPLOY, etc. */
   phase: string;
   /** Identifies which tracked operation this belongs to (e.g. LOAD_AWS_CREDENTIALS, BUILD_CODE, UPDATE_STACK). */
   eventType: string;

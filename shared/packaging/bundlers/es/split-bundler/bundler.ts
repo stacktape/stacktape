@@ -180,6 +180,29 @@ const executeBunBuild = async ({
   });
 
   const nativeModulesPlugin = createNativeModulesPlugin();
+  const bunFfiShimPlugin: BunPlugin = {
+    name: 'stacktape-bun-ffi-shim',
+    setup(build) {
+      build.onResolve({ filter: /^bun:ffi$/ }, () => {
+        return { path: 'bun:ffi', namespace: 'stacktape-bun-ffi-shim' };
+      });
+
+      build.onLoad({ filter: /^bun:ffi$/, namespace: 'stacktape-bun-ffi-shim' }, () => {
+        return {
+          loader: 'js',
+          contents: [
+            'const fail = (name) => () => {',
+            '  throw new Error("Unsupported Bun module bun:ffi in Node runtime (attempted export: " + name + ").");',
+            '};',
+            "export const dlopen = fail('dlopen');",
+            "export const toArrayBuffer = fail('toArrayBuffer');",
+            "export const JSCallback = class { constructor() { fail('JSCallback')(); } };",
+            "export const ptr = fail('ptr');"
+          ].join('\n')
+        };
+      });
+    }
+  };
   const banner = await getSourceMapBanner(sourceMapBannerType);
 
   await ensureDir(sharedOutdir);
@@ -201,7 +224,7 @@ const executeBunBuild = async ({
         __dirname: '__stp_dirname',
         __filename: '__stp_filename'
       },
-      plugins: [analyzePlugin, nativeModulesPlugin],
+      plugins: [bunFfiShimPlugin, analyzePlugin, nativeModulesPlugin],
       root: buildRoot,
       banner: sourceMapBannerType === 'pre-compiled' && banner ? banner : undefined,
       naming: {

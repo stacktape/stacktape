@@ -57,6 +57,20 @@ export const parseDetailLists = (message?: string) => {
   return { created: match[1].trim(), updated: match[2].trim(), deleted: match[3].trim() };
 };
 
+export const parseStatusText = (message?: string) => {
+  const cleaned = stripDeployMessageAnsi(message);
+  if (!cleaned) return null;
+  const match = cleaned.match(/Status:\s*([^.]+)\./i);
+  if (!match) return null;
+  return match[1].trim();
+};
+
+export const isCleanupPhase = (message?: string) => {
+  const cleaned = stripDeployMessageAnsi(message);
+  if (!cleaned) return false;
+  return /Status:\s*Cleaning up/i.test(cleaned);
+};
+
 export const formatListSummary = (items: string | null, count: number, maxItems: number) => {
   if (count === 0) return null;
   if (!items || items === 'none') return '...';

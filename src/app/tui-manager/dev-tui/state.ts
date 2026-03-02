@@ -5,10 +5,13 @@ import type {
   HookStatus,
   LocalResource,
   LogEntry,
+  RebuildStep,
+  RebuildWorkloadState,
   ResourceStatus,
   SetupStep,
   SetupStepStatus,
-  Workload
+  Workload,
+  WorkloadType
 } from './types';
 
 type Listener = (state: DevTuiState) => void;
@@ -27,8 +30,11 @@ const createInitialState = (): DevTuiState => ({
   logs: [],
   maxLogs: DEFAULT_MAX_LOGS,
   selectedLogFilter: null,
+  sidebarVisible: true,
   isQuitting: false,
-  inputBuffer: ''
+  inputBuffer: '',
+  rebuildingWorkloads: [],
+  startTime: Date.now()
 });
 
 class DevTuiStateManager {
@@ -46,8 +52,16 @@ class DevTuiStateManager {
     return () => this.listeners.delete(listener);
   }
 
+  flushPendingNotifications() {
+    this.notifyScheduled = false;
+    for (const listener of this.listeners) {
+      try {
+        listener(this.state);
+      } catch {}
+    }
+  }
+
   private notify() {
-    // Debounce notifications to prevent rapid re-renders
     if (this.notifyScheduled) return;
     this.notifyScheduled = true;
 
@@ -71,7 +85,8 @@ class DevTuiStateManager {
       ...createInitialState(),
       projectName: config.projectName,
       stageName: config.stageName,
-      devMode: config.devMode || 'normal'
+      devMode: config.devMode || 'normal',
+      startTime: Date.now()
     };
     this.logIdCounter = 0;
     this.notify();
@@ -227,22 +242,64 @@ class DevTuiStateManager {
     this.setState({ logs: newLogs });
   }
 
+  private normalizeLogMessage(message: string): string[] {
+    let clean = '';
+    for (let i = 0; i < message.length; i++) {
+      const char = message[i];
+      const code = message.charCodeAt(i);
+
+      if (code === 27 && message[i + 1] === '[') {
+        i += 2;
+        while (i < message.length) {
+          const escCode = message.charCodeAt(i);
+          if (escCode >= 64 && escCode <= 126) {
+            break;
+          }
+          i += 1;
+        }
+        continue;
+      }
+
+      if (char === '\r') continue;
+      if (char === '\t') {
+        clean += '  ';
+        continue;
+      }
+      if ((code >= 0 && code <= 8) || code === 11 || code === 12 || (code >= 14 && code <= 31) || code === 127) {
+        continue;
+      }
+      clean += char;
+    }
+
+    const lines = clean
+      .split('\n')
+      .map((line) => line.trimEnd())
+      .filter((line) => line.length > 0);
+    return lines.length > 0 ? lines : [''];
+  }
+
   addLogLine(source: string, message: string, level: LogEntry['level'] = 'info') {
-    this.addLog({
-      source,
-      sourceType: 'workload',
-      message,
-      level
-    });
+    const lines = this.normalizeLogMessage(message);
+    for (const line of lines) {
+      this.addLog({
+        source,
+        sourceType: 'workload',
+        message: line,
+        level
+      });
+    }
   }
 
   addSystemLog(message: string, level: LogEntry['level'] = 'info') {
-    this.addLog({
-      source: 'system',
-      sourceType: 'system',
-      message,
-      level
-    });
+    const lines = this.normalizeLogMessage(message);
+    for (const line of lines) {
+      this.addLog({
+        source: 'system',
+        sourceType: 'system',
+        message: line,
+        level
+      });
+    }
   }
 
   clearLogs() {
@@ -253,6 +310,15 @@ class DevTuiStateManager {
   setLogFilter(filter: string | null) {
     if (Object.is(this.state.selectedLogFilter, filter)) return;
     this.setState({ selectedLogFilter: filter });
+  }
+
+  setSidebarVisible(visible: boolean) {
+    if (Object.is(this.state.sidebarVisible, visible)) return;
+    this.setState({ sidebarVisible: visible });
+  }
+
+  toggleSidebar() {
+    this.setState({ sidebarVisible: !this.state.sidebarVisible });
   }
 
   setQuitting(isQuitting: boolean) {
@@ -272,6 +338,52 @@ class DevTuiStateManager {
   clearInputBuffer() {
     if (this.state.inputBuffer.length === 0) return;
     this.setState({ inputBuffer: '' });
+  }
+
+  startRebuild(workloadNames: string[], workloadTypes: Map<string, WorkloadType>) {
+    const rebuildingWorkloads: RebuildWorkloadState[] = workloadNames.map((name) => ({
+      name,
+      type: workloadTypes.get(name) || 'container',
+      status: 'pending',
+      startTime: Date.now()
+    }));
+    this.setState({ phase: 'rebuilding', rebuildingWorkloads });
+  }
+
+  setRebuildWorkloadStep(name: string, step: RebuildStep, detail?: string) {
+    const updated = this.state.rebuildingWorkloads.map((w) => {
+      if (w.name !== name) return w;
+      return { ...w, status: 'in-progress' as const, step, stepDetail: detail };
+    });
+    this.setState({ rebuildingWorkloads: updated });
+  }
+
+  setRebuildWorkloadSize(name: string, size: string) {
+    const updated = this.state.rebuildingWorkloads.map((w) => {
+      if (w.name !== name) return w;
+      return { ...w, size };
+    });
+    this.setState({ rebuildingWorkloads: updated });
+  }
+
+  setRebuildWorkloadDone(name: string, size?: string) {
+    const updated = this.state.rebuildingWorkloads.map((w) => {
+      if (w.name !== name) return w;
+      return { ...w, status: 'done' as const, step: 'done' as const, endTime: Date.now(), size: size ?? w.size };
+    });
+    this.setState({ rebuildingWorkloads: updated });
+  }
+
+  setRebuildWorkloadError(name: string, error: string) {
+    const updated = this.state.rebuildingWorkloads.map((w) => {
+      if (w.name !== name) return w;
+      return { ...w, status: 'error' as const, step: 'error' as const, endTime: Date.now(), error };
+    });
+    this.setState({ rebuildingWorkloads: updated });
+  }
+
+  finishRebuild() {
+    this.setState({ phase: 'running', rebuildingWorkloads: [] });
   }
 }
 

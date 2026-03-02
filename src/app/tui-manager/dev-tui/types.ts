@@ -1,4 +1,4 @@
-export type DevPhase = 'startup' | 'running';
+export type DevPhase = 'startup' | 'running' | 'rebuilding';
 
 export type DevModeType = 'normal' | 'legacy';
 
@@ -56,6 +56,20 @@ export type LogEntry = {
   level: 'info' | 'warn' | 'error' | 'debug';
 };
 
+export type RebuildStep = 'stopping' | 'packaging' | 'starting' | 'updating-code' | 'done' | 'error';
+
+export type RebuildWorkloadState = {
+  name: string;
+  type: WorkloadType;
+  status: 'pending' | 'in-progress' | 'done' | 'error';
+  step?: RebuildStep;
+  stepDetail?: string;
+  startTime: number;
+  endTime?: number;
+  size?: string;
+  error?: string;
+};
+
 export type DevTuiState = {
   phase: DevPhase;
   devMode: DevModeType;
@@ -71,8 +85,12 @@ export type DevTuiState = {
   maxLogs: number;
 
   selectedLogFilter: string | null;
+  sidebarVisible: boolean;
   isQuitting: boolean;
   inputBuffer: string;
+
+  rebuildingWorkloads: RebuildWorkloadState[];
+  startTime: number;
 };
 
 export const WORKLOAD_COLORS = ['cyan', 'magenta', 'yellow', 'blue', 'green', 'red', 'white', 'gray'] as const;

@@ -8,6 +8,7 @@ import { killPythonBridge } from '@utils/file-loaders';
 import { reportErrorToSentry } from '@utils/sentry';
 import { reportTelemetryEvent } from '@utils/telemetry';
 import { deleteTempFolder } from '@utils/temp-files';
+import { tuiDebug } from '@application-services/tui-manager/tui-debug-log';
 import kill from 'tree-kill';
 
 const getStacktapeError = (err: any) => {
@@ -61,6 +62,7 @@ export class ApplicationManager {
   };
 
   gracefullyHandleError = (err: any) => {
+    tuiDebug('APP', 'gracefullyHandleError()', { message: err?.message?.slice?.(0, 200) });
     const stacktapeError = getStacktapeError(err);
     tuiManager.stop();
     this.cancelPendingPromises(stacktapeError);
@@ -68,6 +70,11 @@ export class ApplicationManager {
   };
 
   handleError = async (err: any, skipCleanup = false) => {
+    tuiDebug('APP', 'handleError()', {
+      message: err?.message?.slice?.(0, 200),
+      isInterrupted: this.isInterrupted,
+      skipCleanup
+    });
     if (this.isInterrupted) {
       return;
     }
@@ -97,12 +104,15 @@ export class ApplicationManager {
   };
 
   handleExitSignal = async (signal: 'SIGINT' | 'SIGTERM' | 'SIGQUIT' | 'SIGHUP') => {
+    tuiDebug('APP', 'handleExitSignal()', { signal, alreadyInterrupted: this.isInterrupted });
     if (this.isInterrupted) {
       return;
     }
     this.isInterrupted = true;
-    tuiManager.stopSync();
-    tuiManager.info(`Received ${signal}. Exiting.`);
+    if (!tuiManager.devTuiActive) {
+      await tuiManager.stop();
+      tuiManager.info(`Received ${signal}. Exiting.`);
+    }
     if (globalStateManager.invokedFrom === 'cli') {
       await this.reportTelemetryEvent({ outcome: 'USER_INTERRUPTION' });
     }
@@ -113,6 +123,16 @@ export class ApplicationManager {
       process.stdin.destroy();
     }
     await this.cleanUp({ success: false, interrupted: true });
+
+    try {
+      process.stdout.write('\x1B[?1000l\x1B[?1002l\x1B[?1003l\x1B[?1006l\x1B[?1015l\x1B[?1049l\x1B[?25h');
+    } catch {}
+    try {
+      if (process.stdin.isTTY && process.stdin.isRaw) {
+        process.stdin.setRawMode(false);
+      }
+    } catch {}
+
     this.removeOwnProcessListeners();
     process.exitCode = 0;
     if (globalStateManager.command === 'dev') {
@@ -177,6 +197,12 @@ export class ApplicationManager {
     err: Error;
     type: 'UNCAUGHT EXCEPTION' | 'UNHANDLED PROMISE REJECTION';
   }) => {
+    tuiDebug('APP', 'handleUnhandledError()', {
+      type,
+      message: err?.message?.slice?.(0, 200),
+      isErrored: this.isErrored,
+      isInterrupted: this.isInterrupted
+    });
     if (this.isErrored || this.isInterrupted) {
       return;
     }
@@ -184,11 +210,21 @@ export class ApplicationManager {
       this.handleExitSignal('SIGINT');
       return;
     }
-    if (IS_DEV) {
-      tuiManager.warn(`[dev-only] ${type}: ${err.stack}`);
-    }
     this.isErrored = true;
     this.cancelPendingPromises(err);
+
+    // Destroy the TUI so the alternate screen is exited and the error is visible.
+    // Previously this was missing — the TUI would stay up with a blank/frozen screen
+    // and the process would hang indefinitely.
+    tuiManager.stopSync();
+
+    try {
+      const label = type === 'UNCAUGHT EXCEPTION' ? 'Uncaught exception' : 'Unhandled promise rejection';
+      process.stderr.write(`\n[${label}] ${err.message || err}\n`);
+      if (err.stack) {
+        process.stderr.write(`${err.stack}\n`);
+      }
+    } catch {}
   };
 
   private removeOwnProcessListeners = () => {

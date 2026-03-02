@@ -56,7 +56,17 @@ export class TuiStateSink {
   };
 
   updateEvent = (params: UpdateEventParams): { phase: DeploymentPhase; message: string } | null => {
-    tuiState.updateEvent(params);
+    const stateParams: Parameters<typeof tuiState.updateEvent>[0] = {
+      eventType: params.eventType,
+      additionalMessage: params.additionalMessage,
+      description: params.description,
+      parentEventType: params.parentEventType,
+      instanceId: params.instanceId,
+      // Map `detail` (from event system) to `data` (TUI state field) so components
+      // can read structured data instead of parsing the formatted message string
+      ...(params.detail !== undefined && { data: params.detail as Record<string, any> })
+    };
+    tuiState.updateEvent(stateParams);
     if (!params.additionalMessage) return null;
     return { phase: this.getCurrentPhase(), message: params.additionalMessage };
   };

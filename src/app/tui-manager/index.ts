@@ -11,15 +11,14 @@ import { eventManager } from '@application-services/event-manager';
 import { INVOKED_FROM_ENV_VAR_NAME, IS_DEV, linksMap } from '@config';
 import { getRelativePath, transformToUnixPath } from '@shared/utils/fs-utils';
 
-import type { Instance } from 'ink';
-import { render } from 'ink';
 import kleur from 'kleur';
 import React from 'react';
 import boxen from 'boxen';
 import stringWidth from 'string-width';
 import terminalLink from 'terminal-link';
 import { ConsoleInterceptor } from './console-interceptor';
-import { TuiApp } from './components/TuiApp';
+import type { OpenTuiHandle } from './opentui-renderer';
+import { tuiDebug } from './tui-debug-log';
 import type { JsonlEventDetail } from './jsonl-types';
 import { renderErrorToString, renderStackErrorsToString } from './non-tty-renderer';
 import { getOutputModeProfile, resolveOutputMode, type OutputMode } from './output-mode';
@@ -64,7 +63,8 @@ export type ErrorDisplayData = {
 };
 
 class TuiManager {
-  private inkInstance: Instance | null = null;
+  private openTuiHandle: OpenTuiHandle | null = null;
+  private _openTuiInitPromise: Promise<void> | null = null;
 
   private outputMode: OutputMode = resolveOutputMode({ forceTty: process.env.FORCE_TTY === '1' });
   private outputRouter: OutputRouter;
@@ -143,6 +143,7 @@ class TuiManager {
     this._wasEverStarted = true;
     this.stateSink.reset();
     const profile = getOutputModeProfile(this.outputMode);
+    tuiDebug('TUI', 'start()', { mode: this.outputMode, useTtyUi: profile.useTtyUi });
 
     if (profile.useJsonlStdout) {
       return;
@@ -153,55 +154,249 @@ class TuiManager {
     }
 
     if (profile.useTtyUi) {
-      const renderOptions: any = {
-        patchConsole: false,
-        concurrent: false,
-        incrementalRendering: false
-      };
-      this.inkInstance = render(React.createElement(TuiApp, { isTTY: true }), renderOptions);
+      this.startOpenTui();
     }
+  }
+
+  private startOpenTui() {
+    this._openTuiDestroyed = false;
+    tuiDebug('TUI', 'startOpenTui() begin');
+    this._openTuiInitPromise = import('./opentui-renderer')
+      .then(async ({ createOpenTuiApp }) => {
+        tuiDebug('TUI', 'startOpenTui() imports resolved');
+        const { DeployDashboard } = await import('./components/opentui/DeployDashboard');
+        const element = React.createElement(DeployDashboard, {
+          onQuit: () => {
+            tuiDebug('TUI', 'onQuit callback fired');
+            this.stopAndPrintSummary();
+          },
+          onCancel: () => {
+            tuiDebug('TUI', 'onCancel callback fired');
+            this.destroyOpenTui();
+            process.kill(process.pid, 'SIGINT');
+          },
+          onRenderError: (error: Error) => {
+            tuiDebug('TUI', 'onRenderError callback fired', { message: error.message, stack: error.stack });
+            // React component tree threw during render — destroy the TUI and print error.
+            // Without this, the alternate screen stays blank/frozen and the process hangs.
+            this.destroyOpenTui();
+            try {
+              process.stderr.write(`\n[TUI render error] ${error.message}\n`);
+              if (error.stack) {
+                process.stderr.write(`${error.stack}\n`);
+              }
+            } catch {}
+          }
+        });
+        // Guard: if TUI was disabled while imports were resolving, bail out
+        if (!this._isEnabled || this._openTuiDestroyed) {
+          tuiDebug('TUI', 'startOpenTui() bail — disabled during import', {
+            isEnabled: this._isEnabled,
+            destroyed: this._openTuiDestroyed
+          });
+          return;
+        }
+        const handle = await createOpenTuiApp(element);
+        tuiDebug('TUI', 'startOpenTui() renderer created');
+        // Guard: if TUI was destroyed while renderer was being created (alternate screen
+        // already entered), immediately tear it down to avoid orphaned alternate screen
+        if (this._openTuiDestroyed || !this._isEnabled) {
+          tuiDebug('TUI', 'startOpenTui() post-create bail — destroying handle', {
+            isEnabled: this._isEnabled,
+            destroyed: this._openTuiDestroyed
+          });
+          try {
+            handle.destroy();
+          } catch {}
+          return;
+        }
+        this.openTuiHandle = handle;
+        tuiDebug('TUI', 'startOpenTui() complete — handle assigned');
+      })
+      .catch((err) => {
+        tuiDebug('TUI', 'startOpenTui() CATCH', { message: err?.message, stack: err?.stack });
+        // Dynamic import or renderer creation failed — mark TUI as disabled
+        this._isEnabled = false;
+        try {
+          process.stderr.write('\x1B[?1049l\x1B[?25h');
+          process.stderr.write(`\n[TUI init error] ${err?.message || err}\n`);
+        } catch {}
+      })
+      .finally(() => {
+        tuiDebug('TUI', 'startOpenTui() finally — clearing init promise');
+        this._openTuiInitPromise = null;
+      });
+  }
+
+  private async stopAndPrintSummary() {
+    tuiDebug('TUI', 'stopAndPrintSummary()', { hasSummary: !!tuiState.getSnapshot().summary });
+    const state = tuiState.getSnapshot();
+    await this.destroyOpenTui();
+
+    if (state.summary) {
+      this.printPlainSummary(state);
+    }
+  }
+
+  private _openTuiDestroyed = false;
+
+  private async destroyOpenTui() {
+    const caller = new Error('trace').stack?.split('\n')[2]?.trim() || 'unknown';
+    tuiDebug('TUI', 'destroyOpenTui()', {
+      alreadyDestroyed: this._openTuiDestroyed,
+      hasHandle: !!this.openTuiHandle,
+      hasInitPromise: !!this._openTuiInitPromise,
+      caller
+    });
+    if (this._openTuiDestroyed) return;
+    this._openTuiDestroyed = true;
+
+    if (this.openTuiHandle) {
+      tuiDebug('TUI', 'destroyOpenTui() — destroying handle');
+      try {
+        // handle.destroy() is async: it calls renderer.destroy() then waits for
+        // renderer.idle() (with a 500ms timeout). This ensures finalizeDestroy()
+        // completes even if a render cycle was in progress, so the alternate screen
+        // is properly exited before we write the plain-text summary.
+        await this.openTuiHandle.destroy();
+      } catch {}
+      this.openTuiHandle = null;
+    }
+
+    // If renderer init is still in-flight, wait for it to resolve and then destroy.
+    // The post-creation guard in startOpenTui will handle this via _openTuiDestroyed flag,
+    // but we also schedule a deferred cleanup as a safety net.
+    if (this._openTuiInitPromise) {
+      tuiDebug('TUI', 'destroyOpenTui() — init still in-flight, scheduling deferred cleanup');
+      this._openTuiInitPromise
+        .then(async () => {
+          if (this.openTuiHandle) {
+            tuiDebug('TUI', 'destroyOpenTui() deferred — destroying late handle');
+            try {
+              await this.openTuiHandle.destroy();
+            } catch {}
+            this.openTuiHandle = null;
+          }
+          // Re-exit alternate screen in case renderer was created after our escape below
+          try {
+            process.stdout.write('\x1B[?1049l\x1B[?25h');
+          } catch {}
+        })
+        .catch(() => {});
+    }
+
+    // Belt-and-suspenders: forcibly exit alternate screen + restore cursor in case
+    // renderer.destroy() failed silently or the renderer was destroyed externally.
+    // Without this, any subsequent stderr/stdout output is written to the alternate
+    // screen buffer and lost when the process exits.
+    try {
+      process.stdout.write('\x1B[?1049l\x1B[?25h');
+    } catch {}
+
+    this._isEnabled = false;
+    this.disableJsonlStdoutGuard();
+    this.disableJsonlStderrGuard();
+    this.consoleInterceptor.stop();
+
+    tuiState.flushPendingNotifications();
+    tuiState.destroy();
+    tuiDebug('TUI', 'destroyOpenTui() complete');
+  }
+
+  private printPlainSummary(state: ReturnType<typeof tuiState.getSnapshot>) {
+    const { summary, header, phases, startTime } = state;
+    tuiDebug('TUI', 'printPlainSummary()', { hasSummary: !!summary, success: summary?.success });
+    if (!summary) return;
+
+    const elapsed = formatDuration(Date.now() - startTime);
+    const icon = summary.success ? kleur.green('✓') : kleur.red('✗');
+    const headerText = header ? `${header.projectName} → ${header.stageName} (${header.region})` : '';
+
+    // Write directly to stdout to bypass any console interception that may still be active
+    // (or was incorrectly restored). console.info goes through the interceptor chain which
+    // can silently swallow output if the TUI was destroyed mid-stream.
+    const write = (msg: string) => {
+      try {
+        process.stdout.write(`${msg}\n`);
+      } catch {}
+    };
+
+    write('');
+    write(`${icon} ${kleur.bold(summary.message)}`);
+    if (headerText) write(kleur.gray(headerText));
+
+    const phaseSummary = phases
+      .filter((p) => p.status === 'success' || p.status === 'error')
+      .map((p) => {
+        const pIcon = p.status === 'success' ? kleur.green('✓') : kleur.red('✗');
+        const dur = p.duration ? kleur.gray(` ${formatDuration(p.duration)}`) : '';
+        return `  ${pIcon} ${p.name}${dur}`;
+      });
+
+    if (phaseSummary.length > 0) {
+      write(kleur.gray('─'.repeat(54)));
+      for (const line of phaseSummary) {
+        write(line);
+      }
+    }
+
+    if (summary.links.length > 0) {
+      write(kleur.gray('─'.repeat(54)));
+      for (const link of summary.links) {
+        write(`  ${kleur.cyan('•')} ${link.label}: ${kleur.blue(terminalLink(link.url, link.url))}`);
+      }
+    }
+
+    if (summary.consoleUrl) {
+      write(`  ${kleur.cyan('•')} Stack details: ${kleur.blue(terminalLink(summary.consoleUrl, summary.consoleUrl))}`);
+    }
+
+    write(kleur.gray(`  Total: ${elapsed}`));
+    write('');
+    tuiDebug('TUI', 'printPlainSummary() complete');
   }
 
   async stop() {
+    const caller = new Error('trace').stack?.split('\n')[2]?.trim() || 'unknown';
+    tuiDebug('TUI', 'stop() called', {
+      isEnabled: this._isEnabled,
+      hasInitPromise: !!this._openTuiInitPromise,
+      caller
+    });
     tuiState.setFinalizing();
     await new Promise((resolve) => setTimeout(resolve, 100));
-
-    this.stopInternal();
+    // Wait for in-flight renderer creation to complete before destroying,
+    // so we can properly clean up the renderer instead of leaving an orphaned alternate screen
+    if (this._openTuiInitPromise) {
+      tuiDebug('TUI', 'stop() — awaiting init promise');
+      await this._openTuiInitPromise.catch(() => {});
+    }
+    await this.stopInternal();
   }
 
   stopSync() {
+    const caller = new Error('trace').stack?.split('\n')[2]?.trim() || 'unknown';
+    tuiDebug('TUI', 'stopSync() called', { isEnabled: this._isEnabled, caller });
     tuiState.setFinalizing();
-    tuiState.flushPendingNotifications();
-    tuiState.destroy();
-
-    if (this.inkInstance) {
-      try {
-        this.inkInstance.unmount();
-      } catch {}
-      this.inkInstance = null;
-    }
-
     this._isEnabled = false;
-    this.disableJsonlStdoutGuard();
-    this.disableJsonlStderrGuard();
-    this.consoleInterceptor.stop();
+    const state = tuiState.getSnapshot();
+    // stopSync is inherently synchronous — we fire-and-forget the async destroy
+    // but still forcibly exit alternate screen (belt-and-suspenders in destroyOpenTui)
+    this.destroyOpenTui();
+
+    if (state.summary) {
+      this.printPlainSummary(state);
+    }
   }
 
-  private stopInternal() {
-    tuiState.flushPendingNotifications();
-    tuiState.destroy();
+  private async stopInternal() {
+    tuiDebug('TUI', 'stopInternal()');
+    const state = tuiState.getSnapshot();
+    await this.destroyOpenTui();
 
-    if (this.inkInstance) {
-      try {
-        this.inkInstance.unmount();
-      } catch {}
-      this.inkInstance = null;
+    if (state.summary) {
+      this.printPlainSummary(state);
     }
-
-    this._isEnabled = false;
-    this.disableJsonlStdoutGuard();
-    this.disableJsonlStderrGuard();
-    this.consoleInterceptor.stop();
   }
 
   private reconfigureConsoleForMode() {
@@ -436,7 +631,7 @@ class TuiManager {
       return;
     }
 
-    if (!this._devTuiActive) {
+    if (!this._devTuiActive || !this._isEnabled) {
       this.printToConsole(type, message);
     }
   }
@@ -807,19 +1002,18 @@ class TuiManager {
     this.displayError(errorData);
   }
 
-  displayError(errorData: ErrorDisplayData) {
+  async displayError(errorData: ErrorDisplayData) {
+    tuiDebug('TUI', 'displayError()', { errorType: errorData.errorType, message: errorData.message?.slice(0, 200) });
     this.stateSink.markAllRunningAsErrored();
-    tuiState.flushPendingNotifications();
-    tuiState.destroy();
+    await this.destroyOpenTui();
 
-    if (this.inkInstance) {
-      try {
-        this.inkInstance.unmount();
-      } catch {}
-      this.inkInstance = null;
-    }
-
-    this._isEnabled = false;
+    // Safety: ensure alternate screen is exited even if destroyOpenTui was a no-op
+    // (e.g. already called by a concurrent stop()). Without this, error output
+    // written to the alternate screen is lost when the process exits.
+    try {
+      process.stderr.write('\x1B[?1049l');
+      process.stdout.write('\x1B[?25h');
+    } catch {}
 
     this.emitOutputRecord({
       type: 'log',
@@ -842,37 +1036,46 @@ class TuiManager {
   }
 
   private displayErrorWithClack(errorData: ErrorDisplayData) {
+    // Use process.stderr.write directly to bypass any console interception that
+    // might still be active (e.g. if destroyOpenTui was a no-op due to the
+    // idempotent guard). This ensures the error is always written to stderr.
+    const write = (msg: string) => {
+      try {
+        process.stderr.write(`${msg}\n`);
+      } catch {}
+    };
+
     const typeLabel = errorData.isExpected === false ? 'Unexpected Error' : this.getErrorLabel(errorData.errorType);
 
-    console.error('');
-    console.error(this.colorize('red', `[x] ${typeLabel}`));
-    console.error('');
-    console.error(errorData.message);
+    write('');
+    write(this.colorize('red', `[x] ${typeLabel}`));
+    write('');
+    write(errorData.message);
 
     if (errorData.userStackTrace) {
-      console.error('');
-      console.error(this.makeBold('Stack trace in your code:'));
-      console.error(this.colorize('cyan', errorData.userStackTrace));
+      write('');
+      write(this.makeBold('Stack trace in your code:'));
+      write(this.colorize('cyan', errorData.userStackTrace));
     }
 
     const hints = errorData.hints || [];
     if (hints.length > 0) {
-      console.error('');
-      console.error(this.makeBold('Hints:'));
+      write('');
+      write(this.makeBold('Hints:'));
       for (const hint of hints) {
-        console.error(`  ${this.colorize('gray', '→')} ${hint}`);
+        write(`  ${this.colorize('gray', '→')} ${hint}`);
       }
     }
 
     if (errorData.stackTrace) {
-      console.error('');
-      console.error(this.makeBold('Stack trace:'));
-      console.error(this.colorize('gray', errorData.stackTrace));
+      write('');
+      write(this.makeBold('Stack trace:'));
+      write(this.colorize('gray', errorData.stackTrace));
     }
 
     if (errorData.sentryEventId) {
-      console.error('');
-      console.error(this.colorize('gray', `Error ID: ${errorData.sentryEventId}`));
+      write('');
+      write(this.colorize('gray', `Error ID: ${errorData.sentryEventId}`));
     }
   }
 

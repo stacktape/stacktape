@@ -43,7 +43,7 @@ import { registerHealthMonitorCleanupHook } from './local-resources/health-monit
 import { rebuildAllWorkloads, rebuildWorkload, runParallelWorkloads } from './parallel-runner';
 import { findAvailablePort } from './port-utils';
 import { registerLambdaEnvCleanupHook } from './lambda-env-manager';
-import { registerTunnelCleanupHook } from './tunnel-manager';
+import { getActiveTunnels, registerTunnelCleanupHook } from './tunnel-manager';
 import { registerCredentialCleanupHook } from './utils';
 import { registerNamedProxyCleanupHook } from './named-proxy/manager';
 
@@ -706,27 +706,40 @@ export const commandDev = async () => {
     }
 
     const state = devTuiState.getState();
-    const logLine = devTuiManager.running
-      ? devTuiManager.systemLog.bind(devTuiManager)
-      : tuiManager.info.bind(tuiManager);
-    logLine('Stopping dev workloads...');
+    const cleanupLines: string[] = [];
+    cleanupLines.push('Stopping dev workloads...');
 
     const workloads = state.workloads.filter(
       (w) => w.status === 'running' || w.status === 'error' || w.status === 'starting'
     );
     for (const workload of workloads) {
-      logLine(`  ${workload.name}`);
+      cleanupLines.push(`  ${workload.name}`);
     }
 
     const localResources = state.localResources.filter((r) => r.status === 'running' || r.status === 'error');
     if (localResources.length > 0) {
-      logLine('Stopping local resources...');
+      cleanupLines.push('Stopping local resources...');
       for (const resource of localResources) {
-        logLine(`  ${resource.name}`);
+        cleanupLines.push(`  ${resource.name}`);
       }
     }
 
-    devTuiManager.stop();
+    const activeTunnels = getActiveTunnels();
+    if (activeTunnels.length > 0) {
+      cleanupLines.push('Stopping tunnels...');
+      for (const tunnel of activeTunnels) {
+        cleanupLines.push(`  ${tunnel.resourceName} (${tunnel.publicHost}:${tunnel.publicPort})`);
+      }
+    }
+
+    if (devTuiManager.running) {
+      await devTuiManager.stop();
+    }
+
+    for (const line of cleanupLines) {
+      tuiManager.info(line);
+    }
+
     setSpinnerAgentMode(false);
   });
 
@@ -789,7 +802,7 @@ export const commandDev = async () => {
   } catch (err) {
     // When DevTui is running, show error in TUI and then re-throw
     if (devTuiManager.running) {
-      devTuiManager.stop();
+      await devTuiManager.stop();
     }
     throw err;
   }
@@ -827,7 +840,7 @@ const handleCommand = async (command: string) => {
   devTuiState.clearInputBuffer();
 
   if (command === 'q' || command === 'quit') {
-    devTuiManager.stop();
+    await devTuiManager.stop();
     process.exit(0);
   }
 

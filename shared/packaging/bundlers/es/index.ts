@@ -363,7 +363,32 @@ export const buildEsCode = async ({
       }
     };
 
+    const bunFfiShimPlugin: BunPlugin = {
+      name: 'stacktape-bun-ffi-shim',
+      setup(build) {
+        build.onResolve({ filter: /^bun:ffi$/ }, () => {
+          return { path: 'bun:ffi', namespace: 'stacktape-bun-ffi-shim' };
+        });
+
+        build.onLoad({ filter: /^bun:ffi$/, namespace: 'stacktape-bun-ffi-shim' }, () => {
+          return {
+            loader: 'js',
+            contents: [
+              'const fail = (name) => () => {',
+              '  throw new Error("Unsupported Bun module bun:ffi in Node runtime (attempted export: " + name + ").");',
+              '};',
+              "export const dlopen = fail('dlopen');",
+              "export const toArrayBuffer = fail('toArrayBuffer');",
+              "export const JSCallback = class { constructor() { fail('JSCallback')(); } };",
+              "export const ptr = fail('ptr');"
+            ].join('\n')
+          };
+        });
+      }
+    };
+
     const allBunPlugins: BunPlugin[] = [
+      bunFfiShimPlugin,
       looseResolvePlugin,
       stpAnalyzeDepsPlugin,
       nativeNodeModulesPlugin,

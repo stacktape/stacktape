@@ -3,6 +3,7 @@ import type {
   HookStatus,
   LocalResource,
   LogEntry,
+  RebuildStep,
   ResourceStatus,
   SetupStep,
   SetupStepStatus,
@@ -12,18 +13,14 @@ import type {
 import { applicationManager } from '@application-services/application-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { formatSectionHeaderLine } from '@application-services/tui-manager/command-header';
-import type { Instance } from 'ink';
-import { render } from 'ink';
-import React from 'react';
+import type { CliRenderer } from '@opentui/core';
+import type { Root } from '@opentui/react';
 import { setSpinnerDevTuiActive } from '../spinners';
-import { DevStartupView } from './components/startup-view';
-import { formatDuration, getWorkloadColor, resetWorkloadColors } from './utils';
-import { type BufferedLog, type RebuildStep, getRebuildRenderer, stopRebuild } from './rebuild';
+import { formatDuration, resetWorkloadColors } from './utils';
 import { devTuiState } from './state';
 import { agentLog } from 'src/commands/dev/agent-logger';
 
-export type { Hook, HookStatus, LocalResource, LogEntry, ResourceStatus, Workload, WorkloadType };
-export type { RebuildStep } from './rebuild';
+export type { Hook, HookStatus, LocalResource, LogEntry, RebuildStep, ResourceStatus, Workload, WorkloadType };
 
 type CommandHandler = (command: string) => void;
 type RebuildHandler = (workloadName: string | null) => Promise<void>;
@@ -32,24 +29,100 @@ type DevPhase = 'startup' | 'running' | 'rebuilding';
 
 interface DevTuiRendererInterface {
   start: () => void;
-  stop: () => void;
+  stop: () => void | Promise<void>;
 }
 
 class DevTuiRenderer {
-  private inkInstance: Instance | null = null;
+  private renderer: CliRenderer | null = null;
+  private root: Root | null = null;
+  private rebuildHandler: RebuildHandler | null = null;
+  private quitHandler: (() => void) | null = null;
+  private errorHandler: ((error: Error) => void) | null = null;
 
-  start() {
-    if (this.inkInstance) return;
-
-    this.inkInstance = render(React.createElement(DevStartupView), {
-      patchConsole: false,
-      concurrent: true
-    } as any);
+  setHandlers(config: { onRebuild?: RebuildHandler; onQuit?: () => void; onRenderError?: (error: Error) => void }) {
+    this.rebuildHandler = config.onRebuild || null;
+    this.quitHandler = config.onQuit || null;
+    this.errorHandler = config.onRenderError || null;
   }
 
-  stop() {
-    this.inkInstance?.unmount();
-    this.inkInstance = null;
+  async startAsync() {
+    if (this.renderer) return;
+
+    const { createCliRenderer } = await import('@opentui/core');
+    const { createRoot } = await import('@opentui/react');
+
+    this.renderer = await createCliRenderer({
+      exitOnCtrlC: false,
+      useAlternateScreen: true,
+      useMouse: true,
+      enableMouseMovement: false,
+      targetFps: 30,
+      maxFps: 60,
+      exitSignals: []
+    });
+    const { createElement } = await import('react');
+    const { DevDashboard } = await import('./components/dev-dashboard');
+    this.root = createRoot(this.renderer);
+    this.root.render(
+      createElement(DevDashboard, {
+        onRebuild: (name: string | null) => {
+          void this.rebuildHandler?.(name);
+        },
+        onQuit: () => {
+          this.quitHandler?.();
+        },
+        onRenderError: (error: Error) => {
+          this.errorHandler?.(error);
+        }
+      })
+    );
+  }
+
+  start() {
+    void this.startAsync().catch((err) => {
+      console.error('Failed to start dev TUI renderer:', err?.message || err);
+      this.errorHandler?.(err instanceof Error ? err : new Error(String(err)));
+    });
+  }
+
+  async stop() {
+    const renderer = this.renderer;
+    try {
+      this.root?.unmount();
+    } catch {}
+    try {
+      renderer?.destroy();
+    } catch {}
+    this.root = null;
+    this.renderer = null;
+
+    if (!renderer) return;
+
+    await Promise.race([renderer.idle(), new Promise<void>((resolve) => setTimeout(resolve, 700))]);
+    try {
+      process.stdout.write('\x1B[?1000l\x1B[?1002l\x1B[?1003l\x1B[?1006l\x1B[?1015l\x1B[?1049l\x1B[?25h\x1B[0 q');
+    } catch {}
+    try {
+      if (process.stdin.isTTY) {
+        if (process.stdin.isRaw) {
+          process.stdin.setRawMode(false);
+        }
+        process.stdin.pause();
+        process.stdin.unref();
+      }
+    } catch {}
+  }
+
+  suspend() {
+    try {
+      this.renderer?.suspend();
+    } catch {}
+  }
+
+  resume() {
+    try {
+      this.renderer?.resume();
+    } catch {}
   }
 }
 
@@ -163,15 +236,12 @@ class DevTuiNonTtyRenderer implements DevTuiRendererInterface {
 }
 
 class DevTuiManager {
-  private renderer: DevTuiRendererInterface | null = null;
+  private renderer: DevTuiRenderer | DevTuiNonTtyRenderer | null = null;
   private commandHandler: CommandHandler | null = null;
   private rebuildHandler: RebuildHandler | null = null;
   private readyHandler: ReadyHandler | null = null;
   private isRunning = false;
   private phase: DevPhase = 'startup';
-  private stdinListenerSetup = false;
-  private rebuildLogBuffer: BufferedLog[] = [];
-  private startupLogBuffer: BufferedLog[] = [];
   private workloadTypes: Map<string, WorkloadType> = new Map();
   private localResourceStatusSignatures: Map<string, string> = new Map();
   private setupStepStatusSignatures: Map<string, string> = new Map();
@@ -193,8 +263,6 @@ class DevTuiManager {
     this.phase = 'startup';
     this.commandHandler = config.onCommand || null;
     this.readyHandler = config.onReady || null;
-    this.startupLogBuffer = [];
-    this.rebuildLogBuffer = [];
     this._agentMode = config.agentMode ?? false;
     this.localResourceStatusSignatures.clear();
     this.setupStepStatusSignatures.clear();
@@ -218,7 +286,20 @@ class DevTuiManager {
     if (this._agentMode) {
       this.renderer = new DevTuiNonTtyRenderer();
     } else {
-      this.renderer = new DevTuiRenderer();
+      const ttyRenderer = new DevTuiRenderer();
+      ttyRenderer.setHandlers({
+        onRebuild: async (name: string | null) => {
+          await this.rebuildHandler?.(name);
+        },
+        onQuit: () => {
+          void applicationManager.handleExitSignal('SIGINT');
+        },
+        onRenderError: (error: Error) => {
+          console.error('Dev TUI render error:', error.message);
+          void this.stop();
+        }
+      });
+      this.renderer = ttyRenderer;
     }
     this.renderer.start();
   }
@@ -227,9 +308,9 @@ class DevTuiManager {
     return this._agentMode;
   }
 
-  stop() {
+  async stop() {
     if (this.renderer) {
-      this.renderer.stop();
+      await this.renderer.stop();
       this.renderer = null;
     }
     this.isRunning = false;
@@ -256,41 +337,30 @@ class DevTuiManager {
     if (this.phase === 'running') return;
 
     this.phase = 'running';
-
-    if (this.renderer) {
-      this.renderer.stop();
-      this.renderer = null;
-    }
-
     devTuiState.setPhase('running');
-
-    tuiManager.setDevTuiActive(false);
-    setSpinnerDevTuiActive(false);
 
     if (this.readyHandler) {
       this.readyHandler();
     }
 
-    this.printRunningSummary();
-
-    if (!this._agentMode) {
-      this.setupKeyboardShortcuts();
+    if (this._agentMode) {
+      this.printAgentRunningSummary();
     }
+  }
 
-    if (this.startupLogBuffer.length > 0) {
-      const flushLogs = () => {
-        for (const log of this.startupLogBuffer) {
-          this.printLog(log.source, log.message, log.level);
-        }
-        this.startupLogBuffer = [];
-      };
+  private printAgentRunningSummary() {
+    const state = devTuiState.getState();
+    const runningWorkloads = state.workloads.filter((w) => w.status === 'running' || w.status === 'error');
 
-      if (this._agentMode) {
-        flushLogs();
-      } else {
-        setTimeout(flushLogs, 1000);
-      }
+    console.log('');
+    console.log(formatSectionHeaderLine('Dev mode ready'));
+    console.log(`Workloads running: ${runningWorkloads.length}`);
+    for (const workload of runningWorkloads) {
+      const status = workload.status === 'running' ? 'running' : 'error';
+      const url = workload.url ? ` at ${workload.url}` : '';
+      console.log(`  ${workload.name} (${workload.type}): ${status}${url}`);
     }
+    console.log('');
   }
 
   setRebuildHandler(handler: RebuildHandler) {
@@ -300,18 +370,13 @@ class DevTuiManager {
   startRebuild(workloadNames: string[]) {
     if (this.phase === 'rebuilding') return;
     this.phase = 'rebuilding';
-    this.rebuildLogBuffer = [];
 
     if (this._agentMode) {
       console.log(`[i] Rebuilding workloads: ${workloadNames.join(', ')}`);
       return;
     }
 
-    tuiManager.setDevTuiActive(true);
-    setSpinnerDevTuiActive(true);
-
-    const renderer = getRebuildRenderer();
-    renderer.start(workloadNames, this.workloadTypes);
+    devTuiState.startRebuild(workloadNames, this.workloadTypes);
   }
 
   setRebuildStep(name: string, step: RebuildStep, detail?: string) {
@@ -323,15 +388,13 @@ class DevTuiManager {
       return;
     }
 
-    getRebuildRenderer().setWorkloadStep(name, step, detail);
+    devTuiState.setRebuildWorkloadStep(name, step, detail);
   }
 
   setRebuildSize(name: string, size: string) {
     if (this.phase !== 'rebuilding') return;
-
     if (this._agentMode) return;
-
-    getRebuildRenderer().setWorkloadSize(name, size);
+    devTuiState.setRebuildWorkloadSize(name, size);
   }
 
   setRebuildDone(name: string, size?: string) {
@@ -343,7 +406,7 @@ class DevTuiManager {
       return;
     }
 
-    getRebuildRenderer().setWorkloadDone(name, size);
+    devTuiState.setRebuildWorkloadDone(name, size);
   }
 
   setRebuildError(name: string, error: string) {
@@ -354,163 +417,27 @@ class DevTuiManager {
       return;
     }
 
-    getRebuildRenderer().setWorkloadError(name, error);
+    devTuiState.setRebuildWorkloadError(name, error);
   }
 
   bufferRebuildLog(source: string, message: string, level: 'info' | 'warn' | 'error' = 'info') {
     if (this.phase !== 'rebuilding') return;
-    this.rebuildLogBuffer.push({ timestamp: Date.now(), source, message, level });
+    devTuiState.addLogLine(source, message, level);
   }
 
   async finishRebuild() {
     if (this.phase !== 'rebuilding') return;
 
     if (!this._agentMode) {
-      stopRebuild();
-      tuiManager.setDevTuiActive(false);
-      setSpinnerDevTuiActive(false);
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 500));
     }
 
-    for (const log of this.rebuildLogBuffer) {
-      this.printLog(log.source, log.message, log.level);
-    }
-    this.rebuildLogBuffer = [];
-
+    devTuiState.finishRebuild();
     this.phase = 'running';
   }
 
   get inRebuildPhase(): boolean {
     return this.phase === 'rebuilding';
-  }
-
-  private setupKeyboardShortcuts() {
-    if (this.stdinListenerSetup) return;
-    this.stdinListenerSetup = true;
-
-    applicationManager.setUsesStdinWatch();
-    if (process.stdin.isTTY) {
-      process.stdin.setRawMode(true);
-      process.stdin.resume();
-    }
-    process.stdin.removeAllListeners('data');
-
-    process.stdin.on('data', async (data) => {
-      if (applicationManager.isInterrupted) return;
-      if (!this.rebuildHandler) return;
-      if (this.phase === 'rebuilding') return;
-
-      const inputChunk = data.toString();
-      for (const char of inputChunk) {
-        const code = char.charCodeAt(0);
-
-        if (code === 3) {
-          await applicationManager.handleExitSignal('SIGINT');
-          return;
-        }
-
-        if (code === 12) {
-          console.clear();
-          return;
-        }
-
-        if (code === 13 || code === 10) {
-          process.stdout.write('\n');
-          const buffer = devTuiState.getState().inputBuffer.trim().toLowerCase();
-          devTuiState.clearInputBuffer();
-          await this.handleBufferedCommand(buffer);
-          continue;
-        }
-
-        if (code === 8 || code === 127) {
-          const current = devTuiState.getState().inputBuffer;
-          if (current.length > 0) {
-            devTuiState.setInputBuffer(current.slice(0, -1));
-            process.stdout.write('\b \b');
-          }
-          continue;
-        }
-
-        if (char.trim()) {
-          devTuiState.appendToInputBuffer(char);
-          process.stdout.write(char);
-        }
-      }
-    });
-  }
-
-  private async handleBufferedCommand(buffer: string) {
-    if (!buffer) return;
-
-    const state = devTuiState.getState();
-    const workloads = state.workloads.filter((w) => w.status === 'running' || w.status === 'error');
-
-    if (buffer === 'a') {
-      await this.rebuildHandler?.(null);
-      return;
-    }
-
-    const num = parseInt(buffer, 10);
-    if (num >= 1 && num <= workloads.length) {
-      const workload = workloads[num - 1];
-      await this.rebuildHandler?.(workload.name);
-      return;
-    }
-
-    if (buffer === 'h' || buffer === '?') {
-      this.printKeyboardHelp();
-    }
-  }
-
-  private printKeyboardHelp() {
-    const state = devTuiState.getState();
-    const workloads = state.workloads.filter((w) => w.status === 'running' || w.status === 'error');
-
-    console.log(`
-${tuiManager.colorize('cyan', '  Keyboard shortcuts:')}
- ${workloads.map((w, idx) => `    ${tuiManager.colorize('white', String(idx + 1))} + enter - rebuild ${tuiManager.colorize(getWorkloadColor(w.name), w.name)}`).join('\n')}
-    ${tuiManager.colorize('white', 'a')} + enter - rebuild all workloads
-    ${tuiManager.colorize('white', 'h')} + enter - show this help
-    ${tuiManager.colorize('gray', 'Ctrl+C')} - stop dev mode
-`);
-  }
-
-  private printRunningSummary() {
-    const state = devTuiState.getState();
-    const runningWorkloads = state.workloads.filter((w) => w.status === 'running' || w.status === 'error');
-
-    if (this._agentMode) {
-      console.log('');
-      console.log(formatSectionHeaderLine('Dev mode ready'));
-      console.log(`Workloads running: ${runningWorkloads.length}`);
-      for (const workload of runningWorkloads) {
-        const status = workload.status === 'running' ? 'running' : 'error';
-        const url = workload.url ? ` at ${workload.url}` : '';
-        console.log(`  ${workload.name} (${workload.type}): ${status}${url}`);
-      }
-      console.log('');
-      return;
-    }
-
-    const contentLines: string[] = [];
-    contentLines.push(`${tuiManager.colorize('gray', 'Workloads running:')} ${runningWorkloads.length}`);
-    for (const [index, workload] of runningWorkloads.entries()) {
-      const color = getWorkloadColor(workload.name);
-      const num = tuiManager.colorize('gray', `[${index + 1}]`);
-      const label = tuiManager.colorize(color, workload.name);
-      contentLines.push(workload.url ? `  ${num} ${label}: ${workload.url}` : `  ${num} ${label}`);
-    }
-    contentLines.push('');
-    contentLines.push(
-      tuiManager.colorize(
-        'gray',
-        `Shortcuts: [1-${runningWorkloads.length}] + enter rebuild  [a] + enter rebuild all  [h] + enter help  [Ctrl+C] stop`
-      )
-    );
-
-    console.info('');
-    tuiManager.printBox({ title: 'Dev mode ready', lines: contentLines });
-    console.info('');
   }
 
   addLocalResource(resource: { name: string; type: LocalResource['type'] }) {
@@ -567,50 +494,26 @@ ${tuiManager.colorize('cyan', '  Keyboard shortcuts:')}
   }
 
   log(source: string, message: string, level: LogEntry['level'] = 'info') {
-    if (this.phase === 'running') {
-      this.printLog(source, message, level);
-    } else if (this.phase === 'rebuilding') {
-      this.rebuildLogBuffer.push({ timestamp: Date.now(), source, message, level });
-    } else if (this.phase === 'startup') {
-      this.startupLogBuffer.push({ timestamp: Date.now(), source, message, level });
-    }
-  }
-
-  systemLog(message: string, level: LogEntry['level'] = 'info') {
-    if (this.phase === 'running') {
-      this.printLog('system', message, level);
-    } else if (this.phase === 'rebuilding') {
-      this.rebuildLogBuffer.push({ timestamp: Date.now(), source: 'system', message, level });
-    } else if (this.phase === 'startup') {
-      this.startupLogBuffer.push({ timestamp: Date.now(), source: 'system', message, level });
-    } else {
-      devTuiState.addSystemLog(message, level);
-    }
-  }
-
-  private printLog(source: string, message: string, level: LogEntry['level']) {
-    const timestamp = new Date().toLocaleTimeString('en-US', { hour12: false });
-
     if (this._agentMode) {
       agentLog(source, message, level === 'debug' ? 'info' : level);
+      const timestamp = new Date().toLocaleTimeString('en-US', { hour12: false });
       const levelPrefix = level === 'error' ? '[ERROR] ' : level === 'warn' ? '[WARN] ' : '';
       console.log(`${timestamp} [${source}] ${levelPrefix}${message}`);
       return;
     }
 
-    const levelColor = level === 'error' ? 'red' : level === 'warn' ? 'yellow' : undefined;
-    const msg = levelColor ? tuiManager.colorize(levelColor, message) : message;
+    devTuiState.addLogLine(source, message, level);
+  }
 
-    const state = devTuiState.getState();
-    const isSingleWorkload = state.workloads.length === 1 && source !== 'system';
-
-    if (isSingleWorkload) {
-      console.log(`${tuiManager.colorize('gray', timestamp)} ${msg}`);
-    } else {
-      const color = source === 'system' ? 'gray' : getWorkloadColor(source);
-      const prefix = `${tuiManager.colorize('gray', timestamp)} ${tuiManager.colorize(color, `[${source}]`)}`;
-      console.log(`${prefix} ${msg}`);
+  systemLog(message: string, level: LogEntry['level'] = 'info') {
+    if (this._agentMode) {
+      agentLog('system', message, level === 'debug' ? 'info' : level);
+      const timestamp = new Date().toLocaleTimeString('en-US', { hour12: false });
+      console.log(`${timestamp} [system] ${message}`);
+      return;
     }
+
+    devTuiState.addSystemLog(message, level);
   }
 
   logLines(source: string, lines: string[], level: LogEntry['level'] = 'info') {
@@ -622,15 +525,11 @@ ${tuiManager.colorize('cyan', '  Keyboard shortcuts:')}
   }
 
   clearLogs() {
-    if (this.phase === 'startup') {
-      devTuiState.clearLogs();
-    }
+    devTuiState.clearLogs();
   }
 
   setLogFilter(workloadName: string | null) {
-    if (this.phase === 'startup') {
-      devTuiState.setLogFilter(workloadName);
-    }
+    devTuiState.setLogFilter(workloadName);
   }
 }
 

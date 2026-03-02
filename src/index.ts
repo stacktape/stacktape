@@ -3,6 +3,7 @@ import { applicationManager } from '@application-services/application-manager';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
+import { tuiDebug } from '@application-services/tui-manager/tui-debug-log';
 import { commandsWithDisabledAnnouncements } from './config/cli/commands';
 import { notificationManager } from '@domain-services/notification-manager';
 import { initializeSentry, setSentryTags } from '@utils/sentry';
@@ -126,6 +127,7 @@ export const runCommand = async (opts: StacktapeProgrammaticOptions) => {
     initAgentMode();
     // Start TUI for all commands except purely interactive/informational ones
     if (!commandsWithoutTui.includes(globalStateManager.command)) {
+      tuiDebug('MAIN', 'starting TUI', { command: globalStateManager.command });
       tuiManager.start();
       // Commands with multi-phase flows get phase headers; everything else uses simple mode
       const commandsWithPhaseFlow: StacktapeCommand[] = ['deploy', 'delete', 'codebuild:deploy'];
@@ -154,6 +156,7 @@ export const runCommand = async (opts: StacktapeProgrammaticOptions) => {
 
     await eventManager.processFinalActions();
 
+    tuiDebug('MAIN', 'success path — calling tuiManager.stop()');
     await tuiManager.stop();
 
     await applicationManager.cleanUpAfterSuccess();
@@ -181,6 +184,10 @@ export const runCommand = async (opts: StacktapeProgrammaticOptions) => {
       })
     });
   } catch (err) {
+    tuiDebug('MAIN', 'catch block entered', {
+      isInterrupted: applicationManager.isInterrupted,
+      message: (err as Error)?.message?.slice(0, 200)
+    });
     if (applicationManager.isInterrupted) {
       tuiManager.emitJsonlResult({
         ok: false,

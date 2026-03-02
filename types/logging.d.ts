@@ -1,4 +1,4 @@
-type DeploymentPhase = 'INITIALIZE' | 'BUILD_AND_PACKAGE' | 'UPLOAD' | 'DEPLOY' | 'SUMMARY';
+type DeploymentPhase = 'INITIALIZE' | 'BUILD_AND_PACKAGE' | 'UPLOAD' | 'DEPLOY' | 'POST_DEPLOY';
 
 type LoggableEventType =
   | 'PACKAGE_ARTIFACTS'

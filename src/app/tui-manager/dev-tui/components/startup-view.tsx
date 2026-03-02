@@ -1,36 +1,51 @@
-import type { Hook, LocalResource, SetupStep, Workload } from '../types';
-import { Spinner } from '@inkjs/ui';
-import { Box, Text } from 'ink';
-import React, { useSyncExternalStore } from 'react';
+/** @jsxImportSource @opentui/react */
+
+import { useState, useEffect, useSyncExternalStore } from 'react';
 import { devTuiState } from '../state';
 import { formatDuration } from '../utils';
+import type { Hook, LocalResource, SetupStep, Workload } from '../types';
 
 const subscribe = (listener: () => void) => devTuiState.subscribe(listener);
-
 const useStateSlice = <T,>(selector: () => T): T => useSyncExternalStore(subscribe, selector, selector);
 
-const BranchPrefix: React.FC<{ isLast: boolean }> = ({ isLast }) => <Text color="gray"> {isLast ? '└─' : '├─'} </Text>;
+// ─── Shared icons ────────────────────────────────────────
 
-const PendingIcon = () => <Text color="gray">○</Text>;
-const ErrorIcon = () => <Text color="red">✗</Text>;
-const ReadyIcon = () => <Text color="green">✓</Text>;
-const RunningIcon = () => <Spinner type="dots" />;
+const BRAILLE_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 
-const SectionIcon: React.FC<{ status: 'pending' | 'running' | 'success' | 'error' }> = ({ status }) => {
+const DevSpinner = () => {
+  const [frame, setFrame] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setFrame((f) => (f + 1) % BRAILLE_FRAMES.length), 80);
+    return () => clearInterval(id);
+  }, []);
+  return <text fg="#06b6d4">{BRAILLE_FRAMES[frame]}</text>;
+};
+
+const PendingIcon = () => <text fg="#6b7280">○</text>;
+const ErrorIcon = () => <text fg="#ef4444">✗</text>;
+const ReadyIcon = () => <text fg="#22c55e">✓</text>;
+
+const BranchPrefix = ({ isLast }: { isLast: boolean }) => <text fg="#6b7280">{` ${isLast ? '└─' : '├─'} `}</text>;
+
+// ─── Section icon ────────────────────────────────────────
+
+const SectionIcon = ({ status }: { status: 'pending' | 'running' | 'success' | 'error' }) => {
   if (status === 'success') return <ReadyIcon />;
   if (status === 'error') return <ErrorIcon />;
-  if (status === 'running') return <RunningIcon />;
+  if (status === 'running') return <DevSpinner />;
   return <PendingIcon />;
 };
 
-const LocalResourceRow: React.FC<{ resource: LocalResource; isLast: boolean }> = ({ resource, isLast }) => {
+// ─── Row components ──────────────────────────────────────
+
+const LocalResourceRow = ({ resource, isLast }: { resource: LocalResource; isLast: boolean }) => {
   const icon =
     resource.status === 'running' ? (
       <ReadyIcon />
     ) : resource.status === 'error' ? (
       <ErrorIcon />
     ) : resource.status === 'starting' ? (
-      <RunningIcon />
+      <DevSpinner />
     ) : (
       <PendingIcon />
     );
@@ -46,25 +61,29 @@ const LocalResourceRow: React.FC<{ resource: LocalResource; isLast: boolean }> =
           ? resource.error || 'Failed'
           : '';
 
+  const detailColor = resource.status === 'error' ? '#ef4444' : '#6b7280';
+
   return (
-    <Box>
+    <box flexDirection="row">
       <BranchPrefix isLast={isLast} />
       {icon}
-      <Text> </Text>
-      <Text bold>{resource.name.padEnd(18)}</Text>
-      {details ? <Text color={resource.status === 'error' ? 'red' : 'gray'}> {details}</Text> : null}
-    </Box>
+      <text> </text>
+      <text>
+        <b>{resource.name.padEnd(18)}</b>
+      </text>
+      {details ? <text fg={detailColor}>{` ${details}`}</text> : null}
+    </box>
   );
 };
 
-const SetupStepRow: React.FC<{ step: SetupStep; isLast: boolean }> = ({ step, isLast }) => {
+const SetupStepRow = ({ step, isLast }: { step: SetupStep; isLast: boolean }) => {
   const icon =
     step.status === 'done' ? (
       <ReadyIcon />
     ) : step.status === 'running' ? (
-      <RunningIcon />
+      <DevSpinner />
     ) : step.status === 'skipped' ? (
-      <Text color="gray">−</Text>
+      <text fg="#6b7280">−</text>
     ) : (
       <PendingIcon />
     );
@@ -72,24 +91,24 @@ const SetupStepRow: React.FC<{ step: SetupStep; isLast: boolean }> = ({ step, is
   const details = step.detail || '';
 
   return (
-    <Box>
+    <box flexDirection="row">
       <BranchPrefix isLast={isLast} />
       {icon}
-      <Text> </Text>
-      <Text>{step.label.padEnd(18)}</Text>
-      {details ? <Text color="gray"> {details}</Text> : null}
-    </Box>
+      <text> </text>
+      <text>{step.label.padEnd(18)}</text>
+      {details ? <text fg="#6b7280">{` ${details}`}</text> : null}
+    </box>
   );
 };
 
-const HookRow: React.FC<{ hook: Hook; isLast: boolean }> = ({ hook, isLast }) => {
+const HookRow = ({ hook, isLast }: { hook: Hook; isLast: boolean }) => {
   const icon =
     hook.status === 'success' ? (
       <ReadyIcon />
     ) : hook.status === 'error' ? (
       <ErrorIcon />
     ) : hook.status === 'running' ? (
-      <RunningIcon />
+      <DevSpinner />
     ) : (
       <PendingIcon />
     );
@@ -105,25 +124,29 @@ const HookRow: React.FC<{ hook: Hook; isLast: boolean }> = ({ hook, isLast }) =>
           ? hook.error || 'Failed'
           : '';
 
+  const detailColor = hook.status === 'error' ? '#ef4444' : '#6b7280';
+
   return (
-    <Box>
+    <box flexDirection="row">
       <BranchPrefix isLast={isLast} />
       {icon}
-      <Text> </Text>
-      <Text bold>{hook.name.padEnd(18)}</Text>
-      {details ? <Text color={hook.status === 'error' ? 'red' : 'gray'}> {details}</Text> : null}
-    </Box>
+      <text> </text>
+      <text>
+        <b>{hook.name.padEnd(18)}</b>
+      </text>
+      {details ? <text fg={detailColor}>{` ${details}`}</text> : null}
+    </box>
   );
 };
 
-const WorkloadRow: React.FC<{ workload: Workload; isLast: boolean }> = ({ workload, isLast }) => {
+const WorkloadRow = ({ workload, isLast }: { workload: Workload; isLast: boolean }) => {
   const icon =
     workload.status === 'running' ? (
       <ReadyIcon />
     ) : workload.status === 'error' ? (
       <ErrorIcon />
     ) : workload.status === 'starting' ? (
-      <RunningIcon />
+      <DevSpinner />
     ) : (
       <PendingIcon />
     );
@@ -139,16 +162,22 @@ const WorkloadRow: React.FC<{ workload: Workload; isLast: boolean }> = ({ worklo
           ? workload.error || 'Failed'
           : '';
 
+  const detailColor = workload.status === 'error' ? '#ef4444' : '#6b7280';
+
   return (
-    <Box>
+    <box flexDirection="row">
       <BranchPrefix isLast={isLast} />
       {icon}
-      <Text> </Text>
-      <Text bold>{workload.name.padEnd(18)}</Text>
-      {details ? <Text color={workload.status === 'error' ? 'red' : 'gray'}> {details}</Text> : null}
-    </Box>
+      <text> </text>
+      <text>
+        <b>{workload.name.padEnd(18)}</b>
+      </text>
+      {details ? <text fg={detailColor}>{` ${details}`}</text> : null}
+    </box>
   );
 };
+
+// ─── Section status helper ───────────────────────────────
 
 const getSectionStatus = ({
   hasRunning,
@@ -159,13 +188,15 @@ const getSectionStatus = ({
   hasError: boolean;
   isDone: boolean;
 }) => {
-  if (hasError) return 'error';
-  if (isDone) return 'success';
-  if (hasRunning) return 'running';
-  return 'pending';
+  if (hasError) return 'error' as const;
+  if (isDone) return 'success' as const;
+  if (hasRunning) return 'running' as const;
+  return 'pending' as const;
 };
 
-const LocalResourcesSection: React.FC = () => {
+// ─── Sections ────────────────────────────────────────────
+
+const LocalResourcesSection = () => {
   const resources = useStateSlice(() => devTuiState.getState().localResources);
   if (resources.length === 0) return null;
 
@@ -176,20 +207,20 @@ const LocalResourcesSection: React.FC = () => {
   });
 
   return (
-    <Box flexDirection="column">
-      <Box>
+    <box flexDirection="column">
+      <box flexDirection="row">
         <SectionIcon status={status} />
-        <Text> Starting local resources</Text>
-      </Box>
+        <text> Starting local resources</text>
+      </box>
       {resources.map((resource, index) => (
         <LocalResourceRow key={resource.name} resource={resource} isLast={index === resources.length - 1} />
       ))}
-      <Text> </Text>
-    </Box>
+      <text> </text>
+    </box>
   );
 };
 
-const SetupStepsSection: React.FC = () => {
+const SetupStepsSection = () => {
   const steps = useStateSlice(() => devTuiState.getState().setupSteps);
   if (steps.length === 0) return null;
 
@@ -200,20 +231,20 @@ const SetupStepsSection: React.FC = () => {
   });
 
   return (
-    <Box flexDirection="column">
-      <Box>
+    <box flexDirection="column">
+      <box flexDirection="row">
         <SectionIcon status={status} />
-        <Text> Creating tunnels</Text>
-      </Box>
+        <text> Creating tunnels</text>
+      </box>
       {steps.map((step, index) => (
         <SetupStepRow key={step.id} step={step} isLast={index === steps.length - 1} />
       ))}
-      <Text> </Text>
-    </Box>
+      <text> </text>
+    </box>
   );
 };
 
-const HooksSection: React.FC = () => {
+const HooksSection = () => {
   const hooks = useStateSlice(() => devTuiState.getState().hooks);
   if (hooks.length === 0) return null;
 
@@ -224,20 +255,20 @@ const HooksSection: React.FC = () => {
   });
 
   return (
-    <Box flexDirection="column">
-      <Box>
+    <box flexDirection="column">
+      <box flexDirection="row">
         <SectionIcon status={status} />
-        <Text> Executing hooks</Text>
-      </Box>
+        <text> Executing hooks</text>
+      </box>
       {hooks.map((hook, index) => (
         <HookRow key={hook.name} hook={hook} isLast={index === hooks.length - 1} />
       ))}
-      <Text> </Text>
-    </Box>
+      <text> </text>
+    </box>
   );
 };
 
-const WorkloadsSection: React.FC = () => {
+const WorkloadsSection = () => {
   const workloads = useStateSlice(() => devTuiState.getState().workloads);
   if (workloads.length === 0) return null;
 
@@ -248,25 +279,27 @@ const WorkloadsSection: React.FC = () => {
   });
 
   return (
-    <Box flexDirection="column">
-      <Box>
+    <box flexDirection="column">
+      <box flexDirection="row">
         <SectionIcon status={status} />
-        <Text> Starting workloads</Text>
-      </Box>
+        <text> Starting workloads</text>
+      </box>
       {workloads.map((workload, index) => (
         <WorkloadRow key={workload.name} workload={workload} isLast={index === workloads.length - 1} />
       ))}
-    </Box>
+    </box>
   );
 };
 
-export const DevStartupView: React.FC = () => {
+// ─── Root view ───────────────────────────────────────────
+
+export const DevStartupView = () => {
   return (
-    <Box flexDirection="column">
+    <box flexDirection="column">
       <LocalResourcesSection />
       <SetupStepsSection />
       <HooksSection />
       <WorkloadsSection />
-    </Box>
+    </box>
   );
 };

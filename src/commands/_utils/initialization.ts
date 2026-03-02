@@ -284,7 +284,7 @@ export const initializeStackServicesForDevPhase2 = async () => {
   await settleAllBeforeThrowing([
     stackManager.init({
       stackName: globalStateManager.targetStack.stackName,
-      commandModifiesStack: false,
+      commandModifiesStack: true,
       commandRequiresDeployedStack: false
     }),
     vpcManager.init({

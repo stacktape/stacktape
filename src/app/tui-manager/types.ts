@@ -1,5 +1,21 @@
 export type TuiEventStatus = 'pending' | 'running' | 'success' | 'error' | 'warning';
 
+export type CfProgressData = {
+  kind: 'cloudformation-progress';
+  stackAction: string;
+  status?: 'active' | 'cleanup';
+  completedCount: number;
+  totalPlanned?: number;
+  inProgressCount?: number;
+  inProgressResources?: string[];
+  waitingResources?: string[];
+  changeCounts: {
+    created: number;
+    updated: number;
+    deleted: number;
+  };
+};
+
 export type TuiEvent = {
   id: string;
   eventType: LoggableEventType;
@@ -151,10 +167,10 @@ export const PHASE_NAMES: Record<DeploymentPhase, string> = {
   BUILD_AND_PACKAGE: 'Build & Package',
   UPLOAD: 'Upload',
   DEPLOY: 'Deploy',
-  SUMMARY: 'Summary'
+  POST_DEPLOY: 'Finalize'
 };
 
-export const PHASE_ORDER: DeploymentPhase[] = ['INITIALIZE', 'BUILD_AND_PACKAGE', 'UPLOAD', 'DEPLOY', 'SUMMARY'];
+export const PHASE_ORDER: DeploymentPhase[] = ['INITIALIZE', 'BUILD_AND_PACKAGE', 'UPLOAD', 'DEPLOY', 'POST_DEPLOY'];
 
 export const DELETE_PHASE_ORDER: DeploymentPhase[] = ['INITIALIZE', 'DEPLOY'];
 export const DELETE_PHASE_NAMES: Partial<Record<DeploymentPhase, string>> = {
