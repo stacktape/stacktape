@@ -24,21 +24,40 @@ export const commandSecretGet = async () => {
     });
   }
 
+  const spinner = tuiManager.createSpinner({ text: 'Retrieving secret' });
   const secretValue = await awsSdkManager.getSecretValue({ secretId: secretName });
-  const formattedSecret = {
-    name: secretValue.Name,
-    value: isJson(secretValue.SecretString) ? JSON.parse(secretValue.SecretString) : secretValue.SecretString,
-    created: secretValue.CreatedDate.toLocaleString(),
-    arn: secretValue.ARN
-  };
+  spinner.success({ text: `Retrieved secret ${tuiManager.makeBold(secretName)}` });
+
+  const parsedValue = isJson(secretValue.SecretString)
+    ? JSON.parse(secretValue.SecretString)
+    : secretValue.SecretString;
 
   if (isAgentMode()) {
-    // Agent mode: simple structured output
-    tuiManager.info(JSON.stringify(formattedSecret, null, 2));
+    tuiManager.info(
+      JSON.stringify(
+        {
+          name: secretValue.Name,
+          value: parsedValue,
+          created: secretValue.CreatedDate.toLocaleString(),
+          arn: secretValue.ARN
+        },
+        null,
+        2
+      )
+    );
   } else {
-    tuiManager.info('Secret details:');
-    // eslint-disable-next-line no-console
-    console.dir(formattedSecret, { depth: 5 });
+    const valueStr = typeof parsedValue === 'object' ? JSON.stringify(parsedValue, null, 2) : String(parsedValue);
+    tuiManager.printBox({
+      title: 'Secret',
+      lines: [
+        `${tuiManager.makeBold('Name')}     ${secretValue.Name}`,
+        `${tuiManager.makeBold('Created')}  ${secretValue.CreatedDate.toLocaleString()}`,
+        `${tuiManager.makeBold('ARN')}      ${secretValue.ARN}`,
+        '',
+        `${tuiManager.makeBold('Value')}`,
+        valueStr
+      ]
+    });
   }
 
   return null;

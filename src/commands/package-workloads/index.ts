@@ -13,15 +13,17 @@ export const commandPackageWorkloads = async () => {
 
   await packagingManager.init();
 
+  const workloadsList = onlyWorkloads?.length ? ` (${onlyWorkloads.join(', ')})` : '';
+  const spinner = tuiManager.createSpinner({ text: `Packaging compute resources${workloadsList}` });
+
   const packagedWorkloads = await packagingManager.packageAllWorkloads({
     commandCanUseCache: false,
     onlyWorkloads
   });
 
-  const workloadsList = onlyWorkloads?.length ? ` (${onlyWorkloads.join(', ')})` : '';
-  tuiManager.success(
-    `Packaged compute resources${workloadsList} for stack ${tuiManager.prettyStackName(globalStateManager.targetStack.stackName)}.`
-  );
+  spinner.success({
+    text: `Packaged compute resources${workloadsList} for stack ${tuiManager.prettyStackName(globalStateManager.targetStack.stackName)}`
+  });
 
   return packagedWorkloads;
 };

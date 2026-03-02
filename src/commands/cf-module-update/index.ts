@@ -10,11 +10,27 @@ export const commandCfModuleUpdate = async () => {
     options: allowedModules.map((mod) => ({ label: mod, value: mod }))
   });
   await loadUserCredentials();
+
+  const initSpinner = tuiManager.createSpinner({ text: 'Initializing CloudFormation registry' });
   await Promise.all([cloudformationRegistryManager.init()]);
+  initSpinner.success({ text: 'CloudFormation registry initialized' });
 
-  await cloudformationRegistryManager.loadPrivateTypesAndPackages([moduleType as StpCfInfrastructureModuleType]);
-
-  await cloudformationRegistryManager.registerNewestAvailablePrivateTypes({
-    infrastructureModuleType: moduleType as StpCfInfrastructureModuleType
+  const loadSpinner = tuiManager.createSpinner({
+    text: `Loading private types for ${tuiManager.makeBold(moduleType)}`
   });
+  await cloudformationRegistryManager.loadPrivateTypesAndPackages([moduleType as StpCfInfrastructureModuleType]);
+  loadSpinner.success({ text: `Loaded private types for ${tuiManager.makeBold(moduleType)}` });
+
+  const registerSpinner = tuiManager.createSpinner({
+    text: `Registering newest version of ${tuiManager.makeBold(moduleType)}`
+  });
+  try {
+    await cloudformationRegistryManager.registerNewestAvailablePrivateTypes({
+      infrastructureModuleType: moduleType as StpCfInfrastructureModuleType
+    });
+    registerSpinner.success({ text: `Module ${tuiManager.makeBold(moduleType)} updated` });
+  } catch (error) {
+    registerSpinner.error(`Failed to register ${moduleType}`);
+    throw error;
+  }
 };

@@ -4,6 +4,7 @@ import { StateValue } from '@aws-sdk/client-cloudwatch';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { isAgentMode } from '../_utils/agent-mode';
+import { printAlarmsTable } from '../_utils/debug-formatters';
 import { initializeStackServicesForWorkingWithDeployedStack } from '../_utils/initialization';
 
 type AlarmInfo = {
@@ -64,22 +65,7 @@ export const commandDebugAlarms = async () => {
   if (isAgentMode()) {
     tuiManager.info(JSON.stringify({ alarms: filteredAlarms }, null, 2));
   } else {
-    if (filteredAlarms.length === 0) {
-      tuiManager.info('No alarms found.');
-      return null;
-    }
-
-    tuiManager.info(`Found ${filteredAlarms.length} alarm(s):\n`);
-    for (const alarm of filteredAlarms) {
-      const stateColor = alarm.state === 'OK' ? 'green' : alarm.state === 'ALARM' ? 'red' : 'yellow';
-      const resourceStr = alarm.resource ? ` (${alarm.resource})` : '';
-      tuiManager.info(
-        `  ${tuiManager.colorize(stateColor, alarm.state)} ${alarm.name}${resourceStr}\n` +
-          `    Metric: ${alarm.metric} ${alarm.comparison} ${alarm.threshold}\n${
-            alarm.reason ? `    Reason: ${alarm.reason}\n` : ''
-          }`
-      );
-    }
+    printAlarmsTable(filteredAlarms);
   }
 
   return null;

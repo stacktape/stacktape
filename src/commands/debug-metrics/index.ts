@@ -6,6 +6,7 @@ import { stpErrors } from '@errors';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { ExpectedError } from '@utils/errors';
 import { isAgentMode } from '../_utils/agent-mode';
+import { printMetricsChart } from '../_utils/debug-formatters';
 import { initializeStackServicesForWorkingWithDeployedStack } from '../_utils/initialization';
 
 // Metric configurations by resource type
@@ -156,16 +157,7 @@ export const commandDebugMetrics = async () => {
       )
     );
   } else {
-    if (datapoints.length === 0) {
-      tuiManager.info(`No data found for ${metric} on ${resourceName}`);
-      return null;
-    }
-
-    tuiManager.info(`${metric} for ${resourceName} (${stat}, ${period}s period):\n`);
-    for (const dp of datapoints) {
-      const time = new Date(dp.timestamp).toLocaleString();
-      tuiManager.info(`  ${time}: ${dp.value}`);
-    }
+    printMetricsChart({ metric, resourceName, stat, period, datapoints });
   }
 
   return null;

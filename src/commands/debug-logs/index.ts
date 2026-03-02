@@ -5,6 +5,7 @@ import { configManager } from '@domain-services/config-manager';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { ExpectedError } from '@utils/errors';
 import { isAgentMode } from '../_utils/agent-mode';
+import { printFormattedLogs } from '../_utils/debug-formatters';
 import { loadUserCredentials } from '../_utils/initialization';
 import { getLogGroupInfoForStacktapeResource } from '../_utils/logs';
 
@@ -127,19 +128,7 @@ export const commandDebugLogs = async () => {
       )
     );
   } else {
-    if (limitedEvents.length === 0) {
-      tuiManager.info('No log events found.');
-      return null;
-    }
-
-    tuiManager.printLines([
-      limitedEvents
-        .map(
-          (event) =>
-            `${tuiManager.colorize('yellow', new Date(event.timestamp).toLocaleString())}\t${event.logStreamName}\n${event.message}`
-        )
-        .join('\n')
-    ]);
+    printFormattedLogs(limitedEvents, logGroupName);
   }
 
   return null;
