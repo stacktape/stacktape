@@ -200,15 +200,15 @@ const WorkloadRow = ({
     const displayUrl = truncateUrlForDisplay(detailText, maxUrlLen);
 
     return (
-      <box flexDirection="row" paddingBottom={1}>
-        <text fg={numColor}>{`${indexLabel} `}</text>
+      <box flexDirection="row" paddingBottom={1} height={1}>
+        <text wrapMode="none" fg={numColor}>{`${indexLabel} `}</text>
         {icon}
-        <text> </text>
-        <text fg={workloadColor}>
+        <text wrapMode="none"> </text>
+        <text wrapMode="none" fg={workloadColor}>
           <b>{shortName}</b>
         </text>
-        <text fg={typeIcon.color}>{` ${typeIcon.icon} `}</text>
-        <text fg={COLOR_MUTED}>
+        <text wrapMode="none" fg={typeIcon.color}>{` ${typeIcon.icon} `}</text>
+        <text wrapMode="none" fg={COLOR_MUTED}>
           <a href={detailText}>{displayUrl}</a>
         </text>
       </box>
@@ -397,16 +397,16 @@ const StartupWorkloadRow = ({ workload, isLast }: { workload: Workload; isLast: 
   const detailDisplay = detailIsUrl ? truncateUrlForDisplay(detail, 20) : truncateText(detail, 20);
 
   return (
-    <box flexDirection="row">
-      <text fg={COLOR_DIM}>{`  ${isLast ? '└' : '├'} `}</text>
+    <box flexDirection="row" height={1}>
+      <text wrapMode="none" fg={COLOR_DIM}>{`  ${isLast ? '└' : '├'} `}</text>
       {icon}
-      <text fg={workloadColor}>
+      <text wrapMode="none" fg={workloadColor}>
         {' '}
         <b>{shortName}</b>
       </text>
-      <text fg={typeIcon.color}>{` ${typeIcon.icon}`}</text>
+      <text wrapMode="none" fg={typeIcon.color}>{` ${typeIcon.icon}`}</text>
       {detail ? (
-        <text fg={detailColor}>
+        <text wrapMode="none" fg={detailColor}>
           {`  `}
           {detailIsUrl ? <a href={detail}>{detailDisplay}</a> : detailDisplay}
         </text>
@@ -415,7 +415,7 @@ const StartupWorkloadRow = ({ workload, isLast }: { workload: Workload; isLast: 
   );
 };
 
-const StartupSidebar = ({ focused }: { focused: boolean }) => {
+const StartupSidebar = () => {
   const localResources = useDevState((s) => s.localResources);
   const setupSteps = useDevState((s) => s.setupSteps);
   const hooks = useDevState((s) => s.hooks);
@@ -432,7 +432,7 @@ const StartupSidebar = ({ focused }: { focused: boolean }) => {
         <b>Setup</b>
       </text>
       <box height={1} />
-      <scrollbox flexGrow={1} focused={focused}>
+      <scrollbox flexGrow={1}>
         {localResources.length > 0 ? (
           <box flexDirection="column" paddingBottom={1}>
             <box flexDirection="row">
@@ -482,7 +482,7 @@ const StartupSidebar = ({ focused }: { focused: boolean }) => {
   );
 };
 
-const RunningSidebar = ({ focused }: { focused: boolean }) => {
+const RunningSidebar = () => {
   const workloads = useDevState((s) => s.workloads);
   const localResources = useDevState((s) => s.localResources);
   const selectedLogFilter = useDevState((s) => s.selectedLogFilter);
@@ -506,7 +506,7 @@ const RunningSidebar = ({ focused }: { focused: boolean }) => {
         <b>Workloads</b>
       </text>
       <box height={1} />
-      <scrollbox flexGrow={1} focused={focused}>
+      <scrollbox flexGrow={1}>
         {activeWorkloads.map((workload, idx) => (
           <WorkloadRow
             key={workload.name}
@@ -549,15 +549,19 @@ const LogRow = ({ entry, showSource }: { entry: LogEntry; showSource: boolean })
   const msgColor = LEVEL_COLORS[entry.level] || COLOR_TEXT;
 
   return (
-    <box flexDirection="row">
-      <text fg={COLOR_DIM}>{formatTimestamp(entry.timestamp)} </text>
-      {showSource ? <text fg={sourceColor}>{`${entry.source.padEnd(12)} `}</text> : null}
-      <text fg={msgColor}>{entry.message}</text>
+    <box flexDirection="row" height={1}>
+      <text wrapMode="none" fg={COLOR_DIM}>
+        {formatTimestamp(entry.timestamp)}{' '}
+      </text>
+      {showSource ? <text wrapMode="none" fg={sourceColor}>{`${entry.source.padEnd(12)} `}</text> : null}
+      <text wrapMode="none" fg={msgColor}>
+        {entry.message}
+      </text>
     </box>
   );
 };
 
-const DevLogPanel = ({ focused }: { focused: boolean }) => {
+const DevLogPanel = () => {
   const logs = useDevState((s) => s.logs);
   const selectedLogFilter = useDevState((s) => s.selectedLogFilter);
   const workloads = useDevState((s) => s.workloads);
@@ -581,7 +585,7 @@ const DevLogPanel = ({ focused }: { focused: boolean }) => {
         <box flexGrow={1} />
         <text fg={COLOR_DIM}>↕ scroll</text>
       </box>
-      <scrollbox flexGrow={1} stickyScroll={true} focused={focused}>
+      <scrollbox flexGrow={1} stickyScroll={true} focused>
         {filteredLogs.length === 0 ? (
           <text fg={COLOR_DIM}>Waiting for logs...</text>
         ) : (
@@ -731,14 +735,14 @@ const DashboardInner = ({ onRebuild, onQuit }: Pick<DevDashboardProps, 'onRebuil
     }
   });
 
-  const sidebar = phase === 'startup' ? <StartupSidebar focused={true} /> : <RunningSidebar focused={true} />;
+  const sidebar = phase === 'startup' ? <StartupSidebar /> : <RunningSidebar />;
 
   return (
     <box flexDirection="column" width="100%" height="100%">
       <DevHeader />
       <box flexDirection="row" flexGrow={1}>
         {sidebarVisible ? sidebar : null}
-        <DevLogPanel focused={true} />
+        <DevLogPanel />
       </box>
       <DevFooter />
     </box>
