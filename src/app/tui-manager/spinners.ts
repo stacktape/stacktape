@@ -51,20 +51,20 @@ export const createSpinner = (text: string, colorize: (color: string, text: stri
 
   if (_agentMode) {
     const startTime = Date.now();
-    console.log(`[i] ${text}`);
+    console.info(`[i] ${text}`);
     return {
       update: (newText: string) => {
-        console.log(`[i] ${text} - ${newText}`);
+        console.info(`[i] ${text} - ${newText}`);
       },
       success: (options?: { text?: string; details?: string }) => {
         const duration = formatDuration(Date.now() - startTime);
         const finalText = options?.text || text;
         const details = options?.details ? ` ${options.details}` : '';
-        console.log(`[+] ${finalText}${details} (${duration})`);
+        console.info(`[+] ${finalText}${details} (${duration})`);
       },
       error: (errorText?: string) => {
         const duration = formatDuration(Date.now() - startTime);
-        console.log(`[x] ${errorText || `${text} failed`} (${duration})`);
+        console.info(`[x] ${errorText || `${text} failed`} (${duration})`);
       }
     };
   }
@@ -198,20 +198,20 @@ export class MultiSpinner {
 
     if (this.agentMode) {
       const startTime = Date.now();
-      console.log(`[i] ${text}`);
+      console.info(`[i] ${text}`);
       return {
         update: (newText: string) => {
-          console.log(`[i] ${text} - ${newText}`);
+          console.info(`[i] ${text} - ${newText}`);
         },
         success: (options?: { text?: string; details?: string }) => {
           const duration = formatDuration(Date.now() - startTime);
           const finalText = options?.text || text;
           const details = options?.details ? ` ${options.details}` : '';
-          console.log(`[+] ${finalText}${details} (${duration})`);
+          console.info(`[+] ${finalText}${details} (${duration})`);
         },
         error: (errorText?: string) => {
           const duration = formatDuration(Date.now() - startTime);
-          console.log(`[x] ${errorText || `${text} failed`} (${duration})`);
+          console.info(`[x] ${errorText || `${text} failed`} (${duration})`);
         }
       };
     }
