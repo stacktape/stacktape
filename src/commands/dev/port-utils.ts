@@ -11,6 +11,25 @@ import { DEV_CONFIG } from './dev-config';
 type PortCacheEntry = { available: boolean; timestamp: number };
 const portAvailabilityCache = new Map<number, PortCacheEntry>();
 
+/**
+ * Global set of ports reserved by container workloads (populated by allocateContainerPortBindings).
+ * Dev servers consult this to avoid grabbing a port that Docker will bind momentarily.
+ */
+const globalReservedPorts = new Set<number>();
+
+/** Mark port(s) as reserved so dev servers avoid them. */
+export const reservePorts = (ports: Iterable<number>): void => {
+  for (const port of ports) globalReservedPorts.add(port);
+};
+
+/** Release previously reserved port(s). */
+export const releasePorts = (ports: Iterable<number>): void => {
+  for (const port of ports) globalReservedPorts.delete(port);
+};
+
+/** Check if a port is in the global reserved set. */
+export const isPortReserved = (port: number): boolean => globalReservedPorts.has(port);
+
 /** How long to cache port availability results (ms) */
 const PORT_CACHE_TTL_MS = DEV_CONFIG.devServer?.portCacheTtlMs ?? 1000;
 
@@ -158,6 +177,7 @@ export const clearPortCache = (port?: number): void => {
 export const findAvailablePort = async (startPort: number, maxAttempts = 100): Promise<number | null> => {
   for (let i = 0; i < maxAttempts; i++) {
     const port = startPort + i;
+    if (globalReservedPorts.has(port)) continue;
     if (await isPortAvailable(port)) {
       return port;
     }
@@ -243,8 +263,8 @@ export const ensurePortAvailable = async (
 ): Promise<{ port: number; killedPid?: number }> => {
   const { killExisting = true, findAlternative = true } = options;
 
-  // Check if port is available
-  if (await isPortAvailable(port)) {
+  // Check if port is available and not reserved by a container workload
+  if (!globalReservedPorts.has(port) && (await isPortAvailable(port))) {
     return { port };
   }
 

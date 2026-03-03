@@ -31,7 +31,7 @@ import { startSsrWebDevServer } from '../ssr-web';
 import type { SsrWebResourceType } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/_utils/ssr-web-shared';
 import { startTunnel } from '../tunnel-manager';
 import { ensureNamedProxyRoute } from '../named-proxy/manager';
-import { isPortAvailable } from '../port-utils';
+import { isPortAvailable, reservePorts } from '../port-utils';
 import {
   clearCredentialExpiryTimer,
   getBastionTunnelsForResource,
@@ -551,6 +551,7 @@ const allocateContainerPortBindings = async (
     const offset = chosenPrimary - primaryPort;
     const hostPorts = containerPorts.map((port) => port + offset);
     hostPorts.forEach((port) => reserved.add(port));
+    reservePorts(hostPorts);
 
     bindings.set(resource.name, {
       primaryHostPort: chosenPrimary,
