@@ -245,30 +245,92 @@ class DevTuiStateManager {
   private normalizeLogMessage(message: string): string[] {
     let clean = '';
     for (let i = 0; i < message.length; i++) {
-      const char = message[i];
       const code = message.charCodeAt(i);
 
-      if (code === 27 && message[i + 1] === '[') {
-        i += 2;
-        while (i < message.length) {
-          const escCode = message.charCodeAt(i);
-          if (escCode >= 64 && escCode <= 126) {
-            break;
+      // ESC-initiated sequences
+      if (code === 27) {
+        const next = message[i + 1];
+        if (next === '[') {
+          // CSI sequence: ESC [ <params> <final byte>
+          i += 2;
+          while (i < message.length) {
+            const c = message.charCodeAt(i);
+            if (c >= 64 && c <= 126) break;
+            i++;
           }
-          i += 1;
+          continue;
+        }
+        if (next === ']') {
+          // OSC sequence: ESC ] ... (ST | BEL)
+          // Terminated by BEL (\x07) or ST (ESC \)
+          i += 2;
+          while (i < message.length) {
+            if (message.charCodeAt(i) === 7) break; // BEL
+            if (message.charCodeAt(i) === 27 && message[i + 1] === '\\') {
+              i++;
+              break;
+            }
+            i++;
+          }
+          continue;
+        }
+        if (next === '(' || next === ')' || next === '*' || next === '+') {
+          // Designate character set: ESC ( <char>
+          i += 2;
+          continue;
+        }
+        // Single-character escape (e.g., ESC M, ESC 7, ESC 8, ESC P for DCS)
+        if (next === 'P') {
+          // DCS: ESC P ... ST
+          i += 2;
+          while (i < message.length) {
+            if (message.charCodeAt(i) === 27 && message[i + 1] === '\\') {
+              i++;
+              break;
+            }
+            i++;
+          }
+          continue;
+        }
+        // Skip ESC + any single char
+        i++;
+        continue;
+      }
+
+      // 8-bit CSI (0x9B) -- rare but can appear
+      if (code === 0x9b) {
+        i++;
+        while (i < message.length) {
+          const c = message.charCodeAt(i);
+          if (c >= 64 && c <= 126) break;
+          i++;
         }
         continue;
       }
 
-      if (char === '\r') continue;
-      if (char === '\t') {
+      // Carriage return handling:
+      // - Trailing \r (end of string or followed by \n): just strip it
+      // - Mid-line \r followed by more text: progress-bar overwrite, discard current line
+      if (code === 13) {
+        const nextIdx = i + 1;
+        if (nextIdx >= message.length || message.charCodeAt(nextIdx) === 10) {
+          // Trailing \r or \r\n -- just skip the \r
+          continue;
+        }
+        // Mid-line \r followed by more text: discard what we've accumulated on the current line
+        clean = this.discardCurrentLine(clean);
+        continue;
+      }
+
+      if (code === 9) {
         clean += '  ';
         continue;
       }
+      // Strip other control chars (C0 except \n, C1 delete)
       if ((code >= 0 && code <= 8) || code === 11 || code === 12 || (code >= 14 && code <= 31) || code === 127) {
         continue;
       }
-      clean += char;
+      clean += message[i];
     }
 
     const lines = clean
@@ -276,6 +338,11 @@ class DevTuiStateManager {
       .map((line) => line.trimEnd())
       .filter((line) => line.length > 0);
     return lines.length > 0 ? lines : [''];
+  }
+
+  private discardCurrentLine(text: string): string {
+    const lastNewline = text.lastIndexOf('\n');
+    return lastNewline === -1 ? '' : text.slice(0, lastNewline + 1);
   }
 
   addLogLine(source: string, message: string, level: LogEntry['level'] = 'info') {
