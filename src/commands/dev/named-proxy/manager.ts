@@ -204,6 +204,8 @@ export const stopNamedProxy = async (): Promise<void> => {
 
   await new Promise<void>((resolve) => {
     state.server?.close(() => resolve());
+    // Fallback: resolve after short delay if connections linger
+    setTimeout(resolve, 1000);
   });
   state.server = null;
   state.proxyPort = null;
