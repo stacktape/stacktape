@@ -170,10 +170,17 @@ class TuiManager {
             tuiDebug('TUI', 'onQuit callback fired');
             this.stopAndPrintSummary();
           },
-          onCancel: () => {
+          onCancel: async () => {
             tuiDebug('TUI', 'onCancel callback fired');
-            this.destroyOpenTui();
-            process.kill(process.pid, 'SIGINT');
+            // Destroy the renderer and exit alternate screen BEFORE re-raising
+            // the signal. On Windows, process.kill(pid, 'SIGINT') calls
+            // TerminateProcess which kills immediately — so the terminal must
+            // be restored before that happens.
+            await this.destroyOpenTui();
+            // Emit the signal as a Node event so applicationManager's handler
+            // runs (cleanup hooks, telemetry, etc.). process.kill() on Windows
+            // would terminate the process before the handler can run.
+            process.emit('SIGINT', 'SIGINT');
           },
           onRenderError: (error: Error) => {
             tuiDebug('TUI', 'onRenderError callback fired', { message: error.message, stack: error.stack });
@@ -251,6 +258,7 @@ class TuiManager {
     if (this._openTuiDestroyed) return;
     this._openTuiDestroyed = true;
 
+    let handleDestroyed = false;
     if (this.openTuiHandle) {
       tuiDebug('TUI', 'destroyOpenTui() — destroying handle');
       try {
@@ -259,39 +267,44 @@ class TuiManager {
         // completes even if a render cycle was in progress, so the alternate screen
         // is properly exited before we write the plain-text summary.
         await this.openTuiHandle.destroy();
+        handleDestroyed = true;
       } catch {}
       this.openTuiHandle = null;
     }
 
-    // If renderer init is still in-flight, wait for it to resolve and then destroy.
-    // The post-creation guard in startOpenTui will handle this via _openTuiDestroyed flag,
-    // but we also schedule a deferred cleanup as a safety net.
+    // If renderer init is still in-flight, wait (with timeout) for it to resolve
+    // and then destroy. The post-creation guard in startOpenTui will handle this
+    // via _openTuiDestroyed flag, but we also do a deferred cleanup as a safety net.
+    // We MUST await this (not fire-and-forget) to prevent the deferred cleanup from
+    // writing alt-screen-exit escapes AFTER the caller has already written error output.
     if (this._openTuiInitPromise) {
-      tuiDebug('TUI', 'destroyOpenTui() — init still in-flight, scheduling deferred cleanup');
-      this._openTuiInitPromise
-        .then(async () => {
-          if (this.openTuiHandle) {
-            tuiDebug('TUI', 'destroyOpenTui() deferred — destroying late handle');
-            try {
-              await this.openTuiHandle.destroy();
-            } catch {}
-            this.openTuiHandle = null;
-          }
-          // Re-exit alternate screen in case renderer was created after our escape below
-          try {
-            process.stdout.write('\x1B[?1049l\x1B[?25h');
-          } catch {}
-        })
-        .catch(() => {});
+      tuiDebug('TUI', 'destroyOpenTui() — init still in-flight, awaiting with timeout');
+      try {
+        await Promise.race([this._openTuiInitPromise, new Promise<void>((resolve) => setTimeout(resolve, 3000))]);
+      } catch {}
+      // After init resolves, the post-creation guard in startOpenTui() should have
+      // bailed out due to _openTuiDestroyed=true. But if a handle slipped through,
+      // destroy it now.
+      if (this.openTuiHandle) {
+        tuiDebug('TUI', 'destroyOpenTui() deferred — destroying late handle');
+        try {
+          await this.openTuiHandle.destroy();
+          handleDestroyed = true;
+        } catch {}
+        this.openTuiHandle = null;
+      }
     }
 
-    // Belt-and-suspenders: forcibly exit alternate screen + restore cursor in case
-    // renderer.destroy() failed silently or the renderer was destroyed externally.
-    // Without this, any subsequent stderr/stdout output is written to the alternate
-    // screen buffer and lost when the process exits.
-    try {
-      process.stdout.write('\x1B[?1049l\x1B[?25h');
-    } catch {}
+    // Safety: exit alternate screen + restore cursor, but ONLY if the renderer handle
+    // was NOT successfully destroyed (handle.destroy() already exits the alternate screen
+    // and restores cursor). Writing \x1B[?1049l again after a successful destroy can move
+    // the cursor to the wrong position on Windows terminals, causing the first lines of
+    // subsequent output to be overwritten/invisible.
+    if (this._wasEverStarted && !handleDestroyed) {
+      try {
+        process.stdout.write('\x1B[?1049l\x1B[?25h');
+      } catch {}
+    }
 
     this._isEnabled = false;
     this.disableJsonlStdoutGuard();
@@ -343,12 +356,18 @@ class TuiManager {
     if (summary.links.length > 0) {
       write(kleur.gray('─'.repeat(54)));
       for (const link of summary.links) {
-        write(`  ${kleur.cyan('•')} ${link.label}: ${kleur.blue(terminalLink(link.url, link.url))}`);
+        // fallback: (text) => text prevents terminal-link from appending the URL
+        // a second time when OSC 8 hyperlinks are not supported by the terminal.
+        write(
+          `  ${kleur.cyan('•')} ${link.label}: ${kleur.blue(terminalLink(link.url, link.url, { fallback: (text: string) => text }))}`
+        );
       }
     }
 
     if (summary.consoleUrl) {
-      write(`  ${kleur.cyan('•')} Stack details: ${kleur.blue(terminalLink(summary.consoleUrl, summary.consoleUrl))}`);
+      write(
+        `  ${kleur.cyan('•')} Stack details: ${kleur.blue(terminalLink(summary.consoleUrl, summary.consoleUrl, { fallback: (text: string) => text }))}`
+      );
     }
 
     write(kleur.gray(`  Total: ${elapsed}`));
@@ -366,10 +385,13 @@ class TuiManager {
     tuiState.setFinalizing();
     await new Promise((resolve) => setTimeout(resolve, 100));
     // Wait for in-flight renderer creation to complete before destroying,
-    // so we can properly clean up the renderer instead of leaving an orphaned alternate screen
+    // so we can properly clean up the renderer instead of leaving an orphaned alternate screen.
+    // Use a timeout to prevent hanging forever if dynamic imports are stuck.
     if (this._openTuiInitPromise) {
-      tuiDebug('TUI', 'stop() — awaiting init promise');
-      await this._openTuiInitPromise.catch(() => {});
+      tuiDebug('TUI', 'stop() — awaiting init promise (with 3s timeout)');
+      await Promise.race([this._openTuiInitPromise, new Promise<void>((resolve) => setTimeout(resolve, 3000))]).catch(
+        () => {}
+      );
     }
     await this.stopInternal();
   }
@@ -1005,15 +1027,11 @@ class TuiManager {
   async displayError(errorData: ErrorDisplayData) {
     tuiDebug('TUI', 'displayError()', { errorType: errorData.errorType, message: errorData.message?.slice(0, 200) });
     this.stateSink.markAllRunningAsErrored();
+    // destroyOpenTui() handles alternate screen exit internally. If the handle was
+    // destroyed successfully, the alternate screen is already exited. No additional
+    // escape sequences needed — writing \x1B[?1049l again can move the cursor to
+    // the wrong position on Windows terminals.
     await this.destroyOpenTui();
-
-    // Safety: ensure alternate screen is exited even if destroyOpenTui was a no-op
-    // (e.g. already called by a concurrent stop()). Without this, error output
-    // written to the alternate screen is lost when the process exits.
-    try {
-      process.stderr.write('\x1B[?1049l');
-      process.stdout.write('\x1B[?25h');
-    } catch {}
 
     this.emitOutputRecord({
       type: 'log',

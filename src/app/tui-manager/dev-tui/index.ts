@@ -86,27 +86,39 @@ class DevTuiRenderer {
   }
 
   async stop() {
+    const root = this.root;
     const renderer = this.renderer;
-    try {
-      this.root?.unmount();
-    } catch {}
-    try {
-      renderer?.destroy();
-    } catch {}
     this.root = null;
     this.renderer = null;
 
     if (!renderer) return;
 
-    await Promise.race([renderer.idle(), new Promise<void>((resolve) => setTimeout(resolve, 700))]);
     try {
-      process.stdout.write('\x1B[?1000l\x1B[?1002l\x1B[?1003l\x1B[?1006l\x1B[?1015l\x1B[?1049l\x1B[?25h\x1B[0 q');
+      root?.unmount();
     } catch {}
+    // renderer.destroy() exits alternate screen, restores cursor, disables raw mode
+    try {
+      renderer.destroy();
+    } catch {}
+    // Wait for renderer to finish its destroy cycle (may be deferred if mid-render)
+    try {
+      await Promise.race([renderer.idle(), new Promise<void>((resolve) => setTimeout(resolve, 700))]);
+    } catch {}
+    // Safety: force-exit alternate screen + restore cursor + disable mouse tracking.
+    // renderer.destroy() should handle this, but some terminals (Windows PowerShell
+    // integrated in Cursor) need explicit sequences after destroy.
+    try {
+      process.stdout.write(
+        '\x1B[?1000l\x1B[?1002l\x1B[?1003l\x1B[?1006l\x1B[?1015l' + // disable mouse modes
+          '\x1B[?1049l' + // exit alternate screen
+          '\x1B[?25h' + // show cursor
+          '\x1B[0 q' // reset cursor shape
+      );
+    } catch {}
+    // Restore stdin to normal mode so the terminal is usable after exit
     try {
       if (process.stdin.isTTY) {
-        if (process.stdin.isRaw) {
-          process.stdin.setRawMode(false);
-        }
+        if (process.stdin.isRaw) process.stdin.setRawMode(false);
         process.stdin.pause();
         process.stdin.unref();
       }

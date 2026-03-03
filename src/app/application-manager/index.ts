@@ -61,10 +61,10 @@ export class ApplicationManager {
     killPythonBridge();
   };
 
-  gracefullyHandleError = (err: any) => {
+  gracefullyHandleError = async (err: any) => {
     tuiDebug('APP', 'gracefullyHandleError()', { message: err?.message?.slice?.(0, 200) });
     const stacktapeError = getStacktapeError(err);
-    tuiManager.stop();
+    await tuiManager.stop();
     this.cancelPendingPromises(stacktapeError);
     tuiManager.error(stacktapeError);
   };
@@ -82,7 +82,9 @@ export class ApplicationManager {
       return this.handleExitSignal('SIGINT');
     }
     const stacktapeError = getStacktapeError(err);
-    tuiManager.stop();
+    // Await stop() so the alternate screen is fully exited before displaying the error.
+    // Previously this was fire-and-forget, causing errors to render on the alt screen.
+    await tuiManager.stop();
     this.cancelPendingPromises(stacktapeError);
     await this.reportTelemetryEvent({ outcome: stacktapeError.details.code });
     if (!IS_DEV && !stacktapeError.isExpected && !IS_TELEMETRY_DISABLED) {
@@ -109,7 +111,9 @@ export class ApplicationManager {
       return;
     }
     this.isInterrupted = true;
-    if (!tuiManager.devTuiActive) {
+    const wasDevTuiActive = tuiManager.devTuiActive;
+
+    if (!wasDevTuiActive) {
       await tuiManager.stop();
       tuiManager.info(`Received ${signal}. Exiting.`);
     }
@@ -117,25 +121,42 @@ export class ApplicationManager {
       await this.reportTelemetryEvent({ outcome: 'USER_INTERRUPTION' });
     }
     if (this.usesStdinWatch) {
-      if (process.stdin.isTTY && process.stdin.isRaw) {
-        process.stdin.setRawMode(false);
-      }
-      process.stdin.destroy();
+      try {
+        if (process.stdin.isTTY && process.stdin.isRaw) process.stdin.setRawMode(false);
+      } catch {}
+      try {
+        process.stdin.destroy();
+      } catch {}
     }
+
+    // Run cleanup hooks. For dev command, the cleanup hook tears down the dev TUI
+    // (exits alternate screen, restores cursor) and then prints cleanup progress.
     await this.cleanUp({ success: false, interrupted: true });
 
-    try {
-      process.stdout.write('\x1B[?1000l\x1B[?1002l\x1B[?1003l\x1B[?1006l\x1B[?1015l\x1B[?1049l\x1B[?25h');
-    } catch {}
-    try {
-      if (process.stdin.isTTY && process.stdin.isRaw) {
-        process.stdin.setRawMode(false);
-      }
-    } catch {}
+    // Only write terminal restore sequences if the dev TUI was NOT active.
+    // When the dev TUI is active, devTuiManager.stop() (called from the cleanup hook)
+    // already handled alternate screen exit, mouse mode disable, and cursor restoration.
+    // Writing them again would produce garbage escape output on the normal screen.
+    if (!wasDevTuiActive) {
+      try {
+        process.stdout.write('\x1B[?1000l\x1B[?1002l\x1B[?1003l\x1B[?1006l\x1B[?1015l\x1B[?1049l\x1B[?25h');
+      } catch {}
+      try {
+        if (process.stdin.isTTY && process.stdin.isRaw) process.stdin.setRawMode(false);
+      } catch {}
+    }
 
     this.removeOwnProcessListeners();
     process.exitCode = 0;
+
     if (globalStateManager.command === 'dev') {
+      // Drain stdout before exiting so cleanup messages are fully flushed
+      await new Promise<void>((resolve) => {
+        if (process.stdout.writableLength === 0) return resolve();
+        process.stdout.once('drain', resolve);
+        // Safety timeout: don't hang forever if drain never fires
+        setTimeout(resolve, 500);
+      });
       process.exit(0);
       return;
     }
@@ -214,9 +235,24 @@ export class ApplicationManager {
     this.cancelPendingPromises(err);
 
     // Destroy the TUI so the alternate screen is exited and the error is visible.
-    // Previously this was missing — the TUI would stay up with a blank/frozen screen
-    // and the process would hang indefinitely.
+    // stopSync is fire-and-forget (can't await in sync context), so the async
+    // handle.destroy() won't complete before we write the error below. We must
+    // write escape sequences synchronously to force-exit the alternate screen.
     tuiManager.stopSync();
+
+    if (tuiManager.wasEverStarted || tuiManager.devTuiActive) {
+      try {
+        process.stdout.write(
+          '\x1B[?1000l\x1B[?1002l\x1B[?1003l\x1B[?1006l\x1B[?1015l' + // disable mouse modes
+            '\x1B[?1049l' + // exit alternate screen
+            '\x1B[?25h' + // show cursor
+            '\x1B[0 q' // reset cursor shape
+        );
+      } catch {}
+      try {
+        if (process.stdin.isTTY && process.stdin.isRaw) process.stdin.setRawMode(false);
+      } catch {}
+    }
 
     try {
       const label = type === 'UNCAUGHT EXCEPTION' ? 'Uncaught exception' : 'Unhandled promise rejection';

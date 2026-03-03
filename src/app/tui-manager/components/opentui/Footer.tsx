@@ -8,6 +8,8 @@ type FooterProps = {
 
 export const Footer = ({ isCancelling }: FooterProps) => {
   const isComplete = useTuiState((s) => s.isComplete);
+  const action = useTuiState((s) => s.header?.action);
+  const isDelete = action === 'DELETING';
 
   if (isComplete) {
     return (
@@ -23,7 +25,7 @@ export const Footer = ({ isCancelling }: FooterProps) => {
   if (isCancelling) {
     return (
       <box flexDirection="row" height={1} paddingX={1}>
-        <text fg="#eab308">Rolling back deployment...</text>
+        <text fg="#eab308">{isDelete ? 'Cancelling deletion...' : 'Rolling back deployment...'}</text>
       </box>
     );
   }
@@ -33,7 +35,7 @@ export const Footer = ({ isCancelling }: FooterProps) => {
       <text fg="#e5e7eb">
         <b>c</b>
       </text>
-      <text fg="#4b5563"> cancel & rollback</text>
+      <text fg="#4b5563">{isDelete ? ' cancel deletion' : ' cancel & rollback'}</text>
       <text fg="#374151"> │ </text>
       <text fg="#e5e7eb">
         <b>ctrl+c</b>

@@ -206,7 +206,7 @@ export const runCommand = async (opts: StacktapeProgrammaticOptions) => {
       return;
     }
     await notificationManager.reportError(returnableError.stack);
-    await tuiManager.stop();
+    // stop() already called (and awaited) inside handleError() — no need to call again
     const errorDetails = (returnableError as any).details || {};
     tuiManager.emitJsonlResult({
       ok: false,

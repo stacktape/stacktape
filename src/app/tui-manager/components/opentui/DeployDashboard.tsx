@@ -17,6 +17,11 @@ type DashboardProps = {
   onRenderError?: (error: Error) => void;
 };
 
+const useIsDeleteOperation = () => {
+  const action = useTuiState((s) => s.header?.action);
+  return action === 'DELETING';
+};
+
 const Header = () => {
   const header = useTuiState((s) => s.header);
   const isComplete = useTuiState((s) => s.isComplete);
@@ -58,6 +63,8 @@ const Header = () => {
 };
 
 const CancelConfirmOverlay = ({ onConfirm, onDismiss }: { onConfirm: () => void; onDismiss: () => void }) => {
+  const isDelete = useIsDeleteOperation();
+
   useKeyboard((key) => {
     if (key.sequence === 'y' || key.sequence === 'Y') {
       onConfirm();
@@ -65,6 +72,14 @@ const CancelConfirmOverlay = ({ onConfirm, onDismiss }: { onConfirm: () => void;
       onDismiss();
     }
   });
+
+  const title = isDelete ? 'Cancel deletion?' : 'Cancel deployment?';
+  const description = isDelete
+    ? 'The stack deletion will be cancelled. Already deleted resources may need to be recreated.'
+    : 'Your stack will be rolled back to its previous working state.';
+  const subtitle = isDelete ? 'Deletion will stop as soon as possible.' : 'No partial changes will be left behind.';
+  const confirmLabel = isDelete ? ' yes, cancel ' : ' yes, rollback ';
+  const dismissLabel = isDelete ? ' keep deleting' : ' keep deploying';
 
   return (
     <box
@@ -88,17 +103,17 @@ const CancelConfirmOverlay = ({ onConfirm, onDismiss }: { onConfirm: () => void;
         backgroundColor="#1a1a2e"
       >
         <text fg="#ef4444">
-          <b>Cancel deployment?</b>
+          <b>{title}</b>
         </text>
         <box height={1} />
-        <text fg="#d1d5db">Your stack will be rolled back to its previous working state.</text>
-        <text fg="#6b7280">No partial changes will be left behind.</text>
+        <text fg="#d1d5db">{description}</text>
+        <text fg="#6b7280">{subtitle}</text>
         <box height={1} />
         <box flexDirection="row">
           <text fg="#e5e7eb">
             <b>y</b>
           </text>
-          <text fg="#6b7280"> yes, rollback </text>
+          <text fg="#6b7280">{confirmLabel}</text>
           <text fg="#374151"> │ </text>
           <text fg="#e5e7eb">
             <b>n</b>
@@ -107,7 +122,7 @@ const CancelConfirmOverlay = ({ onConfirm, onDismiss }: { onConfirm: () => void;
           <text fg="#e5e7eb">
             <b>esc</b>
           </text>
-          <text fg="#6b7280"> keep deploying</text>
+          <text fg="#6b7280">{dismissLabel}</text>
         </box>
       </box>
     </box>

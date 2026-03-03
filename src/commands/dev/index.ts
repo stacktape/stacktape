@@ -7,6 +7,7 @@ import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { stackMetadataNames } from '@shared/naming/metadata-names';
+import { outputNames } from '@shared/naming/stack-output-names';
 import { getError } from '@shared/utils/misc';
 import { join } from 'node:path';
 import { devTuiManager } from 'src/app/tui-manager/dev-tui';
@@ -512,8 +513,14 @@ export const commandDev = async () => {
         ]);
         const stageName = globalStateManager.targetStack.stage.toLowerCase();
         const isProbablyDevStage = stageName.includes('dev') || stageName.includes('local');
+        const stackLacksStackInfoMapOutput =
+          !stackManager.existingStackDetails?.stackOutput?.[outputNames.stackInfoMap()];
+        const stackIsInRecoverableState = failedStatuses.has(stackStatus) || inProgressStatuses.has(stackStatus);
 
-        if ((failedStatuses.has(stackStatus) || inProgressStatuses.has(stackStatus)) && isProbablyDevStage) {
+        const shouldAutoRecoverNonDevStack =
+          stackIsInRecoverableState && (isProbablyDevStage || stackLacksStackInfoMapOutput);
+
+        if (shouldAutoRecoverNonDevStack) {
           const warnMsg = `Stack '${globalStateManager.targetStack.stackName}' exists but isn't marked as a dev stack and is in ${stackStatus}.`;
           const infoMsg = 'Deleting the failed stack and redeploying a fresh dev stack...';
           if (agentEnabled) {
@@ -705,15 +712,18 @@ export const commandDev = async () => {
       deleteAgentLockFile();
     }
 
+    // Snapshot state before stopping the TUI (stop() resets state)
     const state = devTuiState.getState();
     const cleanupLines: string[] = [];
-    cleanupLines.push('Stopping dev workloads...');
 
     const workloads = state.workloads.filter(
       (w) => w.status === 'running' || w.status === 'error' || w.status === 'starting'
     );
-    for (const workload of workloads) {
-      cleanupLines.push(`  ${workload.name}`);
+    if (workloads.length > 0) {
+      cleanupLines.push('Stopping dev workloads...');
+      for (const workload of workloads) {
+        cleanupLines.push(`  ${workload.name}`);
+      }
     }
 
     const localResources = state.localResources.filter((r) => r.status === 'running' || r.status === 'error');
@@ -732,12 +742,18 @@ export const commandDev = async () => {
       }
     }
 
+    // Stop the dev TUI first -- this exits the alternate screen buffer so
+    // subsequent stdout writes are visible on the normal terminal screen.
     if (devTuiManager.running) {
       await devTuiManager.stop();
     }
 
+    // Print cleanup progress directly to stdout to bypass any console interception
+    // that may still be partially active. This ensures messages are always visible.
     for (const line of cleanupLines) {
-      tuiManager.info(line);
+      try {
+        process.stdout.write(`${line}\n`);
+      } catch {}
     }
 
     setSpinnerAgentMode(false);

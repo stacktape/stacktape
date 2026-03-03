@@ -71,7 +71,7 @@ export class SourceCodeWatcher {
       try {
         await this.onChangeFn({ stats, changedFile });
       } catch (err) {
-        applicationManager.gracefullyHandleError(err);
+        await applicationManager.gracefullyHandleError(err);
         this.addFilesToWatch(this.currentlyWatchedFiles);
       }
     });

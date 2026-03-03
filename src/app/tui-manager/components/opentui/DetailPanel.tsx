@@ -113,10 +113,13 @@ const PhaseDetailRouter = ({ phase }: { phase: TuiPhase }) => {
 export const DetailPanel = () => {
   const phases = useTuiState((s) => s.phases);
   const currentPhaseId = useTuiState((s) => s.currentPhase);
+  const action = useTuiState((s) => s.header?.action);
 
   const activePhase = phases.find((p) => p.id === currentPhaseId);
 
   if (!activePhase) {
+    const waitingText =
+      action === 'DELETING' ? 'Waiting for deletion to start...' : 'Waiting for deployment to start...';
     return (
       <box
         flexDirection="column"
@@ -127,7 +130,7 @@ export const DetailPanel = () => {
         justifyContent="center"
         alignItems="center"
       >
-        <text fg="#4b5563">Waiting for deployment to start...</text>
+        <text fg="#4b5563">{waitingText}</text>
       </box>
     );
   }
