@@ -99,8 +99,9 @@ export default defineConfig(() => {
       cpu: 0.25,
       memory: 512
     },
+    connectTo: [privateService],
     environment: {
-      PRIVATE_SERVICE_ADDR: 'not-connected-in-local-test'
+      PRIVATE_SERVICE_ADDR: privateService.address
     }
   });
 

@@ -2,7 +2,7 @@
   "name": "@local-dev/nextjs-frontend",
   "private": true,
   "scripts": {
-    "dev": "bunx next dev -p 3001",
+    "dev": "bunx next dev",
     "build": "bunx next build",
     "start": "bunx next start"
   },
