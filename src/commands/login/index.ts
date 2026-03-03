@@ -1,7 +1,7 @@
 import { globalStateManager } from '@application-services/global-state-manager';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
 import { tuiManager } from '@application-services/tui-manager';
-import { identifyUserInMixpanel } from '../../../shared/utils/telemetry';
+import { aliasPostHogUser, identifyPostHogUser } from '../../../shared/utils/telemetry';
 import { runAuthFlow } from '../_utils/auth';
 
 export const commandLogin = async () => {
@@ -25,9 +25,12 @@ export const commandLogin = async () => {
     await globalStateManager.saveApiKey({ apiKey });
     await stacktapeTrpcApiManager.init({ apiKey });
     const userData = await stacktapeTrpcApiManager.apiClient.currentUserAndOrgData();
-    await identifyUserInMixpanel({
-      userId: userData.user.id,
-      systemId: globalStateManager.systemId
+
+    // Link anonymous systemId to the real user in PostHog
+    aliasPostHogUser(userData.user.id, globalStateManager.systemId);
+    identifyPostHogUser(userData.user.id, {
+      email: userData.user.email,
+      name: userData.user.name
     });
 
     const organizationName = userData.organization.name.endsWith('-personal-org')

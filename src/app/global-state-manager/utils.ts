@@ -1,7 +1,5 @@
-import os from 'node:os';
 import { configurableGlobalDefaultCliArgs, configurableGlobalDefaultOtherProps } from '@config';
 import { fsPaths } from '@shared/naming/fs-paths';
-import { upsertUserToMixpanel } from '@shared/utils/telemetry';
 import { ensureDir, outputJson, readJson } from 'fs-extra';
 
 export const loadPersistedState = async (): Promise<PersistedState> => {
@@ -32,12 +30,4 @@ export const savePersistedState = async (persistedState: PersistedState) => {
     isStacktapeDataDirAvailable = true;
   }
   return outputJson(fsPaths.persistedStateFilePath(), persistedState);
-};
-
-export const createTemporaryMixpanelUser = (systemId: string) => {
-  return upsertUserToMixpanel(systemId, {
-    $name: os.hostname(),
-    locale: Intl.DateTimeFormat().resolvedOptions().locale,
-    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
-  });
 };

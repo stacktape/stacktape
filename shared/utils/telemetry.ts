@@ -1,102 +1,39 @@
-import Mixpanel from 'mixpanel';
-import { IS_DEV, MIXPANEL_TOKEN } from '../../src/config/random';
+import { PostHog } from 'posthog-node';
 
-const mixpanelClient = Mixpanel.init(MIXPANEL_TOKEN, {
-  host: 'api-eu.mixpanel.com'
+const POSTHOG_TOKEN = 'phc_FZgbDY1hF9qM8u2qg2Y9Q0j65qniei5XSAvV62HZs3U';
+const POSTHOG_HOST = 'https://form-submissions.stacktape.com';
+
+const posthogClient = new PostHog(POSTHOG_TOKEN, {
+  host: POSTHOG_HOST,
+  flushAt: 1,
+  flushInterval: 0
 });
 
-export const trackEventToMixpanel = (eventName: string, data: Record<string, any>) => {
-  return new Promise((resolve, reject) => {
-    // wait at most this much ms for the event to be logged so we don't hang out the process
-    const timeout = setTimeout(resolve, 2000);
-    mixpanelClient.track(eventName, data, (err) => {
-      if (err) {
-        clearTimeout(timeout);
-        if (IS_DEV) {
-          reject(err);
-        } else {
-          // telemetry is not mission critical and shouldn't hang the process
-          resolve(null);
-        }
-      }
-      clearTimeout(timeout);
-      resolve(null);
-    });
-  });
+export const capturePostHogEvent = (
+  distinctId: string,
+  event: string,
+  properties: Record<string, any> = {},
+  options: { processPersonProfile?: boolean } = {}
+) => {
+  const props = { ...properties };
+  if (options.processPersonProfile === false) {
+    props.$process_person_profile = false;
+  }
+  posthogClient.capture({ distinctId, event, properties: props });
 };
 
-export const upsertUserToMixpanel = (distinctId: string, data: Record<string, any>) => {
-  return new Promise((resolve, reject) => {
-    // wait at most this much ms for the event to be logged so we don't hang out the process
-    const timeout = setTimeout(resolve, 2000);
-
-    const { fullName, email, ...rest } = data;
-    let adjustedData = data;
-    if (fullName && email) {
-      const [firstName, ...lastNameParts] = fullName.split(' ');
-      adjustedData = { ...rest, $email: email, $first_name: firstName, $last_name: lastNameParts.join(' ') };
-    }
-
-    mixpanelClient.people.set(distinctId, adjustedData, (err) => {
-      if (err) {
-        clearTimeout(timeout);
-        if (IS_DEV) {
-          reject(err);
-        } else {
-          // telemetry is not mission critical and shouldn't hang the process
-          resolve(null);
-        }
-      }
-      clearTimeout(timeout);
-      resolve(null);
-    });
-  });
+export const identifyPostHogUser = (distinctId: string, properties: Record<string, any> = {}) => {
+  posthogClient.identify({ distinctId, properties });
 };
 
-export const identifyUserInMixpanel = async ({ systemId, userId }: { systemId: string; userId: string }) => {
-  await deleteUserIdentityFromMixpanel(systemId);
-  await mergeUserIdentityInMixpanel({
-    alias: systemId,
-    distinctId: userId
-  });
+export const aliasPostHogUser = (distinctId: string, alias: string) => {
+  posthogClient.alias({ distinctId, alias });
 };
 
-const deleteUserIdentityFromMixpanel = (distinctId: string) => {
-  return new Promise((resolve, reject) => {
-    // wait at most this much ms for the event to be logged so we don't hang out the process
-    const timeout = setTimeout(resolve, 2000);
-    mixpanelClient.people.delete_user(distinctId, {}, (err) => {
-      if (err) {
-        clearTimeout(timeout);
-        if (IS_DEV) {
-          reject(err);
-        } else {
-          // telemetry is not mission critical and shouldn't hang the process
-          resolve(null);
-        }
-      }
-      clearTimeout(timeout);
-      resolve(null);
-    });
-  });
-};
-
-const mergeUserIdentityInMixpanel = ({ distinctId, alias }: { distinctId: string; alias: string }) => {
-  return new Promise((resolve, reject) => {
-    // wait at most this much ms for the event to be logged so we don't hang out the process
-    const timeout = setTimeout(resolve, 2000);
-    mixpanelClient.alias(distinctId, alias, (err) => {
-      if (err) {
-        clearTimeout(timeout);
-        if (IS_DEV) {
-          reject(err);
-        } else {
-          // telemetry is not mission critical and shouldn't hang the process
-          resolve(null);
-        }
-      }
-      clearTimeout(timeout);
-      resolve(null);
-    });
-  });
+export const shutdownPostHog = async () => {
+  try {
+    await posthogClient.shutdown();
+  } catch {
+    // telemetry is not mission critical
+  }
 };

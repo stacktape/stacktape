@@ -11,8 +11,6 @@ export const INSTALL_SCRIPTS_BUCKET_NAME =
 export const INSTALL_SCRIPTS_PREVIEW_BUCKET_NAME =
   process.env.INSTALL_SCRIPTS_PREVIEW_BUCKET_NAME || 'internal-services-production-installscriptsbucketpreview-7b7a41';
 
-export const MIXPANEL_TOKEN = '5f4ad0b60610c9b0398528c77e5459da';
-
 export const DEFAULT_STARTER_PROJECT_TARGET_DIRECTORY = 'stacktape-project';
 
 export const IS_TELEMETRY_DISABLED = process.env.STP_DISABLE_TELEMETRY === '1';

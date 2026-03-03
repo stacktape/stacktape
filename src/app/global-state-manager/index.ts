@@ -32,7 +32,7 @@ import {
 } from '@utils/validator';
 import { kebabCase } from 'change-case';
 import dayjs from 'dayjs';
-import { createTemporaryMixpanelUser, loadPersistedState, savePersistedState } from './utils';
+import { loadPersistedState, savePersistedState } from './utils';
 import { runAuthFlow } from '../../commands/_utils/auth';
 
 @memoizeGetters
@@ -151,7 +151,7 @@ export class GlobalStateManager {
     const persistedSystemId = this.persistedState?.systemId || process.env.STP_ORIGINAL_SYSTEM_ID;
     this.systemId = persistedSystemId || generateUuid();
     if (!persistedSystemId) {
-      await Promise.all([this.saveSystemId(), createTemporaryMixpanelUser(this.systemId)]);
+      await this.saveSystemId();
     }
     this.maxAllowedResources = Infinity; // maxAllowedResources || freeMaxAllowedResources;
     this.apiKey = process.env.STACKTAPE_API_KEY || this.persistedState?.otherDefaults?.apiKey;

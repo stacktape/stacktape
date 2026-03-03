@@ -1,6 +1,6 @@
 import { globalStateManager } from '@application-services/global-state-manager';
 import { getTimeSinceProcessStart } from '@shared/utils/misc';
-import { trackEventToMixpanel } from '@shared/utils/telemetry';
+import { capturePostHogEvent, shutdownPostHog } from '@shared/utils/telemetry';
 import { getStacktapeVersion } from '@utils/versioning';
 
 export const reportTelemetryEvent = async ({
@@ -16,19 +16,27 @@ export const reportTelemetryEvent = async ({
   invokedFrom: InvokedFrom;
   invocationId: string;
 }) => {
-  const telemetryData: TelemetryData = {
-    distinct_id: globalStateManager.systemId,
-    command,
-    cliArgs: args ? Object.keys(args) : null,
-    duration: getTimeSinceProcessStart(),
-    outcome,
-    locale: Intl.DateTimeFormat().resolvedOptions().locale,
-    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-    version: getStacktapeVersion(),
-    platform: process.platform,
-    invokedFrom,
-    invocationId
-  };
+  const userId = globalStateManager.userData?.id;
+  const distinctId = userId || globalStateManager.systemId;
 
-  return trackEventToMixpanel('execute command', telemetryData);
+  capturePostHogEvent(
+    distinctId,
+    'cli command executed',
+    {
+      command,
+      args_keys: args ? Object.keys(args) : null,
+      duration_ms: getTimeSinceProcessStart(),
+      outcome,
+      locale: Intl.DateTimeFormat().resolvedOptions().locale,
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      version: getStacktapeVersion(),
+      platform: process.platform,
+      invoked_from: invokedFrom,
+      invocation_id: invocationId
+    },
+    // only create person profiles for identified users
+    { processPersonProfile: !!userId }
+  );
+
+  return shutdownPostHog();
 };
