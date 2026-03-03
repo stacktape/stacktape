@@ -172,8 +172,8 @@ export const buildEsCode = async ({
               return { path: args.path, external: true };
             }
 
-            // Skip AWS SDK v3 for Lambda (pre-installed in runtime)
-            if (skipAwsSdkV3Deps && moduleName.startsWith('@aws-sdk/')) {
+            // Skip runtime-included AWS SDK v3 clients for Lambda
+            if (skipAwsSdkV3Deps && moduleName.startsWith('@aws-sdk/client-')) {
               return { path: args.path, external: true };
             }
 
@@ -431,6 +431,11 @@ export const buildEsCode = async ({
     // Use monorepo root for module resolution if available
     // Convert to Unix paths for Bun compatibility on Windows
     const buildRoot = transformToUnixPath(monorepoRoot || cwd);
+    const shouldMinify = minify !== undefined ? minify : true;
+    const minifyConfig =
+      isLambda && outputModuleFormat === 'cjs' && shouldMinify
+        ? { syntax: true, whitespace: true, identifiers: false }
+        : shouldMinify;
 
     let buildResult: Awaited<ReturnType<typeof Bun.build>>;
     try {
@@ -440,7 +445,7 @@ export const buildEsCode = async ({
         target: 'node',
         format: splitting ? 'esm' : outputModuleFormat,
         splitting: splitting && outputModuleFormat === 'esm',
-        minify: minify !== undefined ? minify : true,
+        minify: minifyConfig,
         sourcemap: sourceMaps === 'disabled' ? 'none' : sourceMaps === 'external' ? 'linked' : 'inline',
         external: ['fsevents', ...externals, ...externalModules.map((m) => m.name)],
         define: { ...esmDefines, ...define },
