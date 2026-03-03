@@ -94,6 +94,10 @@ export const getStacktapeServiceLambdaEnvironment = ({
       name: 'STACKTAPE_TRPC_API_ENDPOINT',
       value: STACKTAPE_TRPC_API_ENDPOINT
     },
+    {
+      name: 'NODE_OPTIONS',
+      value: '--enable-source-maps'
+    },
     ...(IS_DEV ? [{ name: 'DEV_MODE', value: IS_DEV }] : [])
   ];
 };

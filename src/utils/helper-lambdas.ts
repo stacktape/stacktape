@@ -18,16 +18,31 @@ export const loadHelperLambdaDetails = async ({
   }
 
   const res: HelperLambdaDetails = {} as HelperLambdaDetails;
-  const dirEntries = await fsExtra.readdir(fsPaths.helperLambdasDir());
-  dirEntries.forEach((entry) => {
-    const [name, digest] = entry.replace('.zip', '').split('-');
-    const artifactPath = join(fsPaths.helperLambdasDir(), entry);
-    res[name] = {
-      digest,
-      artifactPath,
-      handler: 'index.default'
-    };
-  });
+  const helperLambdasDir = fsPaths.helperLambdasDir();
+  const dirEntries = await fsExtra.readdir(helperLambdasDir);
+  const zipEntries = dirEntries.filter((entry) => entry.endsWith('.zip'));
+
+  const entriesWithTime = await Promise.all(
+    zipEntries.map(async (entry) => {
+      const artifactPath = join(helperLambdasDir, entry);
+      const stat = await fsExtra.stat(artifactPath);
+      return { entry, artifactPath, mtimeMs: stat.mtimeMs };
+    })
+  );
+
+  entriesWithTime
+    .sort((a, b) => b.mtimeMs - a.mtimeMs)
+    .forEach(({ entry, artifactPath }) => {
+      const [name, digest] = entry.replace('.zip', '').split('-');
+      if (res[name]) {
+        return;
+      }
+      res[name] = {
+        digest,
+        artifactPath,
+        handler: 'index.default'
+      };
+    });
 
   return res;
 };

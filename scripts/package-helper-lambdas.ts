@@ -1,5 +1,6 @@
 import { join } from 'node:path';
 import {
+  DIST_FOLDER_PATH,
   CLI_BUILD_DIST_FOLDER_PATH,
   HELPER_LAMBDAS_DIST_FOLDER_PATH,
   HELPER_LAMBDAS_FOLDER_NAME,
@@ -9,6 +10,7 @@ import { buildUsingStacktapeEsLambdaBuildpack } from '@shared/packaging/stacktap
 import { logInfo, logSuccess } from '@shared/utils/logging';
 import { localBuildTsConfigPath } from '@shared/utils/misc';
 import fsExtra, { remove } from 'fs-extra';
+import { generateSourceMapInstall } from './release/build-cli-sources';
 
 const helperLambdas = {
   stacktapeServiceLambda: {
@@ -32,6 +34,8 @@ const helperLambdas = {
 export const packageHelperLambdas = async ({ distFolderPath }: { isDev?: boolean; distFolderPath: string }) => {
   logInfo('Packaging helper lambdas...');
   const packagingRunId = `helper-lambdas-install-${process.pid}-${Date.now().toString(36)}`;
+
+  await generateSourceMapInstall({ distFolderPath: DIST_FOLDER_PATH });
 
   await fsExtra.ensureDir(HELPER_LAMBDAS_DIST_FOLDER_PATH);
 
