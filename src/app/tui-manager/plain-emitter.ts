@@ -11,9 +11,8 @@ class PlainEmitter {
     if (phase && phase !== this.lastPhase) {
       this.lastPhase = phase;
       const title = PHASE_NAMES[phase as DeploymentPhase] || phase;
-      console.info('');
-      console.info(`${phase} • ${title}`);
-      console.info('------------------------------------------------------');
+      console.info(`\n${phase} • ${title}\n------------------------------------------------------\n[i] ${message}`);
+      return;
     }
     console.info(`[i] ${message}`);
   }

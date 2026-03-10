@@ -55,12 +55,12 @@ class JsonlEmitter {
     });
   }
 
-  private sanitizeData(data?: Record<string, unknown>): JsonlData | undefined {
+  private sanitizeData(data: Record<string, unknown> | undefined, maxSize: number): JsonlData | undefined {
     if (!data) return undefined;
 
     try {
       const serialized = JSON.stringify(data);
-      if (serialized.length <= 2_000) {
+      if (serialized.length <= maxSize) {
         return data;
       }
 
@@ -184,7 +184,8 @@ class JsonlEmitter {
       }
     }
 
-    const safeData = this.sanitizeData(data);
+    // Log events carry incidental data; 8KB is enough for hints, metadata, etc.
+    const safeData = this.sanitizeData(data, 8_000);
     const payload: JsonlLogEvent = {
       type: 'log',
       ts: now(),
@@ -241,7 +242,10 @@ class JsonlEmitter {
   }): string | undefined {
     if (this.resultEmitted) return undefined;
     this.resultEmitted = true;
-    const safeData = this.sanitizeData(data);
+    // Result events are the final payload — they contain critical data like
+    // deployed resource URLs, stack info, CF templates, etc. Use a generous
+    // limit so real-world deploy results are not truncated.
+    const safeData = this.sanitizeData(data, 512_000);
 
     const payload: JsonlResultEvent = {
       ts: now(),
