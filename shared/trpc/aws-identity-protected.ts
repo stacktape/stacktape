@@ -2,6 +2,7 @@ import { Buffer } from 'node:buffer';
 import type {
   AwsIdentityTrpcClient,
   DeleteDefaultDomainDnsRecordParams,
+  ReportAlarmEventParams,
   UpsertDefaultDomainDnsRecordParams,
   ValidateCertificateParams
 } from '../../types/console-app/trpc/aws-identity-protected';
@@ -57,6 +58,12 @@ export class AwsIdentityProtectedClient {
   deleteDefaultDomainDnsRecord = {
     mutate: async (args: DeleteDefaultDomainDnsRecordParams): Promise<void> => {
       return this.#ensureInitialized().deleteDefaultDomainDnsRecord.mutate(args);
+    }
+  };
+
+  reportAlarmEvent = {
+    mutate: async (args: ReportAlarmEventParams): Promise<string> => {
+      return this.#ensureInitialized().reportAlarmEvent.mutate(args);
     }
   };
 }

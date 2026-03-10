@@ -20,6 +20,7 @@ import type {
   RecentStackOperationsParams,
   RecentStackOperationsResponse,
   RecordStackOperationParams,
+  ReportEventParams,
   StackDetailsParams,
   StackDetailsResponse,
   TemplateParams,
@@ -50,6 +51,7 @@ export type {
   RecentStackOperationsParams,
   RecentStackOperationsResponse,
   RecordStackOperationParams,
+  ReportEventParams,
   StackDetailsParams,
   StackDetailsResponse,
   TemplateParams,
@@ -138,5 +140,9 @@ export class ApiKeyProtectedClient {
 
   stackDetails = async (args: StackDetailsParams): Promise<StackDetailsResponse> => {
     return this.#ensureInitialized().stackDetails.query(args);
+  };
+
+  reportEvent = async (args: ReportEventParams): Promise<string> => {
+    return this.#ensureInitialized().reportEvent.mutate(args);
   };
 }

@@ -1,5 +1,6 @@
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
+import { notificationManager } from '@domain-services/notification-manager';
 import { consoleLinks } from '@shared/naming/console-links';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { ExpectedError } from '@utils/errors';
@@ -11,6 +12,7 @@ const provideOptions = ['Interactively using CLI', 'From file'];
 
 export const commandSecretCreate = async () => {
   await loadUserCredentials();
+  await notificationManager.init([]);
 
   const args = globalStateManager.args as StacktapeCliArgs;
 
@@ -89,6 +91,7 @@ const createNamedSecret = async (secretName: string, secretValue: string, forceU
         const updateSpinner = tuiManager.createSpinner({ text: 'Updating secret' });
         await awsSdkManager.updateExistingSecret(matchingSecret.ARN, secretValue);
         updateSpinner.success({ text: `Secret "${secretName}" updated` });
+        await notificationManager.reportEvent({ type: 'SECRET_UPDATED', title: `Secret "${secretName}" updated` });
         return;
       }
       throw new ExpectedError(
@@ -104,6 +107,7 @@ const createNamedSecret = async (secretName: string, secretValue: string, forceU
       const updateSpinner = tuiManager.createSpinner({ text: 'Updating secret' });
       await awsSdkManager.updateExistingSecret(matchingSecret.ARN, secretValue);
       updateSpinner.success({ text: `Secret "${secretName}" updated` });
+      await notificationManager.reportEvent({ type: 'SECRET_UPDATED', title: `Secret "${secretName}" updated` });
       tuiManager.outro('Secret updated!');
     } else {
       tuiManager.outro('Aborted.');
@@ -112,6 +116,7 @@ const createNamedSecret = async (secretName: string, secretValue: string, forceU
   }
   await awsSdkManager.createNewSecret(secretName, secretValue);
   spinner.success({ text: `Secret "${secretName}" created` });
+  await notificationManager.reportEvent({ type: 'SECRET_CREATED', title: `Secret "${secretName}" created` });
   if (!isAgentMode()) {
     tuiManager.info(`View at ${consoleLinks.secretUrl(globalStateManager.region, secretName)}`);
     tuiManager.outro('Secret created!');

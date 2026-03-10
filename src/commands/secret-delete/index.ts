@@ -1,5 +1,6 @@
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
+import { notificationManager } from '@domain-services/notification-manager';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { ExpectedError } from '@utils/errors';
 import { isAgentMode } from '../_utils/agent-mode';
@@ -7,6 +8,7 @@ import { loadUserCredentials } from '../_utils/initialization';
 
 export const commandSecretDelete = async () => {
   await loadUserCredentials();
+  await notificationManager.init([]);
 
   const args = globalStateManager.args as StacktapeCliArgs;
   let secretName: string;
@@ -25,6 +27,7 @@ export const commandSecretDelete = async () => {
 
   await awsSdkManager.deleteSecret(secretName);
   tuiManager.success(`Secret "${secretName}" deleted.`);
+  await notificationManager.reportEvent({ type: 'SECRET_DELETED', title: `Secret "${secretName}" deleted` });
 
   return null;
 };

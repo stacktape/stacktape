@@ -54,6 +54,46 @@ interface EmailIntegrationProps {
   recipient: string;
 }
 
-type UserIntegration = MsTeamsIntegration | SlackIntegration | EmailIntegration;
+interface DiscordIntegrationProps {
+  /**
+   * #### Discord Webhook URL for the channel. Store as `$Secret()` for security.
+   *
+   * ---
+   *
+   * Create a webhook in your Discord channel settings (Edit Channel → Integrations → Webhooks).
+   */
+  webhookUrl: string;
+}
+
+interface DiscordIntegration {
+  type: 'discord';
+  properties?: DiscordIntegrationProps;
+}
+
+interface WebhookIntegrationProps {
+  /**
+   * #### The URL to send webhook POST requests to.
+   */
+  url: string;
+  /**
+   * #### Optional signing secret for HMAC-SHA256 payload verification.
+   *
+   * ---
+   *
+   * If provided, each request includes an `X-Stacktape-Signature` header.
+   */
+  secret?: string;
+  /**
+   * #### Optional custom headers to include in each request.
+   */
+  headers?: Record<string, string>;
+}
+
+interface WebhookIntegration {
+  type: 'webhook';
+  properties?: WebhookIntegrationProps;
+}
+
+type UserIntegration = MsTeamsIntegration | SlackIntegration | EmailIntegration | DiscordIntegration | WebhookIntegration;
 
 type UserIntegrationType = UserIntegration['type'];

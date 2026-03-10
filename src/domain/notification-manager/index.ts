@@ -1,21 +1,8 @@
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
-import { configManager } from '@domain-services/config-manager';
-import { WebClient } from '@slack/web-api';
+import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
 import compose from '@utils/basic-compose-shim';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
-import { getPrettyPrintedFlatObject } from '@utils/formatting';
-import { jsonFetch } from '@utils/http-client';
-
-const getWarnOnFailedNotificationHandler =
-  (args: { type: DeploymentNotificationUserIntegration['type']; [arg: string]: any }) => (err) => {
-    const { type, ...restArgs } = args;
-    tuiManager.warn(
-      `Notification to ${tuiManager.colorize('cyan', type)} failed.\nDetails:\n${getPrettyPrintedFlatObject(
-        restArgs
-      )}\n${tuiManager.colorize('red', 'Error')}: ${err}`
-    );
-  };
 
 type ProgressMessage = {
   text: string;
@@ -37,105 +24,116 @@ const withTimeout = async <T>({ promise, timeoutMs }: { promise: Promise<T>; tim
   }
 };
 
+const severityFromMessageType = (type: ProgressMessage['type']): string => {
+  switch (type) {
+    case 'error':
+      return 'ERROR';
+    case 'success':
+      return 'INFO';
+    case 'progress':
+      return 'INFO';
+    default:
+      return 'INFO';
+  }
+};
+
 export class NotificationManager {
   isInitialized: boolean;
-  #deploymentNotifications: DeploymentNotificationDefinition[] = [];
+  #hasConsoleApiAccess = false;
 
-  init = async (deploymentNotifications: DeploymentNotificationDefinition[]) => {
+  init = async (_deploymentNotifications: DeploymentNotificationDefinition[]) => {
     this.isInitialized = true;
-    this.#deploymentNotifications = await configManager.resolveDirectives<DeploymentNotificationDefinition[]>({
-      itemToResolve: deploymentNotifications || [],
-      resolveRuntime: true,
-      useLocalResolve: true
-    });
-    configManager.invalidatePotentiallyChangedDirectiveResults();
+    // Check if we have console API access for server-side routing
+    this.#hasConsoleApiAccess = !!stacktapeTrpcApiManager?.apiClient;
   };
 
-  sendDeploymentNotification = ({ message }: { message: ProgressMessage }) => {
-    return Promise.all(
-      this.#deploymentNotifications.map((notification) => {
-        if (
-          (!notification.forStages ||
-            notification.forStages.includes(globalStateManager.targetStack.stage) ||
-            notification.forStages[0] === '*') &&
-          (!notification.forServices ||
-            notification.forServices.includes(globalStateManager.targetStack.projectName) ||
-            notification.forServices[0] === '*')
-        ) {
-          const errHandler = getWarnOnFailedNotificationHandler({
-            type: notification.integration.type,
-            ...notification.integration.properties
-          });
-          switch (notification.integration.type) {
-            case 'slack': {
-              return withTimeout({
-                promise: this.#sendSlackNotification({ ...notification.integration.properties, message }),
-                timeoutMs: 10000
-              }).catch(errHandler);
-            }
-            case 'ms-teams': {
-              return withTimeout({
-                promise: this.#sendMsTeamsNotification({ ...notification.integration.properties, message }),
-                timeoutMs: 10000
-              }).catch(errHandler);
-            }
-            case 'email': {
-              // @todo
-            }
-          }
-        }
-        return null;
-      })
-    );
+  reportEvent = async ({
+    type,
+    title,
+    severity = 'INFO',
+    details
+  }: {
+    type: string;
+    title: string;
+    severity?: string;
+    details?: Record<string, unknown>;
+  }) => {
+    if (!this.#hasConsoleApiAccess) return;
+    try {
+      await withTimeout({
+        promise: stacktapeTrpcApiManager.apiClient.reportEvent({
+          type,
+          severity,
+          project: globalStateManager.targetStack?.projectName,
+          stage: globalStateManager.targetStack?.stage,
+          region: globalStateManager.region,
+          title,
+          details,
+          invocationId: globalStateManager.invocationId
+        }),
+        timeoutMs: 10000
+      });
+    } catch (err) {
+      tuiManager.warn(`Failed to report event to console: ${err}`);
+    }
+  };
+
+  sendDeploymentNotification = async ({ message }: { message: ProgressMessage }) => {
+    if (!this.#hasConsoleApiAccess) return;
+
+    const eventType = this.#resolveEventType(message);
+    if (!eventType) return;
+
+    await this.reportEvent({
+      type: eventType,
+      title: message.text,
+      severity: severityFromMessageType(message.type),
+      details: message.details
+    });
   };
 
   reportError = async (errorStack: string) => {
     let text = `Error performing operation ${globalStateManager.command}`;
     if (globalStateManager.targetStack?.stackName) {
-      text += ` on stack ${globalStateManager.targetStack.stackName}.\n`;
-    } else {
-      text += '.\n';
+      text += ` on stack ${globalStateManager.targetStack.stackName}`;
     }
-    text += ` ${errorStack}`;
-    await this.sendDeploymentNotification({
-      message: { text, type: 'error' }
+    await this.reportEvent({
+      type: this.#getErrorEventType(),
+      title: text,
+      severity: 'ERROR',
+      details: { error: errorStack.slice(0, 1000) }
     });
   };
 
-  #sendSlackNotification = async ({
-    conversationId,
-    accessToken,
-    message
-  }: {
-    accessToken: string;
-    conversationId: string;
-    message: ProgressMessage;
-  }) => {
-    // @todo-matus what happens if access token is passed as $Secret directive - we should handle this similarly to script hooks
-    // i.e resolve the directives locally
-    const slackClient = new WebClient(accessToken);
-    const match = message.text.match(/\[(.*)\]/);
-    let prettifiedForSlack = message.text;
-    if (match?.[1]) {
-      prettifiedForSlack = prettifiedForSlack.replace(match[1], `*${match[1]}*`);
+  // Resolve the event type based on the current command and message type
+  #resolveEventType = (message: ProgressMessage): string | null => {
+    const command = globalStateManager.command;
+    if (command === 'deploy' || command === 'codebuild:deploy') {
+      if (message.type === 'progress') return 'DEPLOY_STARTED';
+      if (message.type === 'success') return 'DEPLOY_SUCCEEDED';
+      if (message.type === 'error') return 'DEPLOY_FAILED';
     }
-
-    if (message.type === 'error') {
-      prettifiedForSlack = `:x: ${prettifiedForSlack}`;
-    } else if (message.type === 'success') {
-      prettifiedForSlack = `:white_check_mark: ${prettifiedForSlack}`;
-    } else if (message.type === 'progress') {
-      prettifiedForSlack = `:large_purple_circle: ${prettifiedForSlack}`;
+    if (command === 'delete') {
+      if (message.type === 'progress') return 'DELETE_STARTED';
+      if (message.type === 'success') return 'DELETE_SUCCEEDED';
+      if (message.type === 'error') return 'DELETE_FAILED';
     }
-
-    return slackClient.chat.postMessage({
-      channel: conversationId,
-      text: prettifiedForSlack
-    });
+    if (command === 'rollback') {
+      if (message.type === 'success') return 'ROLLBACK_SUCCEEDED';
+      if (message.type === 'error') return 'ROLLBACK_FAILED';
+    }
+    if (command === 'bucket:sync') {
+      if (message.type === 'progress') return 'DEPLOY_STARTED';
+      if (message.type === 'success') return 'DEPLOY_SUCCEEDED';
+    }
+    return null;
   };
 
-  #sendMsTeamsNotification = async ({ webhookUrl, message }: { webhookUrl: string; message: ProgressMessage }) => {
-    return jsonFetch(webhookUrl, { method: 'POST', body: { text: message.text } });
+  #getErrorEventType = (): string => {
+    const command = globalStateManager.command;
+    if (command === 'delete') return 'DELETE_FAILED';
+    if (command === 'rollback') return 'ROLLBACK_FAILED';
+    return 'DEPLOY_FAILED';
   };
 }
 
