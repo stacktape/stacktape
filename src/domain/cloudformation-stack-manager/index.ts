@@ -201,8 +201,11 @@ export class StackManager {
     if (globalStateManager.command === 'delete') {
       return 'delete';
     }
-    if (globalStateManager.command === 'rollback') {
+    if (globalStateManager.command === 'cf:rollback') {
       return 'rollback';
+    }
+    if (globalStateManager.command === 'rollback') {
+      return 'update';
     }
     if (globalStateManager.command === 'dev') {
       return 'dev';
@@ -406,13 +409,13 @@ export class StackManager {
       }
       // check state after stack was stabilized
       const stackIsNotReadyForOperation =
-        ((command === 'deploy' || command === 'dev' || command === 'deployment-script:run') &&
+        ((command === 'deploy' || command === 'dev' || command === 'deployment-script:run' || command === 'rollback') &&
           !STACK_IS_READY_FOR_MODIFYING_OPERATION_STATUS.includes(stackDetails.StackStatus as any)) ||
-        (command === 'rollback' &&
+        (command === 'cf:rollback' &&
           !STACK_IS_READY_FOR_ROLLBACK_OPERATION_STATUS.includes(stackDetails.StackStatus as any));
       if (stackIsNotReadyForOperation) {
         throw stpErrors.e100({
-          command,
+          command: command as 'deploy' | 'delete' | 'dev' | 'rollback' | 'cf:rollback' | 'deployment-script:run',
           stackName,
           stackStatus: stackDetails.StackStatus as StackStatus
         });
@@ -430,7 +433,15 @@ export class StackManager {
     await eventManager.finishEvent({ eventType: 'VALIDATE_TEMPLATE' });
   };
 
-  getChangeSet = async ({ templateBody, templateUrl }: { templateUrl?: string; templateBody?: string }) => {
+  getChangeSet = async ({
+    templateBody,
+    templateUrl,
+    includePropertyValues
+  }: {
+    templateUrl?: string;
+    templateBody?: string;
+    includePropertyValues?: boolean;
+  }) => {
     await eventManager.startEvent({
       eventType: 'CALCULATE_CHANGES',
       description: 'Calculating changes'
@@ -438,6 +449,7 @@ export class StackManager {
     const res = await awsSdkManager.createCloudformationChangeSet({
       ...this.getStackParams(),
       ChangeSetName: `${this.#stackName}-${Date.now()}-${this.nextVersion}`,
+      includePropertyValues,
       ...(templateUrl && { TemplateURL: templateUrl }),
       ...(templateBody && { TemplateBody: templateBody })
     });
@@ -451,9 +463,9 @@ export class StackManager {
     Key: string;
     Value: string;
   }[] => {
-    // @toto validate tags
+    const configTags = configManager.config ? configManager.stackConfig.tags || [] : [];
     return uniqBy(
-      (configManager.stackConfig.tags || [])
+      configTags
         .concat(customTags || [])
         .map(({ name, value }) => ({ Key: name, Value: value }))
         .concat([
@@ -486,6 +498,45 @@ export class StackManager {
         await awsSdkManager.setStackPolicy(stackParams);
       }
       await awsSdkManager.setTerminationProtection(!!stackParams.EnableTerminationProtection, this.#stackName);
+      await eventManager.finishEvent({
+        eventType: 'UPDATE_STACK',
+        finalMessage: 'Deployment successful.'
+      });
+      return result;
+    }
+    await eventManager.finishEvent({
+      eventType: 'UPDATE_STACK',
+      finalMessage: 'No updates needed.'
+    });
+    return {};
+  };
+
+  deployStackForRollback = async (templateUrl: string) => {
+    await this.validateTemplate({ templateUrl });
+    const stackName = this.#stackName;
+    const roleArn =
+      configManager.deploymentConfig?.cloudformationRoleArn ||
+      (deployedStackOverviewManager.getStackMetadata(stackMetadataNames.cloudformationRoleArn()) as string);
+    const stackParams = {
+      StackName: stackName,
+      Tags: this.getTags(),
+      Parameters: [] as { ParameterKey: string; ParameterValue: string }[],
+      Capabilities: ['CAPABILITY_IAM', 'CAPABILITY_NAMED_IAM', 'CAPABILITY_AUTO_EXPAND'] as Capability[],
+      ...(roleArn && { RoleARN: roleArn })
+    };
+    await eventManager.startEvent({
+      eventType: 'UPDATE_STACK',
+      description: 'Deploying infrastructure resources'
+    });
+    const { skipped } = await awsSdkManager.updateStack(templateUrl, stackParams);
+    if (!skipped) {
+      const result = await this.monitorStack('update', stackName, (progress) => {
+        eventManager.updateEvent({
+          eventType: 'UPDATE_STACK',
+          additionalMessage: progress.message,
+          detail: progress.detail
+        });
+      });
       await eventManager.finishEvent({
         eventType: 'UPDATE_STACK',
         finalMessage: 'Deployment successful.'

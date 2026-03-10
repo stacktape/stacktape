@@ -119,6 +119,20 @@ const getPolicyDocumentStatements = ({ bucketConfig }: { bucketConfig: StpBucket
 };
 
 export const getBucketResource = (stpBucketName: string, bucketConfig: StpBucket) => {
+  // Enable S3 versioning on buckets with directoryUpload to support rollback of synced content
+  const enableVersioning = bucketConfig.versioning || !!bucketConfig.directoryUpload;
+
+  const lifecycleRules = [...(bucketConfig.lifecycleRules || [])];
+  // Auto-add non-current version expiration for buckets with directoryUpload versioning
+  // to prevent unbounded storage growth from versioned objects
+  const hasNoncurrentExpiration = lifecycleRules.some((r) => r.type === 'non-current-version-expiration');
+  if (enableVersioning && bucketConfig.directoryUpload && !bucketConfig.versioning && !hasNoncurrentExpiration) {
+    lifecycleRules.push({
+      type: 'non-current-version-expiration',
+      properties: { daysAfterVersioned: 30 }
+    } as StpBucket['lifecycleRules'][number]);
+  }
+
   return new S3Bucket({
     BucketName: awsResourceNames.bucket(
       stpBucketName,
@@ -136,25 +150,19 @@ export const getBucketResource = (stpBucketName: string, bucketConfig: StpBucket
       ? { ServerSideEncryptionConfiguration: [{ ServerSideEncryptionByDefault: { SSEAlgorithm: 'AES256' } }] }
       : undefined,
     CorsConfiguration: bucketConfig.cors ? getCorsConfiguration(bucketConfig.cors) : undefined,
-    VersioningConfiguration: bucketConfig.versioning ? { Status: 'Enabled' } : undefined,
+    VersioningConfiguration: enableVersioning ? { Status: 'Enabled' } : undefined,
     AccelerateConfiguration: configManager.isS3TransferAccelerationAvailableInDeploymentRegion
       ? {
           AccelerationStatus: 'Enabled'
         }
       : undefined,
-    LifecycleConfiguration: bucketConfig.lifecycleRules
-      ? { Rules: bucketConfig.lifecycleRules.map(getLifecycleRule) }
-      : undefined,
+    LifecycleConfiguration: lifecycleRules.length ? { Rules: lifecycleRules.map(getLifecycleRule) } : undefined,
     PublicAccessBlockConfiguration: {
       BlockPublicAcls: false,
       BlockPublicPolicy: false,
       RestrictPublicBuckets: false,
       IgnorePublicAcls: false
     }
-    // LoggingConfiguration: bucketConfig.loggingConfiguration,
-    // InventoryConfigurations: bucketConfig.inventoryConfigurations,
-    // MetricsConfigurations: bucketConfig.metricsConfigurations,
-    // ReplicationConfiguration: bucketConfig.replicationConfiguration
   });
 };
 
@@ -194,7 +202,7 @@ const getLifecycleRule = (lifecycleRule: StpBucket['lifecycleRules'][number]) =>
     ruleProps.NoncurrentVersionExpirationInDays = lifecycleRule.properties.daysAfterVersioned;
   }
   if (lifecycleRule.type === 'expiration') {
-    ruleProps.NoncurrentVersionExpirationInDays = lifecycleRule.properties.daysAfterUpload;
+    ruleProps.ExpirationInDays = lifecycleRule.properties.daysAfterUpload;
   }
 
   return new Rule(ruleProps);

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-01T13:44:19.905Z",
+  "generatedAt": "2026-03-10T11:04:43.436Z",
   "version": "1.0",
   "synonymMap": {
     "function": [
@@ -1029,6 +1029,17 @@
         "cf-module:update",
         "cf-module",
         "update"
+      ],
+      "priority": 3
+    },
+    {
+      "path": "cli-ref/cf-rollback.md",
+      "docType": "cli-ref",
+      "title": "CLI: cf:rollback",
+      "tags": [
+        "cf:rollback",
+        "cf",
+        "rollback"
       ],
       "priority": 3
     },

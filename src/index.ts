@@ -51,6 +51,7 @@ import { commandDebugOpensearch } from './commands/debug-opensearch';
 import { commandPackageWorkloads } from './commands/package-workloads';
 import { commandParamGet } from './commands/param-get';
 import { commandPreviewChanges } from './commands/preview-changes';
+import { commandCfRollback } from './commands/cf-rollback';
 import { commandRollback } from './commands/rollback';
 import { commandScriptRun } from './commands/script-run';
 import { commandSecretCreate } from './commands/secret-create';
@@ -130,7 +131,7 @@ export const runCommand = async (opts: StacktapeProgrammaticOptions) => {
       tuiDebug('MAIN', 'starting TUI', { command: globalStateManager.command });
       tuiManager.start();
       // Commands with multi-phase flows get phase headers; everything else uses simple mode
-      const commandsWithPhaseFlow: StacktapeCommand[] = ['deploy', 'delete', 'codebuild:deploy'];
+      const commandsWithPhaseFlow: StacktapeCommand[] = ['deploy', 'delete', 'codebuild:deploy', 'rollback'];
       if (!commandsWithPhaseFlow.includes(globalStateManager.command)) {
         tuiManager.setSimpleMode(true);
       }
@@ -251,6 +252,7 @@ const getCommandExecutor = (command: StacktapeCommand) => {
     'debug:redis': commandDebugRedis,
     'debug:opensearch': commandDebugOpensearch,
     rollback: commandRollback,
+    'cf:rollback': commandCfRollback,
     'secret:create': commandSecretCreate,
     'secret:delete': commandSecretDelete,
     'secret:get': commandSecretGet,

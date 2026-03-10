@@ -27,7 +27,8 @@ import {
 } from '@shared/naming/utils';
 import { dockerLogin, pushDockerImage, tagDockerImage } from '@shared/utils/docker';
 import { processConcurrently } from '@shared/utils/misc';
-import { parseYaml } from '@shared/utils/yaml';
+import { outputNames } from '@shared/naming/stack-output-names';
+import { parseYaml, stringifyToYaml } from '@shared/utils/yaml';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import compose from '@utils/basic-compose-shim';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
@@ -855,6 +856,150 @@ export class DeploymentArtifactManager {
         return name === jobName; // && version !== getHotSwapDeployVersionString();
       })
       .map(({ digest }) => digest);
+  };
+
+  getCloudformationTemplateUrlForVersion = (version: string) => {
+    return getCloudformationTemplateUrl(this.deploymentBucketName, globalStateManager.region, version);
+  };
+
+  prepareRollbackTemplate = async (sourceVersion: string, newVersion: string) => {
+    const cfTemplateKey = getCfTemplateS3Key(sourceVersion);
+    const templateYaml = await awsSdkManager.getFromBucket({
+      bucketName: this.deploymentBucketName,
+      s3Key: cfTemplateKey
+    });
+    const template = parseYaml(templateYaml);
+    if (template.Outputs?.[outputNames.deploymentVersion()]) {
+      template.Outputs[outputNames.deploymentVersion()].Value = newVersion;
+    }
+    const newKey = getCfTemplateS3Key(newVersion);
+    await awsSdkManager.putToBucket({
+      bucketName: this.deploymentBucketName,
+      s3Key: newKey,
+      body: stringifyToYaml(template),
+      contentType: 'application/x-yaml'
+    });
+    return getCloudformationTemplateUrl(this.deploymentBucketName, globalStateManager.region, newVersion);
+  };
+
+  verifyArtifactsForVersion = async (targetVersion: string) => {
+    // Verify CF template exists
+    const cfTemplateKey = getCfTemplateS3Key(targetVersion);
+    const cfTemplateExists = this.previousObjects.some((obj) => obj.s3Key === cfTemplateKey);
+    if (!cfTemplateExists) {
+      throw new ExpectedError(
+        'STACK',
+        `CloudFormation template for version ${targetVersion} not found at s3://${this.deploymentBucketName}/${cfTemplateKey}`,
+        'The template may have been cleaned up. Check your previousVersionsToKeep setting.'
+      );
+    }
+
+    // Verify Lambda artifacts exist for this version
+    const lambdaArtifactsForVersion = this.previousObjects.filter(
+      (obj) => obj.version === targetVersion && obj.type === 'user-lambda'
+    );
+    for (const artifact of lambdaArtifactsForVersion) {
+      const exists = this.previousObjects.some((obj) => obj.s3Key === artifact.s3Key);
+      if (!exists) {
+        throw new ExpectedError(
+          'STACK',
+          `Lambda artifact ${artifact.s3Key} for version ${targetVersion} not found`,
+          'The artifact may have been cleaned up.'
+        );
+      }
+    }
+
+    // Verify ECR images exist for this version
+    const imagesForVersion = this.previousImages.filter((img) => img.version === targetVersion);
+    for (const image of imagesForVersion) {
+      const exists = this.previousImages.some((img) => img.tag === image.tag);
+      if (!exists) {
+        throw new ExpectedError(
+          'STACK',
+          `Container image with tag ${image.tag} for version ${targetVersion} not found in ECR`,
+          'The image may have been cleaned up.'
+        );
+      }
+    }
+  };
+
+  saveBucketSyncManifest = async (version: string) => {
+    if (!configManager.allBucketsToSync.length) return;
+
+    const manifest: Record<string, { versionId: string; key: string }[]> = {};
+
+    for (const { bucketName } of configManager.allBucketsToSync) {
+      try {
+        const versionedObjects = await awsSdkManager.listAllVersionedObjectsInBucket(bucketName);
+        // Get only the latest (current) version of each object
+        manifest[bucketName] = versionedObjects
+          .filter((obj: any) => obj.IsLatest)
+          .map((obj: any) => ({ versionId: obj.VersionId, key: obj.Key }));
+      } catch {
+        tuiManager.debug(`Could not list versioned objects in ${bucketName} for manifest`);
+      }
+    }
+
+    const manifestKey = `bucket-sync-manifest/${version}.json`;
+    try {
+      await awsSdkManager.putToBucket({
+        bucketName: this.deploymentBucketName,
+        s3Key: manifestKey,
+        body: JSON.stringify(manifest),
+        contentType: 'application/json'
+      });
+    } catch {
+      tuiManager.debug('Could not save bucket sync manifest');
+    }
+  };
+
+  restoreBucketSyncFromManifest = async (targetVersion: string) => {
+    const manifestKey = `bucket-sync-manifest/${targetVersion}.json`;
+
+    let manifestJson: string;
+    try {
+      manifestJson = await awsSdkManager.getFromBucket({
+        bucketName: this.deploymentBucketName,
+        s3Key: manifestKey
+      });
+    } catch {
+      tuiManager.debug(`No bucket-sync manifest found for ${targetVersion}. Skipping content restore.`);
+      return;
+    }
+
+    const manifest: Record<string, { versionId: string; key: string }[]> = JSON.parse(manifestJson);
+
+    for (const [bucketName, objects] of Object.entries(manifest)) {
+      if (!objects.length) continue;
+
+      const spinner = tuiManager.createSpinner({ text: `Restoring synced content for ${bucketName}` });
+      try {
+        // Copy each object's old version to become the current version
+        for (const { key, versionId } of objects) {
+          await awsSdkManager.copyObjectVersion({
+            bucketName,
+            key,
+            versionId
+          });
+        }
+
+        // Delete objects that exist now but were not in the manifest (files added after the target version)
+        const currentObjects = await awsSdkManager.listAllObjectsInBucket(bucketName);
+        const manifestKeys = new Set(objects.map((o) => o.key));
+        const toDelete = currentObjects.filter((obj: any) => !manifestKeys.has(obj.Key));
+        if (toDelete.length) {
+          await awsSdkManager.batchDeleteObjects(
+            bucketName,
+            toDelete.map((obj: any) => ({ Key: obj.Key }))
+          );
+        }
+
+        spinner.success({ text: `Restored synced content for ${bucketName}` });
+      } catch (error) {
+        spinner.error(`Failed to restore synced content for ${bucketName}`);
+        throw error;
+      }
+    }
   };
 }
 

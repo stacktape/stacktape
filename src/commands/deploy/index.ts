@@ -135,6 +135,7 @@ export const commandDeploy = async () => {
   if (configManager.allBucketsToSync.length) {
     await injectEnvironmentToHostedHtmlFiles();
     await deploymentArtifactManager.syncBuckets();
+    await deploymentArtifactManager.saveBucketSyncManifest(stackManager.nextVersion);
     await writeEnvironmentDotenvFile();
   }
 

@@ -184,7 +184,7 @@ export class ConfigManager {
 
   loadGlobalConfig = async () => {
     const globalConfig = await stacktapeTrpcApiManager.apiClient.globalConfig();
-    this.globalConfigAlarms = ((globalConfig.alarms as AlarmDefinition[]) || []).filter((alarm) =>
+    this.globalConfigAlarms = ((globalConfig.alarms as unknown as AlarmDefinition[]) || []).filter((alarm) =>
       isGlobalAlarmEligibleForStack({
         alarm,
         projectName: globalStateManager.targetStack.projectName,
@@ -2695,6 +2695,35 @@ export class ConfigManager {
   get hooks() {
     return this.config.hooks || {};
   }
+
+  getRollbackSafetyInfo = () => {
+    const UNSAFE_DIRECTIVES = ['File', 'FileRaw', 'CliArgs', 'GitInfo', 'StackOutput', 'Secret'];
+    // Detect unsafe directives by scanning resolved directive results
+    const unsafeDirectives: string[] = [];
+    for (const rawDefinition in this.configResolver.results) {
+      for (const unsafeName of UNSAFE_DIRECTIVES) {
+        if (rawDefinition.startsWith(`$${unsafeName}(`)) {
+          if (!unsafeDirectives.includes(`$${unsafeName}`)) {
+            unsafeDirectives.push(`$${unsafeName}`);
+          }
+        }
+      }
+    }
+
+    // Detect custom (user-defined) directives
+    const hasCustomDirectives = (this.rawConfig?.directives?.length ?? 0) > 0;
+
+    // Detect TypeScript transforms
+    const hasTypeScriptTransforms = Object.keys(this.transforms || {}).length > 0 || this.finalTransform !== null;
+
+    // Detect after:deploy hooks
+    const hasAfterDeployHooks = (this.config?.hooks?.afterDeploy?.length ?? 0) > 0;
+
+    // Detect bucket-synced content
+    const hasBucketSync = this.allBucketsToSync.length > 0;
+
+    return { unsafeDirectives, hasCustomDirectives, hasTypeScriptTransforms, hasAfterDeployHooks, hasBucketSync };
+  };
 
   get scripts() {
     return this.config.scripts || {};

@@ -199,6 +199,7 @@ import {
   PutBucketAccelerateConfigurationCommand,
   PutBucketEncryptionCommand,
   PutBucketPolicyCommand,
+  PutObjectCommand,
   S3Client,
   S3ServiceException,
   waitUntilBucketExists
@@ -997,6 +998,46 @@ export class AwsSdkManager {
       .catch(errHandler);
 
     return streamToString(response.Body as Readable);
+  };
+
+  putToBucket = async ({
+    bucketName,
+    s3Key,
+    body,
+    contentType
+  }: {
+    bucketName: string;
+    s3Key: string;
+    body: string;
+    contentType?: string;
+  }) => {
+    const errHandler = this.#getErrorHandler(`Failed to put object to bucket ${bucketName}. S3 key: ${s3Key}.`);
+    return this.#s3()
+      .send(new PutObjectCommand({ Bucket: bucketName, Key: s3Key, Body: body, ContentType: contentType }))
+      .catch(errHandler);
+  };
+
+  copyObjectVersion = async ({
+    bucketName,
+    key,
+    versionId
+  }: {
+    bucketName: string;
+    key: string;
+    versionId: string;
+  }) => {
+    const errHandler = this.#getErrorHandler(
+      `Failed to copy object version ${versionId} of ${key} in bucket ${bucketName}.`
+    );
+    return this.#s3()
+      .send(
+        new CopyObjectCommand({
+          Bucket: bucketName,
+          CopySource: `${bucketName}/${key}?versionId=${versionId}`,
+          Key: key
+        })
+      )
+      .catch(errHandler);
   };
 
   listAllImagesInEcrRepo = async (repositoryName: string): Promise<ImageIdentifier[]> => {
@@ -2122,20 +2163,21 @@ export class AwsSdkManager {
   //     return res;
   //   };
 
-  createCloudformationChangeSet = async (input: CreateChangeSetInput) => {
+  createCloudformationChangeSet = async (input: CreateChangeSetInput & { includePropertyValues?: boolean }) => {
     const errHandler = this.#getErrorHandler('Failed to fetch change-set details.');
+    const { includePropertyValues, ...createChangeSetInput } = input;
 
     const { Id, StackId } = await this.#cloudformation()
-      .send(new CreateChangeSetCommand(input))
+      .send(new CreateChangeSetCommand(createChangeSetInput))
       .catch(this.#getErrorHandler('Failed to initiate creation of changes set.'));
 
     let changeSet = await this.#cloudformation()
-      .send(new DescribeChangeSetCommand({ ChangeSetName: Id }))
+      .send(new DescribeChangeSetCommand({ ChangeSetName: Id, IncludePropertyValues: includePropertyValues }))
       .catch(errHandler);
     while (changeSet.Status !== 'CREATE_COMPLETE') {
       await wait(750);
       changeSet = await this.#cloudformation()
-        .send(new DescribeChangeSetCommand({ ChangeSetName: Id }))
+        .send(new DescribeChangeSetCommand({ ChangeSetName: Id, IncludePropertyValues: includePropertyValues }))
         .catch(errHandler);
     }
 

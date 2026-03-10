@@ -409,6 +409,18 @@ export const onlyWorkloads = z.array(z.string()).describe(`#### Only Workloads
 Package only the specified workloads. Provide a comma-separated list of workload names to package.
 Other workloads will be skipped. Example: \`--onlyWorkloads myFunction,myContainer\`.`);
 
+export const rollbackVersion = z.string().describe(`#### Rollback Version
+---
+The target deployment version to rollback to (e.g., \`v000003\`). Use \`--listVersions\` to see available versions.`);
+
+export const rollbackSteps = z.number().describe(`#### Rollback Steps
+---
+Number of versions to rollback. Defaults to \`1\` (previous version). For example, \`--rollbackSteps 2\` rolls back two versions.`);
+
+export const listVersions = z.boolean().describe(`#### List Versions
+---
+Lists available deployment versions that can be rolled back to, then exits without performing a rollback.`);
+
 // ============ Arg Groups ============
 
 export const universalArgs = {
@@ -517,7 +529,10 @@ export const argAliases = {
   taskArn: 'ta',
   organizationName: 'onm',
   organizationId: 'oid',
-  onlyWorkloads: 'ow'
+  onlyWorkloads: 'ow',
+  targetVersion: 'tv',
+  rollbackSteps: 'rbs',
+  listVersions: 'lv'
 } as const;
 
 // ============ Combined Args Schema ============
@@ -615,7 +630,10 @@ export const allCliArgsSchema = z.object({
   section: redisSection.optional(),
 
   id: documentId.optional(),
-  onlyWorkloads: onlyWorkloads.optional()
+  onlyWorkloads: onlyWorkloads.optional(),
+  targetVersion: rollbackVersion.optional(),
+  rollbackSteps: rollbackSteps.optional(),
+  listVersions: listVersions.optional()
 });
 
 // Inferred type from Zod schema

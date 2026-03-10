@@ -51,5 +51,8 @@ export const stackMetadataNames = {
   },
   debugAgentRoleExternalId() {
     return 'debugAgentRoleExternalId';
+  },
+  rollbackSafety() {
+    return 'rollbackSafety';
   }
 };

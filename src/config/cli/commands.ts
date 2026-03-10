@@ -31,6 +31,7 @@ import {
   initializeProjectTo,
   invalidateCdnCache,
   limit,
+  listVersions,
   localTunnelingPort,
   logLevel,
   newVersion,
@@ -49,6 +50,8 @@ import {
   resourceName,
   resources,
   resourcesToSkip,
+  rollbackSteps,
+  rollbackVersion,
   scriptName,
   showSensitiveValues,
   skipResources,
@@ -361,9 +364,30 @@ In agent mode, use --secretName to specify the secret to delete.`,
   },
 
   rollback: {
-    description: `Rolls back the stack to the last known good state.
+    description: `Rolls back the stack to a previous deployment version.
 
-This is useful if a stack update fails and leaves the stack in an \`UPDATE_FAILED\` state.`,
+Downloads the CloudFormation template from a previous version and deploys it. Artifacts (Lambda zips, container images) from that version are reused — no rebuild is required.
+
+Use \`--listVersions\` to see available versions. Specify a target with \`--targetVersion v000003\` or \`--rollbackSteps N\` (default: 1).
+
+For recovering from \`UPDATE_FAILED\` state, use \`cf:rollback\` instead.`,
+    args: {
+      ...universalArgs,
+      ...stackArgs,
+      ...configDependentArgs,
+      targetVersion: rollbackVersion.optional(),
+      rollbackSteps: rollbackSteps.optional(),
+      listVersions: listVersions.optional()
+    },
+    requiredArgs: ['region'] as const
+  },
+
+  'cf:rollback': {
+    description: `Rolls back the CloudFormation stack to the last known good state.
+
+This is useful if a stack update fails and leaves the stack in an \`UPDATE_FAILED\` or \`UPDATE_ROLLBACK_FAILED\` state. This uses CloudFormation's native rollback mechanism.
+
+For rolling back to a specific previous deployment version, use \`rollback\` instead.`,
     args: {
       ...universalArgs,
       ...stackArgs,

@@ -385,6 +385,14 @@ export class CalculatedStackOverviewManager {
         showDuringPrint: false
       });
     }
+
+    // Store rollback safety metadata for future rollback operations
+    const rollbackSafety = configManager.getRollbackSafetyInfo();
+    this.addStackMetadata({
+      metaName: stackMetadataNames.rollbackSafety(),
+      metaValue: JSON.stringify(rollbackSafety),
+      showDuringPrint: false
+    });
   };
 
   isCfResourceChildOfStpResource = ({

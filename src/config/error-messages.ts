@@ -1377,7 +1377,10 @@ You have specified ${tuiManager.makeBold('app_variable')} "${appVariable}" in yo
     stackName,
     stackStatus
   }: {
-    command: Subtype<StacktapeCommand, 'deploy' | 'delete' | 'dev' | 'rollback' | 'deployment-script:run'>;
+    command: Subtype<
+      StacktapeCommand,
+      'deploy' | 'delete' | 'dev' | 'rollback' | 'cf:rollback' | 'deployment-script:run'
+    >;
     stackName: string;
     stackStatus: StackStatus;
   }): ReturnedError {
@@ -1389,7 +1392,7 @@ You have specified ${tuiManager.makeBold('app_variable')} "${appVariable}" in yo
       hint: [
         `To perform ${tuiManager.prettyCommand(
           command
-        )} operation, stack must be in one of the following states: ${(command === 'rollback'
+        )} operation, stack must be in one of the following states: ${(command === 'cf:rollback'
           ? STACK_IS_READY_FOR_ROLLBACK_OPERATION_STATUS
           : STACK_IS_READY_FOR_MODIFYING_OPERATION_STATUS
         )
@@ -1405,7 +1408,7 @@ You have specified ${tuiManager.makeBold('app_variable')} "${appVariable}" in yo
           STACK_IS_READY_FOR_ROLLBACK_OPERATION_STATUS.includes(stackStatus as any)
             ? [
                 `To rollback your stack to previously working state, try using ${tuiManager.prettyCommand(
-                  'rollback'
+                  'cf:rollback'
                 )} command.`
               ]
             : []
@@ -2000,6 +2003,13 @@ Property ${tuiManager.prettyConfigProperty('runAppAs')} can be specified only fo
       message: `Stack ${tuiManager.colorize('cyan', stackName)} is a dev stack and cannot be deployed using ${tuiManager.prettyCommand('deploy')}.`,
       hint: `Dev stacks are created and managed by ${tuiManager.prettyCommand('dev')}. To deploy a production stack, use a different stage name (e.g., --stage production).
 If you want to delete the dev stack, run: ${tuiManager.prettyCommand(`delete --stage ${stage}`)}`
+    };
+  },
+  e999({ message, hint }: { message: string; hint: string }): ReturnedError {
+    return {
+      type: 'STACK',
+      message,
+      hint
     };
   }
 } as const;
