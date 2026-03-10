@@ -52,7 +52,6 @@ import {
   isDockerRunning
 } from '@shared/utils/docker';
 import { getFileExtension, getFileSize, getFolderSize, getHashFromMultipleFiles } from '@shared/utils/fs-utils';
-import { localBuildTsConfigPath } from '@shared/utils/misc';
 import { archiveItem } from '@shared/utils/zip';
 import compose from '@utils/basic-compose-shim';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
@@ -114,6 +113,17 @@ export class PackagingManager {
   #lambdasUsingNativeBinaryLayer: Set<string> = new Set();
 
   init = async () => {};
+
+  #waitForAllOrThrow = async (promises: Promise<unknown>[]) => {
+    const results = await Promise.allSettled(promises);
+    const firstRejectedResult = results.find((result) => result.status === 'rejected') as
+      | PromiseRejectedResult
+      | undefined;
+
+    if (firstRejectedResult) {
+      throw firstRejectedResult.reason;
+    }
+  };
 
   clearPackagedJobs() {
     this.#packagedJobs = [];
@@ -354,7 +364,9 @@ export class PackagingManager {
       entrypoints,
       sharedOutdir: fsPaths.absoluteSplitBundleOutdir({ invocationId: globalStateManager.invocationId }),
       cwd: globalStateManager.workingDir,
-      tsConfigPath: localBuildTsConfigPath,
+      tsConfigPath: languageSpecificConfig?.tsConfigPath
+        ? join(globalStateManager.workingDir, languageSpecificConfig.tsConfigPath)
+        : join(globalStateManager.workingDir, 'tsconfig.json'),
       nodeTarget: String(nodeVersion),
       minify: false, // Match existing behavior
       sourceMaps: languageSpecificConfig?.disableSourceMaps ? 'disabled' : 'external',
@@ -598,7 +610,7 @@ export class PackagingManager {
       });
     });
 
-    await Promise.all(zipPromises);
+    await this.#waitForAllOrThrow(zipPromises);
   };
 
   packageAllWorkloads = async ({
@@ -800,7 +812,7 @@ export class PackagingManager {
       packagingPromises.push(Promise.all(otherPackagingJobs.map((job) => job())).then(() => {}));
     }
 
-    await Promise.all(packagingPromises);
+    await this.#waitForAllOrThrow(packagingPromises);
 
     await eventManager.finishEvent({
       eventType: 'PACKAGE_ARTIFACTS',

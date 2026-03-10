@@ -247,12 +247,28 @@ export type AgentReadyPayload = {
  * Parse AGENT_READY message from stdout.
  */
 const parseAgentReady = (line: string): AgentReadyPayload | null => {
-  if (!line.startsWith('AGENT_READY ')) return null;
+  const parseRawReady = (raw: string): AgentReadyPayload | null => {
+    if (!raw.startsWith('AGENT_READY ')) return null;
+    try {
+      return JSON.parse(raw.slice('AGENT_READY '.length)) as AgentReadyPayload;
+    } catch {
+      return null;
+    }
+  };
+
+  const rawReady = parseRawReady(line);
+  if (rawReady) return rawReady;
+
   try {
-    return JSON.parse(line.slice('AGENT_READY '.length)) as AgentReadyPayload;
+    const parsed = JSON.parse(line);
+    if (parsed?.source === 'stdout-raw' && typeof parsed?.message === 'string') {
+      return parseRawReady(parsed.message.trim());
+    }
   } catch {
-    return null;
+    // Not JSONL, ignore.
   }
+
+  return null;
 };
 
 const parseJsonlResult = (line: string): { ok: boolean; code: string; message: string } | null => {

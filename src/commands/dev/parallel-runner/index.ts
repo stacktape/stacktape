@@ -624,7 +624,7 @@ const startContainerWorkload = async (
       tunnels: state.tunnels.filter((t) => resourceDeployedConnectTo.includes(t.targetInfo.targetStpName)),
       localResourceEnvVars,
       skipAwsCredentials,
-      port: primaryHostPort,
+      port: primaryPort || primaryHostPort,
       localWorkloadAddresses
     });
   };

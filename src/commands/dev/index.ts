@@ -555,12 +555,18 @@ export const commandDev = async () => {
           throw err;
         }
       } else {
-        // Interactive mode: use TUI
+        // Interactive mode: use TUI to show deployment progress.
+        // Set a header that explains this is an automatic dev-stack setup step.
         eventManager.setSilentMode(false);
+        tuiManager.showCommandHeader({
+          action: 'DEPLOYING DEV STACK',
+          projectName: globalStateManager.targetStack.projectName,
+          stageName: globalStateManager.targetStack.stage,
+          region: globalStateManager.region
+        });
         tuiManager.start();
         tuiManager.setSimpleMode(true);
         tuiManager.setShowPhaseHeaders(false);
-        tuiManager.info('Deploying dev stack...');
         try {
           await deployDevStack();
         } finally {
