@@ -17,11 +17,11 @@ import {
   SESSION_MANAGER_PLUGIN_BINARY_FILE_NAMES
 } from '@shared/utils/constants';
 import { downloadFile } from '@shared/utils/download-file';
-import { exec } from '@shared/utils/exec';
 import { logInfo, logSuccess } from '@shared/utils/logging';
 import { localBuildTsConfigPath } from '@shared/utils/misc';
 import { archiveItem, extractTgzArchive } from '@shared/utils/zip';
 import { chmod, copy, ensureDir, pathExists, readdir, readFile, readJsonSync, remove, writeJson } from 'fs-extra';
+import { solidBuildPlugin } from '../solid-preload';
 import {
   createBashCompletionScript,
   createPowershellCompletionScript,
@@ -160,30 +160,22 @@ export const buildBinaryFile = async ({
   const outputFileName = platform === 'win' ? 'stacktape.exe' : 'stacktape';
   const outputPath = join(outputFolderPath, outputFileName);
 
-  const buildArgs = [
-    'build',
-    '--compile',
-    `--target=${compileTarget}`,
-    entrypoint,
-    `--outfile=${outputPath}`,
-    '--sourcemap=inline',
-    `--define=STACKTAPE_VERSION="${version || 'dev'}"`
-  ];
+  const result = await Bun.build({
+    entrypoints: [entrypoint],
+    compile: {
+      target: compileTarget as Bun.Build.Target,
+      outfile: outputPath
+    },
+    sourcemap: 'inline',
+    define: { STACKTAPE_VERSION: JSON.stringify(version || 'dev') },
+    minify: !debug,
+    plugins: [solidBuildPlugin],
+    throw: false
+  });
 
-  if (!debug) {
-    buildArgs.push('--minify');
-    // buildArgs.push('--bytecode');
-  }
-
-  try {
-    await exec('bun', buildArgs, {
-      cwd: process.cwd(),
-      disableStdout: true
-    });
-  } catch (error) {
-    throw new Error(
-      `Failed to build binary for platform ${platform}: ${error instanceof Error ? error.message : String(error)}`
-    );
+  if (!result.success) {
+    const errors = result.logs.map((log) => log.message || String(log)).join('\n');
+    throw new Error(`Failed to build binary for platform ${platform}:\n${errors}`);
   }
 
   if (platform !== 'win') {

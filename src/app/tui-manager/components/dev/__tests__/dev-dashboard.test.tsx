@@ -1,13 +1,11 @@
-/** @jsxImportSource @opentui/react */
-
 import { describe, test, expect, afterEach } from 'bun:test';
-import { testRender } from '@opentui/react/test-utils';
-import { KeyEvent } from '@opentui/core';
-import { devTuiState } from '../state';
-import { DevDashboard } from '../components/dev-dashboard';
-import { resetWorkloadColors } from '../utils';
+import { testRender } from '@opentui/solid';
+import { devTuiState } from '../../../dev-tui/state';
+import { DevDashboard } from '../dev-dashboard';
+import { resetWorkloadColors } from '../../../dev-tui/utils';
 
-let testSetup: Awaited<ReturnType<typeof testRender>>;
+type TestSetup = Awaited<ReturnType<typeof testRender>>;
+let testSetup: TestSetup;
 
 afterEach(() => {
   if (testSetup) {
@@ -17,32 +15,14 @@ afterEach(() => {
   resetWorkloadColors();
 });
 
-const emitKey = (name: string, opts?: { ctrl?: boolean; sequence?: string }) => {
-  const key = new KeyEvent({
-    name,
-    sequence: opts?.sequence ?? name,
-    ctrl: opts?.ctrl ?? false,
-    shift: false,
-    meta: false,
-    option: false,
-    number: false,
-    raw: opts?.sequence ?? name,
-    eventType: 'press',
-    source: 'raw'
-  });
-  testSetup.renderer.keyInput.emit('keypress', key);
-};
-
-const flushAndRender = async (cycles = 4) => {
+const flushAndRender = async () => {
   devTuiState.flushPendingNotifications();
   await new Promise((r) => setTimeout(r, 20));
-  for (let i = 0; i < cycles; i++) {
-    await testSetup.renderOnce();
-  }
+  await testSetup.renderOnce();
 };
 
 const renderDashboard = async (opts: { width: number; height: number }) => {
-  testSetup = await testRender(<DevDashboard onRebuild={() => {}} onQuit={() => {}} />, opts);
+  testSetup = await testRender(() => <DevDashboard onRebuild={() => {}} onQuit={() => {}} />, opts);
   await flushAndRender();
   return testSetup.captureCharFrame();
 };
@@ -132,7 +112,7 @@ describe('DevDashboard: startup phase', () => {
     devTuiState.init({ projectName: 'test', stageName: 'dev', devMode: 'normal' });
     const frame = await renderDashboard({ width: 100, height: 30 });
     expect(frame).toContain('ctrl+c');
-    expect(frame).toContain('stop');
+    expect(frame).toContain('quit');
   });
 });
 
@@ -235,7 +215,7 @@ describe('DevDashboard: sidebar toggle', () => {
     initRunningState();
     await renderDashboard({ width: 120, height: 30 });
 
-    emitKey('s', { sequence: 's' });
+    testSetup.mockInput.pressKey('s');
     await flushAndRender();
     const frame = testSetup.captureCharFrame();
     expect(frame).not.toContain('Workloads');
@@ -246,11 +226,11 @@ describe('DevDashboard: sidebar toggle', () => {
     initRunningState();
     await renderDashboard({ width: 120, height: 30 });
 
-    emitKey('s', { sequence: 's' });
+    testSetup.mockInput.pressKey('s');
     await flushAndRender();
     expect(testSetup.captureCharFrame()).not.toContain('Workloads');
 
-    emitKey('s', { sequence: 's' });
+    testSetup.mockInput.pressKey('s');
     await flushAndRender();
     expect(testSetup.captureCharFrame()).toContain('Workloads');
   });
@@ -259,7 +239,7 @@ describe('DevDashboard: sidebar toggle', () => {
     initRunningState();
     await renderDashboard({ width: 120, height: 30 });
 
-    emitKey('s', { sequence: 's' });
+    testSetup.mockInput.pressKey('s');
     await flushAndRender();
     const frame = testSetup.captureCharFrame();
     expect(frame).toContain('✓2');
@@ -273,7 +253,7 @@ describe('DevDashboard: log filtering', () => {
     devTuiState.addLogLine('worker', 'worker log line');
     await renderDashboard({ width: 120, height: 30 });
 
-    emitKey('1', { sequence: '1' });
+    testSetup.mockInput.pressKey('1');
     await flushAndRender();
     const frame = testSetup.captureCharFrame();
     expect(frame).toContain('api log line');
@@ -288,11 +268,11 @@ describe('DevDashboard: log filtering', () => {
     devTuiState.addLogLine('worker', 'worker log line');
     await renderDashboard({ width: 120, height: 30 });
 
-    emitKey('1', { sequence: '1' });
+    testSetup.mockInput.pressKey('1');
     await flushAndRender();
     expect(testSetup.captureCharFrame()).not.toContain('worker log line');
 
-    emitKey('escape', { sequence: '\x1B' });
+    testSetup.mockInput.pressEscape();
     await flushAndRender();
     const frame = testSetup.captureCharFrame();
     expect(frame).toContain('worker log line');
@@ -305,7 +285,7 @@ describe('DevDashboard: log filtering', () => {
     devTuiState.addSystemLog('system message');
     await renderDashboard({ width: 120, height: 30 });
 
-    emitKey('1', { sequence: '1' });
+    testSetup.mockInput.pressKey('1');
     await flushAndRender();
     const frame = testSetup.captureCharFrame();
     expect(frame).toContain('api output');
@@ -320,7 +300,7 @@ describe('DevDashboard: clear logs', () => {
     await renderDashboard({ width: 120, height: 30 });
     expect(testSetup.captureCharFrame()).toContain('old log entry');
 
-    emitKey('c', { sequence: 'c' });
+    testSetup.mockInput.pressKey('c');
     await flushAndRender();
     expect(testSetup.captureCharFrame()).not.toContain('old log entry');
   });
@@ -332,17 +312,19 @@ describe('DevDashboard: rebuild', () => {
     initRunningState();
 
     testSetup = await testRender(
-      <DevDashboard
-        onRebuild={(name) => {
-          rebuildArg = name;
-        }}
-        onQuit={() => {}}
-      />,
+      () => (
+        <DevDashboard
+          onRebuild={(name) => {
+            rebuildArg = name;
+          }}
+          onQuit={() => {}}
+        />
+      ),
       { width: 120, height: 30 }
     );
     await flushAndRender();
 
-    emitKey('a', { sequence: 'a' });
+    testSetup.mockInput.pressKey('a');
     await flushAndRender();
     expect(rebuildArg).toBeNull();
   });
@@ -352,22 +334,24 @@ describe('DevDashboard: rebuild', () => {
     initRunningState();
 
     testSetup = await testRender(
-      <DevDashboard
-        onRebuild={(name) => {
-          rebuildArg = name;
-        }}
-        onQuit={() => {}}
-      />,
+      () => (
+        <DevDashboard
+          onRebuild={(name) => {
+            rebuildArg = name;
+          }}
+          onQuit={() => {}}
+        />
+      ),
       { width: 120, height: 30 }
     );
     await flushAndRender();
 
     // First press sets filter
-    emitKey('1', { sequence: '1' });
+    testSetup.mockInput.pressKey('1');
     await flushAndRender();
 
     // Second press in filtered mode rebuilds
-    emitKey('1', { sequence: '1' });
+    testSetup.mockInput.pressKey('1');
     await flushAndRender();
     expect(rebuildArg).toBe('api');
   });
@@ -404,17 +388,19 @@ describe('DevDashboard: rebuild', () => {
     devTuiState.startRebuild(['api'], new Map([['api', 'container']]));
 
     testSetup = await testRender(
-      <DevDashboard
-        onRebuild={(name) => {
-          rebuildArg = name;
-        }}
-        onQuit={() => {}}
-      />,
+      () => (
+        <DevDashboard
+          onRebuild={(name) => {
+            rebuildArg = name;
+          }}
+          onQuit={() => {}}
+        />
+      ),
       { width: 120, height: 30 }
     );
     await flushAndRender();
 
-    emitKey('a', { sequence: 'a' });
+    testSetup.mockInput.pressKey('a');
     await flushAndRender();
     expect(rebuildArg).toBeUndefined();
   });
@@ -426,17 +412,19 @@ describe('DevDashboard: quit', () => {
     initRunningState();
 
     testSetup = await testRender(
-      <DevDashboard
-        onRebuild={() => {}}
-        onQuit={() => {
-          quitCalled = true;
-        }}
-      />,
+      () => (
+        <DevDashboard
+          onRebuild={() => {}}
+          onQuit={() => {
+            quitCalled = true;
+          }}
+        />
+      ),
       { width: 120, height: 30 }
     );
     await flushAndRender();
 
-    emitKey('c', { ctrl: true, sequence: '\x03' });
+    testSetup.mockInput.pressCtrlC();
     await flushAndRender();
     expect(quitCalled).toBe(true);
   });
@@ -446,17 +434,19 @@ describe('DevDashboard: quit', () => {
     devTuiState.init({ projectName: 'test', stageName: 'dev', devMode: 'normal' });
 
     testSetup = await testRender(
-      <DevDashboard
-        onRebuild={() => {}}
-        onQuit={() => {
-          quitCalled = true;
-        }}
-      />,
+      () => (
+        <DevDashboard
+          onRebuild={() => {}}
+          onQuit={() => {
+            quitCalled = true;
+          }}
+        />
+      ),
       { width: 120, height: 30 }
     );
     await flushAndRender();
 
-    emitKey('c', { ctrl: true, sequence: '\x03' });
+    testSetup.mockInput.pressCtrlC();
     await flushAndRender();
     expect(quitCalled).toBe(true);
   });

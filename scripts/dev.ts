@@ -27,6 +27,21 @@ const isMachineMode =
   requestedJsonlOutput;
 const isMcpMode = process.argv.includes('mcp');
 
+const drainStream = async (stream: NodeJS.WriteStream) => {
+  if (stream.writableLength === 0) {
+    return;
+  }
+  await new Promise<void>((resolve) => {
+    stream.once('drain', resolve);
+    setTimeout(resolve, 300);
+  });
+};
+
+const finishProcess = async () => {
+  await Promise.all([drainStream(process.stdout), drainStream(process.stderr)]);
+  process.exit(process.exitCode ?? 0);
+};
+
 if (isMachineMode || isMcpMode) {
   process.env.STP_SILENT_SCRIPT_LOGS = 'true';
 }
@@ -40,9 +55,30 @@ const buildSource = async () => {
     entrypoints: [CLI_SOURCE_PATH],
     outdir: DEV_TMP_FOLDER_PATH,
     target: 'bun',
+    conditions: ['browser'],
     minify: false,
     sourcemap: 'inline',
     bytecode: false,
+    plugins: [
+      {
+        name: 'solid-jsx',
+        setup(build) {
+          build.onLoad({ filter: /\.(ts|js)x$/ }, async (args) => {
+            const { transformAsync } = await import('@babel/core');
+            const code = await Bun.file(args.path).text();
+            const result = await transformAsync(code, {
+              filename: args.path,
+              presets: [
+                ['babel-preset-solid', { moduleName: '@opentui/solid', generate: 'universal' }],
+                ['@babel/preset-typescript']
+              ]
+            });
+            return { contents: result?.code ?? '', loader: 'js' };
+          });
+        }
+      }
+    ],
+    external: ['follow-redirects'],
     define: {
       STACKTAPE_VERSION: `"${packageJson.version}"`
     }
@@ -85,7 +121,7 @@ export const runDev = async () => {
 };
 
 if (import.meta.main) {
-  runDev().finally(() => {
+  runDev().finally(async () => {
     if (process.env.STP_DEBUG_ACTIVE_HANDLES === '1') {
       const activeResources = (process as any).getActiveResourcesInfo?.() || [];
       const activeHandles = ((process as any)._getActiveHandles?.() || []).map(
@@ -94,9 +130,11 @@ if (import.meta.main) {
       const activeRequests = ((process as any)._getActiveRequests?.() || []).map(
         (r: any) => r?.constructor?.name || 'Unknown'
       );
-      logWarn(`[DEV EXIT DEBUG] active resources: ${JSON.stringify(activeResources)}`);
-      logWarn(`[DEV EXIT DEBUG] active handles: ${JSON.stringify(activeHandles)}`);
-      logWarn(`[DEV EXIT DEBUG] active requests: ${JSON.stringify(activeRequests)}`);
+      process.stderr.write(`[DEV EXIT DEBUG] active resources: ${JSON.stringify(activeResources)}\n`);
+      process.stderr.write(`[DEV EXIT DEBUG] active handles: ${JSON.stringify(activeHandles)}\n`);
+      process.stderr.write(`[DEV EXIT DEBUG] active requests: ${JSON.stringify(activeRequests)}\n`);
     }
+
+    await finishProcess();
   });
 }

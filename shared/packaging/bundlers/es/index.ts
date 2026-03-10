@@ -39,6 +39,7 @@ import {
   resolveDifferentSourceMapLocation,
   resolvePrisma
 } from './utils';
+import { getBunBuildTsConfigPath } from './tsconfig-for-bun-build';
 
 // Extract module name from import path (handles scoped packages)
 const getModuleNameFromPath = (importPath: string): string => {
@@ -108,9 +109,16 @@ export const buildEsCode = async ({
 
   let tsConfigPathForBuild = tsConfigPath;
   if (!tsConfigPathForBuild) {
-    const cwdTsConfigPath = join(process.cwd(), 'tsconfig.json');
+    // Use user project's cwd, not process.cwd() which may be Stacktape's own directory
+    const cwdTsConfigPath = join(cwd, 'tsconfig.json');
     tsConfigPathForBuild = existsSync(cwdTsConfigPath) ? cwdTsConfigPath : undefined;
   }
+
+  const outDir = distDir || (distPath ? dirname(distPath) : cwd);
+  tsConfigPathForBuild = getBunBuildTsConfigPath({
+    tsConfigPath: tsConfigPathForBuild,
+    outDir
+  });
 
   const skipAwsSdkV3Deps =
     isLambda &&
@@ -387,8 +395,46 @@ export const buildEsCode = async ({
       }
     };
 
+    const openTuiJsxRuntimeShimPlugin: BunPlugin = {
+      name: 'stacktape-opentui-jsx-runtime-shim',
+      setup(build) {
+        const shouldShimForImporter = (importer: string) => {
+          return importer.includes('\\stacktape\\src\\') || importer.includes('/stacktape/src/');
+        };
+
+        build.onResolve({ filter: /^@opentui\/solid\/jsx-runtime$/ }, ({ importer }) => {
+          if (!shouldShimForImporter(importer || '')) {
+            return undefined;
+          }
+          return { path: 'opentui-jsx-runtime', namespace: 'stacktape-opentui-jsx-runtime-shim' };
+        });
+        build.onResolve({ filter: /^@opentui\/solid\/jsx-dev-runtime$/ }, ({ importer }) => {
+          if (!shouldShimForImporter(importer || '')) {
+            return undefined;
+          }
+          return { path: 'opentui-jsx-dev-runtime', namespace: 'stacktape-opentui-jsx-runtime-shim' };
+        });
+
+        build.onLoad(
+          { filter: /^opentui-jsx-(dev-)?runtime$/, namespace: 'stacktape-opentui-jsx-runtime-shim' },
+          () => {
+            return {
+              loader: 'js',
+              contents: [
+                'export const Fragment = Symbol.for("stacktape.jsx.fragment");',
+                'export const jsx = (type, props, key) => ({ type, props, key });',
+                'export const jsxs = jsx;',
+                'export const jsxDEV = jsx;'
+              ].join('\n')
+            };
+          }
+        );
+      }
+    };
+
     const allBunPlugins: BunPlugin[] = [
       bunFfiShimPlugin,
+      openTuiJsxRuntimeShimPlugin,
       looseResolvePlugin,
       stpAnalyzeDepsPlugin,
       nativeNodeModulesPlugin,
@@ -402,12 +448,13 @@ export const buildEsCode = async ({
     const outdir = distDir || (distPath ? dirname(distPath) : undefined);
     const unixOutdir = outdir ? transformToUnixPath(outdir) : undefined;
 
-    // Handle raw code by writing to a temp file
-    let tempEntryFile: string | undefined;
+    // Handle raw code using Bun's in-memory virtual files (no temp file needed)
+    // Path must start with "./" so Bun's onResolve plugins (filter: /^[^.]/) skip it
+    let virtualFiles: Record<string, string> | undefined;
     if (rawCode) {
-      tempEntryFile = join(cwd, '.stacktape-temp-entry.ts');
-      await Bun.write(tempEntryFile, rawCode);
-      entryPoints.push(tempEntryFile);
+      const virtualEntryPath = './__virtual-entry.ts';
+      entryPoints.push(virtualEntryPath);
+      virtualFiles = { [virtualEntryPath]: rawCode };
     }
 
     // Build with Bun
@@ -452,8 +499,9 @@ export const buildEsCode = async ({
         plugins: allBunPlugins,
         root: buildRoot,
         banner: shouldInjectBanner && banner.js ? banner.js : undefined,
-        // Enable metafile for accurate source file tracking
-        metafile: true
+        tsconfig: tsConfigPathForBuild,
+        metafile: true,
+        ...(virtualFiles && { files: virtualFiles })
       });
     } catch (err: any) {
       // Bun can throw AggregateError with message "Bundle failed" for severe errors
@@ -465,17 +513,6 @@ export const buildEsCode = async ({
         message: `Build failed: ${errorDetails}`,
         hint: 'Check that the entrypoint file exists and is valid TypeScript/JavaScript.'
       });
-    }
-
-    // Clean up temp file
-    if (tempEntryFile) {
-      try {
-        await Bun.write(tempEntryFile, ''); // Clear it
-        const fs = await import('fs-extra');
-        await fs.remove(tempEntryFile);
-      } catch {
-        // Ignore cleanup errors
-      }
     }
 
     if (!buildResult.success) {
@@ -559,7 +596,11 @@ export const buildEsCode = async ({
   };
 
   return runBuild({}).catch(async (error) => {
-    const printableSrcPath = transformToUnixPath(getRelativePath(sourcePath));
+    const printableSrcPath = sourcePath
+      ? transformToUnixPath(getRelativePath(sourcePath))
+      : rawCode
+        ? '<raw code>'
+        : '<unknown>';
 
     // Handle dynamic import errors by retrying with those modules externalized
     if (error.message?.includes('Could not resolve')) {

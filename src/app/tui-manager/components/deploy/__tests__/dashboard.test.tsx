@@ -1,20 +1,19 @@
-/** @jsxImportSource @opentui/react */
-
 import { describe, test, expect, afterEach } from 'bun:test';
-import { testRender } from '@opentui/react/test-utils';
-import { KeyEvent } from '@opentui/core';
+import { testRender } from '@opentui/solid';
 import { tuiState } from '../../../state';
-import { PhaseList } from '../PhaseList';
-import { StatusIcon, PhaseIcon, Spinner } from '../StatusIcon';
-import { EventTree } from '../EventTree';
-import { LogPanel } from '../LogPanel';
-import { Footer } from '../Footer';
-import { DetailPanel } from '../DetailPanel';
-import { DeployDashboard } from '../DeployDashboard';
-import { DeployPhaseDetail } from '../DeployProgress';
+import { PhaseList } from '../phase-list';
+import { StatusIcon, PhaseIcon } from '../../shared/status-icon';
+import { Spinner } from '../../shared/spinner';
+import { EventTree } from '../event-tree';
+import { LogPanel } from '../log-panel';
+import { Footer } from '../footer';
+import { DetailPanel } from '../detail-panel';
+import { DeployDashboard } from '../deploy-dashboard';
+import { DeployPhaseDetail } from '../deploy-progress';
 import type { TuiEvent, TuiPhase, CfProgressData } from '../../../types';
 
-let testSetup: Awaited<ReturnType<typeof testRender>>;
+type TestSetup = Awaited<ReturnType<typeof testRender>>;
+let testSetup: TestSetup;
 
 afterEach(() => {
   if (testSetup) {
@@ -23,36 +22,14 @@ afterEach(() => {
   tuiState.reset();
 });
 
-// Helper for keypress simulation
-const emitKey = (name: string, opts?: { ctrl?: boolean; sequence?: string }) => {
-  const key = new KeyEvent({
-    name,
-    sequence: opts?.sequence ?? name,
-    ctrl: opts?.ctrl ?? false,
-    shift: false,
-    meta: false,
-    option: false,
-    number: false,
-    raw: opts?.sequence ?? name,
-    eventType: 'press',
-    source: 'raw'
-  });
-  testSetup.renderer.keyInput.emit('keypress', key);
-};
-
-// Helper: flush state + render enough cycles for React to reconcile
-const flushAndRender = async (cycles = 4) => {
+const flushAndRender = async () => {
   tuiState.flushPendingNotifications();
-  // Allow microtasks/timers to fire (React scheduling)
   await new Promise((r) => setTimeout(r, 20));
-  for (let i = 0; i < cycles; i++) {
-    await testSetup.renderOnce();
-  }
+  await testSetup.renderOnce();
 };
 
-// Helper: renders dashboard with state flushed
 const renderDashboard = async (opts: { width: number; height: number }) => {
-  testSetup = await testRender(<DeployDashboard onQuit={() => {}} onCancel={() => {}} />, opts);
+  testSetup = await testRender(() => <DeployDashboard onQuit={() => {}} onCancel={() => {}} />, opts);
   await flushAndRender();
   return testSetup.captureCharFrame();
 };
@@ -61,19 +38,19 @@ const renderDashboard = async (opts: { width: number; height: number }) => {
 
 describe('StatusIcon', () => {
   test('renders success icon', async () => {
-    testSetup = await testRender(<StatusIcon status="success" />, { width: 10, height: 3 });
+    testSetup = await testRender(() => <StatusIcon status="success" />, { width: 10, height: 3 });
     await testSetup.renderOnce();
     expect(testSetup.captureCharFrame()).toContain('✓');
   });
 
   test('renders error icon', async () => {
-    testSetup = await testRender(<StatusIcon status="error" />, { width: 10, height: 3 });
+    testSetup = await testRender(() => <StatusIcon status="error" />, { width: 10, height: 3 });
     await testSetup.renderOnce();
     expect(testSetup.captureCharFrame()).toContain('✗');
   });
 
   test('renders running as animated spinner (not static arrow)', async () => {
-    testSetup = await testRender(<StatusIcon status="running" />, { width: 10, height: 3 });
+    testSetup = await testRender(() => <StatusIcon status="running" />, { width: 10, height: 3 });
     await testSetup.renderOnce();
     const frame = testSetup.captureCharFrame();
     expect(frame).not.toContain('▸');
@@ -81,13 +58,13 @@ describe('StatusIcon', () => {
   });
 
   test('renders pending icon', async () => {
-    testSetup = await testRender(<StatusIcon status="pending" />, { width: 10, height: 3 });
+    testSetup = await testRender(() => <StatusIcon status="pending" />, { width: 10, height: 3 });
     await testSetup.renderOnce();
     expect(testSetup.captureCharFrame()).toContain('·');
   });
 
   test('renders warning icon', async () => {
-    testSetup = await testRender(<StatusIcon status="warning" />, { width: 10, height: 3 });
+    testSetup = await testRender(() => <StatusIcon status="warning" />, { width: 10, height: 3 });
     await testSetup.renderOnce();
     expect(testSetup.captureCharFrame()).toContain('▲');
   });
@@ -97,13 +74,13 @@ describe('StatusIcon', () => {
 
 describe('PhaseIcon', () => {
   test('renders phase success checkmark', async () => {
-    testSetup = await testRender(<PhaseIcon status="success" />, { width: 10, height: 3 });
+    testSetup = await testRender(() => <PhaseIcon status="success" />, { width: 10, height: 3 });
     await testSetup.renderOnce();
     expect(testSetup.captureCharFrame()).toContain('✓');
   });
 
   test('renders running phase as spinner (not arrow)', async () => {
-    testSetup = await testRender(<PhaseIcon status="running" />, { width: 10, height: 3 });
+    testSetup = await testRender(() => <PhaseIcon status="running" />, { width: 10, height: 3 });
     await testSetup.renderOnce();
     const frame = testSetup.captureCharFrame();
     expect(frame).not.toContain('▸');
@@ -111,13 +88,13 @@ describe('PhaseIcon', () => {
   });
 
   test('renders error phase', async () => {
-    testSetup = await testRender(<PhaseIcon status="error" />, { width: 10, height: 3 });
+    testSetup = await testRender(() => <PhaseIcon status="error" />, { width: 10, height: 3 });
     await testSetup.renderOnce();
     expect(testSetup.captureCharFrame()).toContain('✗');
   });
 
   test('renders pending as space (no icon clutter)', async () => {
-    testSetup = await testRender(<PhaseIcon status="pending" />, { width: 10, height: 3 });
+    testSetup = await testRender(() => <PhaseIcon status="pending" />, { width: 10, height: 3 });
     await testSetup.renderOnce();
     const frame = testSetup.captureCharFrame();
     expect(frame).not.toContain('✓');
@@ -130,7 +107,7 @@ describe('PhaseIcon', () => {
 
 describe('Spinner', () => {
   test('renders first braille spinner frame', async () => {
-    testSetup = await testRender(<Spinner />, { width: 10, height: 3 });
+    testSetup = await testRender(() => <Spinner />, { width: 10, height: 3 });
     await testSetup.renderOnce();
     expect(testSetup.captureCharFrame()).toContain('⠋');
   });
@@ -140,13 +117,12 @@ describe('Spinner', () => {
 
 describe('PhaseList', () => {
   test('renders all five phases with border', async () => {
-    // Wrap in a height-constrained parent so the border box renders its bottom edge
     const Wrapper = () => (
       <box height={12} width={30}>
         <PhaseList />
       </box>
     );
-    testSetup = await testRender(<Wrapper />, { width: 40, height: 14 });
+    testSetup = await testRender(() => <Wrapper />, { width: 40, height: 14 });
     await testSetup.renderOnce();
     const frame = testSetup.captureCharFrame();
     expect(frame).toContain('Phases');
@@ -161,16 +137,15 @@ describe('PhaseList', () => {
 
   test('active phase shows spinner', async () => {
     tuiState.setCurrentPhase('BUILD_AND_PACKAGE');
-    testSetup = await testRender(<PhaseList />, { width: 40, height: 20 });
+    testSetup = await testRender(() => <PhaseList />, { width: 40, height: 20 });
     await testSetup.renderOnce();
     expect(testSetup.captureCharFrame()).toContain('⠋');
   });
 
   test('completed phase shows checkmark', async () => {
     tuiState.setCurrentPhase('BUILD_AND_PACKAGE');
-    testSetup = await testRender(<PhaseList />, { width: 40, height: 20 });
+    testSetup = await testRender(() => <PhaseList />, { width: 40, height: 20 });
     await testSetup.renderOnce();
-    // Initialize is marked success when BUILD_AND_PACKAGE starts
     expect(testSetup.captureCharFrame()).toContain('✓');
   });
 });
@@ -179,7 +154,7 @@ describe('PhaseList', () => {
 
 describe('EventTree', () => {
   test('renders nothing for empty events', async () => {
-    testSetup = await testRender(<EventTree events={[]} />, { width: 40, height: 10 });
+    testSetup = await testRender(() => <EventTree events={[]} />, { width: 40, height: 10 });
     await testSetup.renderOnce();
     expect(testSetup.captureCharFrame().trim()).toBe('');
   });
@@ -195,7 +170,7 @@ describe('EventTree', () => {
         children: []
       }
     ];
-    testSetup = await testRender(<EventTree events={events} />, { width: 60, height: 10 });
+    testSetup = await testRender(() => <EventTree events={events} />, { width: 60, height: 10 });
     await testSetup.renderOnce();
     const frame = testSetup.captureCharFrame();
     expect(frame).toContain('Loading metadata');
@@ -214,7 +189,7 @@ describe('EventTree', () => {
         children: []
       }
     ];
-    testSetup = await testRender(<EventTree events={events} />, { width: 60, height: 10 });
+    testSetup = await testRender(() => <EventTree events={events} />, { width: 60, height: 10 });
     await testSetup.renderOnce();
     const frame = testSetup.captureCharFrame();
     expect(frame).toContain('✓');
@@ -255,7 +230,7 @@ describe('EventTree', () => {
         ]
       }
     ];
-    testSetup = await testRender(<EventTree events={events} />, { width: 80, height: 20 });
+    testSetup = await testRender(() => <EventTree events={events} />, { width: 80, height: 20 });
     await testSetup.renderOnce();
     const frame = testSetup.captureCharFrame();
     expect(frame).toContain('my-api');
@@ -283,7 +258,7 @@ describe('EventTree', () => {
         children
       }
     ];
-    testSetup = await testRender(<EventTree events={events} />, { width: 80, height: 40 });
+    testSetup = await testRender(() => <EventTree events={events} />, { width: 80, height: 40 });
     await testSetup.renderOnce();
     const frame = testSetup.captureCharFrame();
     expect(frame).toContain('workload-0');
@@ -295,7 +270,7 @@ describe('EventTree', () => {
 
 describe('LogPanel', () => {
   test('renders empty log with title', async () => {
-    testSetup = await testRender(<LogPanel />, { width: 60, height: 10 });
+    testSetup = await testRender(() => <LogPanel />, { width: 60, height: 10 });
     await testSetup.renderOnce();
     const frame = testSetup.captureCharFrame();
     expect(frame).toContain('Log');
@@ -305,20 +280,20 @@ describe('LogPanel', () => {
   test('renders info messages', async () => {
     tuiState.setCurrentPhase('INITIALIZE');
     tuiState.addMessage('info', 'info', 'Test info message');
-    testSetup = await testRender(<LogPanel />, { width: 80, height: 15 });
+    testSetup = await testRender(() => <LogPanel />, { width: 80, height: 15 });
     await testSetup.renderOnce();
     expect(testSetup.captureCharFrame()).toContain('Test info message');
   });
 
   test('renders warnings', async () => {
     tuiState.addWarning('Something might be wrong');
-    testSetup = await testRender(<LogPanel />, { width: 80, height: 15 });
+    testSetup = await testRender(() => <LogPanel />, { width: 80, height: 15 });
     await testSetup.renderOnce();
     expect(testSetup.captureCharFrame()).toContain('Something might be wrong');
   });
 
   test('has border', async () => {
-    testSetup = await testRender(<LogPanel />, { width: 60, height: 10 });
+    testSetup = await testRender(() => <LogPanel />, { width: 60, height: 10 });
     await testSetup.renderOnce();
     const frame = testSetup.captureCharFrame();
     expect(frame).toContain('┌');
@@ -327,13 +302,11 @@ describe('LogPanel', () => {
 
   test('has left padding on content', async () => {
     tuiState.addMessage('info', 'info', 'Padded message');
-    testSetup = await testRender(<LogPanel />, { width: 80, height: 15 });
+    testSetup = await testRender(() => <LogPanel />, { width: 80, height: 15 });
     await testSetup.renderOnce();
     const frame = testSetup.captureCharFrame();
-    // Log title should be indented from border (paddingX=1)
     const lines = frame.split('\n');
     const logTitleLine = lines.find((l) => l.includes('Log'));
-    // Should have space between border '│' and 'Log'
     expect(logTitleLine).toMatch(/│\s+Log/);
   });
 });
@@ -342,7 +315,7 @@ describe('LogPanel', () => {
 
 describe('Footer', () => {
   test('shows cancel and force quit shortcuts during deployment', async () => {
-    testSetup = await testRender(<Footer />, { width: 80, height: 3 });
+    testSetup = await testRender(() => <Footer />, { width: 80, height: 3 });
     await testSetup.renderOnce();
     const frame = testSetup.captureCharFrame();
     expect(frame).toContain('c');
@@ -352,21 +325,23 @@ describe('Footer', () => {
     expect(frame).toContain('scroll');
   });
 
-  test('shows separator between cancel and abort', async () => {
-    testSetup = await testRender(<Footer />, { width: 80, height: 3 });
+  test('shows cancel and force quit hints', async () => {
+    testSetup = await testRender(() => <Footer />, { width: 80, height: 3 });
     await testSetup.renderOnce();
-    expect(testSetup.captureCharFrame()).toContain('│');
+    const frame = testSetup.captureCharFrame();
+    expect(frame).toContain('cancel');
+    expect(frame).toContain('force quit');
   });
 
   test('shows rolling back state', async () => {
-    testSetup = await testRender(<Footer isCancelling={true} />, { width: 80, height: 3 });
+    testSetup = await testRender(() => <Footer isCancelling={true} />, { width: 80, height: 3 });
     await testSetup.renderOnce();
     expect(testSetup.captureCharFrame()).toContain('Rolling back');
   });
 
   test('shows exit hint when complete', async () => {
     tuiState.setComplete(true, 'Deployment complete');
-    testSetup = await testRender(<Footer />, { width: 60, height: 3 });
+    testSetup = await testRender(() => <Footer />, { width: 60, height: 3 });
     await testSetup.renderOnce();
     const frame = testSetup.captureCharFrame();
     expect(frame).toContain('q');
@@ -374,7 +349,7 @@ describe('Footer', () => {
   });
 
   test('has fixed height of 1 row', async () => {
-    testSetup = await testRender(<Footer />, { width: 40, height: 5 });
+    testSetup = await testRender(() => <Footer />, { width: 40, height: 5 });
     await testSetup.renderOnce();
     const lines = testSetup
       .captureCharFrame()
@@ -388,7 +363,7 @@ describe('Footer', () => {
 
 describe('DetailPanel', () => {
   test('shows waiting message when no phase active', async () => {
-    testSetup = await testRender(<DetailPanel />, { width: 60, height: 20 });
+    testSetup = await testRender(() => <DetailPanel />, { width: 60, height: 20 });
     await testSetup.renderOnce();
     expect(testSetup.captureCharFrame()).toContain('Waiting');
   });
@@ -400,7 +375,7 @@ describe('DetailPanel', () => {
       description: 'Loading stack data',
       phase: 'INITIALIZE'
     });
-    testSetup = await testRender(<DetailPanel />, { width: 80, height: 20 });
+    testSetup = await testRender(() => <DetailPanel />, { width: 80, height: 20 });
     await testSetup.renderOnce();
     expect(testSetup.captureCharFrame()).toContain('Loading stack data');
   });
@@ -419,7 +394,7 @@ describe('DetailPanel', () => {
       parentEventType: 'PACKAGE_ARTIFACTS' as LoggableEventType,
       instanceId: 'my-api'
     });
-    testSetup = await testRender(<DetailPanel />, { width: 80, height: 20 });
+    testSetup = await testRender(() => <DetailPanel />, { width: 80, height: 20 });
     await testSetup.renderOnce();
     const frame = testSetup.captureCharFrame();
     expect(frame).toContain('Build & Package');
@@ -428,7 +403,7 @@ describe('DetailPanel', () => {
 
   test('has border around detail panel', async () => {
     tuiState.setCurrentPhase('INITIALIZE');
-    testSetup = await testRender(<DetailPanel />, { width: 60, height: 20 });
+    testSetup = await testRender(() => <DetailPanel />, { width: 60, height: 20 });
     await testSetup.renderOnce();
     const frame = testSetup.captureCharFrame();
     expect(frame).toContain('┌');
@@ -533,8 +508,7 @@ describe('Keyboard: cancel flow', () => {
     tuiState.setCurrentPhase('INITIALIZE');
     await renderDashboard({ width: 120, height: 40 });
 
-    // Press 'c' to open cancel confirm
-    emitKey('c', { sequence: 'c' });
+    testSetup.mockInput.pressKey('c');
     await flushAndRender();
     const frame = testSetup.captureCharFrame();
     expect(frame).toContain('Cancel deployment?');
@@ -546,13 +520,11 @@ describe('Keyboard: cancel flow', () => {
     tuiState.setCurrentPhase('INITIALIZE');
     await renderDashboard({ width: 120, height: 40 });
 
-    // Open cancel modal
-    emitKey('c', { sequence: 'c' });
+    testSetup.mockInput.pressKey('c');
     await flushAndRender();
     expect(testSetup.captureCharFrame()).toContain('Cancel deployment?');
 
-    // Press 'n' to dismiss
-    emitKey('n', { sequence: 'n' });
+    testSetup.mockInput.pressKey('n');
     await flushAndRender();
     const frame = testSetup.captureCharFrame();
     expect(frame).not.toContain('Cancel deployment?');
@@ -563,11 +535,11 @@ describe('Keyboard: cancel flow', () => {
     tuiState.setCurrentPhase('INITIALIZE');
     await renderDashboard({ width: 120, height: 40 });
 
-    emitKey('c', { sequence: 'c' });
+    testSetup.mockInput.pressKey('c');
     await flushAndRender();
     expect(testSetup.captureCharFrame()).toContain('Cancel deployment?');
 
-    emitKey('escape', { sequence: '\x1B' });
+    testSetup.mockInput.pressEscape();
     await flushAndRender();
     expect(testSetup.captureCharFrame()).not.toContain('Cancel deployment?');
   });
@@ -578,20 +550,22 @@ describe('Keyboard: cancel flow', () => {
     tuiState.setCurrentPhase('INITIALIZE');
 
     testSetup = await testRender(
-      <DeployDashboard
-        onQuit={() => {}}
-        onCancel={() => {
-          cancelCalled = true;
-        }}
-      />,
+      () => (
+        <DeployDashboard
+          onQuit={() => {}}
+          onCancel={() => {
+            cancelCalled = true;
+          }}
+        />
+      ),
       { width: 120, height: 40 }
     );
     await flushAndRender();
 
-    emitKey('c', { sequence: 'c' });
+    testSetup.mockInput.pressKey('c');
     await flushAndRender();
 
-    emitKey('y', { sequence: 'y' });
+    testSetup.mockInput.pressKey('y');
     await flushAndRender();
 
     expect(cancelCalled).toBe(true);
@@ -603,7 +577,7 @@ describe('Keyboard: cancel flow', () => {
     tuiState.setComplete(true, 'Done');
     await renderDashboard({ width: 120, height: 40 });
 
-    emitKey('c', { sequence: 'c' });
+    testSetup.mockInput.pressKey('c');
     await flushAndRender();
 
     expect(testSetup.captureCharFrame()).not.toContain('Cancel deployment?');
@@ -618,17 +592,19 @@ describe('Keyboard: quit flow', () => {
     tuiState.setComplete(true, 'Done');
 
     testSetup = await testRender(
-      <DeployDashboard
-        onQuit={() => {
-          quitCalled = true;
-        }}
-        onCancel={() => {}}
-      />,
+      () => (
+        <DeployDashboard
+          onQuit={() => {
+            quitCalled = true;
+          }}
+          onCancel={() => {}}
+        />
+      ),
       { width: 120, height: 40 }
     );
     await flushAndRender();
 
-    emitKey('q', { sequence: 'q' });
+    testSetup.mockInput.pressKey('q');
     await flushAndRender();
 
     expect(quitCalled).toBe(true);
@@ -640,17 +616,19 @@ describe('Keyboard: quit flow', () => {
     tuiState.setCurrentPhase('INITIALIZE');
 
     testSetup = await testRender(
-      <DeployDashboard
-        onQuit={() => {
-          quitCalled = true;
-        }}
-        onCancel={() => {}}
-      />,
+      () => (
+        <DeployDashboard
+          onQuit={() => {
+            quitCalled = true;
+          }}
+          onCancel={() => {}}
+        />
+      ),
       { width: 120, height: 40 }
     );
     await flushAndRender();
 
-    emitKey('q', { sequence: 'q' });
+    testSetup.mockInput.pressKey('q');
     await flushAndRender();
 
     expect(quitCalled).toBe(false);
@@ -662,17 +640,19 @@ describe('Keyboard: quit flow', () => {
     tuiState.setCurrentPhase('INITIALIZE');
 
     testSetup = await testRender(
-      <DeployDashboard
-        onQuit={() => {}}
-        onCancel={() => {
-          cancelCalled = true;
-        }}
-      />,
+      () => (
+        <DeployDashboard
+          onQuit={() => {}}
+          onCancel={() => {
+            cancelCalled = true;
+          }}
+        />
+      ),
       { width: 120, height: 40 }
     );
     await flushAndRender();
 
-    emitKey('c', { ctrl: true, sequence: '\x03' });
+    testSetup.mockInput.pressCtrlC();
     await flushAndRender();
 
     expect(cancelCalled).toBe(true);
@@ -687,16 +667,13 @@ describe('State transitions', () => {
     tuiState.setCurrentPhase('INITIALIZE');
     await renderDashboard({ width: 120, height: 40 });
 
-    // Phase list should show Initialize as active
     let frame = testSetup.captureCharFrame();
     expect(frame).toContain('Initialize');
 
-    // Advance to BUILD_AND_PACKAGE
     tuiState.setCurrentPhase('BUILD_AND_PACKAGE');
     await flushAndRender();
     frame = testSetup.captureCharFrame();
 
-    // Initialize should be complete (✓), BUILD_AND_PACKAGE active (⠋)
     expect(frame).toContain('✓');
     expect(frame).toContain('Build & Package');
   });
@@ -709,7 +686,6 @@ describe('State transitions', () => {
     let frame = testSetup.captureCharFrame();
     expect(frame).toContain('No log entries');
 
-    // Add a message
     tuiState.addMessage('info', 'info', 'New log entry appeared');
     await flushAndRender();
     frame = testSetup.captureCharFrame();
@@ -723,7 +699,6 @@ describe('State transitions', () => {
     tuiState.setCurrentPhase('INITIALIZE');
     await renderDashboard({ width: 120, height: 40 });
 
-    // Add an event
     tuiState.startEvent({
       eventType: 'LOAD_METADATA_FROM_AWS' as LoggableEventType,
       description: 'Fetching stack info',
@@ -793,19 +768,17 @@ describe('DeployPhaseDetail', () => {
 
   test('in-progress: does NOT show "Done" label with planned counts', async () => {
     const phase = makePhase([makeCfEvent()]);
-    testSetup = await testRender(<DeployPhaseDetail phase={phase} />, { width: 80, height: 30 });
+    testSetup = await testRender(() => <DeployPhaseDetail phase={phase} />, { width: 80, height: 30 });
     await testSetup.renderOnce();
     const frame = testSetup.captureCharFrame();
 
-    // Should NOT show "Done Updated 25" — that was the bug
     expect(frame).not.toContain('Done');
-    // Should show progress
     expect(frame).toContain('45%');
   });
 
   test('in-progress: shows progress bar and resource counts', async () => {
     const phase = makePhase([makeCfEvent()]);
-    testSetup = await testRender(<DeployPhaseDetail phase={phase} />, { width: 80, height: 30 });
+    testSetup = await testRender(() => <DeployPhaseDetail phase={phase} />, { width: 80, height: 30 });
     await testSetup.renderOnce();
     const frame = testSetup.captureCharFrame();
 
@@ -815,7 +788,7 @@ describe('DeployPhaseDetail', () => {
 
   test('in-progress: shows active resources with "In progress" label', async () => {
     const phase = makePhase([makeCfEvent()]);
-    testSetup = await testRender(<DeployPhaseDetail phase={phase} />, { width: 80, height: 30 });
+    testSetup = await testRender(() => <DeployPhaseDetail phase={phase} />, { width: 80, height: 30 });
     await testSetup.renderOnce();
     const frame = testSetup.captureCharFrame();
 
@@ -826,7 +799,7 @@ describe('DeployPhaseDetail', () => {
 
   test('in-progress: shows queued resources', async () => {
     const phase = makePhase([makeCfEvent()]);
-    testSetup = await testRender(<DeployPhaseDetail phase={phase} />, { width: 80, height: 30 });
+    testSetup = await testRender(() => <DeployPhaseDetail phase={phase} />, { width: 80, height: 30 });
     await testSetup.renderOnce();
     const frame = testSetup.captureCharFrame();
 
@@ -836,11 +809,10 @@ describe('DeployPhaseDetail', () => {
 
   test('in-progress: shows planned changes summary', async () => {
     const phase = makePhase([makeCfEvent()]);
-    testSetup = await testRender(<DeployPhaseDetail phase={phase} />, { width: 80, height: 30 });
+    testSetup = await testRender(() => <DeployPhaseDetail phase={phase} />, { width: 80, height: 30 });
     await testSetup.renderOnce();
     const frame = testSetup.captureCharFrame();
 
-    // Should show planned changes as informational, not as "Done"
     expect(frame).toContain('~25 update');
   });
 
@@ -854,7 +826,7 @@ describe('DeployPhaseDetail', () => {
       })
     ]);
     phase.status = 'success';
-    testSetup = await testRender(<DeployPhaseDetail phase={phase} />, { width: 80, height: 30 });
+    testSetup = await testRender(() => <DeployPhaseDetail phase={phase} />, { width: 80, height: 30 });
     await testSetup.renderOnce();
     const frame = testSetup.captureCharFrame();
 
@@ -872,7 +844,7 @@ describe('DeployPhaseDetail', () => {
       })
     ]);
     phase.status = 'error';
-    testSetup = await testRender(<DeployPhaseDetail phase={phase} />, { width: 80, height: 30 });
+    testSetup = await testRender(() => <DeployPhaseDetail phase={phase} />, { width: 80, height: 30 });
     await testSetup.renderOnce();
     const frame = testSetup.captureCharFrame();
 
@@ -886,7 +858,7 @@ describe('DeployPhaseDetail', () => {
           'Status: Cleaning up. Removing 2 old resources. Removed: 1. Estimate: ~100% Summary: created=0 updated=25 deleted=0 Details: created=none; updated=Res1; deleted=none.'
       })
     ]);
-    testSetup = await testRender(<DeployPhaseDetail phase={phase} />, { width: 80, height: 30 });
+    testSetup = await testRender(() => <DeployPhaseDetail phase={phase} />, { width: 80, height: 30 });
     await testSetup.renderOnce();
     const frame = testSetup.captureCharFrame();
 
@@ -900,7 +872,7 @@ describe('DeployPhaseDetail', () => {
         additionalMessage: undefined
       })
     ]);
-    testSetup = await testRender(<DeployPhaseDetail phase={phase} />, { width: 80, height: 30 });
+    testSetup = await testRender(() => <DeployPhaseDetail phase={phase} />, { width: 80, height: 30 });
     await testSetup.renderOnce();
     const frame = testSetup.captureCharFrame();
 
@@ -918,7 +890,7 @@ describe('DeployPhaseDetail', () => {
       additionalMessage: 'Status: Deleting resources. Progress: 2/10. Estimate: ~30%'
     };
     const phase = makePhase([deleteEvent]);
-    testSetup = await testRender(<DeployPhaseDetail phase={phase} />, { width: 80, height: 30 });
+    testSetup = await testRender(() => <DeployPhaseDetail phase={phase} />, { width: 80, height: 30 });
     await testSetup.renderOnce();
     const frame = testSetup.captureCharFrame();
 
@@ -957,7 +929,6 @@ describe('DeployPhaseDetail (structured data path)', () => {
     status: 'running',
     startTime: Date.now() - 5000,
     children: [],
-    // additionalMessage is still set (for Estimate parsing), but data is the preferred source
     additionalMessage: 'Estimate: ~40%',
     data,
     ...overrides
@@ -966,7 +937,7 @@ describe('DeployPhaseDetail (structured data path)', () => {
   test('reads progress from structured data instead of parsing strings', async () => {
     const data = makeCfData({ completedCount: 12, totalPlanned: 30 });
     const phase = makePhase([makeCfEventWithData(data, { additionalMessage: 'Estimate: ~55%' })]);
-    testSetup = await testRender(<DeployPhaseDetail phase={phase} />, { width: 80, height: 30 });
+    testSetup = await testRender(() => <DeployPhaseDetail phase={phase} />, { width: 80, height: 30 });
     await testSetup.renderOnce();
     const frame = testSetup.captureCharFrame();
 
@@ -978,7 +949,7 @@ describe('DeployPhaseDetail (structured data path)', () => {
   test('shows active resources from structured data', async () => {
     const data = makeCfData({ inProgressResources: ['LambdaA', 'LambdaB'] });
     const phase = makePhase([makeCfEventWithData(data)]);
-    testSetup = await testRender(<DeployPhaseDetail phase={phase} />, { width: 80, height: 30 });
+    testSetup = await testRender(() => <DeployPhaseDetail phase={phase} />, { width: 80, height: 30 });
     await testSetup.renderOnce();
     const frame = testSetup.captureCharFrame();
 
@@ -990,7 +961,7 @@ describe('DeployPhaseDetail (structured data path)', () => {
   test('shows waiting resources from structured data', async () => {
     const data = makeCfData({ waitingResources: ['QueueAlpha', 'TopicBeta'] });
     const phase = makePhase([makeCfEventWithData(data)]);
-    testSetup = await testRender(<DeployPhaseDetail phase={phase} />, { width: 80, height: 30 });
+    testSetup = await testRender(() => <DeployPhaseDetail phase={phase} />, { width: 80, height: 30 });
     await testSetup.renderOnce();
     const frame = testSetup.captureCharFrame();
 
@@ -1002,7 +973,7 @@ describe('DeployPhaseDetail (structured data path)', () => {
   test('shows planned change counts from structured data', async () => {
     const data = makeCfData({ changeCounts: { created: 5, updated: 10, deleted: 2 } });
     const phase = makePhase([makeCfEventWithData(data)]);
-    testSetup = await testRender(<DeployPhaseDetail phase={phase} />, { width: 80, height: 30 });
+    testSetup = await testRender(() => <DeployPhaseDetail phase={phase} />, { width: 80, height: 30 });
     await testSetup.renderOnce();
     const frame = testSetup.captureCharFrame();
 
@@ -1014,7 +985,7 @@ describe('DeployPhaseDetail (structured data path)', () => {
   test('cleanup status from structured data shows 100% and cleanup message', async () => {
     const data = makeCfData({ status: 'cleanup' });
     const phase = makePhase([makeCfEventWithData(data)]);
-    testSetup = await testRender(<DeployPhaseDetail phase={phase} />, { width: 80, height: 30 });
+    testSetup = await testRender(() => <DeployPhaseDetail phase={phase} />, { width: 80, height: 30 });
     await testSetup.renderOnce();
     const frame = testSetup.captureCharFrame();
 
@@ -1033,7 +1004,7 @@ describe('DeployPhaseDetail (structured data path)', () => {
       })
     ]);
     phase.status = 'success';
-    testSetup = await testRender(<DeployPhaseDetail phase={phase} />, { width: 80, height: 30 });
+    testSetup = await testRender(() => <DeployPhaseDetail phase={phase} />, { width: 80, height: 30 });
     await testSetup.renderOnce();
     const frame = testSetup.captureCharFrame();
 
@@ -1047,7 +1018,7 @@ describe('DeployPhaseDetail (structured data path)', () => {
     const data = makeCfData({ changeCounts: { created: 0, updated: 5, deleted: 0 } });
     const phase = makePhase([makeCfEventWithData(data, { status: 'error', duration: 60000 })]);
     phase.status = 'error';
-    testSetup = await testRender(<DeployPhaseDetail phase={phase} />, { width: 80, height: 30 });
+    testSetup = await testRender(() => <DeployPhaseDetail phase={phase} />, { width: 80, height: 30 });
     await testSetup.renderOnce();
     const frame = testSetup.captureCharFrame();
 
@@ -1058,7 +1029,7 @@ describe('DeployPhaseDetail (structured data path)', () => {
   test('structured data with zero changeCounts hides change line', async () => {
     const data = makeCfData({ changeCounts: { created: 0, updated: 0, deleted: 0 } });
     const phase = makePhase([makeCfEventWithData(data)]);
-    testSetup = await testRender(<DeployPhaseDetail phase={phase} />, { width: 80, height: 30 });
+    testSetup = await testRender(() => <DeployPhaseDetail phase={phase} />, { width: 80, height: 30 });
     await testSetup.renderOnce();
     const frame = testSetup.captureCharFrame();
 
@@ -1069,7 +1040,6 @@ describe('DeployPhaseDetail (structured data path)', () => {
   });
 
   test('structured data is preferred over additionalMessage parsing', async () => {
-    // Structured data says 8/20, but additionalMessage string says 3/25 — structured should win
     const data = makeCfData({
       completedCount: 8,
       totalPlanned: 20,
@@ -1080,14 +1050,12 @@ describe('DeployPhaseDetail (structured data path)', () => {
         additionalMessage: 'Status: Updating resources. Progress: 3/25. Currently updating: FromString. Estimate: ~40%'
       })
     ]);
-    testSetup = await testRender(<DeployPhaseDetail phase={phase} />, { width: 80, height: 30 });
+    testSetup = await testRender(() => <DeployPhaseDetail phase={phase} />, { width: 80, height: 30 });
     await testSetup.renderOnce();
     const frame = testSetup.captureCharFrame();
 
-    // Should use structured data values
     expect(frame).toContain('8/20');
     expect(frame).toContain('FromData');
-    // Should NOT contain the string-parsed values
     expect(frame).not.toContain('3/25');
     expect(frame).not.toContain('FromString');
   });
@@ -1114,7 +1082,7 @@ describe('DeployPhaseDetail (structured data path)', () => {
       data
     };
     const phase = makePhase([deleteEvent]);
-    testSetup = await testRender(<DeployPhaseDetail phase={phase} />, { width: 80, height: 30 });
+    testSetup = await testRender(() => <DeployPhaseDetail phase={phase} />, { width: 80, height: 30 });
     await testSetup.renderOnce();
     const frame = testSetup.captureCharFrame();
 
@@ -1134,7 +1102,7 @@ describe('DeployPhaseDetail (structured data path)', () => {
       children: []
     };
     const phase = makePhase([event]);
-    testSetup = await testRender(<DeployPhaseDetail phase={phase} />, { width: 80, height: 30 });
+    testSetup = await testRender(() => <DeployPhaseDetail phase={phase} />, { width: 80, height: 30 });
     await testSetup.renderOnce();
     const frame = testSetup.captureCharFrame();
 

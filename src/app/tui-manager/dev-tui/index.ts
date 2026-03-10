@@ -14,7 +14,6 @@ import { applicationManager } from '@application-services/application-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { formatSectionHeaderLine } from '@application-services/tui-manager/command-header';
 import type { CliRenderer } from '@opentui/core';
-import type { Root } from '@opentui/react';
 import { setSpinnerDevTuiActive } from '../spinners';
 import { formatDuration, resetWorkloadColors } from './utils';
 import { devTuiState } from './state';
@@ -34,7 +33,6 @@ interface DevTuiRendererInterface {
 
 class DevTuiRenderer {
   private renderer: CliRenderer | null = null;
-  private root: Root | null = null;
   private rebuildHandler: RebuildHandler | null = null;
   private quitHandler: (() => void) | null = null;
   private errorHandler: ((error: Error) => void) | null = null;
@@ -48,34 +46,56 @@ class DevTuiRenderer {
   async startAsync() {
     if (this.renderer) return;
 
-    const { createCliRenderer } = await import('@opentui/core');
-    const { createRoot } = await import('@opentui/react');
+    const { render, useRenderer } = await import('@opentui/solid');
+    const { DevDashboard } = await import('../components/dev/dev-dashboard');
 
-    this.renderer = await createCliRenderer({
+    const rebuildHandler = this.rebuildHandler;
+    const quitHandler = this.quitHandler;
+    const errorHandler = this.errorHandler;
+    const setRenderer = (r: CliRenderer) => {
+      this.renderer = r;
+      // Force full renders (no cell diffing) so OSC 8 hyperlink sequences
+      // are always re-emitted. Without this, the native Zig diff engine
+      // skips unchanged cells, dropping OSC 8 start/end sequences for links
+      // that haven't visually changed, making them non-clickable.
+      const lib = (r as any).lib;
+      const ptr = (r as any).rendererPtr;
+      if (lib?.render && ptr) {
+        (r as any).renderNative = function () {
+          if ((this as any).renderingNative) throw new Error('Rendering called concurrently');
+          (this as any).renderingNative = true;
+          lib.render(ptr, true);
+          (this as any).renderingNative = false;
+        };
+      }
+    };
+
+    const RendererCapture = () => {
+      setRenderer(useRenderer() as unknown as CliRenderer);
+      return DevDashboard({
+        onRebuild: (name: string | null) => {
+          void rebuildHandler?.(name);
+        },
+        onQuit: () => {
+          quitHandler?.();
+        },
+        onRenderError: (error: Error) => {
+          errorHandler?.(error);
+        }
+      });
+    };
+
+    await render(RendererCapture, {
       exitOnCtrlC: false,
       useAlternateScreen: true,
       useMouse: true,
-      enableMouseMovement: false,
       targetFps: 30,
-      maxFps: 60,
       exitSignals: []
     });
-    const { createElement } = await import('react');
-    const { DevDashboard } = await import('./components/dev-dashboard');
-    this.root = createRoot(this.renderer);
-    this.root.render(
-      createElement(DevDashboard, {
-        onRebuild: (name: string | null) => {
-          void this.rebuildHandler?.(name);
-        },
-        onQuit: () => {
-          this.quitHandler?.();
-        },
-        onRenderError: (error: Error) => {
-          this.errorHandler?.(error);
-        }
-      })
-    );
+
+    try {
+      process.stdout.write('\x1B[5 q');
+    } catch {}
   }
 
   start() {
@@ -86,36 +106,20 @@ class DevTuiRenderer {
   }
 
   async stop() {
-    const root = this.root;
     const renderer = this.renderer;
-    this.root = null;
     this.renderer = null;
 
     if (!renderer) return;
 
     try {
-      root?.unmount();
-    } catch {}
-    // renderer.destroy() exits alternate screen, restores cursor, disables raw mode
-    try {
       renderer.destroy();
     } catch {}
-    // Wait for renderer to finish its destroy cycle (may be deferred if mid-render)
     try {
       await Promise.race([renderer.idle(), new Promise<void>((resolve) => setTimeout(resolve, 700))]);
     } catch {}
-    // Safety: force-exit alternate screen + restore cursor + disable mouse tracking.
-    // renderer.destroy() should handle this, but some terminals (Windows PowerShell
-    // integrated in Cursor) need explicit sequences after destroy.
     try {
-      process.stdout.write(
-        '\x1B[?1000l\x1B[?1002l\x1B[?1003l\x1B[?1006l\x1B[?1015l' + // disable mouse modes
-          '\x1B[?1049l' + // exit alternate screen
-          '\x1B[?25h' + // show cursor
-          '\x1B[0 q' // reset cursor shape
-      );
+      process.stdout.write('\x1B[0 q');
     } catch {}
-    // Restore stdin to normal mode so the terminal is usable after exit
     try {
       if (process.stdin.isTTY) {
         if (process.stdin.isRaw) process.stdin.setRawMode(false);
@@ -165,7 +169,7 @@ class DevTuiNonTtyRenderer implements DevTuiRendererInterface {
   }
 
   private log(message: string) {
-    console.log(message);
+    console.info(message);
   }
 
   private renderLocalResources(resources: LocalResource[]) {
@@ -364,15 +368,15 @@ class DevTuiManager {
     const state = devTuiState.getState();
     const runningWorkloads = state.workloads.filter((w) => w.status === 'running' || w.status === 'error');
 
-    console.log('');
-    console.log(formatSectionHeaderLine('Dev mode ready'));
-    console.log(`Workloads running: ${runningWorkloads.length}`);
+    console.info('');
+    console.info(formatSectionHeaderLine('Dev mode ready'));
+    console.info(`Workloads running: ${runningWorkloads.length}`);
     for (const workload of runningWorkloads) {
       const status = workload.status === 'running' ? 'running' : 'error';
       const url = workload.url ? ` at ${workload.url}` : '';
-      console.log(`  ${workload.name} (${workload.type}): ${status}${url}`);
+      console.info(`  ${workload.name} (${workload.type}): ${status}${url}`);
     }
-    console.log('');
+    console.info('');
   }
 
   setRebuildHandler(handler: RebuildHandler) {
@@ -384,7 +388,7 @@ class DevTuiManager {
     this.phase = 'rebuilding';
 
     if (this._agentMode) {
-      console.log(`[i] Rebuilding workloads: ${workloadNames.join(', ')}`);
+      console.info(`[i] Rebuilding workloads: ${workloadNames.join(', ')}`);
       return;
     }
 
@@ -396,7 +400,7 @@ class DevTuiManager {
 
     if (this._agentMode) {
       const detailStr = detail ? ` - ${detail}` : '';
-      console.log(`[i] ${name}: ${step}${detailStr}`);
+      console.info(`[i] ${name}: ${step}${detailStr}`);
       return;
     }
 
@@ -414,7 +418,7 @@ class DevTuiManager {
 
     if (this._agentMode) {
       const sizeStr = size ? ` [${size}]` : '';
-      console.log(`[+] ${name}: rebuild complete${sizeStr}`);
+      console.info(`[+] ${name}: rebuild complete${sizeStr}`);
       return;
     }
 
@@ -425,7 +429,7 @@ class DevTuiManager {
     if (this.phase !== 'rebuilding') return;
 
     if (this._agentMode) {
-      console.log(`[x] ${name}: rebuild failed - ${error}`);
+      console.info(`[x] ${name}: rebuild failed - ${error}`);
       return;
     }
 
@@ -510,7 +514,7 @@ class DevTuiManager {
       agentLog(source, message, level === 'debug' ? 'info' : level);
       const timestamp = new Date().toLocaleTimeString('en-US', { hour12: false });
       const levelPrefix = level === 'error' ? '[ERROR] ' : level === 'warn' ? '[WARN] ' : '';
-      console.log(`${timestamp} [${source}] ${levelPrefix}${message}`);
+      console.info(`${timestamp} [${source}] ${levelPrefix}${message}`);
       return;
     }
 
@@ -521,7 +525,7 @@ class DevTuiManager {
     if (this._agentMode) {
       agentLog('system', message, level === 'debug' ? 'info' : level);
       const timestamp = new Date().toLocaleTimeString('en-US', { hour12: false });
-      console.log(`${timestamp} [system] ${message}`);
+      console.info(`${timestamp} [system] ${message}`);
       return;
     }
 

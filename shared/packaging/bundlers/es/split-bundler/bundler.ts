@@ -30,6 +30,7 @@ import {
   ESM_SOURCE_MAP_BANNER,
   getInfoFromPackageJson
 } from '../utils';
+import { getBunBuildTsConfigPath } from '../tsconfig-for-bun-build';
 import { rewriteChunkImports } from './chunk-rewriter';
 
 /**
@@ -81,6 +82,7 @@ export const buildSplitBundle = async ({
     sharedOutdir,
     cwd,
     monorepoRoot,
+    tsConfigPath,
     minify,
     sourceMaps,
     sourceMapBannerType,
@@ -147,6 +149,7 @@ const executeBunBuild = async ({
   sharedOutdir,
   cwd,
   monorepoRoot,
+  tsConfigPath,
   minify,
   sourceMaps,
   sourceMapBannerType,
@@ -160,6 +163,7 @@ const executeBunBuild = async ({
   sharedOutdir: string;
   cwd: string;
   monorepoRoot: string | null;
+  tsConfigPath?: string;
   minify: boolean;
   sourceMaps: 'inline' | 'external' | 'disabled';
   sourceMapBannerType: 'node_modules' | 'pre-compiled' | 'disabled';
@@ -203,9 +207,47 @@ const executeBunBuild = async ({
       });
     }
   };
+  const openTuiJsxRuntimeShimPlugin: BunPlugin = {
+    name: 'stacktape-opentui-jsx-runtime-shim',
+    setup(build) {
+      const shouldShimForImporter = (importer: string) => {
+        return importer.includes('\\stacktape\\src\\') || importer.includes('/stacktape/src/');
+      };
+
+      build.onResolve({ filter: /^@opentui\/solid\/jsx-runtime$/ }, ({ importer }) => {
+        if (!shouldShimForImporter(importer || '')) {
+          return undefined;
+        }
+        return { path: 'opentui-jsx-runtime', namespace: 'stacktape-opentui-jsx-runtime-shim' };
+      });
+      build.onResolve({ filter: /^@opentui\/solid\/jsx-dev-runtime$/ }, ({ importer }) => {
+        if (!shouldShimForImporter(importer || '')) {
+          return undefined;
+        }
+        return { path: 'opentui-jsx-dev-runtime', namespace: 'stacktape-opentui-jsx-runtime-shim' };
+      });
+
+      build.onLoad({ filter: /^opentui-jsx-(dev-)?runtime$/, namespace: 'stacktape-opentui-jsx-runtime-shim' }, () => {
+        return {
+          loader: 'js',
+          contents: [
+            'export const Fragment = Symbol.for("stacktape.jsx.fragment");',
+            'export const jsx = (type, props, key) => ({ type, props, key });',
+            'export const jsxs = jsx;',
+            'export const jsxDEV = jsx;'
+          ].join('\n')
+        };
+      });
+    }
+  };
   const banner = await getSourceMapBanner(sourceMapBannerType);
 
   await ensureDir(sharedOutdir);
+
+  const sanitizedTsConfigPath = getBunBuildTsConfigPath({
+    tsConfigPath,
+    outDir: sharedOutdir
+  });
 
   try {
     // Use monorepo root for module resolution if available, otherwise cwd
@@ -224,9 +266,10 @@ const executeBunBuild = async ({
         __dirname: '__stp_dirname',
         __filename: '__stp_filename'
       },
-      plugins: [bunFfiShimPlugin, analyzePlugin, nativeModulesPlugin],
+      plugins: [bunFfiShimPlugin, openTuiJsxRuntimeShimPlugin, analyzePlugin, nativeModulesPlugin],
       root: buildRoot,
       banner: sourceMapBannerType === 'pre-compiled' && banner ? banner : undefined,
+      tsconfig: sanitizedTsConfigPath,
       naming: {
         entry: '[dir]/[name].js',
         chunk: 'chunks/chunk-[hash].js'

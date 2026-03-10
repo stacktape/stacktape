@@ -112,8 +112,8 @@
     "@octokit/plugin-retry": "^8.0.0",
     "@octokit/plugin-throttling": "^10.0.0",
     "@octokit/rest": "22.0.1",
-    "@opentui/core": "^0.1.84",
-    "@opentui/react": "^0.1.84",
+    "@opentui/core": "0.1.86",
+    "@opentui/solid": "^0.1.86",
     "@sentry/bun": "10.28.0",
     "@slack/web-api": "^7.9.3",
     "@smithy/fetch-http-handler": "^5.0.0",
@@ -164,11 +164,9 @@
     "pg": "^8.16.0",
     "posthog-node": "^5.26.2",
     "prompts": "^2.4.2",
-    "react": "19.2.3",
-    "react-devtools-core": "7.0.1",
-    "react-dom": "19.2.3",
     "read-pkg-up": "7.0.1",
     "short-uuid": "^4.2.2",
+    "solid-js": "^1.9.11",
     "stack-trace": "0.0.10",
     "streamsink": "^1.2.0",
     "strip-ansi": "^7.1.0",
@@ -188,8 +186,6 @@
   "devDependencies": {
     "@antfu/eslint-config": "^6.2.0",
     "@apidevtools/json-schema-ref-parser": "^15.2.1",
-    "@emotion/react": "^11.14.0",
-    "@eslint-react/eslint-plugin": "^2.3.9",
     "@types/adm-zip": "^0.5.7",
     "@types/archiver": "^5.3.4",
     "@types/aws-lambda": "^8.10.160",
@@ -210,8 +206,6 @@
     "eslint": "^9.36.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.4",
-    "eslint-plugin-react-hooks": "^7.0.1",
-    "eslint-plugin-react-refresh": "^0.4.24",
     "inquirer": "^13.0.1",
     "json-schema-ref-parser": "^9.0.9",
     "json-schema-to-typescript": "^15.0.4",
@@ -226,9 +220,5 @@
     "typescript-json-schema": "0.58.1",
     "unzipper": "^0.12.3"
   },
-  "overrides": {
-    "react": "19.2.3",
-    "react-dom": "19.2.3"
-  },
-  "patchedDependencies": {}
+  "overrides": {}
 }

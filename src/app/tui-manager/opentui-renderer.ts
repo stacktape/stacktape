@@ -1,63 +1,68 @@
 import type { CliRenderer } from '@opentui/core';
-import type { Root } from '@opentui/react';
-import type { ReactNode } from 'react';
+import type { JSX } from 'solid-js';
 import { tuiDebug } from './tui-debug-log';
 
 let rendererInstance: CliRenderer | null = null;
-let rootInstance: Root | null = null;
 
 export type OpenTuiHandle = {
   renderer: CliRenderer;
-  root: Root;
   destroy: () => Promise<void>;
   suspend: () => void;
   resume: () => void;
 };
 
-export const createOpenTuiApp = async (element: ReactNode): Promise<OpenTuiHandle> => {
+/**
+ * Creates an OpenTUI app using the Solid reconciler.
+ *
+ * Uses @opentui/solid's render() with a config object so the renderer is created
+ * internally by the solid package (avoids CliRenderer type mismatch between
+ * separately installed @opentui/core and @opentui/solid's bundled copy).
+ *
+ * Previous React workarounds (documented for reference if issues resurface):
+ * - stdin.pause()/unref(): OpenTUI may leave stdin resumed after destroy, keeping event loop alive
+ * - renderer.idle() with 500ms timeout: deferred finalizeDestroy() when render cycle in progress
+ * - Windows alt-screen double-exit: writing \x1B[?1049l after successful destroy moves cursor wrong
+ */
+export const createOpenTuiApp = async (
+  component: () => JSX.Element,
+  options?: { useMouse?: boolean }
+): Promise<OpenTuiHandle> => {
   tuiDebug('RENDERER', 'createOpenTuiApp() begin');
-  const { createCliRenderer } = await import('@opentui/core');
-  const { createRoot } = await import('@opentui/react');
+  const { render } = await import('@opentui/solid');
+  const { useRenderer } = await import('@opentui/solid');
 
-  const renderer = await createCliRenderer({
+  // Let @opentui/solid create the renderer internally via config object.
+  // We capture the renderer instance through a wrapper component.
+  let capturedRenderer: CliRenderer | null = null;
+
+  const RendererCapture = () => {
+    capturedRenderer = useRenderer() as unknown as CliRenderer;
+    return component();
+  };
+
+  await render(RendererCapture, {
     exitOnCtrlC: false,
     useAlternateScreen: true,
-    useMouse: false,
-    enableMouseMovement: false,
+    useMouse: options?.useMouse ?? false,
     targetFps: 30,
-    maxFps: 60,
-    // Disable OpenTUI's own signal handlers — Stacktape manages process lifecycle
-    // (applicationManager handles SIGINT/SIGTERM/etc. and calls destroyOpenTui explicitly)
     exitSignals: []
   });
-  tuiDebug('RENDERER', 'createCliRenderer() complete');
+  tuiDebug('RENDERER', 'render() called');
 
-  rendererInstance = renderer;
-  const root = createRoot(renderer);
-  rootInstance = root;
-  root.render(element);
-  tuiDebug('RENDERER', 'root.render() called');
+  rendererInstance = capturedRenderer;
 
   return {
-    renderer,
-    root,
+    renderer: capturedRenderer!,
     destroy: async () => {
       tuiDebug('RENDERER', 'handle.destroy() called');
       try {
-        root.unmount();
+        capturedRenderer?.destroy();
       } catch {}
       try {
-        renderer.destroy();
+        if (capturedRenderer) {
+          await Promise.race([capturedRenderer.idle(), new Promise<void>((resolve) => setTimeout(resolve, 500))]);
+        }
       } catch {}
-      // renderer.destroy() may defer finalizeDestroy() if a render cycle is in progress.
-      // Wait for the renderer to become idle (i.e. finalizeDestroy has completed) before
-      // returning, so callers can safely write to stdout after this resolves.
-      try {
-        await Promise.race([renderer.idle(), new Promise<void>((resolve) => setTimeout(resolve, 500))]);
-      } catch {}
-      // OpenTUI calls stdin.resume() during setupInput() but never calls stdin.unref()
-      // during finalizeDestroy(). The resumed stdin handle keeps the event loop alive,
-      // preventing the process from exiting after a successful deploy.
       try {
         if (process.stdin.isTTY) {
           process.stdin.pause();
@@ -65,23 +70,22 @@ export const createOpenTuiApp = async (element: ReactNode): Promise<OpenTuiHandl
         }
       } catch {}
       rendererInstance = null;
-      rootInstance = null;
+      capturedRenderer = null;
       tuiDebug('RENDERER', 'handle.destroy() complete');
     },
     suspend: () => {
       tuiDebug('RENDERER', 'handle.suspend()');
       try {
-        renderer.suspend();
+        capturedRenderer?.suspend();
       } catch {}
     },
     resume: () => {
       tuiDebug('RENDERER', 'handle.resume()');
       try {
-        renderer.resume();
+        capturedRenderer?.resume();
       } catch {}
     }
   };
 };
 
 export const getActiveRenderer = (): CliRenderer | null => rendererInstance;
-export const getActiveRoot = (): Root | null => rootInstance;

@@ -1,7 +1,9 @@
 {
   "compilerOptions": {
     "target": "ES6",
-    "jsx": "react-jsx",
+    "jsx": "preserve",
+    "jsxImportSource": "@opentui/solid",
+    "customConditions": ["browser"],
     "lib": ["es2021"],
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,

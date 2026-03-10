@@ -12,7 +12,6 @@ import { INVOKED_FROM_ENV_VAR_NAME, IS_DEV, linksMap } from '@config';
 import { getRelativePath, transformToUnixPath } from '@shared/utils/fs-utils';
 
 import kleur from 'kleur';
-import React from 'react';
 import boxen from 'boxen';
 import stringWidth from 'string-width';
 import terminalLink from 'terminal-link';
@@ -164,37 +163,29 @@ class TuiManager {
     this._openTuiInitPromise = import('./opentui-renderer')
       .then(async ({ createOpenTuiApp }) => {
         tuiDebug('TUI', 'startOpenTui() imports resolved');
-        const { DeployDashboard } = await import('./components/opentui/DeployDashboard');
-        const element = React.createElement(DeployDashboard, {
-          onQuit: () => {
-            tuiDebug('TUI', 'onQuit callback fired');
-            this.stopAndPrintSummary();
-          },
-          onCancel: async () => {
-            tuiDebug('TUI', 'onCancel callback fired');
-            // Destroy the renderer and exit alternate screen BEFORE re-raising
-            // the signal. On Windows, process.kill(pid, 'SIGINT') calls
-            // TerminateProcess which kills immediately — so the terminal must
-            // be restored before that happens.
+        const { DeployDashboard } = await import('./components/deploy/deploy-dashboard');
+        const onQuit = () => {
+          tuiDebug('TUI', 'onQuit callback fired');
+          setTimeout(() => this.stopAndPrintSummary(), 0);
+        };
+        const onCancel = () => {
+          tuiDebug('TUI', 'onCancel callback fired');
+          setTimeout(async () => {
             await this.destroyOpenTui();
-            // Emit the signal as a Node event so applicationManager's handler
-            // runs (cleanup hooks, telemetry, etc.). process.kill() on Windows
-            // would terminate the process before the handler can run.
             process.emit('SIGINT', 'SIGINT');
-          },
-          onRenderError: (error: Error) => {
-            tuiDebug('TUI', 'onRenderError callback fired', { message: error.message, stack: error.stack });
-            // React component tree threw during render — destroy the TUI and print error.
-            // Without this, the alternate screen stays blank/frozen and the process hangs.
-            this.destroyOpenTui();
-            try {
-              process.stderr.write(`\n[TUI render error] ${error.message}\n`);
-              if (error.stack) {
-                process.stderr.write(`${error.stack}\n`);
-              }
-            } catch {}
-          }
-        });
+          }, 0);
+        };
+        const onRenderError = (error: Error) => {
+          tuiDebug('TUI', 'onRenderError callback fired', { message: error.message, stack: error.stack });
+          this.destroyOpenTui();
+          try {
+            process.stderr.write(`\n[TUI render error] ${error.message}\n`);
+            if (error.stack) {
+              process.stderr.write(`${error.stack}\n`);
+            }
+          } catch {}
+        };
+        const component = () => DeployDashboard({ onQuit, onCancel, onRenderError });
         // Guard: if TUI was disabled while imports were resolving, bail out
         if (!this._isEnabled || this._openTuiDestroyed) {
           tuiDebug('TUI', 'startOpenTui() bail — disabled during import', {
@@ -203,7 +194,7 @@ class TuiManager {
           });
           return;
         }
-        const handle = await createOpenTuiApp(element);
+        const handle = await createOpenTuiApp(component);
         tuiDebug('TUI', 'startOpenTui() renderer created');
         // Guard: if TUI was destroyed while renderer was being created (alternate screen
         // already entered), immediately tear it down to avoid orphaned alternate screen
@@ -318,8 +309,11 @@ class TuiManager {
 
   private printPlainSummary(state: ReturnType<typeof tuiState.getSnapshot>) {
     const { summary, header, phases, startTime } = state;
-    tuiDebug('TUI', 'printPlainSummary()', { hasSummary: !!summary, success: summary?.success });
+    tuiDebug('TUI', 'printPlainSummary()', { hasSummary: !!summary, success: summary?.success, mode: this.outputMode });
     if (!summary) return;
+    // In JSONL mode, the result is emitted as structured JSON by emitJsonlResult().
+    // Plain-text summary must not leak into the JSONL output stream.
+    if (this.outputMode === 'jsonl') return;
 
     const elapsed = formatDuration(Date.now() - startTime);
     const icon = summary.success ? kleur.green('✓') : kleur.red('✗');
@@ -455,8 +449,15 @@ class TuiManager {
   }
 
   private emitStdoutJsonlViolation(line: string) {
-    const message = line.trim();
+    const message = stripAnsi(line).trim();
     if (!message) return;
+    // Avoid double-wrapping: if the raw line is itself a valid JSONL record
+    // (e.g. from a re-entrancy edge case or buffer flush), pass it through
+    // instead of wrapping it in another log event.
+    if (this.isValidJsonlRecordLine(line.trim())) {
+      this.originalStdoutWrite?.(`${line.trim()}\n`);
+      return;
+    }
     this.emitOutputRecord({ type: 'log', level: 'warn', source: 'stdout-raw', message });
   }
 
@@ -672,8 +673,7 @@ class TuiManager {
       };
       const rendered = type === 'debug' ? this.colorize('gray', message) : message;
       const line = `${symbols[type] || this.colorize('cyan', 'ℹ')} ${rendered}`;
-      console.info(line);
-      console.info('');
+      console.info(`${line}\n`);
       return;
     }
 
@@ -687,8 +687,7 @@ class TuiManager {
       start: '[>]',
       announcement: '[*]'
     };
-    console.info(`${symbols[type] || '[*]'} ${message}`);
-    console.info('');
+    console.info(`${symbols[type] || '[*]'} ${message}\n`);
   }
 
   configureForDelete() {
@@ -724,9 +723,7 @@ class TuiManager {
     if (this._isEnabled || !this.isTTY || this.outputMode !== 'tty') return;
 
     const rendered = this.renderCommandHeaderBox(header);
-    for (const line of rendered) {
-      console.info(line);
-    }
+    console.info(rendered.join('\n'));
   }
 
   private renderCommandHeaderBox(header: TuiDeploymentHeader): string[] {
@@ -1174,13 +1171,19 @@ class TuiManager {
     console.info(line);
   }
 
-  printLines(lines: string[]) {
-    for (const line of lines) {
-      this.writeInfoLine(line);
+  private writeInfoLines(lines: string[]) {
+    if (this.outputMode === 'jsonl') {
+      this.emitOutputRecord({ type: 'log', level: 'info', source: 'cli', message: lines.join('\n') });
+      return;
     }
+    console.info(lines.join('\n'));
   }
 
-  private printAsciiTable(header: string[], rows: string[][]) {
+  printLines(lines: string[]) {
+    this.writeInfoLines(lines);
+  }
+
+  private formatAsciiTable(header: string[], rows: string[][]): string[] {
     const widths = header.map((h) => this.getVisibleWidth(h));
     for (const row of rows) {
       for (let i = 0; i < row.length; i++) {
@@ -1201,10 +1204,11 @@ class TuiManager {
       return `| ${paddedCells.join(' | ')} |`;
     };
 
-    const allLines = [horizontalLine, formatRow(header), horizontalLine, ...rows.map(formatRow), horizontalLine];
-    for (const line of allLines) {
-      this.writeInfoLine(line);
-    }
+    return [horizontalLine, formatRow(header), horizontalLine, ...rows.map(formatRow), horizontalLine];
+  }
+
+  private printAsciiTable(header: string[], rows: string[][]) {
+    this.writeInfoLines(this.formatAsciiTable(header, rows));
   }
 
   private renderSimpleBox({
@@ -1238,10 +1242,7 @@ class TuiManager {
 
   private printTitledNote(title: string, lines: string[]) {
     const rendered = this.renderSimpleBox({ title, lines });
-    for (const line of rendered) {
-      this.writeInfoLine(line);
-    }
-    this.writeInfoLine('');
+    this.writeInfoLines([...rendered, '']);
   }
 
   private getVisibleWidth(value: string): number {
@@ -1313,7 +1314,10 @@ class TuiManager {
     user,
     organization,
     connectedAwsAccounts,
-    projects
+    projects,
+    role,
+    isProjectScoped,
+    permissions
   }: {
     user: { id: string; name?: string; email?: string; [key: string]: any };
     organization: { id: string; name: string; [key: string]: any };
@@ -1325,6 +1329,9 @@ class TuiManager {
       [key: string]: any;
     }>;
     projects: Array<{ id: string; name: string; [key: string]: any }>;
+    role?: string;
+    isProjectScoped?: boolean;
+    permissions?: string[];
   }) {
     const lines: string[] = [];
 
@@ -1332,6 +1339,12 @@ class TuiManager {
     lines.push(`  Name: ${this.colorize('cyan', user.name || 'N/A')}`);
     lines.push(`  Email: ${this.colorize('cyan', user.email || 'N/A')}`);
     lines.push(`  ID: ${this.colorize('gray', user.id)}`);
+    if (role) {
+      lines.push(`  Role: ${this.colorize('yellow', role)}`);
+    }
+    if (isProjectScoped) {
+      lines.push(`  Scope: ${this.colorize('yellow', 'project-scoped (limited to assigned projects)')}`);
+    }
     lines.push('');
 
     lines.push(this.makeBold('Organization'));
@@ -1358,6 +1371,14 @@ class TuiManager {
     } else {
       for (const project of projects) {
         lines.push(`  - ${this.colorize('cyan', project.name)}`);
+      }
+    }
+
+    if (permissions && permissions.length > 0) {
+      lines.push('');
+      lines.push(this.makeBold('Permissions'));
+      for (const perm of permissions) {
+        lines.push(`  - ${this.colorize('gray', perm)}`);
       }
     }
 
@@ -1388,11 +1409,11 @@ class TuiManager {
     }
 
     for (const project of projects) {
-      this.writeInfoLine(this.makeBold(`Project: ${this.colorize('cyan', project.name)}`));
+      const lines: string[] = [this.makeBold(`Project: ${this.colorize('cyan', project.name)}`)];
 
       if (project.stages.length === 0 && project.undeployedStages.length === 0) {
-        this.writeInfoLine(`  ${this.colorize('gray', 'No stages')}`);
-        this.writeInfoLine('');
+        lines.push(`  ${this.colorize('gray', 'No stages')}`, '');
+        this.writeInfoLines(lines);
         continue;
       }
 
@@ -1419,16 +1440,17 @@ class TuiManager {
             formatCost(s.previousMonthCosts)
           ];
         });
-        this.printTable({ header, rows });
+        lines.push(...this.formatAsciiTable(header, rows));
       }
 
       if (project.undeployedStages.length > 0) {
-        this.writeInfoLine(
+        lines.push(
           `  ${this.colorize('gray', 'Undeployed stages:')} ${project.undeployedStages.map((s) => s.name).join(', ')}`
         );
       }
 
-      this.writeInfoLine('');
+      lines.push('');
+      this.writeInfoLines(lines);
     }
   }
 
@@ -1481,23 +1503,24 @@ class TuiManager {
       ];
     });
 
-    this.printTable({ header, rows });
+    const allLines = this.formatAsciiTable(header, rows);
 
     const failedOps = operations.filter((op) => op.success === false && op.description);
     if (failedOps.length > 0) {
-      this.writeInfoLine('');
-      this.writeInfoLine(this.makeBold('Error Details:'));
+      allLines.push('', this.makeBold('Error Details:'));
       for (const op of failedOps) {
-        this.writeInfoLine(`  ${this.colorize('red', `[${op.command}]`)} ${op.projectName}-${op.stage}:`);
+        allLines.push(`  ${this.colorize('red', `[${op.command}]`)} ${op.projectName}-${op.stage}:`);
         const descLines = (op.description || '').split('\n').slice(0, 5);
         for (const line of descLines) {
-          this.writeInfoLine(`    ${this.colorize('gray', line)}`);
+          allLines.push(`    ${this.colorize('gray', line)}`);
         }
         if ((op.description || '').split('\n').length > 5) {
-          this.writeInfoLine(`    ${this.colorize('gray', '...(truncated)')}`);
+          allLines.push(`    ${this.colorize('gray', '...(truncated)')}`);
         }
       }
     }
+
+    this.writeInfoLines(allLines);
   }
 
   printStackDetails({

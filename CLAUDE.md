@@ -191,11 +191,3 @@ tuiManager.warn("Warning message");
 tuiManager.colorize("yellow", "colored text");
 tuiManager.prettyResourceName(resourceName);
 ```
-
-### Global State
-
-```typescript
-import { globalStateManager } from "@application-services/global-state-manager";
-
-const { region, stage, stackName } = globalStateManager;
-```

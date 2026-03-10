@@ -1,17 +1,15 @@
-/** @jsxImportSource @opentui/react */
-
 import { describe, test, expect, afterEach } from 'bun:test';
-import { testRender } from '@opentui/react/test-utils';
-import { KeyEvent } from '@opentui/core';
+import { testRender } from '@opentui/solid';
 import { tuiState } from '../../../state';
-import { PhaseList } from '../PhaseList';
-import { DetailPanel } from '../DetailPanel';
-import { Footer } from '../Footer';
-import { DeployDashboard } from '../DeployDashboard';
-import { DeployPhaseDetail } from '../DeployProgress';
+import { PhaseList } from '../phase-list';
+import { DetailPanel } from '../detail-panel';
+import { Footer } from '../footer';
+import { DeployDashboard } from '../deploy-dashboard';
+import { DeployPhaseDetail } from '../deploy-progress';
 import type { TuiEvent, TuiPhase, CfProgressData } from '../../../types';
 
-let testSetup: Awaited<ReturnType<typeof testRender>>;
+type TestSetup = Awaited<ReturnType<typeof testRender>>;
+let testSetup: TestSetup;
 
 afterEach(() => {
   if (testSetup) {
@@ -20,28 +18,10 @@ afterEach(() => {
   tuiState.reset();
 });
 
-const emitKey = (name: string, opts?: { ctrl?: boolean; sequence?: string }) => {
-  const key = new KeyEvent({
-    name,
-    sequence: opts?.sequence ?? name,
-    ctrl: opts?.ctrl ?? false,
-    shift: false,
-    meta: false,
-    option: false,
-    number: false,
-    raw: opts?.sequence ?? name,
-    eventType: 'press',
-    source: 'raw'
-  });
-  testSetup.renderer.keyInput.emit('keypress', key);
-};
-
-const flushAndRender = async (cycles = 4) => {
+const flushAndRender = async () => {
   tuiState.flushPendingNotifications();
   await new Promise((r) => setTimeout(r, 20));
-  for (let i = 0; i < cycles; i++) {
-    await testSetup.renderOnce();
-  }
+  await testSetup.renderOnce();
 };
 
 const configureDeleteState = () => {
@@ -50,7 +30,7 @@ const configureDeleteState = () => {
 };
 
 const renderDeleteDashboard = async (opts: { width: number; height: number }) => {
-  testSetup = await testRender(<DeployDashboard onQuit={() => {}} onCancel={() => {}} />, opts);
+  testSetup = await testRender(() => <DeployDashboard onQuit={() => {}} onCancel={() => {}} />, opts);
   await flushAndRender();
   return testSetup.captureCharFrame();
 };
@@ -61,7 +41,7 @@ describe('Delete: phase configuration', () => {
   test('configureForDelete sets exactly 2 phases', async () => {
     configureDeleteState();
     tuiState.setCurrentPhase('INITIALIZE');
-    testSetup = await testRender(<PhaseList />, { width: 40, height: 20 });
+    testSetup = await testRender(() => <PhaseList />, { width: 40, height: 20 });
     await testSetup.renderOnce();
     const frame = testSetup.captureCharFrame();
 
@@ -80,7 +60,7 @@ describe('Delete: phase configuration', () => {
         <PhaseList />
       </box>
     );
-    testSetup = await testRender(<Wrapper />, { width: 40, height: 14 });
+    testSetup = await testRender(() => <Wrapper />, { width: 40, height: 14 });
     await testSetup.renderOnce();
     const frame = testSetup.captureCharFrame();
 
@@ -94,7 +74,7 @@ describe('Delete: phase configuration', () => {
   test('Initialize phase shows spinner when active', async () => {
     configureDeleteState();
     tuiState.setCurrentPhase('INITIALIZE');
-    testSetup = await testRender(<PhaseList />, { width: 40, height: 20 });
+    testSetup = await testRender(() => <PhaseList />, { width: 40, height: 20 });
     await testSetup.renderOnce();
     expect(testSetup.captureCharFrame()).toContain('⠋');
   });
@@ -103,7 +83,7 @@ describe('Delete: phase configuration', () => {
     configureDeleteState();
     tuiState.setCurrentPhase('INITIALIZE');
     tuiState.setCurrentPhase('DEPLOY');
-    testSetup = await testRender(<PhaseList />, { width: 40, height: 20 });
+    testSetup = await testRender(() => <PhaseList />, { width: 40, height: 20 });
     await testSetup.renderOnce();
     const frame = testSetup.captureCharFrame();
     expect(frame).toContain('✓');
@@ -147,7 +127,7 @@ describe('Delete: header', () => {
 describe('Delete: detail panel', () => {
   test('shows "Waiting for deletion" before phase starts', async () => {
     configureDeleteState();
-    testSetup = await testRender(<DetailPanel />, { width: 60, height: 20 });
+    testSetup = await testRender(() => <DetailPanel />, { width: 60, height: 20 });
     await testSetup.renderOnce();
     expect(testSetup.captureCharFrame()).toContain('Waiting for deletion');
   });
@@ -160,7 +140,7 @@ describe('Delete: detail panel', () => {
       description: 'Loading stack data',
       phase: 'INITIALIZE'
     });
-    testSetup = await testRender(<DetailPanel />, { width: 80, height: 20 });
+    testSetup = await testRender(() => <DetailPanel />, { width: 80, height: 20 });
     await testSetup.renderOnce();
     expect(testSetup.captureCharFrame()).toContain('Loading stack data');
   });
@@ -178,7 +158,7 @@ describe('Delete: detail panel', () => {
       additionalMessage:
         'Status: Deleting resources. Progress: 5/15. Currently updating: MyLambda, MyApi. Estimate: ~33%'
     });
-    testSetup = await testRender(<DetailPanel />, { width: 80, height: 30 });
+    testSetup = await testRender(() => <DetailPanel />, { width: 80, height: 30 });
     await testSetup.renderOnce();
     const frame = testSetup.captureCharFrame();
     expect(frame).toContain('Deleting via CloudFormation');
@@ -226,7 +206,7 @@ describe('Delete: DeployPhaseDetail (structured data)', () => {
   test('shows "Deleting via CloudFormation" title', async () => {
     const data = makeDeleteCfData();
     const phase = makeDeletePhase([makeDeleteEvent(data)]);
-    testSetup = await testRender(<DeployPhaseDetail phase={phase} />, { width: 80, height: 30 });
+    testSetup = await testRender(() => <DeployPhaseDetail phase={phase} />, { width: 80, height: 30 });
     await testSetup.renderOnce();
     expect(testSetup.captureCharFrame()).toContain('Deleting via CloudFormation');
   });
@@ -234,7 +214,7 @@ describe('Delete: DeployPhaseDetail (structured data)', () => {
   test('shows delete progress from structured data', async () => {
     const data = makeDeleteCfData({ completedCount: 7, totalPlanned: 20 });
     const phase = makeDeletePhase([makeDeleteEvent(data, { additionalMessage: 'Estimate: ~35%' })]);
-    testSetup = await testRender(<DeployPhaseDetail phase={phase} />, { width: 80, height: 30 });
+    testSetup = await testRender(() => <DeployPhaseDetail phase={phase} />, { width: 80, height: 30 });
     await testSetup.renderOnce();
     const frame = testSetup.captureCharFrame();
     expect(frame).toContain('7/20');
@@ -245,7 +225,7 @@ describe('Delete: DeployPhaseDetail (structured data)', () => {
   test('shows resources being deleted', async () => {
     const data = makeDeleteCfData({ inProgressResources: ['DeletingLambda', 'DeletingBucket'] });
     const phase = makeDeletePhase([makeDeleteEvent(data)]);
-    testSetup = await testRender(<DeployPhaseDetail phase={phase} />, { width: 80, height: 30 });
+    testSetup = await testRender(() => <DeployPhaseDetail phase={phase} />, { width: 80, height: 30 });
     await testSetup.renderOnce();
     const frame = testSetup.captureCharFrame();
     expect(frame).toContain('In progress');
@@ -256,7 +236,7 @@ describe('Delete: DeployPhaseDetail (structured data)', () => {
   test('shows queued resources for deletion', async () => {
     const data = makeDeleteCfData({ waitingResources: ['QueuedTable', 'QueuedApi'] });
     const phase = makeDeletePhase([makeDeleteEvent(data)]);
-    testSetup = await testRender(<DeployPhaseDetail phase={phase} />, { width: 80, height: 30 });
+    testSetup = await testRender(() => <DeployPhaseDetail phase={phase} />, { width: 80, height: 30 });
     await testSetup.renderOnce();
     const frame = testSetup.captureCharFrame();
     expect(frame).toContain('Queued');
@@ -267,7 +247,7 @@ describe('Delete: DeployPhaseDetail (structured data)', () => {
   test('shows planned delete count', async () => {
     const data = makeDeleteCfData({ changeCounts: { created: 0, updated: 0, deleted: 15 } });
     const phase = makeDeletePhase([makeDeleteEvent(data)]);
-    testSetup = await testRender(<DeployPhaseDetail phase={phase} />, { width: 80, height: 30 });
+    testSetup = await testRender(() => <DeployPhaseDetail phase={phase} />, { width: 80, height: 30 });
     await testSetup.renderOnce();
     expect(testSetup.captureCharFrame()).toContain('-15 delete');
   });
@@ -283,7 +263,7 @@ describe('Delete: DeployPhaseDetail (structured data)', () => {
       })
     ]);
     phase.status = 'success';
-    testSetup = await testRender(<DeployPhaseDetail phase={phase} />, { width: 80, height: 30 });
+    testSetup = await testRender(() => <DeployPhaseDetail phase={phase} />, { width: 80, height: 30 });
     await testSetup.renderOnce();
     const frame = testSetup.captureCharFrame();
     expect(frame).toContain('✓');
@@ -294,7 +274,7 @@ describe('Delete: DeployPhaseDetail (structured data)', () => {
     const data = makeDeleteCfData({ changeCounts: { created: 0, updated: 0, deleted: 10 } });
     const phase = makeDeletePhase([makeDeleteEvent(data, { status: 'error', duration: 30000 })]);
     phase.status = 'error';
-    testSetup = await testRender(<DeployPhaseDetail phase={phase} />, { width: 80, height: 30 });
+    testSetup = await testRender(() => <DeployPhaseDetail phase={phase} />, { width: 80, height: 30 });
     await testSetup.renderOnce();
     expect(testSetup.captureCharFrame()).toContain('✗');
   });
@@ -302,7 +282,7 @@ describe('Delete: DeployPhaseDetail (structured data)', () => {
   test('cleanup phase: shows 100% and cleanup message', async () => {
     const data = makeDeleteCfData({ status: 'cleanup' });
     const phase = makeDeletePhase([makeDeleteEvent(data)]);
-    testSetup = await testRender(<DeployPhaseDetail phase={phase} />, { width: 80, height: 30 });
+    testSetup = await testRender(() => <DeployPhaseDetail phase={phase} />, { width: 80, height: 30 });
     await testSetup.renderOnce();
     const frame = testSetup.captureCharFrame();
     expect(frame).toContain('100%');
@@ -319,7 +299,7 @@ describe('Delete: DeployPhaseDetail (structured data)', () => {
       children: []
     };
     const phase = makeDeletePhase([event]);
-    testSetup = await testRender(<DeployPhaseDetail phase={phase} />, { width: 80, height: 30 });
+    testSetup = await testRender(() => <DeployPhaseDetail phase={phase} />, { width: 80, height: 30 });
     await testSetup.renderOnce();
     const frame = testSetup.captureCharFrame();
     expect(frame).toContain('Deleting via CloudFormation');
@@ -344,7 +324,7 @@ describe('Delete: footer', () => {
   test('shows "Cancelling deletion..." when cancelling', async () => {
     configureDeleteState();
     tuiState.setCurrentPhase('DEPLOY');
-    testSetup = await testRender(<Footer isCancelling={true} />, { width: 80, height: 3 });
+    testSetup = await testRender(() => <Footer isCancelling={true} />, { width: 80, height: 3 });
     await flushAndRender();
     const frame = testSetup.captureCharFrame();
     expect(frame).toContain('Cancelling deletion');
@@ -369,7 +349,7 @@ describe('Delete: cancel overlay', () => {
     tuiState.setCurrentPhase('INITIALIZE');
     await renderDeleteDashboard({ width: 120, height: 40 });
 
-    emitKey('c', { sequence: 'c' });
+    testSetup.mockInput.pressKey('c');
     await flushAndRender();
     const frame = testSetup.captureCharFrame();
     expect(frame).toContain('Cancel deletion?');
@@ -383,11 +363,11 @@ describe('Delete: cancel overlay', () => {
     tuiState.setCurrentPhase('INITIALIZE');
     await renderDeleteDashboard({ width: 120, height: 40 });
 
-    emitKey('c', { sequence: 'c' });
+    testSetup.mockInput.pressKey('c');
     await flushAndRender();
     expect(testSetup.captureCharFrame()).toContain('Cancel deletion?');
 
-    emitKey('n', { sequence: 'n' });
+    testSetup.mockInput.pressKey('n');
     await flushAndRender();
     expect(testSetup.captureCharFrame()).not.toContain('Cancel deletion?');
   });
@@ -398,20 +378,22 @@ describe('Delete: cancel overlay', () => {
     tuiState.setCurrentPhase('INITIALIZE');
 
     testSetup = await testRender(
-      <DeployDashboard
-        onQuit={() => {}}
-        onCancel={() => {
-          cancelCalled = true;
-        }}
-      />,
+      () => (
+        <DeployDashboard
+          onQuit={() => {}}
+          onCancel={() => {
+            cancelCalled = true;
+          }}
+        />
+      ),
       { width: 120, height: 40 }
     );
     await flushAndRender();
 
-    emitKey('c', { sequence: 'c' });
+    testSetup.mockInput.pressKey('c');
     await flushAndRender();
 
-    emitKey('y', { sequence: 'y' });
+    testSetup.mockInput.pressKey('y');
     await flushAndRender();
 
     expect(cancelCalled).toBe(true);
@@ -423,7 +405,7 @@ describe('Delete: cancel overlay', () => {
     tuiState.setComplete(true, 'DELETION SUCCESSFUL');
     await renderDeleteDashboard({ width: 120, height: 40 });
 
-    emitKey('c', { sequence: 'c' });
+    testSetup.mockInput.pressKey('c');
     await flushAndRender();
     expect(testSetup.captureCharFrame()).not.toContain('Cancel deletion?');
   });
@@ -439,17 +421,19 @@ describe('Delete: keyboard interaction', () => {
     tuiState.setComplete(true, 'DELETION SUCCESSFUL');
 
     testSetup = await testRender(
-      <DeployDashboard
-        onQuit={() => {
-          quitCalled = true;
-        }}
-        onCancel={() => {}}
-      />,
+      () => (
+        <DeployDashboard
+          onQuit={() => {
+            quitCalled = true;
+          }}
+          onCancel={() => {}}
+        />
+      ),
       { width: 120, height: 40 }
     );
     await flushAndRender();
 
-    emitKey('q', { sequence: 'q' });
+    testSetup.mockInput.pressKey('q');
     await flushAndRender();
     expect(quitCalled).toBe(true);
   });
@@ -460,17 +444,19 @@ describe('Delete: keyboard interaction', () => {
     tuiState.setCurrentPhase('DEPLOY');
 
     testSetup = await testRender(
-      <DeployDashboard
-        onQuit={() => {
-          quitCalled = true;
-        }}
-        onCancel={() => {}}
-      />,
+      () => (
+        <DeployDashboard
+          onQuit={() => {
+            quitCalled = true;
+          }}
+          onCancel={() => {}}
+        />
+      ),
       { width: 120, height: 40 }
     );
     await flushAndRender();
 
-    emitKey('q', { sequence: 'q' });
+    testSetup.mockInput.pressKey('q');
     await flushAndRender();
     expect(quitCalled).toBe(false);
   });
@@ -481,17 +467,19 @@ describe('Delete: keyboard interaction', () => {
     tuiState.setCurrentPhase('DEPLOY');
 
     testSetup = await testRender(
-      <DeployDashboard
-        onQuit={() => {}}
-        onCancel={() => {
-          cancelCalled = true;
-        }}
-      />,
+      () => (
+        <DeployDashboard
+          onQuit={() => {}}
+          onCancel={() => {
+            cancelCalled = true;
+          }}
+        />
+      ),
       { width: 120, height: 40 }
     );
     await flushAndRender();
 
-    emitKey('c', { ctrl: true, sequence: '\x03' });
+    testSetup.mockInput.pressCtrlC();
     await flushAndRender();
     expect(cancelCalled).toBe(true);
   });
@@ -512,7 +500,6 @@ describe('Delete: state transitions', () => {
     await flushAndRender();
     frame = testSetup.captureCharFrame();
 
-    // Initialize should be complete (✓), Delete should be active (⠋)
     expect(frame).toContain('✓');
     expect(frame).toContain('Delete');
   });
@@ -636,14 +623,12 @@ describe('Delete: full lifecycle', () => {
   test('simulates complete delete flow: init → delete → complete', async () => {
     configureDeleteState();
 
-    // Phase 1: Initialize
     tuiState.setCurrentPhase('INITIALIZE');
     await renderDeleteDashboard({ width: 120, height: 40 });
     let frame = testSetup.captureCharFrame();
     expect(frame).toContain('DELETING');
     expect(frame).toContain('⠋');
 
-    // Init events
     tuiState.startEvent({
       eventType: 'LOAD_METADATA_FROM_AWS' as LoggableEventType,
       description: 'Loading stack metadata',
@@ -659,13 +644,11 @@ describe('Delete: full lifecycle', () => {
     await flushAndRender();
     expect(testSetup.captureCharFrame()).toContain('✓');
 
-    // Phase 2: Delete
     tuiState.setCurrentPhase('DEPLOY');
     await flushAndRender();
     frame = testSetup.captureCharFrame();
     expect(frame).toContain('Delete');
 
-    // CF delete starts
     tuiState.startEvent({
       eventType: 'DELETE_STACK' as LoggableEventType,
       description: 'Deleting via CloudFormation',
@@ -674,7 +657,6 @@ describe('Delete: full lifecycle', () => {
     await flushAndRender();
     expect(testSetup.captureCharFrame()).toContain('Deleting via CloudFormation');
 
-    // CF progress
     tuiState.updateEvent({
       eventType: 'DELETE_STACK' as LoggableEventType,
       additionalMessage: 'Status: Deleting resources. Progress: 8/15. Currently updating: MyFunc. Estimate: ~53%'
@@ -684,14 +666,12 @@ describe('Delete: full lifecycle', () => {
     expect(frame).toContain('8/15');
     expect(frame).toContain('53%');
 
-    // CF complete
     tuiState.finishEvent({
       eventType: 'DELETE_STACK' as LoggableEventType,
       finalMessage: 'Stack deleted'
     });
     await flushAndRender();
 
-    // Completion
     tuiState.setComplete(true, 'DELETION SUCCESSFUL');
     await flushAndRender();
     frame = testSetup.captureCharFrame();
@@ -715,7 +695,6 @@ describe('Delete: full lifecycle', () => {
     });
     await flushAndRender();
 
-    // Simulate failure
     tuiState.finishEvent({
       eventType: 'DELETE_STACK' as LoggableEventType,
       status: 'error'
