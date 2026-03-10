@@ -28,6 +28,16 @@ export type DeleteDefaultDomainDnsRecordParams = {
   version: number;
 };
 
+export type ReportAlarmEventParams = {
+  type: 'ALARM_TRIGGERED' | 'ALARM_RESOLVED';
+  alarmName: string;
+  project: string;
+  stage: string;
+  region: string;
+  title: string;
+  details?: Record<string, unknown>;
+};
+
 export type AwsIdentityTrpcClient = {
   validateCertificate: {
     mutate: (args: ValidateCertificateParams) => Promise<void>;
@@ -37,5 +47,8 @@ export type AwsIdentityTrpcClient = {
   };
   deleteDefaultDomainDnsRecord: {
     mutate: (args: DeleteDefaultDomainDnsRecordParams) => Promise<void>;
+  };
+  reportAlarmEvent: {
+    mutate: (args: ReportAlarmEventParams) => Promise<string>;
   };
 };

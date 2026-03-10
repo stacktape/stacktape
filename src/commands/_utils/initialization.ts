@@ -29,6 +29,7 @@ import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { getErrorHandler, loggingPlugin } from '@utils/aws-sdk-manager/utils';
 import { logCollectorStream } from '@utils/log-collector';
 import { ensureAwsAccountConnected } from './aws-connection-preflight';
+import { assertCommandPermissions, assertScopedProjectAccess } from './permission-guards';
 
 export const initializeAllStackServices = async ({
   commandModifiesStack,
@@ -57,6 +58,15 @@ export const initializeAllStackServices = async ({
   await loadUserCredentials();
   await recordStackOperationStart();
 
+  const userProvidedProjectName = globalStateManager.args.projectName;
+  if (userProvidedProjectName) {
+    assertScopedProjectAccess({
+      role: globalStateManager.organizationData?.role,
+      projects: globalStateManager.projects,
+      projectName: userProvidedProjectName
+    });
+  }
+
   if (requiresSubscription) {
     const { message, canDeploy } = await stacktapeTrpcApiManager.apiClient.canDeploy();
     if (!canDeploy) {
@@ -64,6 +74,14 @@ export const initializeAllStackServices = async ({
     }
   }
   await globalStateManager.loadTargetStackInfo();
+  assertCommandPermissions({
+    command: globalStateManager.command,
+    stage: globalStateManager.stage,
+    projectName: globalStateManager.targetStack?.projectName,
+    role: globalStateManager.organizationData?.role,
+    permissions: globalStateManager.permissions,
+    projects: globalStateManager.projects
+  });
   await configManager.init({ configRequired: true });
 
   if (loadGlobalConfig) {
@@ -327,6 +345,14 @@ export const initializeStackServicesForWorkingWithDeployedStack = async ({
   await recordStackOperationStart();
 
   await globalStateManager.loadTargetStackInfo();
+  assertCommandPermissions({
+    command: globalStateManager.command,
+    stage: globalStateManager.stage,
+    projectName: globalStateManager.targetStack?.projectName,
+    role: globalStateManager.organizationData?.role,
+    permissions: globalStateManager.permissions,
+    projects: globalStateManager.projects
+  });
   await startStackOperationRecording({ stackName: globalStateManager.targetStack.stackName });
 
   await configManager.init({ configRequired: commandRequiresConfig });

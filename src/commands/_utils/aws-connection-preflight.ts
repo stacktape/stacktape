@@ -11,6 +11,7 @@ import { fromIni, fromEnv } from '@aws-sdk/credential-providers';
 import { createFetchHandler } from '@shared/aws/fetch-handler';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
+import { normalizeCurrentUserAndOrgData } from '@application-services/global-state-manager/user-data-mapper';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { stpErrors } from '@errors';
@@ -224,29 +225,32 @@ const pollForAwsConnection = async (
 export const ensureAwsAccountConnected = async (): Promise<void> => {
   // Initialize API and load user data
   await stacktapeTrpcApiManager.init({ apiKey: globalStateManager.apiKey });
-  const { user, organization, connectedAwsAccounts, projects } =
-    await stacktapeTrpcApiManager.apiClient.currentUserAndOrgData();
+  const currentUserAndOrgData = normalizeCurrentUserAndOrgData(
+    await stacktapeTrpcApiManager.apiClient.currentUserAndOrgData()
+  );
 
   // Store user data in globalStateManager (so loadUserCredentials doesn't need to fetch again)
-  globalStateManager.userData = user;
-  globalStateManager.organizationData = organization;
-  globalStateManager.connectedAwsAccounts = connectedAwsAccounts || [];
-  globalStateManager.projects = projects || [];
+  globalStateManager.userData = currentUserAndOrgData.userData;
+  globalStateManager.organizationData = currentUserAndOrgData.organizationData;
+  globalStateManager.connectedAwsAccounts = currentUserAndOrgData.connectedAwsAccounts;
+  globalStateManager.projects = currentUserAndOrgData.projects;
+  globalStateManager.permissions = currentUserAndOrgData.permissions;
+  globalStateManager.isProjectScoped = currentUserAndOrgData.isProjectScoped;
 
   // If user has connected accounts, we're good - let normal flow handle account selection
-  if (connectedAwsAccounts && connectedAwsAccounts.length > 0) {
+  if (currentUserAndOrgData.connectedAwsAccounts.length > 0) {
     // If multiple accounts and no --awsAccount specified, prompt to select
-    if (connectedAwsAccounts.length > 1 && !globalStateManager.args.awsAccount) {
+    if (currentUserAndOrgData.connectedAwsAccounts.length > 1 && !globalStateManager.args.awsAccount) {
       if (!process.stdout.isTTY) {
         throw stpErrors.e67({
-          organizationName: organization.name,
-          connectedAwsAccounts
+          organizationName: currentUserAndOrgData.organizationData.name,
+          connectedAwsAccounts: currentUserAndOrgData.connectedAwsAccounts
         });
       }
 
       const selectedAccount = await tuiManager.promptSelect({
         message: 'Select AWS account to use:',
-        options: connectedAwsAccounts.map((acc) => ({
+        options: currentUserAndOrgData.connectedAwsAccounts.map((acc) => ({
           label: acc.name || 'Unnamed',
           value: acc.name,
           description: acc.awsAccountId ? `Account ID: ${acc.awsAccountId}` : undefined
@@ -261,7 +265,7 @@ export const ensureAwsAccountConnected = async (): Promise<void> => {
 
   // No connected accounts - need to connect one
   if (!process.stdout.isTTY) {
-    throw stpErrors.e66({ organizationName: organization.name });
+    throw stpErrors.e66({ organizationName: currentUserAndOrgData.organizationData.name });
   }
 
   await eventManager.startEvent({
@@ -303,7 +307,7 @@ export const ensureAwsAccountConnected = async (): Promise<void> => {
       additionalMessage: 'Setting up connection using local credentials'
     });
 
-    const result = await runAutoAwsConnection(organization.id, localCreds);
+    const result = await runAutoAwsConnection(currentUserAndOrgData.organizationData.id, localCreds);
 
     if (result.success) {
       await eventManager.finishEvent({
@@ -312,8 +316,12 @@ export const ensureAwsAccountConnected = async (): Promise<void> => {
       });
 
       // Refresh user data to get the new account and update globalStateManager
-      const refreshedData = await stacktapeTrpcApiManager.apiClient.currentUserAndOrgData();
-      globalStateManager.connectedAwsAccounts = refreshedData.connectedAwsAccounts || [];
+      const refreshedData = normalizeCurrentUserAndOrgData(
+        await stacktapeTrpcApiManager.apiClient.currentUserAndOrgData()
+      );
+      globalStateManager.connectedAwsAccounts = refreshedData.connectedAwsAccounts;
+      globalStateManager.permissions = refreshedData.permissions;
+      globalStateManager.isProjectScoped = refreshedData.isProjectScoped;
       return;
     }
 
@@ -329,7 +337,7 @@ export const ensureAwsAccountConnected = async (): Promise<void> => {
   });
 
   const { connectionId, quickCreateUrl } = await publicApiClient.createAwsConnectionPending({
-    organizationId: organization.id,
+    organizationId: currentUserAndOrgData.organizationData.id,
     connectionName: 'aws-account',
     connectionMode: 'PRIVILEGED'
   });
@@ -363,7 +371,10 @@ export const ensureAwsAccountConnected = async (): Promise<void> => {
 
     // Refresh user data to get the new account and update globalStateManager
     const refreshedData = await stacktapeTrpcApiManager.apiClient.currentUserAndOrgData();
-    globalStateManager.connectedAwsAccounts = refreshedData.connectedAwsAccounts || [];
+    const normalizedRefreshedData = normalizeCurrentUserAndOrgData(refreshedData);
+    globalStateManager.connectedAwsAccounts = normalizedRefreshedData.connectedAwsAccounts;
+    globalStateManager.permissions = normalizedRefreshedData.permissions;
+    globalStateManager.isProjectScoped = normalizedRefreshedData.isProjectScoped;
     return;
   }
 
@@ -373,5 +384,5 @@ export const ensureAwsAccountConnected = async (): Promise<void> => {
     finalMessage: 'AWS connection timed out or was cancelled'
   });
 
-  throw stpErrors.e66({ organizationName: organization.name });
+  throw stpErrors.e66({ organizationName: currentUserAndOrgData.organizationData.name });
 };

@@ -27,11 +27,28 @@ class StacktapeTrpcApiManager {
             }
             tuiManager.debug(`TRPC API ${prop}: ${Date.now() - start}ms.`);
             const errCode = err?.shape?.data.code;
+            const errMessage = err?.shape?.message || '';
+            if (errCode === 'UNAUTHORIZED' && errMessage.includes('revoked')) {
+              throw stpErrors.e503({
+                message: "API key has been revoked. Run 'stacktape login' to authenticate with a different key."
+              });
+            }
+            if (errCode === 'UNAUTHORIZED' && errMessage.includes('expired')) {
+              throw stpErrors.e503({
+                message: "API key has expired. Run 'stacktape login' to authenticate with a new key."
+              });
+            }
             if (errCode === 'UNAUTHORIZED' && apiKey) {
               throw stpErrors.e503({ message: 'Invalid API key.' });
             }
             if (errCode === 'UNAUTHORIZED' && !apiKey) {
               throw stpErrors.e503({ message: 'Invalid API key or no API key specified.' });
+            }
+            if (errCode === 'FORBIDDEN') {
+              const serverMessage = err?.shape?.message || 'Insufficient permissions';
+              throw stpErrors.e503({
+                message: `Permission denied: ${serverMessage}. Check your role with 'stacktape info:whoami'.`
+              });
             }
             throw stpErrors.e503({ message: err?.shape?.message || 'Unknown error' });
           }

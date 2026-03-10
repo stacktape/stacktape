@@ -32,6 +32,7 @@ import {
 } from '@utils/validator';
 import { kebabCase } from 'change-case';
 import dayjs from 'dayjs';
+import { normalizeCurrentUserAndOrgData } from './user-data-mapper';
 import { loadPersistedState, savePersistedState } from './utils';
 import { runAuthFlow } from '../../commands/_utils/auth';
 
@@ -65,6 +66,8 @@ export class GlobalStateManager {
   organizationData?: GlobalStateOrganization;
   connectedAwsAccounts?: GlobalStateConnectedAwsAccount[];
   projects: GlobalStateProject[];
+  permissions: string[] = [];
+  isProjectScoped = false;
   // populated with initial dummy variables so that resource resolving can work without using trpc api
   targetStack: {
     stackName: string;
@@ -317,12 +320,15 @@ export class GlobalStateManager {
   };
 
   loadUserDataFromTrpcApi = async () => {
-    const { user, organization, connectedAwsAccounts, projects } =
-      await stacktapeTrpcApiManager.apiClient.currentUserAndOrgData();
-    this.userData = user;
-    this.organizationData = organization;
-    this.connectedAwsAccounts = connectedAwsAccounts || [];
-    this.projects = projects || [];
+    const normalizedUserData = normalizeCurrentUserAndOrgData(
+      await stacktapeTrpcApiManager.apiClient.currentUserAndOrgData()
+    );
+    this.userData = normalizedUserData.userData;
+    this.organizationData = normalizedUserData.organizationData;
+    this.connectedAwsAccounts = normalizedUserData.connectedAwsAccounts;
+    this.projects = normalizedUserData.projects;
+    this.permissions = normalizedUserData.permissions;
+    this.isProjectScoped = normalizedUserData.isProjectScoped;
     // const displayedOrgName = organization.name.endsWith('-personal-org') ? 'Personal' : organization.name;
   };
 

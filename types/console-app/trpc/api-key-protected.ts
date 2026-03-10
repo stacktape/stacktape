@@ -34,13 +34,25 @@ export type GlobalConfigResponse = {
     forStages: any;
     evaluation: any;
     trigger: any;
-    integration: {
+    notificationTargets: Array<{
       name: string;
-      definition: any;
-    };
+      type: string;
+      properties: any;
+    }>;
   }[];
   guardrails: GuardrailDefinition[];
   deploymentNotifications: DeploymentNotificationDefinition[];
+};
+
+export type ReportEventParams = {
+  type: string;
+  severity?: string;
+  project?: string;
+  stage?: string;
+  region?: string;
+  title: string;
+  details?: Record<string, unknown>;
+  invocationId?: string;
 };
 
 export type CurrentUserAndOrgDataResponse = {
@@ -283,5 +295,8 @@ export type ApiKeyTrpcClient = {
   };
   stackDetails: {
     query: (args: StackDetailsParams) => Promise<StackDetailsResponse>;
+  };
+  reportEvent: {
+    mutate: (args: ReportEventParams) => Promise<string>;
   };
 };
