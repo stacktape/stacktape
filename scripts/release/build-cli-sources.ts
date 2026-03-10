@@ -20,7 +20,19 @@ import { downloadFile } from '@shared/utils/download-file';
 import { logInfo, logSuccess } from '@shared/utils/logging';
 import { localBuildTsConfigPath } from '@shared/utils/misc';
 import { archiveItem, extractTgzArchive } from '@shared/utils/zip';
-import { chmod, copy, ensureDir, pathExists, readdir, readFile, readJsonSync, remove, writeJson } from 'fs-extra';
+import {
+  chmod,
+  copy,
+  ensureDir,
+  mkdirSync,
+  pathExists,
+  readdir,
+  readFile,
+  readJsonSync,
+  remove,
+  writeFileSync,
+  writeJson
+} from 'fs-extra';
 import { solidBuildPlugin } from '../solid-preload';
 import {
   createBashCompletionScript,
@@ -117,6 +129,71 @@ export const generateSourceMapInstall = async ({ distFolderPath }: { distFolderP
   logSuccess('Source map install file generated successfully.');
 };
 
+// Maps our platform names to @opentui/core native package identifiers (process.platform-process.arch)
+const OPENTUI_PLATFORM_IDENTIFIERS: { [_platform in SupportedPlatform]: string } = {
+  win: 'win32-x64',
+  macos: 'darwin-x64',
+  'macos-arm': 'darwin-arm64',
+  linux: 'linux-x64',
+  alpine: 'linux-x64',
+  'linux-arm': 'linux-arm64'
+};
+
+/**
+ * When cross-compiling, the target platform's @opentui/core-* native package
+ * may not be installed (bun install skips packages filtered by os/cpu).
+ * Downloads the tarball from npm and extracts it into node_modules.
+ */
+const ensureOpenTuiPlatformPackage = async (platform: SupportedPlatform) => {
+  const platformId = OPENTUI_PLATFORM_IDENTIFIERS[platform];
+  const packageDir = join(process.cwd(), 'node_modules', '@opentui', `core-${platformId}`);
+
+  if (await pathExists(join(packageDir, 'index.ts'))) return;
+
+  const coreVersion = readJsonSync(join(process.cwd(), 'node_modules', '@opentui', 'core', 'package.json')).version;
+  const scopedName = `core-${platformId}`;
+  const tarballUrl = `https://registry.npmjs.org/@opentui/${scopedName}/-/${scopedName}-${coreVersion}.tgz`;
+
+  logInfo(`Downloading @opentui/${scopedName}@${coreVersion} for cross-compilation...`);
+
+  const response = await fetch(tarballUrl);
+  if (!response.ok) throw new Error(`Failed to download ${tarballUrl}: ${response.status}`);
+
+  const tgzBuffer = Buffer.from(await response.arrayBuffer());
+
+  // Extract using tar.t to read entries, then write files manually
+  // (tar.x has issues writing small files on some platforms)
+  const { Readable } = await import('node:stream');
+  const { createGunzip } = await import('node:zlib');
+  const tar = await import('tar');
+
+  await ensureDir(packageDir);
+
+  await new Promise<void>((resolve, reject) => {
+    const parser = new tar.Parser();
+    parser.on('entry', (entry: { path: string; on: (event: string, cb: (chunk?: Buffer) => void) => void }) => {
+      // Strip leading "package/" prefix from npm tarball paths
+      const relativePath = entry.path.replace(/^package\//, '');
+      if (!relativePath) {
+        entry.on('data', () => {});
+        return;
+      }
+      const chunks: Buffer[] = [];
+      entry.on('data', (chunk: Buffer) => chunks.push(chunk));
+      entry.on('end', () => {
+        const destPath = join(packageDir, relativePath);
+        mkdirSync(join(destPath, '..'), { recursive: true });
+        writeFileSync(destPath, Buffer.concat(chunks));
+      });
+    });
+    parser.on('end', resolve);
+    parser.on('error', reject);
+    Readable.from(tgzBuffer).pipe(createGunzip()).pipe(parser);
+  });
+
+  logSuccess(`Installed @opentui/${scopedName}@${coreVersion}.`);
+};
+
 export const buildBinaryFile = async ({
   distFolderPath,
   debug,
@@ -135,6 +212,9 @@ export const buildBinaryFile = async ({
 
   // Ensure output directory exists
   await ensureDir(outputFolderPath);
+
+  // Ensure the target platform's @opentui/core native package is available for cross-compilation
+  await ensureOpenTuiPlatformPackage(platform);
 
   // Map platform to Bun compile target
   const compileTarget = (() => {
