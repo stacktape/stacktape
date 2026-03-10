@@ -1,212 +1,107 @@
 import { tuiManager } from '@application-services/tui-manager';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
+import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
 import { packagingManager } from '@domain-services/packaging-manager';
 import { templateManager } from '@domain-services/template-manager';
-import type { Change } from '@aws-sdk/client-cloudformation';
 import { initializeAllStackServices } from '../_utils/initialization';
 import { isAgentMode } from '../_utils/agent-mode';
 import { ensureMissingSecretsCreated } from '../_utils/secret-preflight';
+import { buildPreviewResourceChanges, getNormalizedPreviewTemplateDiff } from './utils';
 
-type ChangeAnalysis = {
-  hasDirectChanges: boolean;
-  directChanges: string[];
+const actionToLabel = (action: 'create' | 'delete' | 'replace' | 'update') => {
+  if (action === 'create') return 'new';
+  if (action === 'delete') return 'removed';
+  if (action === 'replace') return 'replaced';
+  return 'updated';
 };
 
-const analyzeChange = (change: Change): ChangeAnalysis => {
-  const rc = change.ResourceChange;
-  if (!rc) return { hasDirectChanges: false, directChanges: [] };
-
-  const details = rc.Details || [];
-  const directChanges: string[] = [];
-
-  for (const detail of details) {
-    const propName = detail.Target?.Name;
-    const changeSource = detail.ChangeSource;
-
-    if (changeSource === 'DirectModification') {
-      directChanges.push(propName || 'Direct modification');
-    }
-  }
-
-  if (details.length === 0 && rc.Scope?.length) {
-    directChanges.push(...rc.Scope);
-  }
-
-  return {
-    hasDirectChanges: directChanges.length > 0,
-    directChanges: [...new Set(directChanges)]
-  };
+const actionToSymbol = (action: 'create' | 'delete' | 'replace' | 'update') => {
+  if (action === 'create') return '+';
+  if (action === 'delete') return '-';
+  if (action === 'replace') return '!';
+  return '~';
 };
 
-type CategorizedChanges = {
-  added: Change[];
-  removed: Change[];
-  modified: Change[];
-  dependencyUpdates: Change[];
+const actionToColor = (action: 'create' | 'delete' | 'replace' | 'update') => {
+  if (action === 'create') return 'green';
+  if (action === 'delete') return 'red';
+  if (action === 'replace') return 'red';
+  return 'yellow';
 };
 
-const categorizeChanges = (changes: Change[]): CategorizedChanges => {
-  const added: Change[] = [];
-  const removed: Change[] = [];
-  const modified: Change[] = [];
-  const dependencyUpdates: Change[] = [];
-
-  for (const change of changes) {
-    const action = change.ResourceChange?.Action;
-    if (action === 'Add') {
-      added.push(change);
-    } else if (action === 'Remove') {
-      removed.push(change);
-    } else if (action === 'Modify') {
-      const analysis = analyzeChange(change);
-      if (analysis.hasDirectChanges) {
-        modified.push(change);
-      } else {
-        dependencyUpdates.push(change);
-      }
-    }
-  }
-
-  return { added, removed, modified, dependencyUpdates };
-};
-
-/**
- * Build plain text output for agent mode - no colors, simple structure.
- */
-const buildAgentChangesOutput = (categorized: CategorizedChanges): string[] => {
-  const { added, removed, modified, dependencyUpdates } = categorized;
+const buildAgentPreviewOutput = ({
+  resourceChanges,
+  rawChanges
+}: {
+  resourceChanges: ReturnType<typeof buildPreviewResourceChanges>;
+  rawChanges: number;
+}) => {
   const lines: string[] = [];
 
-  if (added.length > 0) {
-    lines.push(`NEW RESOURCES (${added.length}):`);
-    for (const change of added) {
-      const rc = change.ResourceChange;
-      if (!rc) continue;
-      lines.push(`  + ${rc.LogicalResourceId} (${rc.ResourceType?.replace('AWS::', '')})`);
+  resourceChanges.forEach((resourceChange) => {
+    lines.push(
+      `${actionToSymbol(resourceChange.action)} ${resourceChange.resourceName} (${resourceChange.resourceType}) - ${actionToLabel(resourceChange.action)}`
+    );
+    if (resourceChange.highlights.length) {
+      lines.push(`  Highlights: ${resourceChange.highlights.slice(0, 3).join('; ')}`);
     }
-  }
+    if (resourceChange.willReplace.length) {
+      lines.push(`  Will replace: ${resourceChange.willReplace.join(', ')}`);
+    }
+    if (resourceChange.mayReplace.length) {
+      lines.push(`  May replace: ${resourceChange.mayReplace.join(', ')}`);
+    }
+  });
 
-  if (removed.length > 0) {
-    lines.push(`REMOVED RESOURCES (${removed.length}):`);
-    for (const change of removed) {
-      const rc = change.ResourceChange;
-      if (!rc) continue;
-      lines.push(`  - ${rc.LogicalResourceId} (${rc.ResourceType?.replace('AWS::', '')})`);
-    }
-  }
-
-  if (modified.length > 0) {
-    lines.push(`MODIFIED RESOURCES (${modified.length}):`);
-    for (const change of modified) {
-      const rc = change.ResourceChange;
-      if (!rc) continue;
-      const replacement =
-        rc.Replacement === 'True'
-          ? ' [WILL BE REPLACED]'
-          : rc.Replacement === 'Conditional'
-            ? ' [MAY BE REPLACED]'
-            : '';
-      lines.push(`  ~ ${rc.LogicalResourceId} (${rc.ResourceType?.replace('AWS::', '')})${replacement}`);
-      const analysis = analyzeChange(change);
-      if (analysis.directChanges.length > 0) {
-        lines.push(`    Changed: ${analysis.directChanges.join(', ')}`);
-      }
-    }
-  }
-
-  if (dependencyUpdates.length > 0) {
-    lines.push(`DEPENDENCY UPDATES (${dependencyUpdates.length}):`);
-    for (const change of dependencyUpdates) {
-      const rc = change.ResourceChange;
-      if (!rc) continue;
-      lines.push(`  . ${rc.LogicalResourceId} (${rc.ResourceType?.replace('AWS::', '')})`);
-    }
+  if (resourceChanges.length === 0 && rawChanges > 0) {
+    lines.push('NO MEANINGFUL STACKTAPE RESOURCE CHANGES');
+    lines.push(
+      'CloudFormation reported internal/dependency-only changes, but the normalized preview filtered them out.'
+    );
   }
 
   return lines;
 };
 
-/**
- * Build human-friendly output with colors for TTY mode.
- */
-const buildHumanChangesOutput = (categorized: CategorizedChanges): string[] => {
-  const { added, removed, modified, dependencyUpdates } = categorized;
+const buildHumanPreviewOutput = ({
+  resourceChanges,
+  rawChanges
+}: {
+  resourceChanges: ReturnType<typeof buildPreviewResourceChanges>;
+  rawChanges: number;
+}) => {
   const lines: string[] = [];
 
-  if (added.length > 0) {
+  if (resourceChanges.length === 0 && rawChanges > 0) {
     lines.push('');
-    lines.push(tuiManager.colorize('green', `+ NEW RESOURCES (${added.length})`));
-    for (const change of added) {
-      const rc = change.ResourceChange;
-      if (!rc) continue;
-      const resourceId = rc.LogicalResourceId || '';
-      const resourceType = rc.ResourceType?.replace('AWS::', '') || '';
-      lines.push(
-        `  ${tuiManager.colorize('green', '+')} ${resourceId} ${tuiManager.colorize('gray', `(${resourceType})`)}`
-      );
-    }
-  }
-
-  if (removed.length > 0) {
-    lines.push('');
-    lines.push(tuiManager.colorize('red', `- REMOVED RESOURCES (${removed.length})`));
-    for (const change of removed) {
-      const rc = change.ResourceChange;
-      if (!rc) continue;
-      const resourceId = rc.LogicalResourceId || '';
-      const resourceType = rc.ResourceType?.replace('AWS::', '') || '';
-      lines.push(
-        `  ${tuiManager.colorize('red', '-')} ${resourceId} ${tuiManager.colorize('gray', `(${resourceType})`)}`
-      );
-    }
-  }
-
-  if (modified.length > 0) {
-    lines.push('');
-    lines.push(tuiManager.colorize('yellow', `~ MODIFIED RESOURCES (${modified.length})`));
-    for (const change of modified) {
-      const rc = change.ResourceChange;
-      if (!rc) continue;
-      const resourceId = rc.LogicalResourceId || '';
-      const resourceType = rc.ResourceType?.replace('AWS::', '') || '';
-      const replacement =
-        rc.Replacement === 'True'
-          ? tuiManager.colorize('red', ' [WILL BE REPLACED]')
-          : rc.Replacement === 'Conditional'
-            ? tuiManager.colorize('yellow', ' [MAY BE REPLACED]')
-            : '';
-
-      lines.push(
-        `  ${tuiManager.colorize('yellow', '~')} ${resourceId} ${tuiManager.colorize('gray', `(${resourceType})`)}${replacement}`
-      );
-
-      const analysis = analyzeChange(change);
-      if (analysis.directChanges.length > 0) {
-        lines.push(`      Changed properties: ${analysis.directChanges.join(', ')}`);
-      }
-    }
-  }
-
-  if (dependencyUpdates.length > 0) {
-    lines.push('');
-    lines.push(tuiManager.colorize('gray', `· DEPENDENCY UPDATES (${dependencyUpdates.length})`));
-    lines.push(tuiManager.colorize('gray', '  These resources reference other changed resources. CloudFormation will'));
+    lines.push(tuiManager.colorize('gray', '· No meaningful Stacktape resource changes detected'));
     lines.push(
-      tuiManager.colorize('gray', "  re-evaluate them during deployment, but they likely won't actually change.")
+      tuiManager.colorize('gray', '  CloudFormation only reported internal runtime churn or dependency re-evaluation.')
     );
-    lines.push('');
-    for (const change of dependencyUpdates) {
-      const rc = change.ResourceChange;
-      if (!rc) continue;
-      const resourceId = rc.LogicalResourceId || '';
-      const resourceType = rc.ResourceType?.replace('AWS::', '') || '';
-      lines.push(
-        `  ${tuiManager.colorize('gray', '·')} ${tuiManager.colorize('gray', resourceId)} ${tuiManager.colorize('gray', `(${resourceType})`)}`
-      );
-    }
+    return lines;
   }
+
+  resourceChanges.forEach((resourceChange) => {
+    const color = actionToColor(resourceChange.action);
+    lines.push('');
+    lines.push(
+      `${tuiManager.colorize(color, actionToSymbol(resourceChange.action))} ${resourceChange.resourceName} ${tuiManager.colorize('gray', `(${resourceChange.resourceType})`)} ${tuiManager.colorize('gray', `- ${actionToLabel(resourceChange.action)}`)}`
+    );
+    if (resourceChange.highlights.length) {
+      lines.push(`    Changes: ${resourceChange.highlights.slice(0, 3).join('; ')}`);
+    }
+    if (resourceChange.changedChildCount > 3) {
+      lines.push(`    + ${resourceChange.changedChildCount - 3} more changed child resources`);
+    }
+    if (resourceChange.willReplace.length) {
+      lines.push(`    ${tuiManager.colorize('red', 'Will replace')}: ${resourceChange.willReplace.join(', ')}`);
+    }
+    if (resourceChange.mayReplace.length) {
+      lines.push(`    ${tuiManager.colorize('yellow', 'May replace')}: ${resourceChange.mayReplace.join(', ')}`);
+    }
+  });
 
   return lines;
 };
@@ -225,45 +120,71 @@ export const commandPreviewChanges = async () => {
   await calculatedStackOverviewManager.populateStackMetadata();
   await templateManager.prepareForDeploy();
 
+  const cfTemplateDiff = getNormalizedPreviewTemplateDiff({
+    oldTemplate: templateManager.oldTemplate,
+    newTemplate: templateManager.getTemplate()
+  });
+
   await deploymentArtifactManager.uploadCloudFormationTemplate();
   const templateUrl = deploymentArtifactManager.cloudformationTemplateUrl;
 
   await stackManager.validateTemplate({ templateUrl });
 
-  const { changes } = await stackManager.getChangeSet({ templateUrl });
+  const { changes } = await stackManager.getChangeSet({ templateUrl, includePropertyValues: true });
+  const resourceChanges = buildPreviewResourceChanges({
+    calculatedStackInfoMap: calculatedStackOverviewManager.stackInfoMap,
+    deployedStackInfoMap: deployedStackOverviewManager.stackInfoMap,
+    cfTemplateDiff,
+    changes
+  });
 
-  const added = changes.filter((c) => c.ResourceChange?.Action === 'Add').length;
-  const removed = changes.filter((c) => c.ResourceChange?.Action === 'Remove').length;
-  const modified = changes.filter((c) => c.ResourceChange?.Action === 'Modify').length;
+  const newCount = resourceChanges.filter(({ action }) => action === 'create').length;
+  const removedCount = resourceChanges.filter(({ action }) => action === 'delete').length;
+  const replacedCount = resourceChanges.filter(({ action }) => action === 'replace').length;
+  const updatedCount = resourceChanges.filter(({ action }) => action === 'update').length;
 
-  // Stop the TUI before printing changes so output is visible
   await tuiManager.stop();
 
-  const categorized = categorizeChanges(changes);
-
   if (isAgentMode()) {
-    // Agent mode: plain structured output
-    if (changes.length === 0) {
+    if (resourceChanges.length === 0 && changes.length === 0) {
       tuiManager.info('NO CHANGES DETECTED');
     } else {
-      tuiManager.info(`SUMMARY: ${added} new, ${removed} removed, ${modified} modified`);
-      const lines = buildAgentChangesOutput(categorized);
-      tuiManager.printLines(lines);
+      tuiManager.info(
+        `SUMMARY: ${newCount} new, ${removedCount} removed, ${replacedCount} replaced, ${updatedCount} updated`
+      );
+      tuiManager.printLines(
+        buildAgentPreviewOutput({
+          resourceChanges,
+          rawChanges: changes.length
+        })
+      );
     }
   } else {
-    // Human mode: colored output with decorations
     const summary =
-      changes.length === 0
+      resourceChanges.length === 0 && changes.length === 0
         ? 'NO CHANGES DETECTED'
-        : `PREVIEW COMPLETE: ${[added > 0 && `${added} new`, removed > 0 && `${removed} removed`, modified > 0 && `${modified} modified`].filter(Boolean).join(', ')}`;
+        : resourceChanges.length === 0
+          ? 'NO MEANINGFUL STACKTAPE RESOURCE CHANGES'
+          : `PREVIEW COMPLETE: ${[
+              newCount > 0 && `${newCount} new`,
+              removedCount > 0 && `${removedCount} removed`,
+              replacedCount > 0 && `${replacedCount} replaced`,
+              updatedCount > 0 && `${updatedCount} updated`
+            ]
+              .filter(Boolean)
+              .join(', ')}`;
 
-    if (changes.length > 0) {
-      const lines = buildHumanChangesOutput(categorized);
-      tuiManager.printLines(['', ...lines, '']);
+    if (resourceChanges.length > 0 || changes.length > 0) {
+      tuiManager.printLines([
+        '',
+        tuiManager.colorize('gray', 'Meaningful Stacktape resource changes'),
+        ...buildHumanPreviewOutput({ resourceChanges, rawChanges: changes.length }),
+        ''
+      ]);
     }
 
     tuiManager.printLines([tuiManager.colorize('green', `✓ ${summary}`), tuiManager.colorize('gray', '─'.repeat(54))]);
   }
 
-  return { changes };
+  return { changes, resourceChanges };
 };
