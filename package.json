@@ -1,6 +1,6 @@
 {
   "name": "stacktape",
-  "version": "3.6.0-beta.0",
+  "version": "3.6.0",
   "private": true,
   "exports": {
     "./local/server": "./src/api/local/server.ts",
