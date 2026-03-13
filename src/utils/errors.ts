@@ -7,6 +7,16 @@ import { getRelativePath, isFileAccessible } from '@shared/utils/fs-utils';
 import stacktrace from 'stack-trace';
 import stripAnsi from 'strip-ansi';
 
+const isBundledStacktapeInternalFrame = (fileName: string) => {
+  const normalizedFileName = fileName.replaceAll('\\', '/').replace(/^[./]+/, '');
+  const bundledInternalPrefixes = ['src/', 'shared/', 'scripts/', 'helper-lambdas/', '@generated/'];
+
+  return (
+    bundledInternalPrefixes.some((prefix) => normalizedFileName.startsWith(prefix)) &&
+    !isFileAccessible(join(process.cwd(), normalizedFileName))
+  );
+};
+
 export class ExpectedError extends Error {
   type: ErrorType;
   isExpected: boolean;
@@ -154,6 +164,7 @@ export const getUserCodeStackTrace = (error: Error, colorize?: (msg: string) => 
       if (fileName.includes('node_modules')) return false;
       if (fileName.includes('stacktape/src') || fileName.includes('stacktape\\src')) return false;
       if (fileName.includes('__publish-folder') || fileName.includes('stacktape.js')) return false;
+      if (isBundledStacktapeInternalFrame(fileName)) return false;
       return true;
     })
     .map((callsite) => {
