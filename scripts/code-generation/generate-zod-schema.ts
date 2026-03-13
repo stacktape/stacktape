@@ -94,6 +94,7 @@ const applyOptionalMarkers = (code: string): { code: string; count: number } => 
 const fixRecordSyntax = (code: string): string => {
   let modified = code;
   let totalReplacements = 0;
+  let emptySchemaReplacements = 0;
 
   // z.record(valueSchema) -> z.record(z.string(), valueSchema)
   // Match z.record( followed by z. but NOT z.string(),
@@ -108,7 +109,16 @@ const fixRecordSyntax = (code: string): string => {
     });
   }
 
+  // Empty JSON schema objects (`additionalProperties: {}`) mean "any value allowed".
+  // json-schema-to-zod currently emits `z.record(z.never())` for those, which becomes
+  // `z.record(z.string(), z.never())` after the Zod 4 rewrite above and incorrectly rejects all values.
+  modified = modified.replace(/z\.record\(z\.string\(\), z\.never\(\)\)/g, () => {
+    emptySchemaReplacements++;
+    return 'z.record(z.string(), z.any())';
+  });
+
   logInfo(`Fixed ${totalReplacements} z.record() calls for Zod 4 syntax`);
+  logInfo(`Fixed ${emptySchemaReplacements} empty-schema z.record() calls`);
   return modified;
 };
 
