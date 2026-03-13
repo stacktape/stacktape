@@ -12,7 +12,7 @@ const provideOptions = ['Interactively using CLI', 'From file'];
 
 export const commandSecretCreate = async () => {
   await loadUserCredentials();
-  await notificationManager.init([]);
+  await notificationManager.init();
 
   const args = globalStateManager.args as StacktapeCliArgs;
 

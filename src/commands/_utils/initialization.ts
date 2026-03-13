@@ -128,7 +128,7 @@ export const initializeAllStackServices = async ({
       requireAtlasCredentialsParameter: configManager.requireAtlasCredentialsParameter,
       requireUpstashCredentialsParameter: configManager.requireUpstashCredentialsParameter
     }),
-    notificationManager.init(configManager.deploymentNotifications)
+    notificationManager.init()
   ]);
   await Promise.all([
     templateManager.init({ stackDetails: stackManager.existingStackDetails }),
@@ -194,7 +194,7 @@ export const initializeStackServicesForLocalResolve = async () => {
       resourcesRequiringPrivateSubnet: configManager.allResourcesRequiringPrivateSubnets
     })
   ]);
-  await notificationManager.init(configManager.deploymentNotifications);
+  await notificationManager.init();
   await Promise.all([
     templateManager.init({ stackDetails: stackManager.existingStackDetails }),
     deployedStackOverviewManager.init({
@@ -234,7 +234,7 @@ export const initializeStackServicesForHotSwapDeploy = async () => {
       resourcesRequiringPrivateSubnet: configManager.allResourcesRequiringPrivateSubnets
     })
   ]);
-  await notificationManager.init(configManager.deploymentNotifications);
+  await notificationManager.init();
   await Promise.all([
     deployedStackOverviewManager.init({
       stackDetails: stackManager.existingStackDetails,

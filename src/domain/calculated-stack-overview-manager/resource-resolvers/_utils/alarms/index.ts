@@ -114,6 +114,7 @@ const getInputTemplate = ({ alarm, resource }: { alarm: AlarmDefinition; resourc
   const inputTemplate: AlarmNotificationEventRuleInput = {
     description: '<description>',
     time: '<time>',
+    stateValue: '<stateValue>',
     alarmAwsResourceName,
     stackName: globalStateManager.targetStack.stackName,
     alarmConfig: alarm,
@@ -148,7 +149,7 @@ const getEventRuleForAlarmNotification = ({ alarm, resource }: { alarm: AlarmDef
       resources: [GetAtt(cfLogicalNames.cloudwatchAlarm(alarm.name), 'Arn')],
       detail: {
         state: {
-          value: ['ALARM']
+          value: ['ALARM', 'OK']
         }
       }
     },
@@ -158,7 +159,8 @@ const getEventRuleForAlarmNotification = ({ alarm, resource }: { alarm: AlarmDef
           InputPathsMap: {
             alarmName: '$.detail.alarmName',
             description: '$.detail.configuration.description',
-            time: '$.time'
+            time: '$.time',
+            stateValue: '$.detail.state.value'
           },
           InputTemplate: JSON.stringify(getInputTemplate({ resource, alarm }))
         },

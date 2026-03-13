@@ -36,7 +36,7 @@ export const commandDelete = async () => {
   });
 
   await configManager.loadGlobalConfig();
-  await notificationManager.init(configManager.deploymentNotifications);
+  await notificationManager.init();
 
   const stackName = globalStateManager.targetStack.stackName;
 

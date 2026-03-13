@@ -8,7 +8,7 @@ import { loadUserCredentials } from '../_utils/initialization';
 
 export const commandSecretDelete = async () => {
   await loadUserCredentials();
-  await notificationManager.init([]);
+  await notificationManager.init();
 
   const args = globalStateManager.args as StacktapeCliArgs;
   let secretName: string;

@@ -4,8 +4,6 @@ import { defaultProvider } from '@aws-sdk/credential-provider-node';
 import { AwsIdentityProtectedClient } from '@shared/trpc/aws-identity-protected';
 import { CF_ESCAPED_DYNAMIC_REFERENCE_END, CF_ESCAPED_DYNAMIC_REFERENCE_START } from '@shared/utils/constants';
 import { processAllNodes } from '@shared/utils/misc';
-import { sendAlarmEmail } from './email';
-import { sendAlarmSlackMessage } from './slack';
 
 const ssmClient = new SSMClient({});
 const secretsClient = new SecretsManagerClient({});
@@ -13,22 +11,9 @@ const secretsClient = new SecretsManagerClient({});
 export default async (event: AlarmNotificationEventRuleInput) => {
   const resolvedEvent = await resolveDynamicReferences(event);
 
-  // Dispatch to direct notification targets (legacy per-stack routing)
-  const directResults = await Promise.allSettled(
-    resolvedEvent.alarmConfig?.notificationTargets?.map((notificationDetail) => {
-      if (notificationDetail.type === 'slack') {
-        return sendAlarmSlackMessage({ notificationDetail, alarmDetail: event });
-      }
-      if (notificationDetail.type === 'email') {
-        return sendAlarmEmail({ notificationDetail, alarmDetail: event });
-      }
-      return 'no-action';
-    })
-  );
-  console.info(`Direct notification results: ${JSON.stringify(directResults, null, 2)}`);
+  if (resolvedEvent.alarmConfig?.includeInHistory === false) return;
 
-  // Report to console API for centralized alert routing (Discord, Webhook, alert history, etc.)
-  await reportToConsoleApi(event);
+  await reportToConsoleApi(resolvedEvent);
 };
 
 const reportToConsoleApi = async (event: AlarmNotificationEventRuleInput) => {
@@ -36,21 +21,33 @@ const reportToConsoleApi = async (event: AlarmNotificationEventRuleInput) => {
   const region = process.env.AWS_REGION;
   const project = process.env.PROJECT_NAME;
   const stage = process.env.STAGE;
+
   if (!apiUrl || !region || !project || !stage) return;
 
   try {
     const client = new AwsIdentityProtectedClient();
     await client.init({ credentials: await defaultProvider()(), region, apiUrl });
+
     await client.reportAlarmEvent.mutate({
-      type: 'ALARM_TRIGGERED',
+      type: event.stateValue === 'OK' ? 'ALARM_RESOLVED' : 'ALARM_TRIGGERED',
       alarmName: event.alarmConfig?.name || event.alarmAwsResourceName,
+      sourceConfigName: event.alarmConfig?.name,
       project,
       stage,
       region,
-      title: `Alarm "${event.alarmConfig?.name || event.alarmAwsResourceName}" triggered`,
+      title:
+        event.stateValue === 'OK'
+          ? `Alarm "${event.alarmConfig?.name || event.alarmAwsResourceName}" resolved`
+          : `Alarm "${event.alarmConfig?.name || event.alarmAwsResourceName}" triggered`,
+      channels: (event.alarmConfig?.notificationTargets || []).map((channel) => ({
+        name: channel.type === 'slack' ? 'Slack' : channel.type === 'email' ? 'Email' : channel.type,
+        type: channel.type === 'ms-teams' ? 'ms_teams' : channel.type === 'email' ? 'e_mail' : channel.type,
+        properties: channel.properties || {}
+      })),
       details: {
         description: event.description,
         time: event.time,
+        state: event.stateValue,
         alarmArn: event.alarmAwsResourceName,
         stackName: event.stackName,
         affectedResource: event.affectedResource,
