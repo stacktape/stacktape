@@ -40,9 +40,12 @@ export const getHostHeaderRewriteCloudfrontFunction = (
  */
 export const getDistributionRootObjectTemplateOverride =
   (resourceName: string) => async (template: CloudformationTemplate) => {
-    const cfLogicalNameOfResourceToModify = cfLogicalNames.cloudfrontDistribution(resourceName, 0);
-    const distribution = template.Resources[cfLogicalNameOfResourceToModify] as Distribution;
-    if (distribution) {
+    for (let distributionIndex = 0; ; distributionIndex += 1) {
+      const cfLogicalNameOfResourceToModify = cfLogicalNames.cloudfrontDistribution(resourceName, distributionIndex);
+      const distribution = template.Resources[cfLogicalNameOfResourceToModify] as Distribution | undefined;
+      if (!distribution) {
+        break;
+      }
       distribution.Properties.DistributionConfig.DefaultRootObject = '';
     }
   };
@@ -62,51 +65,50 @@ export const getStaticAssetsCacheBehaviorTemplateOverride =
     staticPathPrefix?: string;
   }) =>
   async (template: CloudformationTemplate) => {
-    const cfLogicalNameOfResourceToModify = cfLogicalNames.cloudfrontDistribution(resourceName, 0);
-    const distribution = template.Resources[cfLogicalNameOfResourceToModify] as Distribution;
-    if (!distribution) {
-      return;
-    }
-
-    const cacheBehaviors = distribution.Properties.DistributionConfig.CacheBehaviors as CacheBehavior[];
-
     // Check if assets directory exists
     if (!(await pathExists(assetsDirectoryPath))) {
       return;
     }
-
-    // Find the static files cache behaviour (last one with placeholder path)
-    const staticBehaviourIndex = cacheBehaviors.findIndex(
-      (b) => b.PathPattern === '<<TBD_STATIC>>' || (staticPathPrefix && b.PathPattern === `${staticPathPrefix}/*`)
-    );
-
-    if (staticBehaviourIndex === -1) {
-      return;
-    }
-
-    const [staticFilesCacheBehaviour] = cacheBehaviors.splice(staticBehaviourIndex, 1);
     const assetsDirContents = await readdir(assetsDirectoryPath);
 
     const newCacheBehaviours = await Promise.all(
       assetsDirContents.map(async (item) => ({
-        ...staticFilesCacheBehaviour,
         PathPattern: await stat(join(assetsDirectoryPath, item)).then((info) =>
           info.isDirectory() ? `${item}/*` : item
         )
       }))
     );
 
-    // Add new behaviours, replacing if they already exist
-    newCacheBehaviours.forEach((behaviour) => {
-      const existingBehaviourIndex = cacheBehaviors.findIndex(
-        ({ PathPattern }) => PathPattern === behaviour.PathPattern
-      );
-      if (existingBehaviourIndex === -1) {
-        cacheBehaviors.push(behaviour);
-      } else {
-        cacheBehaviors[existingBehaviourIndex] = behaviour;
+    for (let distributionIndex = 0; ; distributionIndex += 1) {
+      const cfLogicalNameOfResourceToModify = cfLogicalNames.cloudfrontDistribution(resourceName, distributionIndex);
+      const distribution = template.Resources[cfLogicalNameOfResourceToModify] as Distribution | undefined;
+      if (!distribution) {
+        break;
       }
-    });
+
+      const cacheBehaviors = distribution.Properties.DistributionConfig.CacheBehaviors as CacheBehavior[];
+
+      const staticBehaviourIndex = cacheBehaviors.findIndex(
+        (b) => b.PathPattern === '<<TBD_STATIC>>' || (staticPathPrefix && b.PathPattern === `${staticPathPrefix}/*`)
+      );
+
+      if (staticBehaviourIndex === -1) {
+        continue;
+      }
+
+      const [staticFilesCacheBehaviour] = cacheBehaviors.splice(staticBehaviourIndex, 1);
+
+      newCacheBehaviours.forEach((behaviour) => {
+        const existingBehaviourIndex = cacheBehaviors.findIndex(
+          ({ PathPattern }) => PathPattern === behaviour.PathPattern
+        );
+        if (existingBehaviourIndex === -1) {
+          cacheBehaviors.push({ ...staticFilesCacheBehaviour, ...behaviour });
+        } else {
+          cacheBehaviors[existingBehaviourIndex] = { ...staticFilesCacheBehaviour, ...behaviour };
+        }
+      });
+    }
   };
 
 /**

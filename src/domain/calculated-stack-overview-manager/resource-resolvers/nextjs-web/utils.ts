@@ -67,9 +67,6 @@ export const getDynamoInsertCustomResource = (nextjsWeb: StpNextjsWeb) => {
 
 export const getCacheBehaviourTemplateOverride =
   (nextjsWeb: StpNextjsWeb) => async (template: CloudformationTemplate) => {
-    const cfLogicalNameOfResourceToModify = cfLogicalNames.cloudfrontDistribution(nextjsWeb.name, 0);
-    const cacheBehaviors = (template.Resources[cfLogicalNameOfResourceToModify] as Distribution).Properties
-      .DistributionConfig.CacheBehaviors as CacheBehavior[];
     const assetsDirPath = join(
       fsPaths.absoluteNextjsBuiltProjectFolderPath({
         stpResourceName: nextjsWeb.name,
@@ -78,31 +75,52 @@ export const getCacheBehaviourTemplateOverride =
       'bucket-content',
       '_assets'
     );
-    const [staticFilesCacheBehaviour] = cacheBehaviors.splice(cacheBehaviors.length - 1);
     const assetsDirContents = await readdir(assetsDirPath);
     const newCacheBehaviours = await Promise.all(
       assetsDirContents.map(async (item) => ({
-        ...staticFilesCacheBehaviour,
         PathPattern: await stat(join(assetsDirPath, item)).then((info) => (info.isDirectory() ? `${item}/*` : item))
       }))
     );
-    // due to override being idempotent, we must search and replace behaviours for given path patterns if they already exist
-    newCacheBehaviours.forEach((behaviour) => {
-      const existingBehaviourIndex = cacheBehaviors.findIndex(
-        ({ PathPattern }) => PathPattern === behaviour.PathPattern
-      );
-      if (existingBehaviourIndex === -1) {
-        cacheBehaviors.push(behaviour);
+
+    for (let distributionIndex = 0; ; distributionIndex += 1) {
+      const cfLogicalNameOfResourceToModify = cfLogicalNames.cloudfrontDistribution(nextjsWeb.name, distributionIndex);
+      const distribution = template.Resources[cfLogicalNameOfResourceToModify] as Distribution | undefined;
+      if (!distribution) {
+        break;
       }
-      cacheBehaviors[existingBehaviourIndex] = behaviour;
-    });
+
+      const cacheBehaviors = distribution.Properties.DistributionConfig.CacheBehaviors as CacheBehavior[];
+      const staticBehaviourIndex = cacheBehaviors.findIndex(({ PathPattern }) => PathPattern === '<<TBD_STATIC>>');
+      if (staticBehaviourIndex === -1) {
+        continue;
+      }
+
+      const [staticFilesCacheBehaviour] = cacheBehaviors.splice(staticBehaviourIndex, 1);
+
+      // due to override being idempotent, we must search and replace behaviours for given path patterns if they already exist
+      newCacheBehaviours.forEach((behaviour) => {
+        const existingBehaviourIndex = cacheBehaviors.findIndex(
+          ({ PathPattern }) => PathPattern === behaviour.PathPattern
+        );
+        if (existingBehaviourIndex === -1) {
+          cacheBehaviors.push({ ...staticFilesCacheBehaviour, ...behaviour });
+          return;
+        }
+        cacheBehaviors[existingBehaviourIndex] = { ...staticFilesCacheBehaviour, ...behaviour };
+      });
+    }
   };
 
 export const getDistributionRootObjectTemplateOverride =
   (nextjsWeb: StpNextjsWeb) => async (template: CloudformationTemplate) => {
-    const cfLogicalNameOfResourceToModify = cfLogicalNames.cloudfrontDistribution(nextjsWeb.name, 0);
-    const distribution = template.Resources[cfLogicalNameOfResourceToModify] as Distribution;
-    distribution.Properties.DistributionConfig.DefaultRootObject = '';
+    for (let distributionIndex = 0; ; distributionIndex += 1) {
+      const cfLogicalNameOfResourceToModify = cfLogicalNames.cloudfrontDistribution(nextjsWeb.name, distributionIndex);
+      const distribution = template.Resources[cfLogicalNameOfResourceToModify] as Distribution | undefined;
+      if (!distribution) {
+        break;
+      }
+      distribution.Properties.DistributionConfig.DefaultRootObject = '';
+    }
   };
 
 export const getAssetReplacerTemplateOverride =
