@@ -241,7 +241,8 @@ export const buildBinaryFile = async ({
     entrypoints: [entrypoint],
     compile: {
       target: compileTarget as Bun.Build.Target,
-      outfile: outputPath
+      outfile: outputPath,
+      autoloadTsconfig: true
     },
     sourcemap: 'inline',
     define: { STACKTAPE_VERSION: JSON.stringify(version || 'dev') },
