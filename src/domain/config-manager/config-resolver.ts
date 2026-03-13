@@ -53,8 +53,7 @@ const formatBuildErrors = (errors: BuildError[]): string => {
 const handleTypescriptConfigError = (error: Error, configPath: string): never => {
   const errorMessage = error.message || String(error);
 
-  // Handle AggregateError (Bun build errors)
-  if (error.constructor.name === 'AggregateError' && 'errors' in error) {
+  if ('errors' in error) {
     const aggregateError = error as Error & { errors: BuildError[] };
     if (aggregateError.errors?.length) {
       const formattedErrors = formatBuildErrors(aggregateError.errors);

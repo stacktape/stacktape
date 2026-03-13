@@ -1,8 +1,11 @@
-import { basename, isAbsolute, join } from 'node:path';
+import { createHash } from 'node:crypto';
+import { tmpdir } from 'node:os';
+import { basename, dirname, isAbsolute, join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { VALID_CONFIG_PATHS } from '@config';
 import { stpErrors } from '@errors';
+import { getBunBuildTsConfigPath } from '@shared/packaging/bundlers/es/tsconfig-for-bun-build';
 import { checkExecutableInPath } from '@shared/utils/bin-executable';
 import {
   dynamicRequire,
@@ -15,7 +18,7 @@ import { parseYaml } from '@shared/utils/yaml';
 import { parseDotenv } from '@utils/dotenv';
 import { ExpectedError } from '@utils/errors';
 import { pythonBridge } from '@utils/python-bridge';
-import fsExtra, { lstatSync, readdirSync, readFileSync } from 'fs-extra';
+import fsExtra, { ensureDir, lstatSync, readdirSync, readFileSync } from 'fs-extra';
 import { parseUserCodeFilepath } from './user-code-processing';
 
 // Bun has native TypeScript support - no registration needed
@@ -38,8 +41,131 @@ export const getTypescriptExport = ({
 };
 
 export const loadFromTypescript = ({ filePath, exportName }: { filePath: string; exportName: string }) => {
-  // @note return promise for consistency with other loaders
-  return Promise.resolve(getTypescriptExport({ filePath, cache: true, exportName }));
+  if (!isRunningFromCompiledBinary()) {
+    return Promise.resolve(getTypescriptExport({ filePath, cache: true, exportName }));
+  }
+
+  return loadBundledTypescriptExport({ filePath, cache: true, exportName });
+};
+
+const compiledTypescriptBundlesCache = new Map<string, Promise<string>>();
+
+const isRunningFromCompiledBinary = () => {
+  const execPath = process.execPath.toLowerCase();
+  return !execPath.endsWith('bun') && !execPath.endsWith('bun.exe');
+};
+
+const findClosestTsConfigPath = (startDir: string): string | undefined => {
+  let currentDir = startDir;
+
+  while (true) {
+    const tsConfigPath = join(currentDir, 'tsconfig.json');
+    if (isFileAccessible(tsConfigPath)) {
+      return tsConfigPath;
+    }
+
+    const parentDir = dirname(currentDir);
+    if (parentDir === currentDir) {
+      return undefined;
+    }
+    currentDir = parentDir;
+  }
+};
+
+const createTypescriptBuildError = (logs: Awaited<ReturnType<typeof Bun.build>>['logs']) => {
+  const buildErrors = logs
+    .map((log) => ({
+      message: log.message || String(log),
+      position: log.position
+        ? {
+            file: log.position.file,
+            line: log.position.line,
+            column: log.position.column,
+            lineText: log.position.lineText
+          }
+        : undefined
+    }))
+    .filter((log) => Boolean(log.message));
+
+  return Object.assign(new Error(buildErrors.map((log) => log.message).join('\n')), {
+    name: 'TypescriptConfigBuildError',
+    errors: buildErrors
+  });
+};
+
+const getCompiledTypescriptBundlePath = async ({ filePath, cache }: { filePath: string; cache: boolean }) => {
+  const fileMtime = String(lstatSync(filePath).mtimeMs);
+  const cacheKey = `${filePath}:${fileMtime}`;
+  const configHash = createHash('sha1').update(cacheKey).digest('hex');
+  const outputDir = join(tmpdir(), 'stacktape-ts-config-cache', configHash);
+  const outputPath = join(outputDir, 'index.cjs');
+
+  const buildPromise = (async () => {
+    await ensureDir(outputDir);
+
+    const tsConfigPath = findClosestTsConfigPath(dirname(filePath));
+    const tsConfigPathForBuild = getBunBuildTsConfigPath({
+      tsConfigPath,
+      outDir: outputDir
+    });
+
+    const buildResult = await Bun.build({
+      entrypoints: [filePath],
+      outdir: outputDir,
+      format: 'cjs',
+      target: 'node',
+      sourcemap: 'inline',
+      minify: false,
+      throw: false,
+      ...(tsConfigPathForBuild ? { tsconfig: tsConfigPathForBuild } : {})
+    });
+
+    if (!buildResult.success) {
+      throw createTypescriptBuildError(buildResult.logs);
+    }
+
+    const builtOutputPath = buildResult.outputs[0]?.path;
+    if (!builtOutputPath) {
+      throw new Error(`Bundled TypeScript config ${filePath} did not produce an output file.`);
+    }
+
+    if (builtOutputPath !== outputPath) {
+      await fsExtra.move(builtOutputPath, outputPath, { overwrite: true });
+    }
+
+    return outputPath;
+  })();
+
+  if (cache) {
+    const cachedBuild = compiledTypescriptBundlesCache.get(cacheKey);
+    if (cachedBuild) {
+      return cachedBuild;
+    }
+    compiledTypescriptBundlesCache.set(
+      cacheKey,
+      buildPromise.catch((error) => {
+        compiledTypescriptBundlesCache.delete(cacheKey);
+        throw error;
+      })
+    );
+    return buildPromise;
+  }
+
+  return buildPromise;
+};
+
+const loadBundledTypescriptExport = async ({
+  cache,
+  filePath,
+  exportName
+}: {
+  filePath: string;
+  cache: boolean;
+  exportName: string | 'default';
+}) => {
+  const compiledBundlePath = await getCompiledTypescriptBundlePath({ filePath, cache });
+  const importedValue = dynamicRequire({ filePath: compiledBundlePath, cache });
+  return importedValue[exportName || 'default'];
 };
 
 let pythonExecutable: string;
