@@ -190,7 +190,9 @@ const DashboardInner = (props: Pick<DashboardProps, 'onQuit' | 'onCancel'>) => {
         </Show>
         <DetailPanel />
       </box>
-      <LogPanel />
+      <Show when={showPhases()}>
+        <LogPanel />
+      </Show>
       <PromptOverlay />
       <Footer isCancelling={!!isCancelling()} />
       <Show when={showCancelConfirm()}>

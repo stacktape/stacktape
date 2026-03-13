@@ -6,7 +6,7 @@
 import { transformAsync } from '@babel/core';
 import ts from '@babel/preset-typescript';
 import solid from 'babel-preset-solid';
-import { plugin, type BunPlugin } from 'bun';
+import type { BunPlugin } from 'bun';
 
 export const solidBuildPlugin: BunPlugin = {
   name: 'bun-plugin-solid',
@@ -34,5 +34,3 @@ export const solidBuildPlugin: BunPlugin = {
     });
   }
 };
-
-plugin(solidBuildPlugin);

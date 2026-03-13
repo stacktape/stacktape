@@ -32,7 +32,6 @@ import {
   writeFileSync,
   writeJson
 } from 'fs-extra';
-import { solidBuildPlugin } from '../solid-preload';
 import {
   createBashCompletionScript,
   createPowershellCompletionScript,
@@ -236,18 +235,30 @@ export const buildBinaryFile = async ({
   const entrypoint = join(process.cwd(), 'src', 'api', 'cli', 'index.ts');
   const outputFileName = platform === 'win' ? 'stacktape.exe' : 'stacktape';
   const outputPath = join(outputFolderPath, outputFileName);
+  const bundledEntrypointPath = join(outputFolderPath, '__stacktape-bundle.mjs');
+
+  await buildEsCode({
+    sourcePath: entrypoint,
+    distPath: bundledEntrypointPath,
+    externals: [],
+    sourceMaps: 'inline',
+    sourceMapBannerType: 'disabled',
+    tsConfigPath: localBuildTsConfigPath,
+    cwd: process.cwd(),
+    minify: !debug,
+    define: { STACKTAPE_VERSION: JSON.stringify(version || 'dev') },
+    outputModuleFormat: 'esm'
+  });
 
   const result = await Bun.build({
-    entrypoints: [entrypoint],
+    entrypoints: [bundledEntrypointPath],
     compile: {
       target: compileTarget as Bun.Build.Target,
       outfile: outputPath,
       autoloadTsconfig: true
     },
     sourcemap: 'inline',
-    define: { STACKTAPE_VERSION: JSON.stringify(version || 'dev') },
     minify: !debug,
-    plugins: [solidBuildPlugin],
     throw: false
   });
 
@@ -259,6 +270,8 @@ export const buildBinaryFile = async ({
   if (platform !== 'win') {
     await chmod(outputPath, 0o755);
   }
+
+  await remove(bundledEntrypointPath);
 
   logSuccess(`Binary for platform ${platform} generated successfully.`);
 

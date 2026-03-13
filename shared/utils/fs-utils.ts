@@ -1,5 +1,6 @@
 import type { BinaryToTextEncoding } from 'node:crypto';
 import { createHash } from 'node:crypto';
+import { createRequire } from 'node:module';
 import { basename, dirname, extname, isAbsolute, join, sep as pathSeparator, relative } from 'node:path';
 import { getAllFilePaths } from 'cup-readdir';
 import fastGlob from 'fast-glob';
@@ -72,11 +73,11 @@ export const adjustIniFileContent = async (
 
 export const dynamicRequire = ({ cache = true, filePath }: { filePath: string; cache?: boolean }) => {
   const interpolableFilePath = transformToUnixPath(filePath);
+  const requireFromFile = createRequire(interpolableFilePath);
   if (!cache) {
-    delete require.cache[require.resolve(interpolableFilePath)];
+    delete requireFromFile.cache[requireFromFile.resolve(interpolableFilePath)];
   }
-  // eslint-disable-next-line ts/no-require-imports
-  return require(interpolableFilePath);
+  return requireFromFile(interpolableFilePath);
 };
 
 export const dynamicRequireLibraryFromUserNodeModules = ({

@@ -365,6 +365,23 @@ class TuiManager {
     }
 
     write(kleur.gray(`  Total: ${elapsed}`));
+
+    const outputLines: string[] = [];
+    for (const phase of phases) {
+      for (const event of phase.events) {
+        if (event.outputLines && event.outputLines.length > 0) {
+          outputLines.push(...event.outputLines);
+        }
+      }
+    }
+    if (outputLines.length > 0) {
+      write(kleur.gray('─'.repeat(54)));
+      write(kleur.bold('Output:'));
+      for (const line of outputLines) {
+        write(line);
+      }
+    }
+
     write('');
     tuiDebug('TUI', 'printPlainSummary() complete');
   }
