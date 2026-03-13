@@ -851,8 +851,8 @@ class TuiManager {
     tuiState.setPendingCompletion(params);
   }
 
-  commitPendingCompletion() {
-    tuiState.commitPendingCompletion();
+  commitPendingCompletion(options?: { hookFailureCount?: number }) {
+    tuiState.commitPendingCompletion(options);
   }
 
   setCancelDeployment(cancelDeployment: TuiCancelDeployment) {

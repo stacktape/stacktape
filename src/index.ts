@@ -147,13 +147,15 @@ export const runCommand = async (opts: StacktapeProgrammaticOptions) => {
     });
 
     if (shouldContinueAfterHookFailure && eventManager.hookFailures.length) {
-      tuiManager.warn(
-        `${eventManager.hookFailures.length} afterDeploy hook(s) failed. Deployment is complete, but post-deploy tasks need attention.`
-      );
+      const count = eventManager.hookFailures.length;
+      const hookMsg = `${count} after:deploy hook${count > 1 ? 's' : ''} failed`;
+      tuiManager.warn(`${hookMsg}. Deployment is complete, but post-deploy tasks need attention.`);
     }
 
-    // Commit pending completion (from setPendingCompletion) before stopping
-    tuiManager.commitPendingCompletion();
+    // Commit pending completion, downgrading to failure if hooks failed
+    tuiManager.commitPendingCompletion({
+      hookFailureCount: eventManager.hookFailures.length
+    });
 
     await eventManager.processFinalActions();
 

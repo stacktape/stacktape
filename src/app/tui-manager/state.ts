@@ -119,9 +119,15 @@ class TuiStateManager {
     this.notifyListeners();
   }
 
-  commitPendingCompletion() {
+  commitPendingCompletion(options?: { hookFailureCount?: number }) {
     if (this.state.pendingCompletion) {
-      const { success, message, links, consoleUrl } = this.state.pendingCompletion;
+      let { success, message } = this.state.pendingCompletion;
+      const { links, consoleUrl } = this.state.pendingCompletion;
+      if (options?.hookFailureCount) {
+        const n = options.hookFailureCount;
+        success = false;
+        message = `DEPLOYED WITH ERRORS — ${n} after:deploy hook${n > 1 ? 's' : ''} failed`;
+      }
       this.setComplete(success, message, links, consoleUrl);
       this.state = { ...this.state, pendingCompletion: undefined };
       this.notifyListeners();

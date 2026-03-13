@@ -1,4 +1,5 @@
 import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { configManager } from '@domain-services/config-manager';
 import { stpErrors } from '@errors';
 import { initializeStackServicesForLocalResolve } from '../_utils/initialization';
@@ -27,4 +28,10 @@ export const commandScriptRun = async () => {
   });
 
   await functionToExecute({});
+
+  tuiManager.setPendingCompletion({
+    success: true,
+    message: `SCRIPT "${scriptName}" COMPLETED`,
+    links: []
+  });
 };

@@ -142,6 +142,7 @@ const DashboardInner = (props: Pick<DashboardProps, 'onQuit' | 'onCancel'>) => {
   const isComplete = createTuiSignal((s) => s.isComplete);
   const cancelDeployment = createTuiSignal((s) => s.cancelDeployment);
   const activePrompt = createTuiSignal((s) => s.activePrompt);
+  const showPhases = createTuiSignal((s) => s.showPhaseHeaders !== false);
   const isCancelling = () => cancelDeployment()?.isCancelling;
 
   const handleCancelConfirm = () => {
@@ -184,7 +185,9 @@ const DashboardInner = (props: Pick<DashboardProps, 'onQuit' | 'onCancel'>) => {
     <box flexDirection="column" width="100%" height="100%">
       <Header />
       <box flexDirection="row" flexGrow={1}>
-        <PhaseList />
+        <Show when={showPhases()}>
+          <PhaseList />
+        </Show>
         <DetailPanel />
       </box>
       <LogPanel />

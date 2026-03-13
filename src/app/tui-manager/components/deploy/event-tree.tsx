@@ -119,6 +119,13 @@ export const EventRow = (props: { event: TuiEvent }) => {
           <For each={aggregated()}>{(child) => <EventChildRow child={child} />}</For>
         </box>
       </Show>
+      <Show when={props.event.outputLines && props.event.outputLines.length > 0}>
+        <box flexDirection="column" paddingLeft={2}>
+          <For each={props.event.outputLines?.filter((l) => l.trim()) ?? []}>
+            {(line) => <text fg={COLORS.text}>{line}</text>}
+          </For>
+        </box>
+      </Show>
     </box>
   );
 };
