@@ -2,7 +2,6 @@ import { dirname, join } from 'node:path';
 import { CF_TEMPLATE_FILE_NAME, INITIAL_CF_TEMPLATE_FILE_NAME, IS_DEV, STP_TEMPLATE_FILE_NAME } from '@config';
 import { getPlatform } from '@shared/utils/bin-executable';
 import {
-  BORE_BINARY_FILE_NAMES,
   NIXPACKS_BINARY_FILE_NAMES,
   PACK_BINARY_FILE_NAMES,
   SESSION_MANAGER_PLUGIN_BINARY_FILE_NAMES
@@ -138,11 +137,5 @@ export const fsPaths = {
     return IS_DEV
       ? join(SCRIPTS_ASSETS_PATH, 'nixpacks', NIXPACKS_BINARY_FILE_NAMES[getPlatform()])
       : join(fsPaths.absoluteExecutableDirname(), 'nixpacks', getPlatform() === 'win' ? 'nixpacks.exe' : 'nixpacks');
-  },
-
-  borePath() {
-    return IS_DEV
-      ? join(SCRIPTS_ASSETS_PATH, 'bore', BORE_BINARY_FILE_NAMES[getPlatform()])
-      : join(fsPaths.absoluteExecutableDirname(), 'bore', getPlatform() === 'win' ? 'bore.exe' : 'bore');
   }
 };

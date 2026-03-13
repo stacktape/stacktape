@@ -1,7 +1,7 @@
 /** Centralized configuration constants for dev mode */
 
 export const DEV_CONFIG = {
-  /** Tunnel configuration (bore) */
+  /** Tunnel configuration (bore-compatible TCP relay) */
   tunnels: {
     server: process.env.STACKTAPE_TUNNEL_SERVER || 'bore.pub',
     startupTimeoutMs: 30000,

@@ -12,7 +12,6 @@ import { getCliArgs } from './release/args';
 import {
   buildBinaryFile,
   copyAiDocs,
-  copyBoreBinary,
   copyConfigSchema,
   copyNixpacksBinary,
   copyPackBinary,
@@ -70,7 +69,6 @@ const buildEverything = async () => {
     copyPackBinary({ distFolderPath, platform }),
     copyNixpacksBinary({ distFolderPath, platform }),
     copySessionsManagerPluginBinary({ distFolderPath, platform }),
-    copyBoreBinary({ distFolderPath, platform }),
     copyConfigSchema({ distFolderPath: platformDistFolderPath }),
     copyAiDocs({ distFolderPath: platformDistFolderPath }),
     generateStarterProjectsMetadata({ distFolderPath: platformDistFolderPath }),

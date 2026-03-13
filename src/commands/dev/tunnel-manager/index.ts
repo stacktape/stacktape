@@ -1,13 +1,13 @@
-import { spawn, type ChildProcess } from 'node:child_process';
-import { chmod, stat } from 'node:fs/promises';
+import { EventEmitter } from 'node:events';
+import { connect as connectSocket } from 'node:net';
+import type { Socket } from 'node:net';
 import { applicationManager } from '@application-services/application-manager';
 import { tuiManager } from '@application-services/tui-manager';
-import { fsPaths } from '@shared/naming/fs-paths';
 import { createCleanupHook } from '../cleanup-utils';
 import { DEV_CONFIG } from '../dev-config';
 
 const {
-  server: BORE_SERVER,
+  server: TUNNEL_SERVER,
   startupTimeoutMs: TUNNEL_STARTUP_TIMEOUT_MS,
   retryAttempts: TUNNEL_RETRY_ATTEMPTS,
   retryDelayMs: TUNNEL_RETRY_DELAY_MS,
@@ -15,145 +15,511 @@ const {
   reconnectDelayMs: TUNNEL_RECONNECT_DELAY_MS = 5000
 } = DEV_CONFIG.tunnels;
 
+const BORE_CONTROL_PORT = 7835;
+const NETWORK_TIMEOUT_MS = 3000;
+
+type ClientMessage =
+  | { type: 'Hello'; port: number }
+  | { type: 'Accept'; connectionId: string }
+  | { type: 'Authenticate'; response: string };
+
+type ServerMessage =
+  | { type: 'Hello'; port: number }
+  | { type: 'Heartbeat' }
+  | { type: 'Connection'; connectionId: string }
+  | { type: 'Challenge'; challengeId: string }
+  | { type: 'Error'; message: string };
+
+type TunnelProcess = {
+  kill: () => void;
+  killed: boolean;
+  exitCode: number | null;
+  on: (event: 'exit', listener: (code: number | null, signal: NodeJS.Signals | null) => void) => TunnelProcess;
+};
+
 export type TunnelInfo = {
   resourceName: string;
   localPort: number;
   publicHost: string;
   publicPort: number;
-  process: ChildProcess;
+  process: TunnelProcess;
+};
+
+type PendingMessage = {
+  resolve: (message: ServerMessage | null) => void;
+  reject: (error: Error) => void;
+  timeout?: ReturnType<typeof setTimeout>;
+};
+
+type ParsedTunnelServer = {
+  controlHost: string;
+  controlPort: number;
+  publicHost: string;
 };
 
 const activeTunnels: TunnelInfo[] = [];
-/** Track tunnels that are being reconnected to prevent duplicate attempts */
 const reconnectingTunnels = new Set<string>();
-/** Callback to notify when a tunnel reconnects (for Lambda env var updates) */
 let onTunnelReconnect: ((tunnel: TunnelInfo) => void) | null = null;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const verifyBoreBinaryExists = async (): Promise<string> => {
-  const borePath = fsPaths.borePath();
-  try {
-    await stat(borePath);
+const parseTunnelServer = (server: string): ParsedTunnelServer => {
+  const normalizedServer = server.trim();
 
-    if (process.platform !== 'win32') {
-      try {
-        await chmod(borePath, 0o755);
-      } catch {
-        // Best effort. Spawn will report a clear error if this fails.
-      }
-    }
+  if (!normalizedServer) {
+    throw new Error('Tunnel server is not configured.');
+  }
 
-    return borePath;
-  } catch {
-    throw new Error(
-      `Bore tunnel binary not found at ${borePath}. This is required for Lambda tunneling. ` +
-        `Please ensure the Stacktape installation is complete.`
-    );
+  const parts = normalizedServer.split(':');
+
+  if (parts.length === 1) {
+    return {
+      controlHost: parts[0],
+      controlPort: BORE_CONTROL_PORT,
+      publicHost: parts[0]
+    };
+  }
+
+  const maybePort = Number(parts.at(-1));
+
+  if (parts.length >= 2 && Number.isInteger(maybePort) && maybePort > 0 && maybePort <= 65535) {
+    return {
+      controlHost: parts.slice(0, -1).join(':'),
+      controlPort: maybePort,
+      publicHost: parts.slice(0, -1).join(':')
+    };
+  }
+
+  return {
+    controlHost: normalizedServer,
+    controlPort: BORE_CONTROL_PORT,
+    publicHost: normalizedServer
+  };
+};
+
+const serializeClientMessage = (message: ClientMessage): string => {
+  switch (message.type) {
+    case 'Hello':
+      return JSON.stringify({ Hello: message.port });
+    case 'Accept':
+      return JSON.stringify({ Accept: message.connectionId });
+    case 'Authenticate':
+      return JSON.stringify({ Authenticate: message.response });
   }
 };
 
-const startTunnelAttempt = async (borePath: string, resourceName: string, localPort: number): Promise<TunnelInfo> => {
-  return new Promise((resolve, reject) => {
-    const boreProcess = spawn(borePath, ['local', String(localPort), '--to', BORE_SERVER], {
-      stdio: ['ignore', 'pipe', 'pipe'],
-      windowsHide: true
-    });
+const parseServerMessage = (message: string): ServerMessage => {
+  const parsed = JSON.parse(message) as Record<string, unknown>;
 
-    let resolved = false;
-    let outputBuffer = '';
+  if ('Hello' in parsed && typeof parsed.Hello === 'number') {
+    return { type: 'Hello', port: parsed.Hello };
+  }
 
-    const cleanup = () => {
-      boreProcess.stdout?.removeAllListeners();
-      boreProcess.stderr?.removeAllListeners();
-      boreProcess.removeAllListeners();
-    };
+  if ('Heartbeat' in parsed) {
+    return { type: 'Heartbeat' };
+  }
 
-    const handleOutput = (data: Buffer) => {
-      const text = data.toString();
-      outputBuffer += text;
+  if ('Connection' in parsed && typeof parsed.Connection === 'string') {
+    return { type: 'Connection', connectionId: parsed.Connection };
+  }
 
-      // bore outputs: "listening at bore.pub:XXXXX"
-      const match = outputBuffer.match(/listening at ([^:]+):(\d+)/);
-      if (match && !resolved) {
-        resolved = true;
-        cleanup();
-        const tunnelInfo: TunnelInfo = {
-          resourceName,
-          localPort,
-          publicHost: match[1],
-          publicPort: parseInt(match[2], 10),
-          process: boreProcess
-        };
-        resolve(tunnelInfo);
+  if ('Challenge' in parsed && typeof parsed.Challenge === 'string') {
+    return { type: 'Challenge', challengeId: parsed.Challenge };
+  }
+
+  if ('Error' in parsed && typeof parsed.Error === 'string') {
+    return { type: 'Error', message: parsed.Error };
+  }
+
+  throw new Error(`Unknown tunnel server message: ${message}`);
+};
+
+class DelimitedSocket {
+  private buffer = Buffer.alloc(0);
+  private messageQueue: ServerMessage[] = [];
+  private pendingMessages: PendingMessage[] = [];
+  private closed = false;
+  private closeError: Error | null = null;
+
+  private readonly onData = (chunk: Buffer) => {
+    this.buffer = Buffer.concat([this.buffer, chunk]);
+
+    while (true) {
+      const delimiterIndex = this.buffer.indexOf(0);
+      if (delimiterIndex === -1) {
+        return;
       }
 
-      // Check for common error patterns
-      if (outputBuffer.includes('Connection refused') || outputBuffer.includes('error')) {
-        if (!resolved) {
-          resolved = true;
-          cleanup();
-          boreProcess.kill();
-          reject(new Error(`Tunnel connection failed: ${outputBuffer.trim()}`));
+      const frame = this.buffer.subarray(0, delimiterIndex);
+      this.buffer = this.buffer.subarray(delimiterIndex + 1);
+
+      if (frame.length === 0) {
+        continue;
+      }
+
+      try {
+        this.enqueueMessage(parseServerMessage(frame.toString('utf8')));
+      } catch (error) {
+        const normalizedError = error instanceof Error ? error : new Error(String(error));
+        this.closeWithError(normalizedError);
+        return;
+      }
+    }
+  };
+
+  private readonly onClose = () => {
+    this.closed = true;
+    this.flushPendingMessages();
+  };
+
+  private readonly onError = (error: Error) => {
+    this.closeWithError(error);
+  };
+
+  constructor(private readonly socket: Socket) {
+    this.socket.on('data', this.onData);
+    this.socket.on('close', this.onClose);
+    this.socket.on('error', this.onError);
+  }
+
+  static async connect({ host, port }: { host: string; port: number }): Promise<DelimitedSocket> {
+    const socket = await new Promise<Socket>((resolve, reject) => {
+      const connection = connectSocket({ host, port });
+
+      const timeout = setTimeout(() => {
+        connection.destroy(new Error(`Timed out connecting to ${host}:${port}`));
+      }, NETWORK_TIMEOUT_MS);
+
+      connection.once('connect', () => {
+        clearTimeout(timeout);
+        resolve(connection);
+      });
+
+      connection.once('error', (error) => {
+        clearTimeout(timeout);
+        reject(error);
+      });
+    });
+
+    socket.setNoDelay(true);
+    return new DelimitedSocket(socket);
+  }
+
+  async send(message: ClientMessage): Promise<void> {
+    const payload = `${serializeClientMessage(message)}\0`;
+
+    await new Promise<void>((resolve, reject) => {
+      this.socket.write(payload, (error) => {
+        if (error) {
+          reject(error);
+          return;
         }
+
+        resolve();
+      });
+    });
+  }
+
+  async recv({ timeoutMs }: { timeoutMs?: number } = {}): Promise<ServerMessage | null> {
+    if (this.messageQueue.length > 0) {
+      return this.messageQueue.shift() || null;
+    }
+
+    if (this.closeError) {
+      throw this.closeError;
+    }
+
+    if (this.closed) {
+      return null;
+    }
+
+    return await new Promise<ServerMessage | null>((resolve, reject) => {
+      const pendingMessage: PendingMessage = { resolve, reject };
+
+      if (timeoutMs) {
+        pendingMessage.timeout = setTimeout(() => {
+          this.pendingMessages = this.pendingMessages.filter((entry) => entry !== pendingMessage);
+          reject(new Error(`Timed out waiting for tunnel server response after ${timeoutMs}ms`));
+        }, timeoutMs);
       }
+
+      this.pendingMessages.push(pendingMessage);
+    });
+  }
+
+  intoSocket(): { socket: Socket; bufferedData: Buffer } {
+    this.socket.off('data', this.onData);
+    this.socket.off('close', this.onClose);
+    this.socket.off('error', this.onError);
+
+    for (const pendingMessage of this.pendingMessages) {
+      if (pendingMessage.timeout) {
+        clearTimeout(pendingMessage.timeout);
+      }
+      pendingMessage.resolve(null);
+    }
+
+    this.pendingMessages = [];
+
+    return {
+      socket: this.socket,
+      bufferedData: this.buffer
     };
+  }
 
-    boreProcess.stdout?.on('data', handleOutput);
-    boreProcess.stderr?.on('data', handleOutput);
+  destroy(): void {
+    this.socket.destroy();
+  }
 
-    boreProcess.on('error', (err) => {
-      if (!resolved) {
-        resolved = true;
-        cleanup();
-        reject(new Error(`Failed to start bore process: ${err.message}`));
+  private enqueueMessage(message: ServerMessage): void {
+    const pendingMessage = this.pendingMessages.shift();
+
+    if (!pendingMessage) {
+      this.messageQueue.push(message);
+      return;
+    }
+
+    if (pendingMessage.timeout) {
+      clearTimeout(pendingMessage.timeout);
+    }
+
+    pendingMessage.resolve(message);
+  }
+
+  private flushPendingMessages(): void {
+    for (const pendingMessage of this.pendingMessages) {
+      if (pendingMessage.timeout) {
+        clearTimeout(pendingMessage.timeout);
       }
+
+      if (this.closeError) {
+        pendingMessage.reject(this.closeError);
+      } else {
+        pendingMessage.resolve(null);
+      }
+    }
+
+    this.pendingMessages = [];
+  }
+
+  private closeWithError(error: Error): void {
+    this.closeError = this.closeError || error;
+    this.socket.destroy(error);
+  }
+}
+
+class TunnelClientProcess extends EventEmitter implements TunnelProcess {
+  public killed = false;
+  public exitCode: number | null = null;
+
+  private hasExited = false;
+
+  constructor(private readonly controlSocket: DelimitedSocket) {
+    super();
+  }
+
+  kill(): void {
+    if (this.hasExited) {
+      return;
+    }
+
+    this.killed = true;
+    this.exitCode = 0;
+    this.controlSocket.destroy();
+  }
+
+  async recv(): Promise<ServerMessage | null> {
+    return await this.controlSocket.recv();
+  }
+
+  markExited(code: number | null, signal: NodeJS.Signals | null = null): void {
+    if (this.hasExited) {
+      return;
+    }
+
+    this.hasExited = true;
+    this.exitCode = code;
+    this.emit('exit', code, signal);
+  }
+}
+
+const connectToLocalResource = async (localPort: number): Promise<Socket> => {
+  return await new Promise<Socket>((resolve, reject) => {
+    const socket = connectSocket({ host: '127.0.0.1', port: localPort });
+
+    const timeout = setTimeout(() => {
+      socket.destroy(new Error(`Timed out connecting to local resource on port ${localPort}`));
+    }, NETWORK_TIMEOUT_MS);
+
+    socket.once('connect', () => {
+      clearTimeout(timeout);
+      resolve(socket);
     });
 
-    boreProcess.on('exit', (code, signal) => {
-      if (!resolved) {
-        resolved = true;
-        cleanup();
-        const reason = signal ? `killed by signal ${signal}` : `exited with code ${code}`;
-        reject(new Error(`Bore ${reason} before tunnel was established. Output: ${outputBuffer.trim() || 'none'}`));
-      }
-      // Note: Removal from activeTunnels and reconnection is handled by setupTunnelExitHandler
+    socket.once('error', (error) => {
+      clearTimeout(timeout);
+      reject(error);
     });
-
-    // Timeout
-    setTimeout(() => {
-      if (!resolved) {
-        resolved = true;
-        cleanup();
-        boreProcess.kill();
-        reject(
-          new Error(
-            `Tunnel startup timed out after ${TUNNEL_STARTUP_TIMEOUT_MS / 1000}s for ${resourceName}. ` +
-              `This may indicate bore.pub is unavailable or your network is blocking the connection. ` +
-              `Output: ${outputBuffer.trim() || 'none'}`
-          )
-        );
-      }
-    }, TUNNEL_STARTUP_TIMEOUT_MS);
   });
 };
 
-/**
- * Attempt to reconnect a tunnel that died unexpectedly.
- * Uses exponential backoff and limited retries.
- */
+const closeSocketPair = (socketA: Socket, socketB: Socket): void => {
+  if (!socketA.destroyed) {
+    socketA.destroy();
+  }
+
+  if (!socketB.destroyed) {
+    socketB.destroy();
+  }
+};
+
+const proxyRemoteConnection = async ({
+  connectionId,
+  localPort,
+  server
+}: {
+  connectionId: string;
+  localPort: number;
+  server: ParsedTunnelServer;
+}): Promise<void> => {
+  const acceptConnection = await DelimitedSocket.connect({
+    host: server.controlHost,
+    port: server.controlPort
+  });
+
+  await acceptConnection.send({ type: 'Accept', connectionId });
+
+  const localConnection = await connectToLocalResource(localPort);
+  const { socket: remoteConnection, bufferedData } = acceptConnection.intoSocket();
+
+  if (bufferedData.length > 0) {
+    localConnection.write(bufferedData);
+  }
+
+  localConnection.pipe(remoteConnection);
+  remoteConnection.pipe(localConnection);
+
+  localConnection.once('error', () => closeSocketPair(localConnection, remoteConnection));
+  remoteConnection.once('error', () => closeSocketPair(localConnection, remoteConnection));
+  localConnection.once('close', () => closeSocketPair(localConnection, remoteConnection));
+  remoteConnection.once('close', () => closeSocketPair(localConnection, remoteConnection));
+};
+
+const listenForTunnelConnections = ({
+  process,
+  localPort,
+  resourceName,
+  server
+}: {
+  process: TunnelClientProcess;
+  localPort: number;
+  resourceName: string;
+  server: ParsedTunnelServer;
+}) => {
+  const listen = async () => {
+    try {
+      while (true) {
+        const message = await process.recv();
+
+        if (!message) {
+          break;
+        }
+
+        if (message.type === 'Heartbeat') {
+          continue;
+        }
+
+        if (message.type === 'Connection') {
+          void proxyRemoteConnection({ connectionId: message.connectionId, localPort, server }).catch((error) => {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            tuiManager.warn(`Tunnel connection failed for ${resourceName}: ${errorMessage}`);
+          });
+          continue;
+        }
+
+        if (message.type === 'Error') {
+          throw new Error(message.message);
+        }
+
+        if (message.type === 'Challenge') {
+          throw new Error(
+            'Tunnel server requested authentication, but Stacktape only supports unauthenticated bore-compatible servers.'
+          );
+        }
+      }
+
+      process.markExited(process.killed ? 0 : 1);
+    } catch (error) {
+      if (!process.killed) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        tuiManager.warn(`Tunnel for ${resourceName} closed: ${errorMessage}`);
+      }
+
+      process.markExited(process.killed ? 0 : 1);
+    }
+  };
+
+  void listen();
+};
+
+const startTunnelAttempt = async (resourceName: string, localPort: number): Promise<TunnelInfo> => {
+  const server = parseTunnelServer(TUNNEL_SERVER);
+  const controlSocket = await DelimitedSocket.connect({
+    host: server.controlHost,
+    port: server.controlPort
+  });
+
+  try {
+    await controlSocket.send({ type: 'Hello', port: 0 });
+
+    const response = await controlSocket.recv({ timeoutMs: TUNNEL_STARTUP_TIMEOUT_MS });
+
+    if (!response) {
+      throw new Error(
+        `Tunnel server ${server.controlHost}:${server.controlPort} closed the connection before the tunnel was established.`
+      );
+    }
+
+    if (response.type === 'Error') {
+      throw new Error(`Tunnel server error: ${response.message}`);
+    }
+
+    if (response.type === 'Challenge') {
+      throw new Error('Tunnel server requires authentication, which is not supported by Stacktape dev tunnels.');
+    }
+
+    if (response.type !== 'Hello') {
+      throw new Error(`Unexpected tunnel server response while opening tunnel: ${response.type}`);
+    }
+
+    const process = new TunnelClientProcess(controlSocket);
+
+    const tunnelInfo: TunnelInfo = {
+      resourceName,
+      localPort,
+      publicHost: server.publicHost,
+      publicPort: response.port,
+      process
+    };
+
+    listenForTunnelConnections({ process, localPort, resourceName, server });
+
+    return tunnelInfo;
+  } catch (error) {
+    controlSocket.destroy();
+    throw error;
+  }
+};
+
 const attemptReconnect = async (resourceName: string, localPort: number): Promise<void> => {
   if (reconnectingTunnels.has(resourceName)) {
-    return; // Already reconnecting
+    return;
   }
 
   reconnectingTunnels.add(resourceName);
 
   try {
-    const borePath = await verifyBoreBinaryExists();
-
     for (let attempt = 1; attempt <= TUNNEL_RECONNECT_ATTEMPTS; attempt++) {
-      // Check if we're shutting down
       if (applicationManager.isInterrupted) {
         return;
       }
@@ -161,15 +527,12 @@ const attemptReconnect = async (resourceName: string, localPort: number): Promis
       tuiManager.info(`Reconnecting tunnel for ${resourceName} (attempt ${attempt}/${TUNNEL_RECONNECT_ATTEMPTS})...`);
 
       try {
-        const tunnel = await startTunnelAttempt(borePath, resourceName, localPort);
+        const tunnel = await startTunnelAttempt(resourceName, localPort);
         activeTunnels.push(tunnel);
-
-        // Setup exit handler for reconnection
         setupTunnelExitHandler(tunnel);
 
         tuiManager.success(`Tunnel for ${resourceName} reconnected at ${tunnel.publicHost}:${tunnel.publicPort}`);
 
-        // Notify callback if registered (for Lambda env var updates)
         if (onTunnelReconnect) {
           onTunnelReconnect(tunnel);
         }
@@ -177,7 +540,7 @@ const attemptReconnect = async (resourceName: string, localPort: number): Promis
         return;
       } catch {
         if (attempt < TUNNEL_RECONNECT_ATTEMPTS) {
-          const delay = TUNNEL_RECONNECT_DELAY_MS * attempt; // Exponential backoff
+          const delay = TUNNEL_RECONNECT_DELAY_MS * attempt;
           tuiManager.warn(
             `Tunnel reconnection attempt ${attempt} failed for ${resourceName}, retrying in ${delay / 1000}s...`
           );
@@ -196,46 +559,37 @@ const attemptReconnect = async (resourceName: string, localPort: number): Promis
   }
 };
 
-/**
- * Setup exit handler for a tunnel that triggers auto-reconnection.
- */
 const setupTunnelExitHandler = (tunnel: TunnelInfo): void => {
   tunnel.process.on('exit', (code, signal) => {
-    // Remove from active tunnels
-    const index = activeTunnels.findIndex((t) => t.resourceName === tunnel.resourceName);
+    const index = activeTunnels.findIndex((activeTunnel) => activeTunnel.resourceName === tunnel.resourceName);
     if (index !== -1) {
       activeTunnels.splice(index, 1);
     }
 
-    // Only attempt reconnect for unexpected exits (not manual stops or shutdown)
     if (code !== 0 && code !== null && !applicationManager.isInterrupted) {
       tuiManager.warn(
         `Tunnel for ${tunnel.resourceName} died unexpectedly (code: ${code}, signal: ${signal}). Attempting reconnect...`
       );
-      // Fire and forget - reconnection happens in background
-      attemptReconnect(tunnel.resourceName, tunnel.localPort).catch(() => {
-        // Errors already logged in attemptReconnect
+
+      void attemptReconnect(tunnel.resourceName, tunnel.localPort).catch(() => {
+        // Errors are already reported inside attemptReconnect.
       });
     }
   });
 };
 
 export const startTunnel = async (resourceName: string, localPort: number): Promise<TunnelInfo> => {
-  const borePath = await verifyBoreBinaryExists();
-
   let lastError: Error | null = null;
 
   for (let attempt = 1; attempt <= TUNNEL_RETRY_ATTEMPTS; attempt++) {
     try {
-      const tunnel = await startTunnelAttempt(borePath, resourceName, localPort);
+      const tunnel = await startTunnelAttempt(resourceName, localPort);
       activeTunnels.push(tunnel);
-
-      // Setup exit handler with auto-reconnection
       setupTunnelExitHandler(tunnel);
-
       return tunnel;
-    } catch (err) {
-      lastError = err;
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+
       if (attempt < TUNNEL_RETRY_ATTEMPTS) {
         tuiManager.warn(
           `Tunnel attempt ${attempt} failed for ${resourceName}, retrying in ${TUNNEL_RETRY_DELAY_MS / 1000}s...`
@@ -248,24 +602,16 @@ export const startTunnel = async (resourceName: string, localPort: number): Prom
   throw lastError || new Error(`Failed to start tunnel for ${resourceName} after ${TUNNEL_RETRY_ATTEMPTS} attempts`);
 };
 
-/**
- * Set a callback to be called when a tunnel reconnects.
- * This is used to update Lambda env vars with the new tunnel URL.
- */
 export const setTunnelReconnectCallback = (callback: ((tunnel: TunnelInfo) => void) | null): void => {
   onTunnelReconnect = callback;
 };
 
 export const stopTunnel = (resourceName: string): boolean => {
-  const index = activeTunnels.findIndex((t) => t.resourceName === resourceName);
+  const index = activeTunnels.findIndex((tunnel) => tunnel.resourceName === resourceName);
   if (index === -1) return false;
 
   const tunnel = activeTunnels[index];
-  try {
-    tunnel.process.kill();
-  } catch {
-    // Process may have already exited
-  }
+  tunnel.process.kill();
   activeTunnels.splice(index, 1);
   return true;
 };
@@ -273,11 +619,7 @@ export const stopTunnel = (resourceName: string): boolean => {
 export const stopAllTunnels = async (): Promise<void> => {
   const tunnelsToStop = [...activeTunnels];
   for (const tunnel of tunnelsToStop) {
-    try {
-      tunnel.process.kill();
-    } catch {
-      // Process may have already exited
-    }
+    tunnel.process.kill();
   }
   activeTunnels.length = 0;
 };
@@ -294,10 +636,6 @@ export const isTunnelAlive = (tunnel: TunnelInfo): boolean => {
   return tunnel.process.exitCode === null && !tunnel.process.killed;
 };
 
-/**
- * Register cleanup hook for tunnels.
- * Must be called explicitly when dev command starts.
- */
 export const registerTunnelCleanupHook = createCleanupHook('tunnels', async () => {
   if (activeTunnels.length > 0) {
     tuiManager.info('Stopping tunnels...');
