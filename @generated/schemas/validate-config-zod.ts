@@ -18,14 +18,6 @@ export const stacktapeConfigSchema = z.object({
     .optional().describe("").optional() }).strict()
   .optional().describe("#### Credentials and settings for 3rd-party services (MongoDB Atlas, Upstash).\n\n---\n\nRequired only if you use `mongo-db-atlas-cluster` or `upstash-redis` resources in your stack.").optional(),
   "variables": z.record(z.string(), z.any()).optional().describe("#### Reusable values you can reference anywhere in the config with `$Var().variableName`.\n\n---\n\nUseful for avoiding repetition. For example, define a shared environment name\nand reference it in multiple resources.\n\n```yaml\nvariables:\n  appPort: 3000\n# Then use: $Var().appPort\n```").optional(),
-  "budgetControl": z.object({
-    "limit": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).describe("#### Monthly spending limit in USD.\n\n---\n\nNotification thresholds are calculated as a percentage of this amount.\nResets at the start of each calendar month."),
-    "notifications": z.array(z.object({
-      "budgetType": z.enum(["ACTUAL","FORECASTED"]).optional().describe("#### Whether to alert on actual or forecasted spend.\n\n---\n\n- `ACTUAL` — fires when you've already spent past the threshold.\n- `FORECASTED` — fires when AWS predicts you'll exceed the threshold by month-end.\n\nForecasts need ~5 weeks of usage data before they work."),
-      "thresholdPercentage": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### Percentage of the budget limit that triggers this alert.\n\n---\n\nExample: limit = $200, threshold = 80 → alert fires at $160.").default(100),
-      "emails": z.array(z.string()).describe("#### Email addresses that receive the alert. Max 10.") }).strict()
-    ).optional().describe("#### Email alerts when spending approaches the limit.\n\n---\n\nEach notification fires at a percentage threshold of the `limit`, based on\nactual or forecasted spend. Max 5 notifications.").optional() }).strict()
-  .optional().describe("#### Set a monthly spending limit and get email alerts when costs approach it.\n\n---\n\nThe budget resets at the start of each calendar month. You can configure alerts\nbased on actual spend or AWS-forecasted spend.\n\n> Not available in all regions (e.g., `ap-east-1`, `af-south-1`).").optional(),
   "hooks": z.object({
     "beforeDeploy": z.array(z.object({
       "scriptName": z.string().describe("#### Script Name\n\n---\n\nThe name of the script to execute. The script must be defined in the `scripts` section of your configuration."),
@@ -257,7 +249,7 @@ export const stacktapeConfigSchema = z.object({
                   , z.object({
                     "projectFile": z.string().optional().describe("#### The path to your .NET project file (.csproj).").optional(),
                     "dotnetVersion": z.union([z.literal(6), z.literal(8)]).optional().describe("#### The version of .NET to use.").default(8) }).strict()
-                  , z.record(z.string(), z.never()), z.object({
+                  , z.record(z.string(), z.any()), z.object({
                     "rubyVersion": z.union([z.literal(3.2), z.literal(3.3)]).optional().describe("#### The version of Ruby to use.").default(3.3) }).strict()
                 ]).optional().describe("#### Language-specific packaging configuration.").optional(),
                 "requiresGlibcBinaries": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Use glibc instead of musl (Alpine default). Enable if native dependencies require glibc.\n\n---\n\nResults in a larger image. Common packages needing this: `sharp`, `canvas`, `bcrypt`, `puppeteer`.").optional(),
@@ -433,7 +425,7 @@ export const stacktapeConfigSchema = z.object({
                   , z.object({
                     "projectFile": z.string().optional().describe("#### The path to your .NET project file (.csproj).").optional(),
                     "dotnetVersion": z.union([z.literal(6), z.literal(8)]).optional().describe("#### The version of .NET to use.").default(8) }).strict()
-                  , z.record(z.string(), z.never()), z.object({
+                  , z.record(z.string(), z.any()), z.object({
                     "rubyVersion": z.union([z.literal(3.2), z.literal(3.3)]).optional().describe("#### The version of Ruby to use.").default(3.3) }).strict()
                 ]).optional().describe("#### Language-specific packaging configuration.").optional(),
                 "requiresGlibcBinaries": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Use glibc instead of musl (Alpine default). Enable if native dependencies require glibc.\n\n---\n\nResults in a larger image. Common packages needing this: `sharp`, `canvas`, `bcrypt`, `puppeteer`.").optional(),
@@ -937,7 +929,20 @@ export const stacktapeConfigSchema = z.object({
                   "sender": z.string().describe("#### The email address of the sender."),
                   "recipient": z.string().describe("#### The email address of the recipient.") }).strict()
               }).strict()
+              , z.object({
+                "type": z.literal("discord"),
+                "properties": z.object({
+                  "webhookUrl": z.string().describe("#### Discord Webhook URL for the channel. Store as `$Secret()` for security.\n\n---\n\nCreate a webhook in your Discord channel settings (Edit Channel → Integrations → Webhooks).") }).strict()
+                .optional().describe("").optional() }).strict()
+              , z.object({
+                "type": z.literal("webhook"),
+                "properties": z.object({
+                  "url": z.string().describe("#### The URL to send webhook POST requests to."),
+                  "secret": z.string().optional().describe("#### Optional signing secret for HMAC-SHA256 payload verification.\n\n---\n\nIf provided, each request includes an `X-Stacktape-Signature` header.").optional(),
+                  "headers": z.record(z.string(), z.any()).optional().describe("#### Optional custom headers to include in each request.").optional() }).strict()
+                .optional().describe("").optional() }).strict()
             ])).optional().describe("#### Where to send notifications when the alarm fires — Slack, MS Teams, or email.").optional(),
+            "includeInHistory": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Whether alarm state changes should appear in monitoring history.").default(true),
             "description": z.string().optional().describe("#### Custom alarm description used in notification messages and the AWS console.").optional() }).strict()
           , z.object({
             "trigger": z.union([z.object({
@@ -976,7 +981,20 @@ export const stacktapeConfigSchema = z.object({
                   "sender": z.string().describe("#### The email address of the sender."),
                   "recipient": z.string().describe("#### The email address of the recipient.") }).strict()
               }).strict()
+              , z.object({
+                "type": z.literal("discord"),
+                "properties": z.object({
+                  "webhookUrl": z.string().describe("#### Discord Webhook URL for the channel. Store as `$Secret()` for security.\n\n---\n\nCreate a webhook in your Discord channel settings (Edit Channel → Integrations → Webhooks).") }).strict()
+                .optional().describe("").optional() }).strict()
+              , z.object({
+                "type": z.literal("webhook"),
+                "properties": z.object({
+                  "url": z.string().describe("#### The URL to send webhook POST requests to."),
+                  "secret": z.string().optional().describe("#### Optional signing secret for HMAC-SHA256 payload verification.\n\n---\n\nIf provided, each request includes an `X-Stacktape-Signature` header.").optional(),
+                  "headers": z.record(z.string(), z.any()).optional().describe("#### Optional custom headers to include in each request.").optional() }).strict()
+                .optional().describe("").optional() }).strict()
             ])).optional().describe("#### Where to send notifications when the alarm fires — Slack, MS Teams, or email.").optional(),
+            "includeInHistory": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Whether alarm state changes should appear in monitoring history.").default(true),
             "description": z.string().optional().describe("#### Custom alarm description used in notification messages and the AWS console.").optional() }).strict()
         ])).optional().describe("#### Alarms for this service (merged with global alarms from the Stacktape Console).").optional(),
         "disabledGlobalAlarms": z.array(z.string()).optional().describe("#### Global alarm names to exclude from this service.").optional(),
@@ -1014,7 +1032,7 @@ export const stacktapeConfigSchema = z.object({
                 , z.object({
                   "projectFile": z.string().optional().describe("#### The path to your .NET project file (.csproj).").optional(),
                   "dotnetVersion": z.union([z.literal(6), z.literal(8)]).optional().describe("#### The version of .NET to use.").default(8) }).strict()
-                , z.record(z.string(), z.never()), z.object({
+                , z.record(z.string(), z.any()), z.object({
                   "rubyVersion": z.union([z.literal(3.2), z.literal(3.3)]).optional().describe("#### The version of Ruby to use.").default(3.3) }).strict()
               ]).optional().describe("#### Language-specific packaging configuration.").optional(),
               "requiresGlibcBinaries": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Use glibc instead of musl (Alpine default). Enable if native dependencies require glibc.\n\n---\n\nResults in a larger image. Common packages needing this: `sharp`, `canvas`, `bcrypt`, `puppeteer`.").optional(),
@@ -1166,7 +1184,7 @@ export const stacktapeConfigSchema = z.object({
                   , z.object({
                     "projectFile": z.string().optional().describe("#### The path to your .NET project file (.csproj).").optional(),
                     "dotnetVersion": z.union([z.literal(6), z.literal(8)]).optional().describe("#### The version of .NET to use.").default(8) }).strict()
-                  , z.record(z.string(), z.never()), z.object({
+                  , z.record(z.string(), z.any()), z.object({
                     "rubyVersion": z.union([z.literal(3.2), z.literal(3.3)]).optional().describe("#### The version of Ruby to use.").default(3.3) }).strict()
                 ]).optional().describe("#### Language-specific packaging configuration.").optional(),
                 "requiresGlibcBinaries": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Use glibc instead of musl (Alpine default). Enable if native dependencies require glibc.\n\n---\n\nResults in a larger image. Common packages needing this: `sharp`, `canvas`, `bcrypt`, `puppeteer`.").optional(),
@@ -1324,7 +1342,7 @@ export const stacktapeConfigSchema = z.object({
                 , z.object({
                   "projectFile": z.string().optional().describe("#### The path to your .NET project file (.csproj).").optional(),
                   "dotnetVersion": z.union([z.literal(6), z.literal(8)]).optional().describe("#### The version of .NET to use.").default(8) }).strict()
-                , z.record(z.string(), z.never()), z.object({
+                , z.record(z.string(), z.any()), z.object({
                   "rubyVersion": z.union([z.literal(3.2), z.literal(3.3)]).optional().describe("#### The version of Ruby to use.").default(3.3) }).strict()
               ]).optional().describe("#### Language-specific packaging configuration.").optional(),
               "requiresGlibcBinaries": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Use glibc instead of musl (Alpine default). Enable if native dependencies require glibc.\n\n---\n\nResults in a larger image. Common packages needing this: `sharp`, `canvas`, `bcrypt`, `puppeteer`.").optional(),
@@ -1476,7 +1494,7 @@ export const stacktapeConfigSchema = z.object({
                   , z.object({
                     "projectFile": z.string().optional().describe("#### The path to your .NET project file (.csproj).").optional(),
                     "dotnetVersion": z.union([z.literal(6), z.literal(8)]).optional().describe("#### The version of .NET to use.").default(8) }).strict()
-                  , z.record(z.string(), z.never()), z.object({
+                  , z.record(z.string(), z.any()), z.object({
                     "rubyVersion": z.union([z.literal(3.2), z.literal(3.3)]).optional().describe("#### The version of Ruby to use.").default(3.3) }).strict()
                 ]).optional().describe("#### Language-specific packaging configuration.").optional(),
                 "requiresGlibcBinaries": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Use glibc instead of musl (Alpine default). Enable if native dependencies require glibc.\n\n---\n\nResults in a larger image. Common packages needing this: `sharp`, `canvas`, `bcrypt`, `puppeteer`.").optional(),
@@ -1629,7 +1647,7 @@ export const stacktapeConfigSchema = z.object({
                 , z.object({
                   "projectFile": z.string().optional().describe("#### The path to your .NET project file (.csproj).").optional(),
                   "dotnetVersion": z.union([z.literal(6), z.literal(8)]).optional().describe("#### The version of .NET to use.").default(8) }).strict()
-                , z.record(z.string(), z.never()), z.object({
+                , z.record(z.string(), z.any()), z.object({
                   "rubyVersion": z.union([z.literal(3.2), z.literal(3.3)]).optional().describe("#### The version of Ruby to use.").default(3.3) }).strict()
               ]).optional().describe("#### Language-specific packaging configuration.").optional(),
               "requiresGlibcBinaries": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Use glibc instead of musl (Alpine default). Enable if native dependencies require glibc.\n\n---\n\nResults in a larger image. Common packages needing this: `sharp`, `canvas`, `bcrypt`, `puppeteer`.").optional(),
@@ -1781,7 +1799,7 @@ export const stacktapeConfigSchema = z.object({
                   , z.object({
                     "projectFile": z.string().optional().describe("#### The path to your .NET project file (.csproj).").optional(),
                     "dotnetVersion": z.union([z.literal(6), z.literal(8)]).optional().describe("#### The version of .NET to use.").default(8) }).strict()
-                  , z.record(z.string(), z.never()), z.object({
+                  , z.record(z.string(), z.any()), z.object({
                     "rubyVersion": z.union([z.literal(3.2), z.literal(3.3)]).optional().describe("#### The version of Ruby to use.").default(3.3) }).strict()
                 ]).optional().describe("#### Language-specific packaging configuration.").optional(),
                 "requiresGlibcBinaries": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Use glibc instead of musl (Alpine default). Enable if native dependencies require glibc.\n\n---\n\nResults in a larger image. Common packages needing this: `sharp`, `canvas`, `bcrypt`, `puppeteer`.").optional(),
@@ -2037,7 +2055,20 @@ export const stacktapeConfigSchema = z.object({
                 "sender": z.string().describe("#### The email address of the sender."),
                 "recipient": z.string().describe("#### The email address of the recipient.") }).strict()
             }).strict()
+            , z.object({
+              "type": z.literal("discord"),
+              "properties": z.object({
+                "webhookUrl": z.string().describe("#### Discord Webhook URL for the channel. Store as `$Secret()` for security.\n\n---\n\nCreate a webhook in your Discord channel settings (Edit Channel → Integrations → Webhooks).") }).strict()
+              .optional().describe("").optional() }).strict()
+            , z.object({
+              "type": z.literal("webhook"),
+              "properties": z.object({
+                "url": z.string().describe("#### The URL to send webhook POST requests to."),
+                "secret": z.string().optional().describe("#### Optional signing secret for HMAC-SHA256 payload verification.\n\n---\n\nIf provided, each request includes an `X-Stacktape-Signature` header.").optional(),
+                "headers": z.record(z.string(), z.any()).optional().describe("#### Optional custom headers to include in each request.").optional() }).strict()
+              .optional().describe("").optional() }).strict()
           ])).optional().describe("#### Where to send notifications when the alarm fires — Slack, MS Teams, or email.").optional(),
+          "includeInHistory": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Whether alarm state changes should appear in monitoring history.").default(true),
           "description": z.string().optional().describe("#### Custom alarm description used in notification messages and the AWS console.").optional() }).strict()
         ).optional().describe("#### Alarms for this database (merged with global alarms from the Stacktape Console).").optional(),
         "disabledGlobalAlarms": z.array(z.string()).optional().describe("#### Global alarm names to exclude from this database.").optional(),
@@ -2317,7 +2348,20 @@ export const stacktapeConfigSchema = z.object({
                 "sender": z.string().describe("#### The email address of the sender."),
                 "recipient": z.string().describe("#### The email address of the recipient.") }).strict()
             }).strict()
+            , z.object({
+              "type": z.literal("discord"),
+              "properties": z.object({
+                "webhookUrl": z.string().describe("#### Discord Webhook URL for the channel. Store as `$Secret()` for security.\n\n---\n\nCreate a webhook in your Discord channel settings (Edit Channel → Integrations → Webhooks).") }).strict()
+              .optional().describe("").optional() }).strict()
+            , z.object({
+              "type": z.literal("webhook"),
+              "properties": z.object({
+                "url": z.string().describe("#### The URL to send webhook POST requests to."),
+                "secret": z.string().optional().describe("#### Optional signing secret for HMAC-SHA256 payload verification.\n\n---\n\nIf provided, each request includes an `X-Stacktape-Signature` header.").optional(),
+                "headers": z.record(z.string(), z.any()).optional().describe("#### Optional custom headers to include in each request.").optional() }).strict()
+              .optional().describe("").optional() }).strict()
           ])).optional().describe("#### Where to send notifications when the alarm fires — Slack, MS Teams, or email.").optional(),
+          "includeInHistory": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Whether alarm state changes should appear in monitoring history.").default(true),
           "description": z.string().optional().describe("#### Custom alarm description used in notification messages and the AWS console.").optional() }).strict()
         ).optional().describe("#### Alarms for this load balancer (merged with global alarms from the Stacktape Console).").optional(),
         "disabledGlobalAlarms": z.array(z.string()).optional().describe("#### Global alarm names to exclude from this load balancer.").optional(),
@@ -2584,7 +2628,20 @@ export const stacktapeConfigSchema = z.object({
                 "sender": z.string().describe("#### The email address of the sender."),
                 "recipient": z.string().describe("#### The email address of the recipient.") }).strict()
             }).strict()
+            , z.object({
+              "type": z.literal("discord"),
+              "properties": z.object({
+                "webhookUrl": z.string().describe("#### Discord Webhook URL for the channel. Store as `$Secret()` for security.\n\n---\n\nCreate a webhook in your Discord channel settings (Edit Channel → Integrations → Webhooks).") }).strict()
+              .optional().describe("").optional() }).strict()
+            , z.object({
+              "type": z.literal("webhook"),
+              "properties": z.object({
+                "url": z.string().describe("#### The URL to send webhook POST requests to."),
+                "secret": z.string().optional().describe("#### Optional signing secret for HMAC-SHA256 payload verification.\n\n---\n\nIf provided, each request includes an `X-Stacktape-Signature` header.").optional(),
+                "headers": z.record(z.string(), z.any()).optional().describe("#### Optional custom headers to include in each request.").optional() }).strict()
+              .optional().describe("").optional() }).strict()
           ])).optional().describe("#### Where to send notifications when the alarm fires — Slack, MS Teams, or email.").optional(),
+          "includeInHistory": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Whether alarm state changes should appear in monitoring history.").default(true),
           "description": z.string().optional().describe("#### Custom alarm description used in notification messages and the AWS console.").optional() }).strict()
         ).optional().describe("#### Alarms for this API Gateway (merged with global alarms from the Stacktape Console).").optional(),
         "disabledGlobalAlarms": z.array(z.string()).optional().describe("#### Global alarm names to exclude from this API Gateway.").optional() }).strict()
@@ -2931,7 +2988,7 @@ export const stacktapeConfigSchema = z.object({
           "clientSecret": z.string().describe("#### OAuth / OIDC client secret\n\n---\n\nThe client secret associated with the `clientId`, used by Cognito when exchanging authorization codes for tokens.\nThis value should be kept confidential and only configured from secure sources."),
           "attributeMapping": z.record(z.string(), z.string()).optional().describe("#### Attribute mapping\n\n---\n\nMaps attributes from the external provider (for example `email`, `given_name`) to Cognito user pool attributes.\nKeys are Cognito attribute names, values are attribute names from the identity provider.\n\nIf not provided, Stacktape defaults to mapping `email -> email`.").optional(),
           "authorizeScopes": z.array(z.string()).optional().describe("#### Requested scopes\n\n---\n\nAdditional OAuth scopes to request from the identity provider (for example `openid`, `email`, `profile`).\nThese control which pieces of user information and permissions your app receives in the provider's tokens.\n\nIf omitted, Stacktape uses a reasonable default per provider (see\n[AWS::Cognito::UserPoolIdentityProvider](https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-cognito-userpoolidentityprovider)).").optional(),
-          "providerDetails": z.record(z.string(), z.never()).optional().describe("#### Advanced provider options\n\n---\n\nLow‑level configuration passed directly into Cognito's `ProviderDetails` map.\nYou can use this to override endpoints or supply provider‑specific keys as documented by AWS,\nfor example `authorize_url`, `token_url`, `attributes_request_method`, `oidc_issuer`, and others.\n\nIn most cases you don't need to set this – Stacktape configures sensible defaults for common providers.").optional() }).strict()
+          "providerDetails": z.record(z.string(), z.any()).optional().describe("#### Advanced provider options\n\n---\n\nLow‑level configuration passed directly into Cognito's `ProviderDetails` map.\nYou can use this to override endpoints or supply provider‑specific keys as documented by AWS,\nfor example `authorize_url`, `token_url`, `attributes_request_method`, `oidc_issuer`, and others.\n\nIn most cases you don't need to set this – Stacktape configures sensible defaults for common providers.").optional() }).strict()
         ).optional().describe("#### External identity providers\n\n---\n\nAllows users to sign in with third‑party identity providers like Google, Facebook, Login with Amazon, OIDC, SAML, or Sign in with Apple.\nEach entry configures one external provider (client ID/secret, attribute mapping, requested scopes, and advanced provider‑specific options).\n\nUnder the hood Stacktape creates separate `AWS::Cognito::UserPoolIdentityProvider` resources and registers them\nin the user pool client's `SupportedIdentityProviders`.").optional(),
         "useFirewall": z.string().optional().describe("#### Associate a WAF\n\n---\n\nLinks the user pool to a `web-app-firewall` resource, so requests to the Hosted UI and token endpoints are inspected\nby AWS WAF rules you configure in Stacktape.\n\nStacktape does this by creating a `WebACLAssociation` between the user pool and the referenced firewall.").optional(),
         "customDomain": z.object({
@@ -3344,7 +3401,7 @@ export const stacktapeConfigSchema = z.object({
                 , z.object({
                   "projectFile": z.string().optional().describe("#### The path to your .NET project file (.csproj).").optional(),
                   "dotnetVersion": z.union([z.literal(6), z.literal(8)]).optional().describe("#### The version of .NET to use.").default(8) }).strict()
-                , z.record(z.string(), z.never()), z.object({
+                , z.record(z.string(), z.any()), z.object({
                   "rubyVersion": z.union([z.literal(3.2), z.literal(3.3)]).optional().describe("#### The version of Ruby to use.").default(3.3) }).strict()
               ]).optional().describe("#### Language-specific packaging configuration.").optional() }).strict()
           }).strict()
@@ -3414,7 +3471,7 @@ export const stacktapeConfigSchema = z.object({
                 , z.object({
                   "projectFile": z.string().optional().describe("#### The path to your .NET project file (.csproj).").optional(),
                   "dotnetVersion": z.union([z.literal(6), z.literal(8)]).optional().describe("#### The version of .NET to use.").default(8) }).strict()
-                , z.record(z.string(), z.never()), z.object({
+                , z.record(z.string(), z.any()), z.object({
                   "rubyVersion": z.union([z.literal(3.2), z.literal(3.3)]).optional().describe("#### The version of Ruby to use.").default(3.3) }).strict()
               ]).optional().describe("#### Language-specific packaging configuration.").optional() }).strict()
           }).strict()
@@ -3501,7 +3558,20 @@ export const stacktapeConfigSchema = z.object({
                 "sender": z.string().describe("#### The email address of the sender."),
                 "recipient": z.string().describe("#### The email address of the recipient.") }).strict()
             }).strict()
+            , z.object({
+              "type": z.literal("discord"),
+              "properties": z.object({
+                "webhookUrl": z.string().describe("#### Discord Webhook URL for the channel. Store as `$Secret()` for security.\n\n---\n\nCreate a webhook in your Discord channel settings (Edit Channel → Integrations → Webhooks).") }).strict()
+              .optional().describe("").optional() }).strict()
+            , z.object({
+              "type": z.literal("webhook"),
+              "properties": z.object({
+                "url": z.string().describe("#### The URL to send webhook POST requests to."),
+                "secret": z.string().optional().describe("#### Optional signing secret for HMAC-SHA256 payload verification.\n\n---\n\nIf provided, each request includes an `X-Stacktape-Signature` header.").optional(),
+                "headers": z.record(z.string(), z.any()).optional().describe("#### Optional custom headers to include in each request.").optional() }).strict()
+              .optional().describe("").optional() }).strict()
           ])).optional().describe("#### Where to send notifications when the alarm fires — Slack, MS Teams, or email.").optional(),
+          "includeInHistory": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Whether alarm state changes should appear in monitoring history.").default(true),
           "description": z.string().optional().describe("#### Custom alarm description used in notification messages and the AWS console.").optional() }).strict()
         ).optional().describe("#### Additional alarms associated with this resource.\n\n---\n\nThese alarms will be merged with any alarms configured globally in the [console](https://console.stacktape.com/alarms).").optional(),
         "disabledGlobalAlarms": z.array(z.string()).optional().describe("#### Disables globally configured alarms for this resource.\n\n---\n\nProvide a list of alarm names as configured in the [console](https://console.stacktape.com/alarms).").optional(),
@@ -3965,7 +4035,7 @@ export const stacktapeConfigSchema = z.object({
                 , z.object({
                   "projectFile": z.string().optional().describe("#### The path to your .NET project file (.csproj).").optional(),
                   "dotnetVersion": z.union([z.literal(6), z.literal(8)]).optional().describe("#### The version of .NET to use.").default(8) }).strict()
-                , z.record(z.string(), z.never()), z.object({
+                , z.record(z.string(), z.any()), z.object({
                   "rubyVersion": z.union([z.literal(3.2), z.literal(3.3)]).optional().describe("#### The version of Ruby to use.").default(3.3) }).strict()
               ]).optional().describe("#### Language-specific packaging configuration.").optional() }).strict()
           }).strict()
@@ -4238,7 +4308,20 @@ export const stacktapeConfigSchema = z.object({
                 "sender": z.string().describe("#### The email address of the sender."),
                 "recipient": z.string().describe("#### The email address of the recipient.") }).strict()
             }).strict()
+            , z.object({
+              "type": z.literal("discord"),
+              "properties": z.object({
+                "webhookUrl": z.string().describe("#### Discord Webhook URL for the channel. Store as `$Secret()` for security.\n\n---\n\nCreate a webhook in your Discord channel settings (Edit Channel → Integrations → Webhooks).") }).strict()
+              .optional().describe("").optional() }).strict()
+            , z.object({
+              "type": z.literal("webhook"),
+              "properties": z.object({
+                "url": z.string().describe("#### The URL to send webhook POST requests to."),
+                "secret": z.string().optional().describe("#### Optional signing secret for HMAC-SHA256 payload verification.\n\n---\n\nIf provided, each request includes an `X-Stacktape-Signature` header.").optional(),
+                "headers": z.record(z.string(), z.any()).optional().describe("#### Optional custom headers to include in each request.").optional() }).strict()
+              .optional().describe("").optional() }).strict()
           ])).optional().describe("#### Where to send notifications when the alarm fires — Slack, MS Teams, or email.").optional(),
+          "includeInHistory": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Whether alarm state changes should appear in monitoring history.").default(true),
           "description": z.string().optional().describe("#### Custom alarm description used in notification messages and the AWS console.").optional() }).strict()
         ).optional().describe("#### Alarms for this function (merged with global alarms from the Stacktape Console).").optional(),
         "disabledGlobalAlarms": z.array(z.string()).optional().describe("#### Global alarm names to exclude from this function.").optional(),
@@ -4471,7 +4554,7 @@ export const stacktapeConfigSchema = z.object({
                 , z.object({
                   "projectFile": z.string().optional().describe("#### The path to your .NET project file (.csproj).").optional(),
                   "dotnetVersion": z.union([z.literal(6), z.literal(8)]).optional().describe("#### The version of .NET to use.").default(8) }).strict()
-                , z.record(z.string(), z.never()), z.object({
+                , z.record(z.string(), z.any()), z.object({
                   "rubyVersion": z.union([z.literal(3.2), z.literal(3.3)]).optional().describe("#### The version of Ruby to use.").default(3.3) }).strict()
               ]).optional().describe("#### Language-specific packaging configuration.").optional() }).strict()
           }).strict()

@@ -15,7 +15,12 @@ Resource type: `sqs-queue-not-empty`
 ## TypeScript Definition
 
 ```typescript
-type AlarmUserIntegration = MsTeamsIntegration | SlackIntegration | EmailIntegration;
+type AlarmUserIntegration =
+  | MsTeamsIntegration
+  | SlackIntegration
+  | EmailIntegration
+  | DiscordIntegration
+  | WebhookIntegration;
 
 interface AlarmDefinitionBase {
   /**
@@ -31,6 +36,12 @@ interface AlarmDefinitionBase {
    * #### Where to send notifications when the alarm fires — Slack, MS Teams, or email.
    */
   notificationTargets?: AlarmUserIntegration[];
+  /**
+   * #### Whether alarm state changes should appear in monitoring history.
+   *
+   * @default true
+   */
+  includeInHistory?: boolean;
   /**
    * #### Custom alarm description used in notification messages and the AWS console.
    */
@@ -307,8 +318,7 @@ interface RelationalDatabaseWriteLatencyTrigger {
 }
 
 interface RelationalDatabaseWriteLatencyTriggerProps
-  extends TriggerWithCustomComparison,
-    TriggerWithCustomStatFunction {
+  extends TriggerWithCustomComparison, TriggerWithCustomStatFunction {
   /**
    * #### Fires when average write I/O latency exceeds this value (seconds).
    */
@@ -321,8 +331,7 @@ interface RelationalDatabaseCPUUtilizationTrigger {
 }
 
 interface RelationalDatabaseCPUUtilizationTriggerProps
-  extends TriggerWithCustomComparison,
-    TriggerWithCustomStatFunction {
+  extends TriggerWithCustomComparison, TriggerWithCustomStatFunction {
   /**
    * #### Fires when CPU utilization exceeds this percentage.
    */
@@ -351,8 +360,7 @@ interface RelationalDatabaseConnectionCountTrigger {
 }
 
 interface RelationalDatabaseConnectionCountTriggerProps
-  extends TriggerWithCustomComparison,
-    TriggerWithCustomStatFunction {
+  extends TriggerWithCustomComparison, TriggerWithCustomStatFunction {
   /**
    * #### Fires when the number of active database connections exceeds this value.
    */
@@ -387,6 +395,7 @@ type ComparisonOperator =
 type AlarmNotificationEventRuleInput = {
   description: string;
   time: string;
+  stateValue: string;
   alarmAwsResourceName: string;
   stackName: string;
   alarmConfig: AlarmDefinition;
