@@ -31,10 +31,17 @@ export type DeleteDefaultDomainDnsRecordParams = {
 export type ReportAlarmEventParams = {
   type: 'ALARM_TRIGGERED' | 'ALARM_RESOLVED';
   alarmName: string;
+  sourceConfigName?: string;
   project: string;
   stage: string;
   region: string;
   title: string;
+  channels: Array<{
+    id?: string;
+    name: string;
+    type: 'slack' | 'ms_teams' | 'e_mail' | 'discord' | 'webhook';
+    properties: unknown;
+  }>;
   details?: Record<string, unknown>;
 };
 
