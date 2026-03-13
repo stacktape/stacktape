@@ -456,32 +456,35 @@ function getGlobalBinaryPathIfVersionMatches() {
   }
 }
 
+function executeBinary(binaryPath, args) {
+  const result = spawnSync(binaryPath, args, {
+    stdio: 'inherit',
+    env: process.env
+  });
+
+  if (result.error) {
+    throw new Error(`Error executing Stacktape binary at ${binaryPath}: ${result.error.message}`);
+  }
+
+  if (result.signal) {
+    throw new Error(`Stacktape binary at ${binaryPath} terminated by signal ${result.signal}`);
+  }
+
+  return typeof result.status === 'number' ? result.status : 1;
+}
+
 async function main() {
   try {
     const args = process.argv.slice(2);
 
     const globalBinaryPath = getGlobalBinaryPathIfVersionMatches();
     if (globalBinaryPath) {
-      const result = spawnSync(globalBinaryPath, args, {
-        stdio: 'inherit',
-        env: process.env
-      });
-      process.exit(result.status || 0);
+      process.exit(executeBinary(globalBinaryPath, args));
     }
 
     const binaryPath = await ensureBinary();
 
-    const result = spawnSync(binaryPath, args, {
-      stdio: 'inherit',
-      env: process.env
-    });
-
-    if (result.error) {
-      console.error(`${colors.red}Error executing Stacktape binary: ${result.error.message}${colors.reset}`);
-      process.exit(1);
-    }
-
-    process.exit(result.status || 0);
+    process.exit(executeBinary(binaryPath, args));
   } catch (error) {
     console.error(`${colors.red}Unexpected error: ${error.message}${colors.reset}`);
     process.exit(1);
