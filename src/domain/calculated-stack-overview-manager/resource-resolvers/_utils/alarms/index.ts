@@ -1,6 +1,6 @@
 import { globalStateManager } from '@application-services/global-state-manager';
 import EventBridgeRule from '@cloudform/events/rule';
-import { GetAtt } from '@cloudform/functions';
+import { GetAtt, Ref } from '@cloudform/functions';
 import LambdaPermission from '@cloudform/lambda/permission';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
@@ -10,7 +10,7 @@ import { awsResourceNames } from '@shared/naming/aws-resource-names';
 import { cfEvaluatedLinks } from '@shared/naming/cf-evaluated-links';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import { processAllNodes } from '@shared/utils/misc';
-import { transformIntoCloudformationSubstitutedString } from '@utils/cloudformation';
+import { SubWithoutMapping, transformIntoCloudformationSubstitutedString } from '@utils/cloudformation';
 import { escapeCloudformationSecretDynamicReference } from '@utils/stack-info-map-sensitive-values';
 import {
   getApplicationLoadBalancerCustomAlarm,
@@ -30,6 +30,7 @@ import { getSqsQueueNotEmptyAlarm, getSqsQueueReceivedMessagesCountAlarm } from 
 import { getAffectedResourceInfo, getComparisonOperator, getStatFunction, measuringUnits } from './utils';
 
 export const resolveAlarmsForResource = ({ resource }: { resource: StpAlarmEnabledResource }) => {
+  addSharedAlarmNotificationPermission();
   getAlarmsToBeAppliedToResource({ resource, globalAlarms: configManager.globalConfigAlarms }).forEach((alarm) => {
     calculatedStackOverviewManager.addCfChildResource({
       nameChain: resource.nameChain,
@@ -40,16 +41,6 @@ export const resolveAlarmsForResource = ({ resource }: { resource: StpAlarmEnabl
       nameChain: resource.nameChain,
       cfLogicalName: cfLogicalNames.cloudwatchAlarmEventBusNotificationRule(alarm.name),
       resource: getEventRuleForAlarmNotification({ alarm, resource })
-    });
-    calculatedStackOverviewManager.addCfChildResource({
-      nameChain: resource.nameChain,
-      cfLogicalName: cfLogicalNames.cloudwatchAlarmEventBusNotificationRuleLambdaPermission(alarm.name),
-      resource: new LambdaPermission({
-        Action: 'lambda:InvokeFunction',
-        Principal: 'events.amazonaws.com',
-        FunctionName: GetAtt(configManager.stacktapeServiceLambdaProps.cfLogicalName, 'Arn'),
-        SourceArn: GetAtt(cfLogicalNames.cloudwatchAlarmEventBusNotificationRule(alarm.name), 'Arn')
-      })
     });
     templateManager.addFinalTemplateOverrideFn(async (template) => {
       const targetInputTransformer =
@@ -65,6 +56,30 @@ export const resolveAlarmsForResource = ({ resource }: { resource: StpAlarmEnabl
         )
       );
     });
+  });
+};
+
+const addSharedAlarmNotificationPermission = () => {
+  const cfLogicalName = cfLogicalNames.cloudwatchAlarmSharedEventBusNotificationRuleLambdaPermission();
+
+  if (templateManager.template.Resources[cfLogicalName]) {
+    return;
+  }
+
+  const ruleNamePrefix = awsResourceNames.cloudwatchAlarmNotificationRulePrefix(
+    globalStateManager.targetStack.stackName
+  );
+
+  calculatedStackOverviewManager.addCfChildResource({
+    cfLogicalName,
+    nameChain: configManager.stacktapeServiceLambdaProps.nameChain,
+    resource: new LambdaPermission({
+      Action: 'lambda:InvokeFunction',
+      Principal: 'events.amazonaws.com',
+      FunctionName: GetAtt(configManager.stacktapeServiceLambdaProps.cfLogicalName, 'Arn'),
+      SourceAccount: Ref('AWS::AccountId'),
+      SourceArn: SubWithoutMapping(`arn:aws:events:\${AWS::Region}:\${AWS::AccountId}:rule/${ruleNamePrefix}-*`)
+    })
   });
 };
 
@@ -143,6 +158,7 @@ const getEventRuleForAlarmNotification = ({ alarm, resource }: { alarm: AlarmDef
   // };
   return new EventBridgeRule({
     State: 'ENABLED',
+    Name: awsResourceNames.cloudwatchAlarmNotificationRule(globalStateManager.targetStack.stackName, alarm.name),
     EventPattern: {
       source: ['aws.cloudwatch'],
       'detail-type': ['CloudWatch Alarm State Change'],

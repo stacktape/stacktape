@@ -1306,6 +1306,12 @@ export const cfLogicalNames = {
       suffix: { cloudformationResourceType: 'AWS::Lambda::Permission' }
     }).replaceAll('_', '');
   },
+  cloudwatchAlarmSharedEventBusNotificationRuleLambdaPermission() {
+    return buildCfLogicalName({
+      specifier: { type: 'CloudwatchAlarmNotificationShared' },
+      suffix: { cloudformationResourceType: 'AWS::Lambda::Permission' }
+    }).replaceAll('_', '');
+  },
   sqsQueue(stpResourceName: string) {
     return buildCfLogicalName({
       stpResourceName,

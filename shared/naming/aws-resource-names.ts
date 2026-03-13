@@ -631,6 +631,18 @@ export const awsResourceNames = {
       lengthLimit: 255
     });
   },
+  cloudwatchAlarmNotificationRulePrefix(stackName: string) {
+    return buildResourceName({
+      proposedResourceName: `${stackName}-alarm-notification`,
+      lengthLimit: 40
+    });
+  },
+  cloudwatchAlarmNotificationRule(stackName: string, alarmName: string) {
+    return `${this.cloudwatchAlarmNotificationRulePrefix(stackName)}-${buildResourceName({
+      proposedResourceName: alarmName,
+      lengthLimit: 23
+    })}`;
+  },
   codebuildProject(region: string) {
     return `stacktape-deployment-${region}`;
   },
