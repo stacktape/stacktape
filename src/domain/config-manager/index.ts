@@ -290,10 +290,6 @@ export class ConfigManager {
     return this.upstashRedisDatabases?.length && !this.upstashProvider?.apiKey;
   }
 
-  get budgetConfig() {
-    return this.config.budgetControl;
-  }
-
   get deploymentConfig() {
     return {
       disableS3TransferAcceleration: !this.isS3TransferAccelerationAvailableInDeploymentRegion,

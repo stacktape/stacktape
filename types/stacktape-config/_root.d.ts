@@ -40,17 +40,6 @@ interface StacktapeConfig {
    */
   variables?: { [variableName: string]: any };
   /**
-   * #### Set a monthly spending limit and get email alerts when costs approach it.
-   *
-   * ---
-   *
-   * The budget resets at the start of each calendar month. You can configure alerts
-   * based on actual spend or AWS-forecasted spend.
-   *
-   * > Not available in all regions (e.g., `ap-east-1`, `af-south-1`).
-   */
-  budgetControl?: BudgetControl;
-  /**
    * #### Run scripts automatically before/after deploy, delete, or dev commands.
    *
    * ---
