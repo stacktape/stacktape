@@ -452,7 +452,7 @@ export const getTimeSinceProcessStart = () => {
   return Math.round(process.uptime() * 1000);
 };
 
-export const localBuildTsConfigPath = join(process.cwd(), 'tsconfig.json');
+export const localBuildTsConfigPath = join(process.cwd(), 'tsconfig.build.json');
 
 export const builtinModules = [
   'assert',

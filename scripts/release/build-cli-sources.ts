@@ -18,6 +18,7 @@ import {
 import { downloadFile } from '@shared/utils/download-file';
 import { logInfo, logSuccess } from '@shared/utils/logging';
 import { localBuildTsConfigPath } from '@shared/utils/misc';
+import { createStacktapeOpenTuiBuildPlugin } from '@shared/utils/stacktape-opentui';
 import { archiveItem, extractTgzArchive } from '@shared/utils/zip';
 import {
   chmod,
@@ -232,33 +233,24 @@ export const buildBinaryFile = async ({
     }
   })();
 
-  const entrypoint = join(process.cwd(), 'src', 'api', 'cli', 'index.ts');
+  const entrypoint = join(process.cwd(), 'src', 'api', 'cli', 'compiled-entry.ts');
   const outputFileName = platform === 'win' ? 'stacktape.exe' : 'stacktape';
   const outputPath = join(outputFolderPath, outputFileName);
-  const bundledEntrypointPath = join(outputFolderPath, '__stacktape-bundle.mjs');
-
-  await buildEsCode({
-    sourcePath: entrypoint,
-    distPath: bundledEntrypointPath,
-    externals: [],
-    sourceMaps: 'inline',
-    sourceMapBannerType: 'disabled',
-    tsConfigPath: localBuildTsConfigPath,
-    cwd: process.cwd(),
-    minify: !debug,
-    define: { STACKTAPE_VERSION: JSON.stringify(version || 'dev') },
-    outputModuleFormat: 'esm'
-  });
+  const openTuiBuildPlugin = createStacktapeOpenTuiBuildPlugin();
 
   const result = await Bun.build({
-    entrypoints: [bundledEntrypointPath],
+    entrypoints: [entrypoint],
     compile: {
       target: compileTarget as Bun.Build.Target,
       outfile: outputPath,
-      autoloadTsconfig: true
+      autoloadTsconfig: true,
+      autoloadPackageJson: true
     },
     sourcemap: 'inline',
     minify: !debug,
+    plugins: [openTuiBuildPlugin],
+    tsconfig: localBuildTsConfigPath,
+    define: { STACKTAPE_VERSION: JSON.stringify(version || 'dev') },
     throw: false
   });
 
@@ -270,9 +262,6 @@ export const buildBinaryFile = async ({
   if (platform !== 'win') {
     await chmod(outputPath, 0o755);
   }
-
-  await remove(bundledEntrypointPath);
-
   logSuccess(`Binary for platform ${platform} generated successfully.`);
 
   return outputFolderPath;

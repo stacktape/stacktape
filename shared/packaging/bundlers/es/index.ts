@@ -39,7 +39,6 @@ import {
   resolveDifferentSourceMapLocation,
   resolvePrisma
 } from './utils';
-import { getBunBuildTsConfigPath } from './tsconfig-for-bun-build';
 
 // Extract module name from import path (handles scoped packages)
 const getModuleNameFromPath = (importPath: string): string => {
@@ -113,12 +112,6 @@ export const buildEsCode = async ({
     const cwdTsConfigPath = join(cwd, 'tsconfig.json');
     tsConfigPathForBuild = existsSync(cwdTsConfigPath) ? cwdTsConfigPath : undefined;
   }
-
-  const outDir = distDir || (distPath ? dirname(distPath) : cwd);
-  tsConfigPathForBuild = getBunBuildTsConfigPath({
-    tsConfigPath: tsConfigPathForBuild,
-    outDir
-  });
 
   const skipAwsSdkV3Deps =
     isLambda &&
@@ -395,46 +388,8 @@ export const buildEsCode = async ({
       }
     };
 
-    const openTuiJsxRuntimeShimPlugin: BunPlugin = {
-      name: 'stacktape-opentui-jsx-runtime-shim',
-      setup(build) {
-        const shouldShimForImporter = (importer: string) => {
-          return importer.includes('\\stacktape\\src\\') || importer.includes('/stacktape/src/');
-        };
-
-        build.onResolve({ filter: /^@opentui\/solid\/jsx-runtime$/ }, ({ importer }) => {
-          if (!shouldShimForImporter(importer || '')) {
-            return undefined;
-          }
-          return { path: 'opentui-jsx-runtime', namespace: 'stacktape-opentui-jsx-runtime-shim' };
-        });
-        build.onResolve({ filter: /^@opentui\/solid\/jsx-dev-runtime$/ }, ({ importer }) => {
-          if (!shouldShimForImporter(importer || '')) {
-            return undefined;
-          }
-          return { path: 'opentui-jsx-dev-runtime', namespace: 'stacktape-opentui-jsx-runtime-shim' };
-        });
-
-        build.onLoad(
-          { filter: /^opentui-jsx-(dev-)?runtime$/, namespace: 'stacktape-opentui-jsx-runtime-shim' },
-          () => {
-            return {
-              loader: 'js',
-              contents: [
-                'export const Fragment = Symbol.for("stacktape.jsx.fragment");',
-                'export const jsx = (type, props, key) => ({ type, props, key });',
-                'export const jsxs = jsx;',
-                'export const jsxDEV = jsx;'
-              ].join('\n')
-            };
-          }
-        );
-      }
-    };
-
     const allBunPlugins: BunPlugin[] = [
       bunFfiShimPlugin,
-      openTuiJsxRuntimeShimPlugin,
       looseResolvePlugin,
       stpAnalyzeDepsPlugin,
       nativeNodeModulesPlugin,

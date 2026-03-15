@@ -1,6 +1,8 @@
 import { CLI_SOURCE_PATH, DEV_TMP_FOLDER_PATH } from '@shared/naming/project-fs-paths';
 import { dynamicRequire } from '@shared/utils/fs-utils';
 import { logError, logInfo, logWarn } from '@shared/utils/logging';
+import { localBuildTsConfigPath } from '@shared/utils/misc';
+import { createStacktapeOpenTuiBuildPlugin } from '@shared/utils/stacktape-opentui';
 import packageJson from '../package.json';
 import { packageHelperLambdas } from './package-helper-lambdas';
 import { config } from 'dotenv';
@@ -51,6 +53,7 @@ if (!skipLoadingEnv) {
 }
 
 const buildSource = async () => {
+  const openTuiBuildPlugin = createStacktapeOpenTuiBuildPlugin();
   const result = await Bun.build({
     entrypoints: [CLI_SOURCE_PATH],
     outdir: DEV_TMP_FOLDER_PATH,
@@ -59,26 +62,9 @@ const buildSource = async () => {
     minify: false,
     sourcemap: 'inline',
     bytecode: false,
-    plugins: [
-      {
-        name: 'solid-jsx',
-        setup(build) {
-          build.onLoad({ filter: /\.(ts|js)x$/ }, async (args) => {
-            const { transformAsync } = await import('@babel/core');
-            const code = await Bun.file(args.path).text();
-            const result = await transformAsync(code, {
-              filename: args.path,
-              presets: [
-                ['babel-preset-solid', { moduleName: '@opentui/solid', generate: 'universal' }],
-                ['@babel/preset-typescript']
-              ]
-            });
-            return { contents: result?.code ?? '', loader: 'js' };
-          });
-        }
-      }
-    ],
+    plugins: [openTuiBuildPlugin],
     external: ['follow-redirects'],
+    tsconfig: localBuildTsConfigPath,
     define: {
       STACKTAPE_VERSION: `"${packageJson.version}"`
     }
