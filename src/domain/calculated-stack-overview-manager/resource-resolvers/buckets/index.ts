@@ -310,6 +310,39 @@ export const resolveBucket = ({ definition }: { definition: StpBucket }) => {
         paramValue: cdnDefaultDomainName,
         showDuringPrint: false
       });
+      calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
+        paramName: 'cdnCanonicalDomain',
+        nameChain,
+        paramValue: GetAtt(
+          cfLogicalNames.cloudfrontDistribution(
+            (isCompositeWebResourceType(definition.configParentResourceType)
+              ? configManager.findImmediateParent({ nameChain })
+              : definition
+            ).name,
+            0
+          ),
+          'DomainName'
+        ),
+        showDuringPrint: false
+      });
+      calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
+        paramName: 'cdnCanonicalUrl',
+        nameChain,
+        paramValue: Join('', [
+          'https://',
+          GetAtt(
+            cfLogicalNames.cloudfrontDistribution(
+              (isCompositeWebResourceType(definition.configParentResourceType)
+                ? configManager.findImmediateParent({ nameChain })
+                : definition
+              ).name,
+              0
+            ),
+            'DomainName'
+          )
+        ]),
+        showDuringPrint: false
+      });
     } else {
       const cloudfrontDistributions = Object.values(getCloudfrontDistributionConfigs(definition));
       const allCustomCdnDomains: string[] = [];
@@ -392,6 +425,29 @@ export const resolveBucket = ({ definition }: { definition: StpBucket }) => {
             )
           ),
           showDuringPrint: cloudfrontDistributions.some(({ disableDns }) => disableDns)
+        });
+        calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
+          paramName: 'cdnCanonicalUrl',
+          nameChain,
+          paramValue: Join(
+            ',',
+            cloudfrontDistributions.map((_, idx) =>
+              Join('', [
+                'https://',
+                GetAtt(
+                  cfLogicalNames.cloudfrontDistribution(
+                    (isCompositeWebResourceType(definition.configParentResourceType)
+                      ? configManager.findImmediateParent({ nameChain })
+                      : definition
+                    ).name,
+                    idx
+                  ),
+                  'DomainName'
+                )
+              ])
+            )
+          ),
+          showDuringPrint: false
         });
       }
     }

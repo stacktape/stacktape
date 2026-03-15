@@ -418,6 +418,18 @@ export const resolveApplicationLoadBalancer = ({ definition }: { definition: Stp
         paramValue: cdnDefaultDomainName,
         showDuringPrint: false
       });
+      calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
+        paramName: 'cdnCanonicalDomain',
+        nameChain,
+        paramValue: GetAtt(cfLogicalNames.cloudfrontDistribution(name, 0), 'DomainName'),
+        showDuringPrint: false
+      });
+      calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
+        paramName: 'cdnCanonicalUrl',
+        nameChain,
+        paramValue: Join('', ['https://', GetAtt(cfLogicalNames.cloudfrontDistribution(name, 0), 'DomainName')]),
+        showDuringPrint: false
+      });
     } else {
       const cloudfrontDistributions = Object.values(getCloudfrontDistributionConfigs(finalDefinition));
       const allCustomCdnDomains: string[] = [];
@@ -461,6 +473,12 @@ export const resolveApplicationLoadBalancer = ({ definition }: { definition: Stp
           showDuringPrint: false
         });
         calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
+          paramName: 'cdnDomain',
+          nameChain,
+          paramValue: GetAtt(cfLogicalNames.cloudfrontDistribution(name, 0), 'DomainName'),
+          showDuringPrint: false
+        });
+        calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
           paramName: 'cdnCanonicalDomain',
           nameChain,
           paramValue: Join(
@@ -470,6 +488,17 @@ export const resolveApplicationLoadBalancer = ({ definition }: { definition: Stp
             )
           ),
           showDuringPrint: cloudfrontDistributions.some(({ disableDns }) => disableDns)
+        });
+        calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
+          paramName: 'cdnCanonicalUrl',
+          nameChain,
+          paramValue: Join(
+            ',',
+            cloudfrontDistributions.map((_, idx) =>
+              Join('', ['https://', GetAtt(cfLogicalNames.cloudfrontDistribution(name, idx), 'DomainName')])
+            )
+          ),
+          showDuringPrint: false
         });
       }
     }

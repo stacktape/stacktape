@@ -473,4 +473,10 @@ interface ForwardQueryString {
   whitelist?: string[];
 }
 
-type CdnReferenceableParam = 'cdnDomain' | 'cdnCustomDomains' | 'cdnUrl' | 'cdnCustomDomainUrls' | 'cdnCanonicalDomain';
+type CdnReferenceableParam =
+  | 'cdnDomain'
+  | 'cdnCustomDomains'
+  | 'cdnUrl'
+  | 'cdnCustomDomainUrls'
+  | 'cdnCanonicalDomain'
+  | 'cdnCanonicalUrl';
