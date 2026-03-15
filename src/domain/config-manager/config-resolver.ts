@@ -6,7 +6,7 @@ import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-ap
 import { supportedCodeConfigLanguages } from '@config';
 import { stpErrors } from '@errors';
 import { getFileExtension } from '@shared/utils/fs-utils';
-import { isNonNullObject, processAllNodes, replaceAll, serialize, traverseToMaximalExtent } from '@shared/utils/misc';
+import { isNonNullObject, processAllNodes, serialize, traverseToMaximalExtent } from '@shared/utils/misc';
 import { parseYaml } from '@shared/utils/yaml';
 import { Stack } from '@utils/collections';
 import {
@@ -577,31 +577,40 @@ export class ConfigResolver {
     }
   };
 
-  replaceDirectiveStringsWithResults = (obj: any) => {
-    let result;
-    try {
-      result = JSON.stringify(obj);
-      for (const rawDefinition in this.resultsWithPath) {
-        const value = this.resultsWithPath[rawDefinition];
-        if (value === undefined && value === null) {
-          throw new ExpectedError('DIRECTIVE', `Directive ${rawDefinition} did not return a value.`);
-        }
-        result = replaceAll(
-          `"${rawDefinition}"`,
-          value !== undefined && value !== null ? JSON.stringify(value) : null,
-          result
-        );
+  replaceDirectiveNodesWithResults = async (obj: any) => {
+    return processAllNodes(obj, async (node) => {
+      if (!getIsDirective(node)) {
+        return node;
       }
-      // @todo This can fail sometimes, for some reason, with this error (from receipts)
-      // Error: SyntaxError: Unexpected token { in JSON at position 88169
-      result = JSON.parse(result);
-    } catch {
-      throw new ExpectedError(
-        'DIRECTIVE',
-        'Failed to process directives. You might be using directive as an object key. This behavior is not supported.'
-      );
-    }
-    return result;
+
+      if (!(node in this.resultsWithPath)) {
+        return node;
+      }
+
+      const value = this.resultsWithPath[node];
+      if (value === undefined || value === null) {
+        throw new ExpectedError('DIRECTIVE', `Directive ${node} did not return a value.`);
+      }
+
+      return serialize(value);
+    });
+  };
+
+  collectRemainingDirectives = async ({ obj, resolveRuntime }: { obj: any; resolveRuntime: boolean }) => {
+    const foundDirectives = new Set<string>();
+
+    await processAllNodes(obj, async (node) => {
+      if (getIsDirective(node)) {
+        const directiveInfo = this.getDirectiveInfo(node);
+        if (!directiveInfo.isRuntime || resolveRuntime) {
+          foundDirectives.add(node);
+        }
+      }
+
+      return node;
+    });
+
+    return Array.from(foundDirectives);
   };
 
   resolveDirectives = async <T>({
@@ -621,21 +630,21 @@ export class ConfigResolver {
       await this.enqueueUnresolvedUsedDirectives({ obj: result, resolveRuntime });
     }
 
-    let isFirstRun = true;
-    while (this.directivesToProcess.length) {
-      if (!isFirstRun) {
+    let shouldScanResolvedResult = false;
+    while (this.directivesToProcess.length || shouldScanResolvedResult) {
+      if (shouldScanResolvedResult) {
         await this.enqueueUnresolvedUsedDirectives({ obj: result, resolveRuntime });
       }
       await this.processDirectives({ resolveRuntime, useLocalResolve });
       try {
-        result = this.replaceDirectiveStringsWithResults(result);
+        result = await this.replaceDirectiveNodesWithResults(result);
       } catch {
         throw new ExpectedError(
           'DIRECTIVE',
           'Failed to process directives. One of the directives probably returned an invalid value.'
         );
       }
-      isFirstRun = false;
+      shouldScanResolvedResult = (await this.collectRemainingDirectives({ obj: result, resolveRuntime })).length > 0;
     }
     return result;
   };

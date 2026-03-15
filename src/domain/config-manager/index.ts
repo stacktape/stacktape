@@ -202,14 +202,7 @@ export class ConfigManager {
     resolveRuntime: boolean;
     useLocalResolve?: boolean;
   }): Promise<T> => {
-    // we are doubling resolving
-    // this is due to fact that $ResourceParam directive can output $Secret directive which is somehow then not resolved
-    // doubling resolving should not be much slower (few ms tops), however this is only workaround and should be resolved properly.
-    const firstResolve = await this.configResolver.resolveDirectives(params);
-
-    const second = await this.configResolver.resolveDirectives({ ...params, itemToResolve: firstResolve });
-
-    return second as T;
+    return this.configResolver.resolveDirectives(params);
   };
 
   invalidatePotentiallyChangedDirectiveResults = () => {
