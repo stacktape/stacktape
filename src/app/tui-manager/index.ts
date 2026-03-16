@@ -366,19 +366,13 @@ class TuiManager {
 
     write(kleur.gray(`  Total: ${elapsed}`));
 
-    const outputLines: string[] = [];
-    for (const phase of phases) {
-      for (const event of phase.events) {
-        if (event.outputLines && event.outputLines.length > 0) {
-          outputLines.push(...event.outputLines);
-        }
-      }
-    }
-    if (outputLines.length > 0) {
+    const eventsWithOutput = phases.flatMap((p) => p.events.filter((e) => e.outputLines && e.outputLines.length > 0));
+    for (const event of eventsWithOutput) {
       write(kleur.gray('─'.repeat(54)));
-      write(kleur.bold('Output:'));
-      for (const line of outputLines) {
-        write(line);
+      const label = event.description || event.eventType;
+      write(`  ${kleur.cyan('▸')} ${kleur.bold(label)}`);
+      for (const line of event.outputLines!) {
+        if (line.trim()) write(`    ${line}`);
       }
     }
 
