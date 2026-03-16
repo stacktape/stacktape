@@ -106,12 +106,14 @@ export class TemplateManager {
     this.addStackOutput({
       cfOutputName: outputNames.deploymentVersion(),
       value: stackManager.nextVersion,
-      description: 'Version of this stack deployed by Stacktape'
+      description: 'Version of this stack deployed by Stacktape',
+      overwriteExisting: true
     });
     this.addStackOutput({
       cfOutputName: outputNames.stackInfoMap(),
       value: await calculatedStackOverviewManager.getSubstitutedStackInfoMap(),
-      description: 'Overview of stack resources, outputs and metadata'
+      description: 'Overview of stack resources, outputs and metadata',
+      overwriteExisting: true
     });
     // replace code configuration with actual config
     this.template = await configManager.resolveDirectives<CloudformationTemplate>({
@@ -294,18 +296,24 @@ export class TemplateManager {
     cfOutputName,
     value,
     description,
-    exportOutput
+    exportOutput,
+    overwriteExisting = false
   }: {
     cfOutputName: string;
     value: string | number | boolean | IntrinsicFunction;
     description?: string;
     exportOutput?: boolean;
+    overwriteExisting?: boolean;
   }) => {
     let Value: any = value.toString ? value.toString() : value;
     if (Value === '[object Object]') {
       Value = value.valueOf();
     }
-    validateStackOutput(cfOutputName, this.template, Value);
+
+    if (!overwriteExisting) {
+      validateStackOutput(cfOutputName, this.template, Value);
+    }
+
     const output = {
       Value,
       ...(description ? { Description: description } : {}),
