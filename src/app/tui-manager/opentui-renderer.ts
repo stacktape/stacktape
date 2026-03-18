@@ -44,7 +44,7 @@ export const createOpenTuiApp = async (
     exitOnCtrlC: false,
     useAlternateScreen: true,
     useMouse: options?.useMouse ?? false,
-    targetFps: 30,
+    targetFps: 60,
     exitSignals: []
   });
   tuiDebug('RENDERER', 'render() called');

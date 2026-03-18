@@ -30,6 +30,11 @@ const createInitialState = (): DevTuiState => ({
   logs: [],
   maxLogs: DEFAULT_MAX_LOGS,
   selectedLogFilter: null,
+  textFilter: '',
+  filterInputActive: false,
+  filterMode: false,
+  rebuildPickerActive: false,
+  sidebarMode: 'normal',
   sidebarVisible: true,
   isQuitting: false,
   inputBuffer: '',
@@ -376,16 +381,59 @@ class DevTuiStateManager {
 
   setLogFilter(filter: string | null) {
     if (Object.is(this.state.selectedLogFilter, filter)) return;
-    this.setState({ selectedLogFilter: filter });
+    this.setState({ selectedLogFilter: filter, filterMode: false });
+  }
+
+  setFilterMode(enabled: boolean) {
+    if (Object.is(this.state.filterMode, enabled)) return;
+    this.setState({ filterMode: enabled });
+  }
+
+  setTextFilter(filter: string) {
+    if (Object.is(this.state.textFilter, filter)) return;
+    this.setState({ textFilter: filter });
+  }
+
+  setFilterInputActive(active: boolean) {
+    if (Object.is(this.state.filterInputActive, active)) return;
+    this.setState({ filterInputActive: active });
+  }
+
+  openFilterInput() {
+    this.setState({ filterInputActive: true });
+  }
+
+  closeFilterInput() {
+    this.setState({ filterInputActive: false });
+  }
+
+  clearAllFilters() {
+    this.setState({ selectedLogFilter: null, textFilter: '', filterInputActive: false, filterMode: false });
+  }
+
+  setRebuildPickerActive(active: boolean) {
+    if (Object.is(this.state.rebuildPickerActive, active)) return;
+    this.setState({ rebuildPickerActive: active });
   }
 
   setSidebarVisible(visible: boolean) {
     if (Object.is(this.state.sidebarVisible, visible)) return;
-    this.setState({ sidebarVisible: visible });
+    this.setState({ sidebarVisible: visible, sidebarMode: visible ? 'normal' : 'collapsed' });
   }
 
   toggleSidebar() {
-    this.setState({ sidebarVisible: !this.state.sidebarVisible });
+    const cycle: Record<string, 'normal' | 'collapsed' | 'fullscreen'> = {
+      normal: 'collapsed',
+      collapsed: 'fullscreen',
+      fullscreen: 'normal'
+    };
+    const next = cycle[this.state.sidebarMode] || 'normal';
+    this.setState({ sidebarMode: next, sidebarVisible: next !== 'collapsed' });
+  }
+
+  setSidebarMode(mode: 'normal' | 'collapsed' | 'fullscreen') {
+    if (Object.is(this.state.sidebarMode, mode)) return;
+    this.setState({ sidebarMode: mode, sidebarVisible: mode !== 'collapsed' });
   }
 
   setQuitting(isQuitting: boolean) {

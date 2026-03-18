@@ -1,5 +1,7 @@
 export type DevPhase = 'startup' | 'running' | 'rebuilding';
 
+export type SidebarMode = 'normal' | 'collapsed' | 'fullscreen';
+
 export type DevModeType = 'normal' | 'legacy';
 
 export type ResourceStatus = 'pending' | 'starting' | 'running' | 'error' | 'stopped';
@@ -85,6 +87,11 @@ export type DevTuiState = {
   maxLogs: number;
 
   selectedLogFilter: string | null;
+  textFilter: string;
+  filterInputActive: boolean;
+  filterMode: boolean;
+  rebuildPickerActive: boolean;
+  sidebarMode: SidebarMode;
   sidebarVisible: boolean;
   isQuitting: boolean;
   inputBuffer: string;

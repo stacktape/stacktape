@@ -47,7 +47,7 @@ class DevTuiRenderer {
     if (this.renderer) return;
 
     const { render, useRenderer } = await import('@opentui/solid');
-    const { DevDashboard } = await import('../components/dev/dev-dashboard');
+    const { DevDashboard } = await import('../routes/dev/dev-dashboard');
 
     const rebuildHandler = this.rebuildHandler;
     const quitHandler = this.quitHandler;
@@ -89,7 +89,7 @@ class DevTuiRenderer {
       exitOnCtrlC: false,
       useAlternateScreen: true,
       useMouse: true,
-      targetFps: 30,
+      targetFps: 60,
       exitSignals: []
     });
 
