@@ -163,7 +163,7 @@ class TuiManager {
     this._openTuiInitPromise = import('./opentui-renderer')
       .then(async ({ createOpenTuiApp }) => {
         tuiDebug('TUI', 'startOpenTui() imports resolved');
-        const { DeployDashboard } = await import('./components/deploy/deploy-dashboard');
+        const { DeployDashboard } = await import('./routes/deploy/deploy-dashboard');
         const onQuit = () => {
           tuiDebug('TUI', 'onQuit callback fired');
           setTimeout(() => this.stopAndPrintSummary(), 0);
