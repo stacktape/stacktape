@@ -19,6 +19,12 @@ export const createStacktapeOpenTuiBuildPlugin = (): BunPlugin => {
         return { contents: code, loader: 'js' };
       });
 
+      build.onLoad({ filter: /[\\/]node_modules[\\/]solid-js[\\/]web[\\/]dist[\\/]server\.js$/ }, async (args) => {
+        const path = args.path.replace('server.js', 'web.js');
+        const code = await Bun.file(path).text();
+        return { contents: code, loader: 'js' };
+      });
+
       build.onLoad({ filter: /\.(ts|js)x$/ }, async (args) => {
         if (args.path.includes('node_modules')) {
           return undefined;

@@ -58,7 +58,6 @@ const buildSource = async () => {
     entrypoints: [CLI_SOURCE_PATH],
     outdir: DEV_TMP_FOLDER_PATH,
     target: 'bun',
-    conditions: ['browser'],
     minify: false,
     sourcemap: 'inline',
     bytecode: false,

@@ -3,7 +3,7 @@
   "mcp": {
     "playwright": {
       "type": "local",
-      "command": ["npx", "-y", "@executeautomation/playwright-mcp-server"],
+      "command": ["bunx", "-y", "@executeautomation/playwright-mcp-server"],
       "enabled": false
     },
     "context7": {
@@ -15,5 +15,5 @@
       "enabled": true
     }
   },
-  "plugin": ["opencode-anthropic-auth@latest"]
+  "plugin": ["opencode-claude-auth"]
 }

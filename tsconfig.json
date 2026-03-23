@@ -3,7 +3,7 @@
     "target": "ES6",
     "jsx": "preserve",
     "jsxImportSource": "@opentui/solid",
-    "customConditions": ["browser"],
+
     "lib": ["es2021"],
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
