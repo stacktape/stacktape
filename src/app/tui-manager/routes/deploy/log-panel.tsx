@@ -36,13 +36,13 @@ export const LogPanel = () => {
     [...messagesToEntries(messages()), ...warningsToEntries(warnings())].sort((a, b) => a.timestamp - b.timestamp);
 
   return (
-    <box flexDirection="column" borderStyle="single" borderColor={theme.border} height="40%" minHeight={5} paddingX={1}>
+    <box flexDirection="column" borderStyle="single" borderColor={theme.border} height="40%" minHeight={6} paddingX={1}>
       <box height={1}>
         <text fg={theme.muted}>
           <b>Log</b>
         </text>
       </box>
-      <scrollbox flexGrow={1} stickyScroll={true}>
+      <scrollbox flexGrow={1} stickyScroll={true} focused={true}>
         <Show when={entries().length > 0} fallback={<text fg={theme.dim}>No log entries yet</text>}>
           <For each={entries()}>
             {(entry) => <LogRow timestamp={entry.timestamp} message={entry.text} color={entry.color} />}

@@ -140,6 +140,29 @@ const CancelConfirmOverlay = (props: { onConfirm: () => void; onDismiss: () => v
   );
 };
 
+const FailureBanner = () => {
+  const { theme } = useTheme();
+  const cancelDeployment = createTuiSignal((s) => s.cancelDeployment);
+
+  return (
+    <Show when={cancelDeployment()?.message}>
+      {(message) => (
+        <box height={2} paddingX={1} flexShrink={0}>
+          <text flexShrink={0} wrapMode="none" fg={theme.warning}>
+            {'▲ '}
+          </text>
+          <text fg={theme.warning}>{message()}</text>
+          <text fg={theme.dim}>{' Press '}</text>
+          <text fg={theme.muted}>
+            <b>c</b>
+          </text>
+          <text fg={theme.dim}>{' to cancel and rollback now.'}</text>
+        </box>
+      )}
+    </Show>
+  );
+};
+
 const DashboardInner = (props: Pick<DashboardProps, 'onQuit' | 'onCancel'>) => {
   const [showCancelConfirm, setShowCancelConfirm] = createSignal(false);
   const isComplete = createTuiSignal((s) => s.isComplete);
@@ -197,6 +220,7 @@ const DashboardInner = (props: Pick<DashboardProps, 'onQuit' | 'onCancel'>) => {
         <LogPanel />
       </Show>
       <PromptOverlay />
+      <FailureBanner />
       <Footer isCancelling={!!isCancelling()} />
       <Show when={showCancelConfirm()}>
         <CancelConfirmOverlay onConfirm={handleCancelConfirm} onDismiss={handleCancelDismiss} />

@@ -13,7 +13,7 @@ export const commandLogin = async () => {
     // Run interactive auth flow (Google, email signup, email login, or manual API key)
     const authResult = await runAuthFlow();
     if (!authResult.success || !authResult.apiKey) {
-      tuiManager.outro('Login cancelled.');
+      tuiManager.error(authResult.error || 'Authentication failed');
       return;
     }
     apiKey = authResult.apiKey;

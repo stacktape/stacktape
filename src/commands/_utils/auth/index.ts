@@ -155,8 +155,7 @@ const getApiKeyFromByExchangingIdToken = async (idToken: string): Promise<AuthRe
   const exchangeResult = await publicApiClient.exchangeTokenForApiKey({ idToken });
 
   if (!exchangeResult.success || !exchangeResult.apiKeys[0]) {
-    tuiManager.outro('Authentication failed. No API key found.');
-    return { success: false, error: exchangeResult.error || 'Failed to get API key' };
+    return { success: false, error: exchangeResult.error || 'Authentication failed. No API key found.' };
   }
 
   if (exchangeResult.apiKeys.length > 1) {

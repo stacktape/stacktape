@@ -171,7 +171,9 @@ class TuiManager {
         const onCancel = () => {
           tuiDebug('TUI', 'onCancel callback fired');
           setTimeout(async () => {
+            const state = tuiState.getSnapshot();
             await this.destroyOpenTui();
+            this.printExitSummary(state);
             process.emit('SIGINT', 'SIGINT');
           }, 0);
         };
@@ -231,9 +233,7 @@ class TuiManager {
     const state = tuiState.getSnapshot();
     await this.destroyOpenTui();
 
-    if (state.summary) {
-      this.printPlainSummary(state);
-    }
+    this.printExitSummary(state);
   }
 
   private _openTuiDestroyed = false;
@@ -307,77 +307,139 @@ class TuiManager {
     tuiDebug('TUI', 'destroyOpenTui() complete');
   }
 
-  private printPlainSummary(state: ReturnType<typeof tuiState.getSnapshot>) {
-    const { summary, header, phases, startTime } = state;
-    tuiDebug('TUI', 'printPlainSummary()', { hasSummary: !!summary, success: summary?.success, mode: this.outputMode });
-    if (!summary) return;
-    // In JSONL mode, the result is emitted as structured JSON by emitJsonlResult().
-    // Plain-text summary must not leak into the JSONL output stream.
+  /**
+   * Prints a plain-text summary to stdout after the TUI is destroyed.
+   *
+   * Infers what happened from the state shape — no explicit `reason` parameter needed.
+   * All TUI exit paths (quit, cancel, error, stop) call this single method.
+   *
+   * Decision tree:
+   *   state.summary exists        → full detailed summary (success or failure)
+   *   state.cancelDeployment set  → cancellation summary with phase progress
+   *   phases started but no summary → interrupted summary
+   *   nothing meaningful          → no output
+   */
+  private printExitSummary(state: ReturnType<typeof tuiState.getSnapshot>) {
+    // In JSONL mode, results are emitted as structured JSON by emitJsonlResult().
     if (this.outputMode === 'jsonl') return;
 
-    const elapsed = formatDuration(Date.now() - startTime);
-    const icon = summary.success ? kleur.green('✓') : kleur.red('✗');
-    const headerText = header ? `${header.projectName} → ${header.stageName} (${header.region})` : '';
-
-    // Write directly to stdout to bypass any console interception that may still be active
-    // (or was incorrectly restored). console.info goes through the interceptor chain which
-    // can silently swallow output if the TUI was destroyed mid-stream.
+    // Write directly to stdout to bypass any console interception that may still be active.
     const write = (msg: string) => {
       try {
         process.stdout.write(`${msg}\n`);
       } catch {}
     };
 
-    write('');
-    write(`${icon} ${kleur.bold(summary.message)}`);
-    if (headerText) write(kleur.gray(headerText));
+    const { summary, header, phases, startTime } = state;
+    const elapsed = formatDuration(Date.now() - startTime);
+    const headerText = header ? `${header.projectName} → ${header.stageName} (${header.region})` : '';
+    const action = header?.action === 'DELETING' ? 'Deletion' : 'Deployment';
 
-    const phaseSummary = phases
-      .filter((p) => p.status === 'success' || p.status === 'error')
-      .map((p) => {
-        const pIcon = p.status === 'success' ? kleur.green('✓') : kleur.red('✗');
-        const dur = p.duration ? kleur.gray(` ${formatDuration(p.duration)}`) : '';
-        return `  ${pIcon} ${p.name}${dur}`;
-      });
+    // ── Full summary available (success or failure with details) ─────────
+    if (summary) {
+      tuiDebug('TUI', 'printExitSummary() — full summary', { success: summary.success });
+      const icon = summary.success ? kleur.green('✓') : kleur.red('✗');
 
-    if (phaseSummary.length > 0) {
-      write(kleur.gray('─'.repeat(54)));
-      for (const line of phaseSummary) {
-        write(line);
+      write('');
+      write(`${icon} ${kleur.bold(summary.message)}`);
+      if (headerText) write(kleur.gray(headerText));
+
+      this.printPhaseLines(write, phases);
+
+      if (summary.links.length > 0) {
+        write(kleur.gray('─'.repeat(54)));
+        for (const link of summary.links) {
+          write(
+            `  ${kleur.cyan('•')} ${link.label}: ${kleur.blue(terminalLink(link.url, link.url, { fallback: (text: string) => text }))}`
+          );
+        }
       }
-    }
 
-    if (summary.links.length > 0) {
-      write(kleur.gray('─'.repeat(54)));
-      for (const link of summary.links) {
-        // fallback: (text) => text prevents terminal-link from appending the URL
-        // a second time when OSC 8 hyperlinks are not supported by the terminal.
+      if (summary.consoleUrl) {
         write(
-          `  ${kleur.cyan('•')} ${link.label}: ${kleur.blue(terminalLink(link.url, link.url, { fallback: (text: string) => text }))}`
+          `  ${kleur.cyan('•')} Stack details: ${kleur.blue(terminalLink(summary.consoleUrl, summary.consoleUrl, { fallback: (text: string) => text }))}`
         );
       }
-    }
 
-    if (summary.consoleUrl) {
-      write(
-        `  ${kleur.cyan('•')} Stack details: ${kleur.blue(terminalLink(summary.consoleUrl, summary.consoleUrl, { fallback: (text: string) => text }))}`
-      );
-    }
+      write(kleur.gray(`  Total: ${elapsed}`));
 
-    write(kleur.gray(`  Total: ${elapsed}`));
-
-    const eventsWithOutput = phases.flatMap((p) => p.events.filter((e) => e.outputLines && e.outputLines.length > 0));
-    for (const event of eventsWithOutput) {
-      write(kleur.gray('─'.repeat(54)));
-      const label = event.description || event.eventType;
-      write(`  ${kleur.cyan('▸')} ${kleur.bold(label)}`);
-      for (const line of event.outputLines!) {
-        if (line.trim()) write(`    ${line}`);
+      const eventsWithOutput = phases.flatMap((p) => p.events.filter((e) => e.outputLines && e.outputLines.length > 0));
+      for (const event of eventsWithOutput) {
+        write(kleur.gray('─'.repeat(54)));
+        const label = event.description || event.eventType;
+        write(`  ${kleur.cyan('▸')} ${kleur.bold(label)}`);
+        for (const line of event.outputLines!) {
+          if (line.trim()) write(`    ${line}`);
+        }
       }
+
+      write('');
+      tuiDebug('TUI', 'printExitSummary() complete — full summary');
+      return;
     }
 
-    write('');
-    tuiDebug('TUI', 'printPlainSummary() complete');
+    const hasErroredPhase = phases.some((p) => p.status === 'error');
+    const hasRunningPhase = phases.some((p) => p.status === 'running');
+    const wasCancelled = !!state.cancelDeployment;
+
+    // ── Error: a phase failed (CF rollback, startup failure, etc.) ───────
+    if (hasErroredPhase || (hasRunningPhase && !wasCancelled)) {
+      tuiDebug('TUI', 'printExitSummary() — error');
+
+      write('');
+      write(`${kleur.red('✗')} ${kleur.bold(`${action} failed`)}`);
+      if (headerText) write(kleur.gray(headerText));
+
+      this.printPhaseLines(write, phases);
+
+      const runningPhase = phases.find((p) => p.status === 'running');
+      if (runningPhase) {
+        write(`  ${kleur.red('✗')} ${runningPhase.name} ${kleur.gray('(failed)')}`);
+      }
+
+      write(kleur.gray(`  Elapsed: ${elapsed}`));
+      write('');
+      return;
+    }
+
+    // ── Cancelled: user pressed c → confirmed, or Ctrl+C during deploy ──
+    if (wasCancelled || hasRunningPhase) {
+      tuiDebug('TUI', 'printExitSummary() — cancelled');
+      const isCancelling = state.cancelDeployment?.isCancelling;
+
+      write('');
+      write(
+        `${kleur.yellow('▲')} ${kleur.bold(isCancelling ? `${action} cancelled — rolling back` : `${action} cancelled`)}`
+      );
+      if (headerText) write(kleur.gray(headerText));
+
+      this.printPhaseLines(write, phases);
+
+      const runningPhase = phases.find((p) => p.status === 'running');
+      if (runningPhase) {
+        write(`  ${kleur.yellow('▲')} ${runningPhase.name} ${kleur.gray('(interrupted)')}`);
+      }
+
+      write(kleur.gray(`  Elapsed: ${elapsed}`));
+      write('');
+      return;
+    }
+
+    // ── No summary, no running phases — nothing meaningful to print ──────
+    tuiDebug('TUI', 'printExitSummary() — nothing to print');
+  }
+
+  /** Prints completed/errored phase lines. Shared between summary and cancellation output. */
+  private printPhaseLines(write: (msg: string) => void, phases: ReturnType<typeof tuiState.getSnapshot>['phases']) {
+    const finishedPhases = phases.filter((p) => p.status === 'success' || p.status === 'error');
+    if (finishedPhases.length === 0) return;
+
+    write(kleur.gray('─'.repeat(54)));
+    for (const p of finishedPhases) {
+      const pIcon = p.status === 'success' ? kleur.green('✓') : kleur.red('✗');
+      const dur = p.duration ? kleur.gray(` ${formatDuration(p.duration)}`) : '';
+      write(`  ${pIcon} ${p.name}${dur}`);
+    }
   }
 
   async stop() {
@@ -411,9 +473,7 @@ class TuiManager {
     // but still forcibly exit alternate screen (belt-and-suspenders in destroyOpenTui)
     this.destroyOpenTui();
 
-    if (state.summary) {
-      this.printPlainSummary(state);
-    }
+    this.printExitSummary(state);
   }
 
   private async stopInternal() {
@@ -421,9 +481,7 @@ class TuiManager {
     const state = tuiState.getSnapshot();
     await this.destroyOpenTui();
 
-    if (state.summary) {
-      this.printPlainSummary(state);
-    }
+    this.printExitSummary(state);
   }
 
   private reconfigureConsoleForMode() {
