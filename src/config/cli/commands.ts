@@ -64,7 +64,6 @@ import {
   startTime,
   templateId,
   universalArgs,
-  useAi,
   watch,
   secretName,
   secretValue,
@@ -490,7 +489,6 @@ By default, runs an interactive wizard that:
 
 Alternative modes:
 - **Starter project:** Use \`--starterProject\` or \`--starterId\` to initialize from a pre-configured template.
-- **Legacy AI-only:** Use \`--useAi\` for just the AI config generation without the full wizard.
 - **Template:** Use \`--templateId\` to fetch a template from the Stacktape console.`,
     args: {
       logLevel: logLevel.optional(),
@@ -502,7 +500,6 @@ Alternative modes:
       templateId: templateId.optional(),
       initializeProjectTo: initializeProjectTo.optional(),
       configFormat: configFormat.optional(),
-      useAi: useAi.optional(),
       infrastructureType: infrastructureType.optional()
     },
     requiredArgs: [] as const

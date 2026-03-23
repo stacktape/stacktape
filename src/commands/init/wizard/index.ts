@@ -3,7 +3,7 @@ import { execSync } from 'node:child_process';
 import { stringify } from 'yaml';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
-import { configGenManager, getPhaseDisplayName, type ConfigGenPhaseInfo } from '@utils/config-gen';
+import { configGenManager, ConfigGenError, getPhaseDisplayName, type ConfigGenPhaseInfo } from '@utils/config-gen';
 import { getLockFileData } from '@shared/packaging/bundlers/es/utils';
 import {
   publicApiClient,
@@ -121,26 +121,23 @@ export const runInitWizard = async (): Promise<void> => {
     await installStacktapePackage(cwd);
   }
 
-  // Run AI config generation with per-phase spinners
-  try {
-    const result = await runConfigGenerationWithSteps(state.infrastructureType);
-    state.config = result.config;
-    state.deployableUnits = result.deployableUnits;
-    state.requiredResources = result.requiredResources;
+  // Run AI config generation with retry support
+  const genResult = await runConfigGenerationWithRetry(state.infrastructureType);
+  if (!genResult) return;
 
-    tuiManager.info(
-      `${color.dim('Analyzed')} ${tuiManager.makeBold(String(result.summary.selectedFiles))} ${color.dim(
-        'selected files'
-      )}${
-        result.summary.totalFilesScanned > 0
-          ? ` ${color.dim(`(from ${result.summary.totalFilesScanned} scanned)`)}`
-          : ''
-      }`
-    );
-  } catch (error) {
-    tuiManager.warn(`Config generation failed: ${error instanceof Error ? error.message : error}`);
-    return;
-  }
+  state.config = genResult.config;
+  state.deployableUnits = genResult.deployableUnits;
+  state.requiredResources = genResult.requiredResources;
+
+  tuiManager.info(
+    `${color.dim('Analyzed')} ${tuiManager.makeBold(String(genResult.summary.selectedFiles))} ${color.dim(
+      'selected files'
+    )}${
+      genResult.summary.totalFilesScanned > 0
+        ? ` ${color.dim(`(from ${genResult.summary.totalFilesScanned} scanned)`)}`
+        : ''
+    }`
+  );
 
   // Estimate costs, write config, then display everything in one box
   const costEstimation = await fetchCostEstimate(state.config!);
@@ -149,6 +146,54 @@ export const runInitWizard = async (): Promise<void> => {
   const relativeConfigPath = relative(process.cwd(), state.configPath) || state.configPath;
 
   displayResult(state, costEstimation, relativeConfigPath);
+};
+
+const MAX_RETRIES = 2;
+
+const runConfigGenerationWithRetry = async (productionReadiness?: ProductionReadiness) => {
+  let attempt = 0;
+
+  while (attempt <= MAX_RETRIES) {
+    try {
+      return await runConfigGenerationWithSteps(productionReadiness);
+    } catch (error) {
+      const isConfigGenError = error instanceof ConfigGenError;
+      const retryable = isConfigGenError && error.retryable;
+      const isTTY = process.stdout.isTTY;
+
+      // Non-retryable errors (cancelled, empty project) - fail immediately
+      if (isConfigGenError && !retryable) {
+        if (error.code === 'EMPTY_PROJECT') {
+          tuiManager.warn(
+            'No project files found. Make sure you are running this command from your project root directory.'
+          );
+        } else if (error.code !== 'CANCELLED') {
+          tuiManager.warn(error.message);
+        }
+        return null;
+      }
+
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      tuiManager.warn(errorMessage);
+
+      // Exhausted retries or non-interactive terminal
+      if (attempt >= MAX_RETRIES || !isTTY) {
+        tuiManager.warn('Config generation failed. Please try running the command again.');
+        return null;
+      }
+
+      // Prompt to retry
+      const shouldRetry = await tuiManager.promptConfirm({
+        message: 'Would you like to retry?',
+        defaultValue: true
+      });
+
+      if (!shouldRetry) return null;
+      attempt++;
+    }
+  }
+
+  return null;
 };
 
 const displayResult = (state: WizardState, costEstimation: StackPriceEstimationResponse | null, configPath: string) => {

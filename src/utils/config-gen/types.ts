@@ -30,3 +30,29 @@ export type ConfigGenResult = {
   deployableUnits: CliConfigGenDeployableUnit[];
   requiredResources: CliConfigGenRequiredResource[];
 };
+
+export type ConfigGenErrorCode = 'TIMEOUT' | 'NETWORK' | 'SERVER' | 'CANCELLED' | 'EMPTY_PROJECT' | 'UNKNOWN';
+
+export class ConfigGenError extends Error {
+  code: ConfigGenErrorCode;
+  phase?: string;
+  retryable: boolean;
+
+  constructor({
+    message,
+    code,
+    phase,
+    retryable
+  }: {
+    message: string;
+    code: ConfigGenErrorCode;
+    phase?: string;
+    retryable?: boolean;
+  }) {
+    super(message);
+    this.name = 'ConfigGenError';
+    this.code = code;
+    this.phase = phase;
+    this.retryable = retryable ?? (code === 'TIMEOUT' || code === 'NETWORK' || code === 'SERVER');
+  }
+}

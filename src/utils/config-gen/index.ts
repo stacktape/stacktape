@@ -5,6 +5,7 @@ import { writeFile, pathExists } from 'fs-extra';
 import { join } from 'node:path';
 import prettier from 'prettier';
 import type { ConfigGenProgressCallback, ConfigGenResult, ConfigGenPhaseInfo, ConfigGenOptions } from './types';
+import { ConfigGenError } from './types';
 import {
   listAllFilesInDirectory,
   getPrettyPrintedFiles,
@@ -15,12 +16,9 @@ import {
 export { DEFAULT_IGNORE_PATTERNS, getPrettyPrintedFiles, listAllFilesInDirectory, tryGetContentTruncated };
 export * from './types';
 
-// ============ Constants ============
-
 const POLL_INTERVAL_MS = 500;
-const MAX_POLL_ATTEMPTS = 120; // 60 seconds max
-
-// ============ Phase Messages ============
+const MAX_POLL_DURATION_MS = 3 * 60 * 1000; // 3 minutes
+const MAX_CONSECUTIVE_POLL_FAILURES = 5;
 
 const PHASE_MESSAGES: Record<string, string> = {
   FILE_SELECTION: 'Analyzing project structure...',
@@ -44,17 +42,29 @@ export const getPhaseDisplayName = (phase: string): string => {
   return PHASE_DISPLAY_NAMES[phase] || phase;
 };
 
-// ============ Config Gen Manager ============
+const isNetworkError = (error: unknown): boolean => {
+  if (error instanceof Error) {
+    const msg = error.message.toLowerCase();
+    return (
+      msg.includes('fetch') ||
+      msg.includes('network') ||
+      msg.includes('econnrefused') ||
+      msg.includes('econnreset') ||
+      msg.includes('enotfound') ||
+      msg.includes('etimedout') ||
+      msg.includes('abort') ||
+      msg.includes('socket')
+    );
+  }
+  return false;
+};
 
 export class ConfigGenManager {
   #sessionId: string | null = null;
   #cancelled = false;
   #workingDirectory: string = process.cwd();
+  #lastPhase: string | null = null;
 
-  /**
-   * Set the working directory for config generation.
-   * If not set, defaults to process.cwd().
-   */
   setWorkingDirectory(dir: string): void {
     this.#workingDirectory = dir;
   }
@@ -62,6 +72,7 @@ export class ConfigGenManager {
   async generate(onProgress?: ConfigGenProgressCallback, options?: ConfigGenOptions): Promise<ConfigGenResult> {
     const cwd = this.#workingDirectory;
     this.#cancelled = false;
+    this.#lastPhase = null;
 
     publicApiClient.init();
 
@@ -78,8 +89,15 @@ export class ConfigGenManager {
       '**/stacktape.ts'
     ]);
 
-    if (this.#cancelled) {
-      throw new Error('Config generation was cancelled');
+    this.#throwIfCancelled();
+
+    if (allFiles.length === 0) {
+      throw new ConfigGenError({
+        message: 'No project files found in the current directory',
+        code: 'EMPTY_PROJECT',
+        phase: 'FILE_SELECTION',
+        retryable: false
+      });
     }
 
     const fileTree = getPrettyPrintedFiles(allFiles);
@@ -90,19 +108,23 @@ export class ConfigGenManager {
       details: { totalFiles: allFiles.length }
     });
 
-    // Phase 2: Start server session (AI selects files)
-    const { sessionId, filesToRead } = await publicApiClient.startCliConfigGen({
-      fileTree,
-      allFiles,
-      productionReadiness: options?.productionReadiness
-    });
+    // Phase 2: Start server session (deterministic file selection)
+    let sessionId: string;
+    let filesToRead: string[];
+    try {
+      const response = await publicApiClient.startCliConfigGen({
+        fileTree,
+        allFiles,
+        productionReadiness: options?.productionReadiness
+      });
+      sessionId = response.sessionId;
+      filesToRead = response.filesToRead;
+    } catch (error) {
+      throw this.#wrapApiError(error, 'FILE_SELECTION');
+    }
 
     this.#sessionId = sessionId;
-
-    if (this.#cancelled) {
-      await this.cancel();
-      throw new Error('Config generation was cancelled');
-    }
+    this.#throwIfCancelled();
 
     this.#reportProgress(onProgress, {
       phase: 'WAITING_FOR_FILE_CONTENTS',
@@ -117,10 +139,7 @@ export class ConfigGenManager {
     // Phase 3: Read selected files locally
     const fileContents: Array<{ path: string; content: string }> = [];
     for (let i = 0; i < filesToRead.length; i++) {
-      if (this.#cancelled) {
-        await this.cancel();
-        throw new Error('Config generation was cancelled');
-      }
+      this.#throwIfCancelled();
 
       const filePath = filesToRead[i];
       const content = await tryGetContentTruncated(filePath, cwd);
@@ -143,40 +162,28 @@ export class ConfigGenManager {
       message: 'Analyzing deployment requirements...'
     });
 
-    await publicApiClient.submitCliConfigGenFiles({
-      sessionId,
-      files: fileContents
-    });
+    try {
+      await publicApiClient.submitCliConfigGenFiles({ sessionId, files: fileContents });
+    } catch (error) {
+      throw this.#wrapApiError(error, 'ANALYZING_DEPLOYMENTS');
+    }
 
     // Phase 5: Poll for result
-    const result = await this.#pollForResult(onProgress);
-
-    return result;
+    return this.#pollForResult(onProgress);
   }
 
-  /**
-   * Cancel the current config generation.
-   */
   async cancel(): Promise<void> {
     this.#cancelled = true;
     if (this.#sessionId) {
       try {
         await publicApiClient.cancelCliConfigGen(this.#sessionId);
       } catch {
-        // Ignore errors when cancelling
+        // Best-effort cancellation
       }
       this.#sessionId = null;
     }
   }
 
-  /**
-   * Write the generated config to a file.
-   *
-   * @param config - The Stacktape configuration
-   * @param format - Output format ('yaml' or 'typescript')
-   * @param outputPath - Optional custom output path
-   * @returns The path where the file was written
-   */
   async writeConfig(config: StacktapeConfig, format: 'yaml' | 'typescript', outputPath?: string): Promise<string> {
     const cwd = this.#workingDirectory;
 
@@ -185,10 +192,8 @@ export class ConfigGenManager {
 
     if (format === 'typescript') {
       filePath = outputPath || join(cwd, 'stacktape.ts');
-      // Convert config object to YAML first, then to TypeScript
       const yamlContent = stringifyToYaml(config);
       const tsContent = convertYamlToTypescript(yamlContent);
-      // Format with prettier
       content = await prettier.format(tsContent, { parser: 'typescript', printWidth: 120, singleQuote: true });
     } else {
       filePath = outputPath || join(cwd, 'stacktape.yml');
@@ -199,9 +204,6 @@ export class ConfigGenManager {
     return filePath;
   }
 
-  /**
-   * Check if a stacktape config file already exists.
-   */
   async configFileExists(): Promise<{ exists: boolean; path?: string }> {
     const cwd = this.#workingDirectory;
     const possiblePaths = [join(cwd, 'stacktape.yml'), join(cwd, 'stacktape.yaml'), join(cwd, 'stacktape.ts')];
@@ -218,22 +220,58 @@ export class ConfigGenManager {
   // ============ Private Methods ============
 
   #reportProgress(callback: ConfigGenProgressCallback | undefined, info: ConfigGenPhaseInfo): void {
+    this.#lastPhase = info.phase;
     if (callback) {
       callback(info);
     }
   }
 
-  async #pollForResult(onProgress?: ConfigGenProgressCallback): Promise<ConfigGenResult> {
-    let attempts = 0;
+  #throwIfCancelled(): void {
+    if (this.#cancelled) {
+      throw new ConfigGenError({ message: 'Config generation was cancelled', code: 'CANCELLED', retryable: false });
+    }
+  }
 
-    while (attempts < MAX_POLL_ATTEMPTS) {
-      if (this.#cancelled) {
-        throw new Error('Config generation was cancelled');
+  #wrapApiError(error: unknown, phase: string): ConfigGenError {
+    if (error instanceof ConfigGenError) return error;
+
+    if (isNetworkError(error)) {
+      return new ConfigGenError({
+        message: 'Could not reach the Stacktape API. Check your internet connection and try again.',
+        code: 'NETWORK',
+        phase
+      });
+    }
+
+    const rawMessage = error instanceof Error ? error.message : String(error);
+    return new ConfigGenError({
+      message: `Config generation failed during ${getPhaseDisplayName(phase).toLowerCase()}: ${rawMessage}`,
+      code: 'SERVER',
+      phase
+    });
+  }
+
+  async #pollForResult(onProgress?: ConfigGenProgressCallback): Promise<ConfigGenResult> {
+    const startTime = Date.now();
+    let consecutiveFailures = 0;
+
+    while (Date.now() - startTime < MAX_POLL_DURATION_MS) {
+      this.#throwIfCancelled();
+
+      let session;
+      try {
+        session = await publicApiClient.getCliConfigGenState(this.#sessionId!);
+        consecutiveFailures = 0;
+      } catch (error) {
+        consecutiveFailures++;
+        if (consecutiveFailures >= MAX_CONSECUTIVE_POLL_FAILURES) {
+          throw this.#wrapApiError(error, this.#lastPhase || 'ANALYZING_DEPLOYMENTS');
+        }
+        // Transient poll failure - wait and retry
+        await this.#sleep(POLL_INTERVAL_MS * 2);
+        continue;
       }
 
-      const session = await publicApiClient.getCliConfigGenState(this.#sessionId!);
-
-      // Update progress with available data
       const message = PHASE_MESSAGES[session.phase] || 'Processing...';
       this.#reportProgress(onProgress, {
         phase: session.phase,
@@ -244,10 +282,14 @@ export class ConfigGenManager {
         }
       });
 
-      // Check final states
       if (session.state === 'SUCCESS') {
         if (!session.data.config) {
-          throw new Error('Server returned success but no config was generated');
+          throw new ConfigGenError({
+            message:
+              'Analysis completed but no configuration was generated. The project structure may not be supported.',
+            code: 'SERVER',
+            phase: session.phase
+          });
         }
 
         return {
@@ -258,20 +300,47 @@ export class ConfigGenManager {
       }
 
       if (session.state === 'ERROR') {
-        const errorMessage = session.data.error?.message || 'Unknown error occurred during config generation';
-        throw new Error(errorMessage);
+        const serverMessage = session.data.error?.message || '';
+        throw new ConfigGenError({
+          message: this.#humanizeServerError(serverMessage, session.phase),
+          code: 'SERVER',
+          phase: session.phase
+        });
       }
 
       if (session.state === 'CANCELLED') {
-        throw new Error('Config generation was cancelled');
+        throw new ConfigGenError({ message: 'Config generation was cancelled', code: 'CANCELLED', retryable: false });
       }
 
-      // Wait before next poll
       await this.#sleep(POLL_INTERVAL_MS);
-      attempts++;
     }
 
-    throw new Error('Config generation timed out. Please try again.');
+    throw new ConfigGenError({
+      message:
+        'Config generation is taking too long. This usually means the AI analysis is overloaded - please try again.',
+      code: 'TIMEOUT',
+      phase: this.#lastPhase || 'ANALYZING_DEPLOYMENTS'
+    });
+  }
+
+  #humanizeServerError(serverMessage: string, phase: string): string {
+    const lower = serverMessage.toLowerCase();
+
+    if (lower.includes('lint') || lower.includes('todo_set')) {
+      return 'Generated configuration had validation issues. Please try again - results may vary between attempts.';
+    }
+    if (lower.includes('rate limit') || lower.includes('too many requests') || lower.includes('429')) {
+      return 'AI service is currently rate-limited. Please wait a moment and try again.';
+    }
+    if (lower.includes('timeout') || lower.includes('timed out')) {
+      return 'AI analysis timed out on the server. Please try again.';
+    }
+
+    if (!serverMessage) {
+      return `Config generation failed during ${getPhaseDisplayName(phase).toLowerCase()}. Please try again.`;
+    }
+
+    return `Config generation failed: ${serverMessage}`;
   }
 
   #sleep(ms: number): Promise<void> {
@@ -279,7 +348,4 @@ export class ConfigGenManager {
   }
 }
 
-/**
- * Singleton instance of the config generator.
- */
 export const configGenManager = new ConfigGenManager();

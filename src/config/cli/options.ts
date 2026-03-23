@@ -277,10 +277,6 @@ export const configFormat = z.enum(['yaml', 'typescript']).describe(`#### Config
 ---
 Format (language) used for the generated config. Options are typescript or yaml.`);
 
-export const useAi = z.boolean().describe(`#### Use AI
----
-If \`true\`, uses AI to automatically analyze your project and generate a Stacktape configuration. The AI will scan your project files, identify deployable units (services, functions, frontends), and create an appropriate configuration.`);
-
 export const infrastructureType = z.enum(['low-cost', 'standard', 'production']).describe(`#### Infrastructure Type
 ---
 The infrastructure tier for the generated configuration. Affects resource sizing, scaling, security, and cost:
@@ -511,7 +507,6 @@ export const argAliases = {
   agent: 'ag',
   agentPort: 'ap',
   outputFormat: 'ofmt',
-  useAi: 'ai',
   infrastructureType: 'it',
   limit: 'lim',
   stackName: 'sn',
@@ -605,7 +600,6 @@ export const allCliArgsSchema = z.object({
   stop: stop.optional(),
   cleanupContainers: cleanupContainers.optional(),
   freshDb: freshDb.optional(),
-  useAi: useAi.optional(),
   infrastructureType: infrastructureType.optional(),
   limit: limit.optional(),
   stackName: stackName.optional(),
