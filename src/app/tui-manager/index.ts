@@ -1099,17 +1099,27 @@ class TuiManager {
     // the wrong position on Windows terminals.
     await this.destroyOpenTui();
 
-    this.emitOutputRecord({
-      type: 'log',
+    // Write error to JSONL log collector (file) and, in jsonl mode, to stdout.
+    // Use emitOutputRecord for jsonl (where it IS the display path) and
+    // emitCollectorLog for other modes (where displayError handles display
+    // itself via renderErrorToString / displayErrorWithClack).
+    if (this.outputMode === 'jsonl') {
+      this.emitOutputRecord({
+        type: 'log',
+        level: 'error',
+        source: 'cli',
+        message: `[${errorData.errorType}] ${errorData.message}`,
+        ...(errorData.hints ? { data: { hints: errorData.hints } } : {})
+      });
+      return;
+    }
+
+    this.outputRouter.emitCollectorLog({
       level: 'error',
       source: 'cli',
       message: `[${errorData.errorType}] ${errorData.message}`,
       ...(errorData.hints ? { data: { hints: errorData.hints } } : {})
     });
-
-    if (this.outputMode === 'jsonl') {
-      return;
-    }
 
     if (this.isTTY) {
       this.displayErrorWithClack(errorData);
