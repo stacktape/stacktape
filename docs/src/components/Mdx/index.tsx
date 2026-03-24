@@ -5,7 +5,7 @@ import { onMaxW795 } from '../../styles/responsive';
 import { colors } from '../../styles/variables';
 import { Badge } from './Badge';
 import { CliCommandsApiReference } from './CliCommandsApiReference';
-import { CodeBlock, MdxCodeBlock } from './CodeBlock';
+import { CodeBlockNew as CodeBlock, MdxCodeBlockNew as MdxCodeBlock } from './CodeBlockNew';
 import { DecisionTree, ProjectStructure, FlowDiagram } from './DecisionTree';
 import { DeploymentOptions, GettingStartedOptions, NavBox, NavBoxGrid } from './DeploymentOptions';
 import { Divider } from './Divider';

@@ -1,4 +1,5 @@
 import type { NextConfig } from 'next';
+import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
 import { copySync, existsSync } from 'fs-extra';
 
@@ -11,6 +12,20 @@ if (existsSync(staticSrc)) {
 }
 
 const isDev = process.env.NODE_ENV === 'development';
+const stacktapeRepoRoot = join(process.cwd(), '..');
+const stacktapeReleasePath = join(stacktapeRepoRoot, '__release-npm');
+const stacktapeTypesDest = join(process.cwd(), 'public', 'stacktape');
+
+if (isDev) {
+  execFileSync('bun', ['run', 'build:npm:main'], {
+    cwd: stacktapeRepoRoot,
+    stdio: 'inherit'
+  });
+
+  if (existsSync(stacktapeReleasePath)) {
+    copySync(stacktapeReleasePath, stacktapeTypesDest, { overwrite: true });
+  }
+}
 
 const nextConfig: NextConfig = {
   output: 'export',
