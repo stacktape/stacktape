@@ -1,0 +1,8 @@
+{
+  "name": "issues-full-container",
+  "private": true,
+  "dependencies": {
+    "@hono/node-server": "^1.8.0",
+    "hono": "^4.0.0"
+  }
+}

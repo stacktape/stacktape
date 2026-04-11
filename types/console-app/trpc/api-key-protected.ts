@@ -1,6 +1,36 @@
 // GENERATED FILE - DO NOT EDIT
 // Source: console-app/scripts/generate-stacktape-console-types.ts
 
+export type ListIssuesParams = {
+  status?: 'OPEN' | 'RESOLVED' | 'IGNORED';
+  project?: string;
+  stage?: string;
+  limit?: number;
+};
+
+export type ListIssuesResponse = Array<{
+  id: string;
+  createdAt: string;
+  fingerprint: string;
+  status: 'OPEN' | 'RESOLVED' | 'IGNORED';
+  errorMessage: string;
+  errorType: string;
+  lastOccurrence: string;
+  occurrenceCount: number;
+  project: string | null;
+  stage: string | null;
+  region: string | null;
+  functionName: string | null;
+}>;
+
+export type IssueActionParams = {
+  issueId: string;
+};
+
+export type IssueActionResponse = {
+  success: boolean;
+};
+
 export type RecordStackOperationParams = {
   invocationId: string;
   command?: string | null;
@@ -298,5 +328,17 @@ export type ApiKeyTrpcClient = {
   };
   reportEvent: {
     mutate: (args: ReportEventParams) => Promise<string>;
+  };
+  issuesFromCli: {
+    query: (args: ListIssuesParams) => Promise<ListIssuesResponse>;
+  };
+  resolveIssueFromCli: {
+    mutate: (args: IssueActionParams) => Promise<IssueActionResponse>;
+  };
+  ignoreIssueFromCli: {
+    mutate: (args: IssueActionParams) => Promise<IssueActionResponse>;
+  };
+  reopenIssueFromCli: {
+    mutate: (args: IssueActionParams) => Promise<IssueActionResponse>;
   };
 };

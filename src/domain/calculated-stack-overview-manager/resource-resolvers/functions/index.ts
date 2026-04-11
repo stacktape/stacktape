@@ -6,6 +6,8 @@ import { GetAtt, Join, Ref } from '@cloudform/functions';
 import EventInvokeConfig from '@cloudform/lambda/eventInvokeConfig';
 import CfLambdaFunction from '@cloudform/lambda/function';
 import LayerVersion from '@cloudform/lambda/layerVersion';
+import LambdaPermission from '@cloudform/lambda/permission';
+import SubscriptionFilter from '@cloudform/logs/subscriptionFilter';
 import { DEFAULT_LAMBDA_NODE_VERSION } from '@config';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
@@ -25,8 +27,9 @@ import { cfLogicalNames } from '@shared/naming/logical-names';
 import { tagNames } from '@shared/naming/tag-names';
 import { PARENT_IDENTIFIER_SHARED_GLOBAL } from '@shared/utils/constants';
 import { isCompositeWebResourceType } from '@utils/composite-web-resources';
-import { getAugmentedEnvironment } from '@utils/environment';
+import { getAugmentedEnvironment, getLanguageFromExtension } from '@utils/environment';
 import { ExpectedError } from '@utils/errors';
+import { getLambdaIssueFilterPattern, isIssueDetectionSupportedLanguage } from '../_utils/issue-detection';
 import { resolveAlarmsForResource } from '../_utils/alarms';
 import {
   getCachePolicyHash,
@@ -434,6 +437,57 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
             resource: cfResource
           });
         }
+      });
+    }
+    // Issue detection: add subscription filter to detect runtime errors.
+    // Skip if logForwarding is configured — CloudWatch allows max 2 subscription filters per log group,
+    // and logForwarding already uses one. Third-party tools (Lumigo, Datadog) may use the other.
+    const detectedLanguage = getLanguageFromExtension(entryfilePath);
+    const hasLogForwarding = !!logging?.logForwarding;
+    const isNotServiceLambda = name !== ('stacktapeServiceLambda' as HelperLambdaName);
+    const isNotEdgeFunction = (type as string) !== 'edge-lambda-function';
+    const isUserManagedPackaging = [
+      'prebuilt-image',
+      'custom-dockerfile',
+      'nixpacks',
+      'external-buildpack',
+      'custom-artifact'
+    ].includes(packagingType || '');
+    if (
+      configManager.isIssueDetectionEnabled &&
+      isIssueDetectionSupportedLanguage(detectedLanguage) &&
+      isNotServiceLambda &&
+      isNotEdgeFunction &&
+      !isUserManagedPackaging &&
+      !hasLogForwarding
+    ) {
+      const serviceLambdaArn = GetAtt(configManager.stacktapeServiceLambdaProps.cfLogicalName, 'Arn');
+      const subscriptionFilterLogicalName = cfLogicalNames.issueDetectionSubscriptionFilter(name);
+      const permissionLogicalName = cfLogicalNames.issueDetectionLogsPermission();
+
+      if (!templateManager.getCfResourceFromTemplate(permissionLogicalName)) {
+        calculatedStackOverviewManager.addCfChildResource({
+          cfLogicalName: permissionLogicalName,
+          nameChain: [PARENT_IDENTIFIER_SHARED_GLOBAL, 'stacktapeServiceLambda'],
+          resource: new LambdaPermission({
+            Action: 'lambda:InvokeFunction',
+            Principal: `logs.${globalStateManager.region}.amazonaws.com`,
+            FunctionName: serviceLambdaArn,
+            SourceAccount: Ref('AWS::AccountId')
+          })
+        });
+      }
+
+      const subscriptionFilterResource = new SubscriptionFilter({
+        LogGroupName: awsResourceNames.lambdaLogGroup({ lambdaAwsResourceName: resourceName }),
+        FilterPattern: getLambdaIssueFilterPattern(detectedLanguage),
+        DestinationArn: serviceLambdaArn
+      });
+      subscriptionFilterResource.DependsOn = [permissionLogicalName, logGroupLogicalName];
+      calculatedStackOverviewManager.addCfChildResource({
+        cfLogicalName: subscriptionFilterLogicalName,
+        nameChain,
+        resource: subscriptionFilterResource
       });
     }
   }

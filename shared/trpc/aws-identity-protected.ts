@@ -3,6 +3,7 @@ import type {
   AwsIdentityTrpcClient,
   DeleteDefaultDomainDnsRecordParams,
   ReportAlarmEventParams,
+  ReportIssueEventParams,
   UpsertDefaultDomainDnsRecordParams,
   ValidateCertificateParams
 } from '../../types/console-app/trpc/aws-identity-protected';
@@ -64,6 +65,12 @@ export class AwsIdentityProtectedClient {
   reportAlarmEvent = {
     mutate: async (args: ReportAlarmEventParams): Promise<string> => {
       return this.#ensureInitialized().reportAlarmEvent.mutate(args);
+    }
+  };
+
+  reportIssueEvent = {
+    mutate: async (args: ReportIssueEventParams): Promise<string> => {
+      return this.#ensureInitialized().reportIssueEvent.mutate(args);
     }
   };
 }

@@ -1,6 +1,8 @@
 import { tuiManager } from '@application-services/tui-manager';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
+import { configManager } from '@domain-services/config-manager';
+import { validateGuardrails } from '@domain-services/config-manager/utils/validation';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
 import { packagingManager } from '@domain-services/packaging-manager';
@@ -8,6 +10,7 @@ import { templateManager } from '@domain-services/template-manager';
 import { initializeAllStackServices } from '../_utils/initialization';
 import { isAgentMode } from '../_utils/agent-mode';
 import { ensureMissingSecretsCreated } from '../_utils/secret-preflight';
+import { ensureMissingSsmParamsCreated } from '../_utils/ssm-param-preflight';
 import { buildPreviewResourceChanges, getNormalizedPreviewTemplateDiff } from './utils';
 
 const actionToLabel = (action: 'create' | 'delete' | 'replace' | 'update') => {
@@ -113,7 +116,10 @@ export const commandPreviewChanges = async () => {
     loadGlobalConfig: true
   });
 
+  validateGuardrails({ guardrails: configManager.guardrails, hasConfig: true });
+
   await ensureMissingSecretsCreated();
+  await ensureMissingSsmParamsCreated();
 
   await packagingManager.packageAllWorkloads({ commandCanUseCache: true });
   await calculatedStackOverviewManager.resolveAllResources();

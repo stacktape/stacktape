@@ -42,6 +42,8 @@ import {
   paramName,
   preserveTempFiles,
   projectDirectory,
+  issueId,
+  issueStatus,
   organizationId,
   organizationName,
   projectName,
@@ -945,6 +947,51 @@ Detects client config files (Claude Code, Codex, Cursor, VS Code/Copilot, OpenCo
       outputFormat: outputFormat.optional()
     },
     requiredArgs: [] as const
+  },
+  'issues:list': {
+    description: `Lists detected runtime issues (errors) across your deployed functions and containers.
+
+Shows error message, type, function name, project/stage, occurrence count, and status. Filter by status, project, or stage.`,
+    args: {
+      logLevel: logLevel.optional(),
+      agent: agent.optional(),
+      outputFormat: outputFormat.optional(),
+      projectName: projectName.optional(),
+      stage: stage.optional(),
+      issueStatus: issueStatus.optional(),
+      limit: limit.optional()
+    },
+    requiredArgs: [] as const
+  },
+  'issues:resolve': {
+    description: `Marks an issue as resolved. The issue will reopen automatically if the same error occurs again.`,
+    args: {
+      logLevel: logLevel.optional(),
+      agent: agent.optional(),
+      outputFormat: outputFormat.optional(),
+      issueId
+    },
+    requiredArgs: ['issueId'] as const
+  },
+  'issues:ignore': {
+    description: `Marks an issue as ignored. Ignored issues will not reopen on new occurrences and won't generate alerts.`,
+    args: {
+      logLevel: logLevel.optional(),
+      agent: agent.optional(),
+      outputFormat: outputFormat.optional(),
+      issueId
+    },
+    requiredArgs: ['issueId'] as const
+  },
+  'issues:reopen': {
+    description: `Reopens a resolved or ignored issue, setting its status back to OPEN.`,
+    args: {
+      logLevel: logLevel.optional(),
+      agent: agent.optional(),
+      outputFormat: outputFormat.optional(),
+      issueId
+    },
+    requiredArgs: ['issueId'] as const
   }
 } as const;
 

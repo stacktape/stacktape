@@ -15,7 +15,7 @@ import { parseUserCodeFilepath } from '@utils/user-code-processing';
 import { configManager } from '../index';
 import { validateApplicationLoadBalancerConfig } from './application-load-balancers';
 import { resolveReferenceToBastion } from './bastion';
-import { validateBucketConfig } from './buckets';
+import { validateBucketConfig, validateHostingBucketConfig } from './buckets';
 import { validateHttpApiGatewayConfig } from './http-api-gateways';
 import { validateLambdaConfig } from './lambdas';
 import { validateMultiContainerWorkloadConfig } from './multi-container-workloads';
@@ -238,31 +238,255 @@ export const validateResourceNames = () => {
   });
 };
 
-export const validateGuardrails = (guardrails: GuardrailDefinition[]) => {
+export const validateGuardrails = ({
+  guardrails,
+  hasConfig
+}: {
+  guardrails: GuardrailDefinition[];
+  hasConfig: boolean;
+}) => {
   for (const guardrail of guardrails || []) {
     switch (guardrail.type) {
       case 'stage-restriction': {
         const { allowedStages } = guardrail.properties;
-        if (!allowedStages.includes(globalStateManager.targetStack.stage)) {
+        if (allowedStages?.length && !allowedStages.includes(globalStateManager.targetStack.stage)) {
           throw new ExpectedError(
             'GUARDRAIL',
-            `Stage ${globalStateManager.targetStack.stage} is not allowed. Allowed stages: ${allowedStages.join(', ')}.`
+            `Stage "${globalStateManager.targetStack.stage}" is not allowed. Allowed stages: ${allowedStages.join(', ')}.`
           );
         }
         break;
       }
       case 'region-restriction': {
         const { allowedRegions } = guardrail.properties;
-        if (!allowedRegions.includes(globalStateManager.region)) {
+        if (allowedRegions?.length && !allowedRegions.includes(globalStateManager.region)) {
           throw new ExpectedError(
             'GUARDRAIL',
-            `Region ${globalStateManager.region} is not allowed. Allowed regions: ${allowedRegions.join(', ')}.`
+            `Region "${globalStateManager.region}" is not allowed. Allowed regions: ${allowedRegions.join(', ')}.`
+          );
+        }
+        break;
+      }
+      case 'command-restriction': {
+        const { blockedCommands } = guardrail.properties;
+        if (blockedCommands?.length && blockedCommands.includes(globalStateManager.command)) {
+          throw new ExpectedError(
+            'GUARDRAIL',
+            `Command "${globalStateManager.command}" is blocked by organization guardrails. Blocked commands: ${blockedCommands.join(', ')}.`
+          );
+        }
+        break;
+      }
+      case 'resource-type-restriction': {
+        if (!hasConfig) break;
+        const { blockedResourceTypes } = guardrail.properties;
+        if (!blockedResourceTypes?.length) break;
+        for (const resource of configManager.allConfigResources) {
+          if (blockedResourceTypes.includes(resource.type)) {
+            throw new ExpectedError(
+              'GUARDRAIL',
+              `Resource "${resource.name}" uses type "${resource.type}" which is blocked. Blocked resource types: ${blockedResourceTypes.join(', ')}.`
+            );
+          }
+        }
+        break;
+      }
+      case 'require-vpc-databases': {
+        if (!hasConfig || !guardrail.properties.enabled) break;
+        const vpcOnlyModes = ['vpc', 'scoping-workloads-in-vpc'];
+        for (const db of configManager.databases) {
+          const accessibilityMode = (db as StpRelationalDatabase).accessibility?.accessibilityMode || 'internet';
+          if (!vpcOnlyModes.includes(accessibilityMode)) {
+            throw new ExpectedError(
+              'GUARDRAIL',
+              `Database "${db.name}" has accessibility mode "${accessibilityMode}". All databases must use VPC-only accessibility (vpc or scoping-workloads-in-vpc).`
+            );
+          }
+        }
+        for (const os of configManager.openSearchDomains) {
+          const accessibilityMode = (os as StpOpenSearchDomain).accessibility?.accessibilityMode || 'internet';
+          if (!vpcOnlyModes.includes(accessibilityMode)) {
+            throw new ExpectedError(
+              'GUARDRAIL',
+              `OpenSearch domain "${os.name}" has accessibility mode "${accessibilityMode}". All databases must use VPC-only accessibility (vpc or scoping-workloads-in-vpc).`
+            );
+          }
+        }
+        break;
+      }
+      case 'require-deletion-protection': {
+        if (!hasConfig || !guardrail.properties.enabled) break;
+        for (const db of configManager.databases) {
+          if (!(db as StpRelationalDatabase).deletionProtection) {
+            throw new ExpectedError(
+              'GUARDRAIL',
+              `Database "${db.name}" does not have deletionProtection enabled. All relational databases must have deletion protection.`
+            );
+          }
+        }
+        break;
+      }
+      case 'require-dead-letter-queue': {
+        if (!hasConfig || !guardrail.properties.enabled) break;
+        for (const queue of configManager.sqsQueues) {
+          if (!(queue as StpSqsQueue).redrivePolicy) {
+            throw new ExpectedError(
+              'GUARDRAIL',
+              `SQS queue "${queue.name}" does not have a redrivePolicy (dead-letter queue) configured. All SQS queues must have a dead-letter queue.`
+            );
+          }
+        }
+        break;
+      }
+      case 'function-memory-limit': {
+        if (!hasConfig) break;
+        const { maxMemoryMB } = guardrail.properties;
+        if (!maxMemoryMB) break;
+        const allFnsForMemory = [...configManager.functions, ...configManager.edgeLambdaFunctions];
+        for (const fn of allFnsForMemory) {
+          const memory = (fn as StpLambdaFunction).memory || 1024;
+          if (memory > maxMemoryMB) {
+            throw new ExpectedError(
+              'GUARDRAIL',
+              `Function "${fn.name}" has memory ${memory}MB which exceeds the limit of ${maxMemoryMB}MB.`
+            );
+          }
+        }
+        break;
+      }
+      case 'function-timeout-limit': {
+        if (!hasConfig) break;
+        const { maxTimeoutSeconds } = guardrail.properties;
+        if (!maxTimeoutSeconds) break;
+        const allFnsForTimeout = [...configManager.functions, ...configManager.edgeLambdaFunctions];
+        for (const fn of allFnsForTimeout) {
+          const timeout = (fn as StpLambdaFunction).timeout || 20;
+          if (timeout > maxTimeoutSeconds) {
+            throw new ExpectedError(
+              'GUARDRAIL',
+              `Function "${fn.name}" has timeout ${timeout}s which exceeds the limit of ${maxTimeoutSeconds}s.`
+            );
+          }
+        }
+        break;
+      }
+      case 'container-resource-limit': {
+        if (!hasConfig) break;
+        const { maxCpu, maxMemoryMB } = guardrail.properties;
+        for (const workload of configManager.allContainerWorkloads) {
+          const resources = (workload as StpContainerWorkload).resources;
+          if (maxCpu && resources?.cpu && resources.cpu > maxCpu) {
+            throw new ExpectedError(
+              'GUARDRAIL',
+              `Container workload "${workload.name}" has ${resources.cpu} vCPU which exceeds the limit of ${maxCpu} vCPU.`
+            );
+          }
+          if (maxMemoryMB && resources?.memory && resources.memory > maxMemoryMB) {
+            throw new ExpectedError(
+              'GUARDRAIL',
+              `Container workload "${workload.name}" has ${resources.memory}MB memory which exceeds the limit of ${maxMemoryMB}MB.`
+            );
+          }
+        }
+        break;
+      }
+      case 'database-engine-restriction': {
+        if (!hasConfig) break;
+        const { allowedEngines } = guardrail.properties;
+        if (!allowedEngines?.length) break;
+        for (const db of configManager.databases) {
+          const engineType = (db as StpRelationalDatabase).engine?.type;
+          if (engineType && !allowedEngines.includes(engineType)) {
+            throw new ExpectedError(
+              'GUARDRAIL',
+              `Database "${db.name}" uses engine "${engineType}" which is not allowed. Allowed engines: ${allowedEngines.join(', ')}.`
+            );
+          }
+        }
+        break;
+      }
+      case 'database-instance-restriction': {
+        if (!hasConfig) break;
+        const { blockedInstanceSizes } = guardrail.properties;
+        if (!blockedInstanceSizes?.length) break;
+        for (const db of configManager.databases) {
+          const engine = (db as StpRelationalDatabase).engine;
+          const instanceSizes = getDbInstanceSizes(engine);
+          for (const size of instanceSizes) {
+            if (blockedInstanceSizes.includes(size)) {
+              throw new ExpectedError(
+                'GUARDRAIL',
+                `Database "${db.name}" uses instance size "${size}" which is blocked. Blocked instance sizes: ${blockedInstanceSizes.join(', ')}.`
+              );
+            }
+          }
+        }
+        break;
+      }
+      case 'require-waf': {
+        if (!hasConfig || !guardrail.properties.enabled) break;
+        for (const alb of configManager.applicationLoadBalancers) {
+          if (!(alb as StpApplicationLoadBalancer).useFirewall) {
+            throw new ExpectedError(
+              'GUARDRAIL',
+              `Application load balancer "${alb.name}" does not have a web application firewall (useFirewall) configured.`
+            );
+          }
+        }
+        break;
+      }
+      case 'require-custom-domain': {
+        if (!hasConfig || !guardrail.properties.enabled) break;
+        for (const ws of configManager.webServices) {
+          if (!(ws as StpWebService).customDomains?.length) {
+            throw new ExpectedError('GUARDRAIL', `Web service "${ws.name}" does not have a custom domain configured.`);
+          }
+        }
+        for (const hb of configManager.hostingBuckets) {
+          if (!(hb as StpHostingBucket).customDomains?.length) {
+            throw new ExpectedError(
+              'GUARDRAIL',
+              `Hosting bucket "${hb.name}" does not have a custom domain configured.`
+            );
+          }
+        }
+        break;
+      }
+      case 'resource-count-limit': {
+        if (!hasConfig) break;
+        const { maxResources } = guardrail.properties;
+        if (!maxResources) break;
+        const resourceCount = configManager.allConfigResources.length;
+        if (resourceCount > maxResources) {
+          throw new ExpectedError(
+            'GUARDRAIL',
+            `Stack has ${resourceCount} resources which exceeds the limit of ${maxResources}.`
           );
         }
         break;
       }
     }
   }
+};
+
+const getDbInstanceSizes = (engine: StpRelationalDatabase['engine']): string[] => {
+  if (!engine) return [];
+  const engineType = engine.type;
+  if (engineType === 'aurora-mysql-serverless' || engineType === 'aurora-postgresql-serverless') return [];
+  if (engineType === 'aurora-mysql-serverless-v2' || engineType === 'aurora-postgresql-serverless-v2') return [];
+  if (engineType === 'aurora-mysql' || engineType === 'aurora-postgresql') {
+    return ((engine as AuroraEngine).properties?.instances || []).map((i) => i.instanceSize).filter(Boolean);
+  }
+  // RDS engines
+  const rdsProps = (engine as RdsEngine).properties;
+  const sizes: string[] = [];
+  if (rdsProps?.primaryInstance?.instanceSize) sizes.push(rdsProps.primaryInstance.instanceSize);
+  if (rdsProps?.readReplicas) {
+    for (const replica of rdsProps.readReplicas) {
+      if (replica.instanceSize) sizes.push(replica.instanceSize);
+    }
+  }
+  return sizes;
 };
 
 // const validateProviders = () => {
@@ -363,6 +587,9 @@ export const runInitialValidations = () => {
   // buckets
   configManager.allBuckets.forEach((definition) => {
     validateBucketConfig({ definition });
+  });
+  configManager.hostingBuckets.forEach((definition) => {
+    validateHostingBucketConfig({ definition });
   });
   // relational databases
   configManager.databases.forEach((definition) => {

@@ -30,6 +30,10 @@ import { commandDomainAdd } from './commands/domain-add';
 import { commandHelp } from './commands/help';
 import { commandInit } from './commands/init';
 import { commandInfoOperations } from './commands/info-operations';
+import { commandIssuesIgnore } from './commands/issues-ignore';
+import { commandIssuesList } from './commands/issues-list';
+import { commandIssuesReopen } from './commands/issues-reopen';
+import { commandIssuesResolve } from './commands/issues-resolve';
 import { commandInfoProjects } from './commands/info-projects';
 import { commandInfoStack } from './commands/info-stack';
 import { commandInfoWhoami } from './commands/info-whoami';
@@ -96,6 +100,10 @@ const commandsWithoutTui: StacktapeCommand[] = [
   'secret:create',
   'secret:delete',
   'secret:get',
+  'issues:list',
+  'issues:resolve',
+  'issues:ignore',
+  'issues:reopen',
   'debug:logs',
   'debug:alarms',
   'debug:metrics',
@@ -278,6 +286,10 @@ const getCommandExecutor = (command: StacktapeCommand) => {
     upgrade: commandUpgrade,
     'info:whoami': commandInfoWhoami,
     'info:operations': commandInfoOperations,
+    'issues:list': commandIssuesList,
+    'issues:resolve': commandIssuesResolve,
+    'issues:ignore': commandIssuesIgnore,
+    'issues:reopen': commandIssuesReopen,
     'info:stack': commandInfoStack,
     mcp: commandMcp,
     'mcp:add': commandMcpAdd

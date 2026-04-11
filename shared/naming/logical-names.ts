@@ -1400,6 +1400,19 @@ export const cfLogicalNames = {
       stpResourceName: logGroupCfLogicalName,
       suffix: { cloudformationResourceType: 'AWS::Logs::SubscriptionFilter' }
     });
+  },
+  issueDetectionSubscriptionFilter(stpResourceName: string) {
+    return buildCfLogicalName({
+      stpResourceName,
+      specifier: { type: 'IssueDetection' },
+      suffix: { cloudformationResourceType: 'AWS::Logs::SubscriptionFilter' }
+    });
+  },
+  issueDetectionLogsPermission() {
+    return buildCfLogicalName({
+      specifier: { type: 'IssueDetectionLogs' },
+      suffix: { cloudformationResourceType: 'AWS::Lambda::Permission' }
+    });
   }
 };
 

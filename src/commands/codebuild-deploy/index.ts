@@ -9,6 +9,7 @@ import { budgetManager } from '@domain-services/budget-manager';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
+import { validateGuardrails } from '@domain-services/config-manager/utils/validation';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { templateManager } from '@domain-services/template-manager';
 import { stpErrors } from '@errors';
@@ -31,6 +32,7 @@ import { getStacktapeVersion } from '@utils/versioning';
 import { potentiallyPromptBeforeOperation, saveDetailedStackInfoMap } from '../_utils/common';
 import { initializeAllStackServices } from '../_utils/initialization';
 import { ensureMissingSecretsCreated } from '../_utils/secret-preflight';
+import { ensureMissingSsmParamsCreated } from '../_utils/ssm-param-preflight';
 
 export const commandCodebuildDeploy = async () => {
   // Configure TUI for codebuild deploy (Initialize, Prepare Pipeline, Deploy - no Build & Package)
@@ -42,10 +44,14 @@ export const commandCodebuildDeploy = async () => {
     await initializeAllStackServices({
       commandRequiresDeployedStack: false,
       commandModifiesStack: true,
+      loadGlobalConfig: true,
       requiresSubscription: true
     });
 
+    validateGuardrails({ guardrails: configManager.guardrails, hasConfig: true });
+
     await ensureMissingSecretsCreated();
+    await ensureMissingSsmParamsCreated();
 
     // it is faster to do resource resolving here and get error immediately
     // compared to waiting for entire codebuild deploy to provision and then get the error

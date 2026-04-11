@@ -1,5 +1,7 @@
-// import { stpErrors } from '@errors';
-// import { ExpectedError } from '@utils/errors';
+import { join } from 'node:path';
+import { globalStateManager } from '@application-services/global-state-manager';
+import { stpErrors } from '@errors';
+import { dirExists } from '@shared/utils/fs-utils';
 import { configManager } from '../index';
 import { getPropsOfResourceReferencedInConfig } from './resource-references';
 
@@ -43,4 +45,18 @@ const validateCdnHeaderPresetConflict = (definition: StpBucket) => {
 
 export const validateBucketConfig = ({ definition }: { definition: StpBucket }) => {
   validateCdnHeaderPresetConflict(definition);
+};
+
+export const validateHostingBucketConfig = ({ definition }: { definition: StpHostingBucket }) => {
+  if (definition.build?.workingDirectory) {
+    const absoluteWorkingDirectory = join(globalStateManager.workingDir, definition.build.workingDirectory);
+    if (!dirExists(absoluteWorkingDirectory)) {
+      throw stpErrors.e142({
+        directoryPath: definition.build.workingDirectory,
+        stpResourceName: definition.name,
+        propertyName: 'build.workingDirectory',
+        resolvedPath: absoluteWorkingDirectory
+      });
+    }
+  }
 };

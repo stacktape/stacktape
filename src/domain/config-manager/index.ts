@@ -40,7 +40,8 @@ import {
   getStacktapeServiceLambdaCustomResourceInducedStatements,
   getStacktapeServiceLambdaCustomTaggingInducedStatement,
   getStacktapeServiceLambdaEcsRedeployInducedStatements,
-  getStacktapeServiceLambdaEnvironment
+  getStacktapeServiceLambdaEnvironment,
+  getStacktapeServiceLambdaIssueDetectionStatements
 } from './utils/lambdas';
 import { cleanConfigForMinimalTemplateCompilerMode, mergeStacktapeDefaults } from './utils/misc';
 import { runInitialValidations, validateConfigStructure } from './utils/validation';
@@ -2686,7 +2687,7 @@ export class ConfigManager {
   }
 
   getRollbackSafetyInfo = () => {
-    const UNSAFE_DIRECTIVES = ['File', 'FileRaw', 'CliArgs', 'GitInfo', 'StackOutput', 'Secret'];
+    const UNSAFE_DIRECTIVES = ['File', 'FileRaw', 'CliArgs', 'GitInfo', 'StackOutput', 'Secret', 'SsmParam'];
     // Detect unsafe directives by scanning resolved directive results
     const unsafeDirectives: string[] = [];
     for (const rawDefinition in this.configResolver.results) {
@@ -2724,6 +2725,10 @@ export class ConfigManager {
 
   get reuseVpcConfig() {
     return this.stackConfig?.vpc?.reuseVpc;
+  }
+
+  get isIssueDetectionEnabled() {
+    return !this.stackConfig?.disableIssues;
   }
 
   get guardrails() {
@@ -3166,13 +3171,32 @@ export class ConfigManager {
     return names;
   }
 
+  get allSsmParamReferencesUsedInConfig() {
+    const paramNames = new Set<string>();
+    processAllNodesSync(this.config, (node) => {
+      if (typeof node === 'string' && getIsDirective(node) && node.startsWith('$SsmParam')) {
+        const paramName = getDirectiveParams('SsmParam', node)[0].value as string;
+        paramNames.add(paramName);
+      }
+    });
+    return paramNames;
+  }
+
   get allParameterNamesUsedInAlarmNotifications() {
     const paramNames: string[] = [];
     processAllNodesSync(this.allAlarms, (node) => {
-      // secret referenced using dynamic reference
-      if (typeof node === 'string' && (node.startsWith('{{resolve:ssm-secure') || node.startsWith('{{resolve:ssm'))) {
-        const [, , paramName] = node.split(':');
-        paramNames.push(paramName);
+      if (typeof node === 'string') {
+        // $SsmParam directive
+        if (getIsDirective(node) && node.startsWith('$SsmParam')) {
+          const paramName = getDirectiveParams('SsmParam', node)[0].value as string;
+          paramNames.push(paramName);
+          return;
+        }
+        // SSM dynamic reference
+        if (node.startsWith('{{resolve:ssm-secure') || node.startsWith('{{resolve:ssm')) {
+          const [, , paramName] = node.split(':');
+          paramNames.push(paramName);
+        }
       }
     });
     return paramNames;
@@ -3326,7 +3350,8 @@ export class ConfigManager {
         ...getStacktapeServiceLambdaCustomResourceInducedStatements(),
         ...getStacktapeServiceLambdaAlarmNotificationInducedStatements(),
         ...getStacktapeServiceLambdaEcsRedeployInducedStatements(),
-        ...getStacktapeServiceLambdaCustomTaggingInducedStatement()
+        ...getStacktapeServiceLambdaCustomTaggingInducedStatement(),
+        ...getStacktapeServiceLambdaIssueDetectionStatements()
       ]
     };
   }

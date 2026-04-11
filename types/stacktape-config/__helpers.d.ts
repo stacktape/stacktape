@@ -745,6 +745,20 @@ interface StackConfig {
    * #### VPC configuration: reuse an existing VPC or configure NAT Gateways.
    */
   vpc?: VpcSettings;
+  /**
+   * #### Disable automatic issue detection for all functions in this stack.
+   *
+   * ---
+   *
+   * By default, Stacktape automatically detects runtime errors (uncaught exceptions,
+   * unhandled promise rejections, console.error) in your Node.js/TypeScript Lambda functions
+   * and reports them to the Stacktape Console as Issues.
+   *
+   * Set to `true` to disable this feature for the entire stack.
+   *
+   * @default false
+   */
+  disableIssues?: boolean;
 }
 
 interface VpcReuseConfig {

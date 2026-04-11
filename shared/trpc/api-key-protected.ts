@@ -15,6 +15,10 @@ import type {
   DeleteUndeployedStageParams,
   DeleteUndeployedStageResponse,
   GlobalConfigResponse,
+  IssueActionParams,
+  IssueActionResponse,
+  ListIssuesParams,
+  ListIssuesResponse,
   ListOrganizationsResponse,
   ProjectsWithStagesResponse,
   RecentStackOperationsParams,
@@ -45,6 +49,10 @@ export type {
   DeleteUndeployedStageParams,
   DeleteUndeployedStageResponse,
   GlobalConfigResponse,
+  IssueActionParams,
+  IssueActionResponse,
+  ListIssuesParams,
+  ListIssuesResponse,
   ListOrganizationsResponse,
   OrganizationSummary,
   ProjectsWithStagesResponse,
@@ -144,5 +152,21 @@ export class ApiKeyProtectedClient {
 
   reportEvent = async (args: ReportEventParams): Promise<string> => {
     return this.#ensureInitialized().reportEvent.mutate(args);
+  };
+
+  listIssues = async (args: ListIssuesParams): Promise<ListIssuesResponse> => {
+    return this.#ensureInitialized().issuesFromCli.query(args);
+  };
+
+  resolveIssue = async (args: IssueActionParams): Promise<IssueActionResponse> => {
+    return this.#ensureInitialized().resolveIssueFromCli.mutate(args);
+  };
+
+  ignoreIssue = async (args: IssueActionParams): Promise<IssueActionResponse> => {
+    return this.#ensureInitialized().ignoreIssueFromCli.mutate(args);
+  };
+
+  reopenIssue = async (args: IssueActionParams): Promise<IssueActionResponse> => {
+    return this.#ensureInitialized().reopenIssueFromCli.mutate(args);
   };
 }
