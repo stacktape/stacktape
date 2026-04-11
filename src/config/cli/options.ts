@@ -46,6 +46,14 @@ export const organizationId = z.string().describe(`#### Organization ID
 ---
 The ID of the Stacktape organization.`);
 
+export const issueId = z.string().describe(`#### Issue ID
+---
+The ID of the issue to act on.`);
+
+export const issueStatus = z.enum(['OPEN', 'RESOLVED', 'IGNORED']).describe(`#### Issue Status Filter
+---
+Filter issues by status (OPEN, RESOLVED, IGNORED).`);
+
 export const resourceName = z.string().describe(`#### Resource Name
 ---
 The name of the resource as defined in your Stacktape configuration.`);
@@ -524,6 +532,8 @@ export const argAliases = {
   taskArn: 'ta',
   organizationName: 'onm',
   organizationId: 'oid',
+  issueId: 'iid',
+  issueStatus: 'is',
   onlyWorkloads: 'ow',
   targetVersion: 'tv',
   rollbackSteps: 'rbs',
@@ -586,6 +596,8 @@ export const allCliArgsSchema = z.object({
   projectName: projectName.optional(),
   organizationName: organizationName.optional(),
   organizationId: organizationId.optional(),
+  issueId: issueId.optional(),
+  issueStatus: issueStatus.optional(),
   assumeRoleOfResource: assumeRoleOfResource.optional(),
   configFormat: configFormat.optional(),
   localTunnelingPort: localTunnelingPort.optional(),

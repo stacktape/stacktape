@@ -1,5 +1,5 @@
 /* eslint-disable jsdoc/check-param-names */
-type Language = 'javascript' | 'typescript' | 'python' | 'go' | 'java' | 'unknown';
+export type Language = 'javascript' | 'typescript' | 'python' | 'go' | 'java' | 'dotnet' | 'ruby' | 'php' | 'unknown';
 
 const JS_TS_EXTENSIONS = ['js', 'ts', 'mjs', 'mts', 'cjs', 'cts', 'jsx', 'tsx'];
 
@@ -10,6 +10,9 @@ export const getLanguageFromExtension = (entryfilePath?: string): Language => {
   if (ext === 'py') return 'python';
   if (ext === 'go') return 'go';
   if (ext === 'java') return 'java';
+  if (ext === 'cs' || ext === 'csproj') return 'dotnet';
+  if (ext === 'rb') return 'ruby';
+  if (ext === 'php') return 'php';
   return 'unknown';
 };
 

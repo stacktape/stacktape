@@ -6,7 +6,11 @@ import { dirExists, isFileAccessible } from '@shared/utils/fs-utils';
 export const validateNextjsWebConfig = ({ resource }: { resource: StpNextjsWeb }) => {
   const absoluteAppDirectory = join(globalStateManager.workingDir, resource.appDirectory);
   if (!dirExists(absoluteAppDirectory)) {
-    throw stpErrors.e106({ directoryPath: resource.appDirectory, stpResourceName: resource.name });
+    throw stpErrors.e106({
+      directoryPath: resource.appDirectory,
+      stpResourceName: resource.name,
+      resolvedPath: absoluteAppDirectory
+    });
   }
   if (
     !isFileAccessible(join(absoluteAppDirectory, 'next.config.js')) &&

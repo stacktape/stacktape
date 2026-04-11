@@ -10,6 +10,10 @@ export const validateSsrWebConfig = ({ resource }: { resource: SsrWebResource })
   const absoluteAppDirectory = join(globalStateManager.workingDir, appDirectory);
 
   if (!dirExists(absoluteAppDirectory)) {
-    throw stpErrors.e106({ directoryPath: appDirectory, stpResourceName: resource.name });
+    throw stpErrors.e106({
+      directoryPath: appDirectory,
+      stpResourceName: resource.name,
+      resolvedPath: absoluteAppDirectory
+    });
   }
 };

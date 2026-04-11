@@ -144,7 +144,8 @@ export const stacktapeConfigSchema = z.object({
       "nat": z.object({
         "availabilityZones": z.union([z.literal(1), z.literal(2), z.literal(3)]).optional().describe("#### How many availability zones get a NAT Gateway (~$32/month each).\n\n---\n\n- **1**: Cheapest, but no redundancy if that AZ goes down.\n- **2**: Balanced cost and availability.\n- **3**: Highest availability.\n\nEach NAT Gateway gets a static Elastic IP that persists across deployments —\nuseful for IP whitelisting with external services.").default(2) }).strict()
       .optional().describe("#### NAT Gateway configuration for private subnets.\n\n---\n\nOnly applies when you have workloads using `usePrivateSubnetsWithNAT: true`.\nControls how many availability zones get a NAT Gateway (affects cost and redundancy).").optional() }).strict()
-    .optional().describe("#### VPC configuration: reuse an existing VPC or configure NAT Gateways.").optional() }).strict()
+    .optional().describe("#### VPC configuration: reuse an existing VPC or configure NAT Gateways.").optional(),
+    "disableIssues": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Disable automatic issue detection for all functions in this stack.\n\n---\n\nBy default, Stacktape automatically detects runtime errors (uncaught exceptions,\nunhandled promise rejections, console.error) in your Node.js/TypeScript Lambda functions\nand reports them to the Stacktape Console as Issues.\n\nSet to `true` to disable this feature for the entire stack.").default(false) }).strict()
   .optional().describe("#### Stack-wide settings: custom outputs, tags, VPC configuration, and stack info saving.").optional(),
   "resources": z.record(z.string(), z.union([z.object({
       "type": z.literal("multi-container-workload"),

@@ -30,6 +30,16 @@ export const $Secret = (secretName: string) => {
 };
 
 /**
+ * Returns a reference to an SSM Parameter Store parameter.
+ * @param paramName - The name (or path) of the SSM parameter. Must exist in the AWS Systems Manager Parameter Store in the region you're deploying to.
+ * Supports both `String` and `SecureString` parameter types (auto-detected).
+ * Example: `$SsmParam('my-api-key')` or `$SsmParam('/prod/database/host')`
+ */
+export const $SsmParam = (paramName: string) => {
+  return `$SsmParam('${paramName}')`;
+};
+
+/**
  * Returns an interpolated string. Unlike the $Format() directive, the $CfFormat() directive can contain runtime-resolved directives as arguments.
  * @param interpolatedString - Occurrences of {} are replaced by the subsequent arguments.
  * @param values - The number of values must be equal to the number of {} placeholders in the first argument.

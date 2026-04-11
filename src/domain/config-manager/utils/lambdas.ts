@@ -565,6 +565,11 @@ export const getStacktapeServiceLambdaCustomTaggingInducedStatement = (): StpIam
   ];
 };
 
+export const getStacktapeServiceLambdaIssueDetectionStatements = (): StpIamRoleStatement[] => {
+  if (!configManager.isIssueDetectionEnabled) return [];
+  return [{ Resource: ['*'], Action: ['logs:GetLogEvents'] }];
+};
+
 export const getLambdaHandler = ({ name, packaging }: { packaging: LambdaPackaging; name: string }) => {
   if (packaging.type === 'stacktape-lambda-buildpack') {
     const extension = getFileExtension(packaging.properties.entryfilePath);

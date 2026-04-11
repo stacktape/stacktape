@@ -7,7 +7,15 @@ export {
 } from '../npm/ts/class-config';
 export type { GetConfigParams } from '../npm/ts/config';
 export { defineConfig, transformConfigWithResources } from '../npm/ts/config';
-export { $CfFormat, $CfResourceParam, $CfStackOutput, $GitInfo, $ResourceParam, $Secret } from '../npm/ts/directives';
+export {
+  $CfFormat,
+  $CfResourceParam,
+  $CfStackOutput,
+  $GitInfo,
+  $ResourceParam,
+  $Secret,
+  $SsmParam
+} from '../npm/ts/directives';
 export { AWS_SES } from '../npm/ts/global-aws-services';
 export * as resourceClasses from '../npm/ts/resources';
 export * as typePropertyClasses from '../npm/ts/type-properties';

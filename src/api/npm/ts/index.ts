@@ -12,6 +12,7 @@ export {
   $Region,
   $ResourceParam,
   $Secret,
+  $SsmParam,
   $Stage
 } from './directives';
 

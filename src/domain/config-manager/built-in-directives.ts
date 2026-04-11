@@ -2,7 +2,7 @@ import type { IntrinsicFunction } from '@cloudform/dataTypes';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { GetAtt, ImportValue, Ref, Sub } from '@cloudform/functions';
-import { IDENTIFIER_FOR_MISSING_OUTPUT } from '@config';
+import { IDENTIFIER_FOR_MISSING_OUTPUT, linksMap } from '@config';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
@@ -298,6 +298,52 @@ export const builtInDirectives: Directive[] = [
         throw new ExpectedError(
           'DIRECTIVE',
           `Error when resolving Secret directive for secret with name ${secretName}.\n${err}`
+        );
+      }
+    }
+  },
+  {
+    name: 'SsmParam',
+    requiredParams: { paramName: 'string' },
+    isRuntime: true,
+    resolveFunction: () => async (paramReference: string) => {
+      let param;
+      try {
+        param = await awsSdkManager.getSsmParameterValue({ ssmParameterName: paramReference });
+      } catch (err) {
+        throw new ExpectedError(
+          'DIRECTIVE',
+          `Error resolving directive \`$SsmParam('${paramReference}')\`:\n${err}`,
+          `If you did not create the parameter yet, create it in the Stacktape console: ${linksMap.ssmParams}`
+        );
+      }
+      const paramType = param.Parameter.Type;
+      const paramVersion = String(param.Parameter.Version);
+      const resolvePrefix = paramType === 'SecureString' ? 'ssm-secure' : 'ssm';
+
+      const outputName = getStackOutputName(paramReference.replace(/\//g, '-'), 'CurrentSsmParamVersion');
+      templateManager.addFinalTemplateOverrideFn(async () => {
+        templateManager.addStackOutput({
+          cfOutputName: outputName,
+          value: paramVersion,
+          description: `Added by $SsmParam('${paramReference}') directive`
+        });
+      });
+
+      return `{{resolve:${resolvePrefix}:${paramReference}:${paramVersion}}}`;
+    },
+    localResolveFunction: () => async (paramReference: string) => {
+      try {
+        const result = await awsSdkManager.getSsmParameterValue({ ssmParameterName: paramReference });
+        const value = result.Parameter?.Value;
+        if (!value) {
+          throw new Error(`SSM parameter "${paramReference}" has no value.`);
+        }
+        return value;
+      } catch (err) {
+        throw new ExpectedError(
+          'DIRECTIVE',
+          `Error when resolving SsmParam directive for parameter with name ${paramReference}.\n${err}`
         );
       }
     }

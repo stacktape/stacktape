@@ -2,6 +2,8 @@ import type { ContainerDefinition, KeyValuePair, TaskDefinitionProperties } from
 import { globalStateManager } from '@application-services/global-state-manager';
 import Application from '@cloudform/codeDeploy/application';
 import { GetAtt, Ref } from '@cloudform/functions';
+import LambdaPermission from '@cloudform/lambda/permission';
+import SubscriptionFilter from '@cloudform/logs/subscriptionFilter';
 import { defaultLogRetentionDays } from '@config';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
@@ -15,6 +17,8 @@ import { cfEvaluatedLinks } from '@shared/naming/cf-evaluated-links';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import { getJobName } from '@shared/naming/utils';
 import { PARENT_IDENTIFIER_SHARED_GLOBAL } from '@shared/utils/constants';
+import { getLanguageFromExtension } from '@utils/environment';
+import { getContainerIssueFilterPattern, isIssueDetectionSupportedLanguage } from '../_utils/issue-detection';
 import { getResolvedConnectToEnvironmentVariables } from '../_utils/connect-to-helper';
 import { getEfsAccessPoint } from '../_utils/efs';
 import { getResourcesNeededForLogForwarding } from '../_utils/log-forwarding';
@@ -232,7 +236,7 @@ export const resolveContainerWorkload = ({ definition }: { definition: StpContai
       GetAtt(cfLogicalNames.ecsService(definition.name, isBlueGreen), 'Name')
     )
   });
-  definition.containers.forEach(({ name: containerName, logging, volumeMounts }) => {
+  definition.containers.forEach(({ name: containerName, logging, volumeMounts, packaging: containerPackaging }) => {
     if (!logging?.disabled) {
       calculatedStackOverviewManager.addCfChildResource({
         cfLogicalName: cfLogicalNames.ecsLogGroup(definition.name, containerName),
@@ -268,6 +272,55 @@ export const resolveContainerWorkload = ({ definition }: { definition: StpContai
               resource: cfResource
             });
           }
+        });
+      }
+
+      // Issue detection: add subscription filter to detect runtime errors.
+      // Skip if logForwarding is configured (max 2 subscription filters per CW log group).
+      const containerEntryfilePath = (containerPackaging?.properties as { entryfilePath?: string })?.entryfilePath;
+      const containerLanguage = getLanguageFromExtension(containerEntryfilePath);
+      const isStpManagedPackaging = containerPackaging?.type === 'stacktape-image-buildpack';
+      const hasContainerLogForwarding = !!logging?.logForwarding;
+      if (
+        configManager.isIssueDetectionEnabled &&
+        isIssueDetectionSupportedLanguage(containerLanguage) &&
+        isStpManagedPackaging &&
+        !hasContainerLogForwarding
+      ) {
+        const serviceLambdaArn = GetAtt(configManager.stacktapeServiceLambdaProps.cfLogicalName, 'Arn');
+        const filterLogicalName = cfLogicalNames.issueDetectionSubscriptionFilter(
+          `${definition.name}-${containerName}`
+        );
+        const permissionLogicalName = cfLogicalNames.issueDetectionLogsPermission();
+
+        if (!templateManager.getCfResourceFromTemplate(permissionLogicalName)) {
+          calculatedStackOverviewManager.addCfChildResource({
+            cfLogicalName: permissionLogicalName,
+            nameChain: [PARENT_IDENTIFIER_SHARED_GLOBAL, 'stacktapeServiceLambda'],
+            resource: new LambdaPermission({
+              Action: 'lambda:InvokeFunction',
+              Principal: `logs.${globalStateManager.region}.amazonaws.com`,
+              FunctionName: serviceLambdaArn,
+              SourceAccount: Ref('AWS::AccountId')
+            })
+          });
+        }
+
+        const containerLogGroupLogicalName = cfLogicalNames.ecsLogGroup(definition.name, containerName);
+        const subscriptionFilterResource = new SubscriptionFilter({
+          LogGroupName: awsResourceNames.containerLogGroup({
+            stackName: globalStateManager.targetStack.stackName,
+            stpResourceName: definition.name,
+            containerName
+          }),
+          FilterPattern: getContainerIssueFilterPattern(containerLanguage),
+          DestinationArn: serviceLambdaArn
+        });
+        subscriptionFilterResource.DependsOn = [permissionLogicalName, containerLogGroupLogicalName];
+        calculatedStackOverviewManager.addCfChildResource({
+          cfLogicalName: filterLogicalName,
+          nameChain,
+          resource: subscriptionFilterResource
         });
       }
 

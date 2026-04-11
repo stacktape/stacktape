@@ -15,6 +15,7 @@ import { devTuiState } from 'src/app/tui-manager/dev-tui/state';
 import type { DevTuiState } from 'src/app/tui-manager/dev-tui/types';
 import { initializeStackServicesForDevPhase1, initializeStackServicesForDevPhase2 } from '../_utils/initialization';
 import { ensureMissingSecretsCreated } from '../_utils/secret-preflight';
+import { ensureMissingSsmParamsCreated } from '../_utils/ssm-param-preflight';
 import {
   buildAgentReadyMessage,
   deleteAgentLockFile,
@@ -480,6 +481,7 @@ export const commandDev = async () => {
   metadataSpinner.success();
 
   await ensureMissingSecretsCreated();
+  await ensureMissingSsmParamsCreated();
 
   if (isLegacy) {
     // Legacy mode: require existing deployed stack

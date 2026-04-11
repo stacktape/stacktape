@@ -1465,10 +1465,22 @@ You have specified ${tuiManager.makeBold('app_variable')} "${appVariable}" in yo
       message: `Error in ${tuiManager.prettyResourceName(stpResourceName)} (${tuiManager.prettyResourceType('nextjs-web')}) Cannot use edge lambdas ${tuiManager.prettyConfigProperty('useEdgeLambda')} together with streaming responses ${tuiManager.prettyConfigProperty('streamingEnabled')}.`
     };
   },
-  e106({ directoryPath, stpResourceName }: { directoryPath: string; stpResourceName: string }): ReturnedError {
+  e106({
+    directoryPath,
+    stpResourceName,
+    resolvedPath
+  }: {
+    directoryPath: string;
+    stpResourceName: string;
+    resolvedPath?: string;
+  }): ReturnedError {
+    const resolvedPathHint = resolvedPath
+      ? `\nResolved absolute path: "${tuiManager.prettyFilePath(resolvedPath)}"`
+      : '';
     return {
       type: 'CONFIG_VALIDATION',
-      message: `Error in ${tuiManager.prettyResourceName(stpResourceName)} resource: Specified directory "${tuiManager.prettyFilePath(directoryPath)}" is not accessible or not a directory.`
+      message: `Error in ${tuiManager.prettyResourceName(stpResourceName)} resource: Specified directory "${tuiManager.prettyFilePath(directoryPath)}" is not accessible or not a directory.${resolvedPathHint}`,
+      hint: 'The appDirectory path is relative to the directory containing your Stacktape config file. If your config is already inside the app directory, use "." (the default) instead.'
     };
   },
   e107({ directoryPath, stpResourceName }: { directoryPath: string; stpResourceName: string }): ReturnedError {
@@ -2003,6 +2015,26 @@ Property ${tuiManager.prettyConfigProperty('runAppAs')} can be specified only fo
       message: `Stack ${tuiManager.colorize('cyan', stackName)} is a dev stack and cannot be deployed using ${tuiManager.prettyCommand('deploy')}.`,
       hint: `Dev stacks are created and managed by ${tuiManager.prettyCommand('dev')}. To deploy a production stack, use a different stage name (e.g., --stage production).
 If you want to delete the dev stack, run: ${tuiManager.prettyCommand(`delete --stage ${stage}`)}`
+    };
+  },
+  e142({
+    directoryPath,
+    stpResourceName,
+    propertyName,
+    resolvedPath
+  }: {
+    directoryPath: string;
+    stpResourceName: string;
+    propertyName: string;
+    resolvedPath?: string;
+  }): ReturnedError {
+    const resolvedPathHint = resolvedPath
+      ? `\nResolved absolute path: "${tuiManager.prettyFilePath(resolvedPath)}"`
+      : '';
+    return {
+      type: 'CONFIG_VALIDATION',
+      message: `Error in ${tuiManager.prettyResourceName(stpResourceName)} resource: Directory from ${tuiManager.prettyConfigProperty(propertyName)} ("${tuiManager.prettyFilePath(directoryPath)}") is not accessible or not a directory.${resolvedPathHint}`,
+      hint: 'Relative paths are resolved from the directory containing your Stacktape config file. If your config is already inside that app directory, use "." (the default) instead.'
     };
   },
   e999({ message, hint }: { message: string; hint: string }): ReturnedError {

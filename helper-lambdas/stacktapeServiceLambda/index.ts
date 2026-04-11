@@ -3,8 +3,12 @@ import alarmNotificationHandler from './alarm-notifications';
 import customResourcesHandler from './custom-resources';
 import customTaggingHandler from './custom-tagger';
 import ecsServiceScheduledMaintenanceHandler from './ecs-maintenance';
+import issueProcessorHandler from './issue-processor';
 
 const handler = async (event, context, callback) => {
+  if (isCloudWatchLogsSubscriptionFilterEvent(event)) {
+    return issueProcessorHandler(event);
+  }
   if (isCloudformationCustomResourceEvent(event)) {
     return customResourcesHandler(event, context, callback);
   }
@@ -33,6 +37,10 @@ const isEcsServiceScheduledMaintenanceEvent = (event: EcsServiceScheduledMainten
 
 const isCustomTaggingScheduledEvent = (event: CustomTaggingScheduledRuleInput) => {
   return event.tagHostedZoneAttributedToCloudMapNamespace && event.tagNetworkInterfaceWithSecurityGroup;
+};
+
+const isCloudWatchLogsSubscriptionFilterEvent = (event: { awslogs?: { data?: string } }) => {
+  return event.awslogs?.data;
 };
 
 export default handler;

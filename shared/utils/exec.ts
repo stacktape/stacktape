@@ -3,7 +3,8 @@ import { EventEmitter } from 'node:events';
 import execa from 'execa';
 import { jsonlEmitter } from '../../src/app/tui-manager/jsonl-emitter';
 import { logCollectorStream } from '../../src/utils/log-collector';
-import { serialize } from './misc';
+import { isDirAccessible } from './fs-utils';
+import { getError, serialize } from './misc';
 import { StreamTransformer } from './streams';
 
 EventEmitter.defaultMaxListeners = 0;
@@ -138,6 +139,14 @@ const setupLineCallback = (stream: NodeJS.ReadableStream, callback: (line: strin
 };
 
 export const exec = async (command: string, args: string[], params: ExecProps) => {
+  if (params.cwd && !isDirAccessible(params.cwd)) {
+    throw getError({
+      type: 'CLI',
+      message: `Cannot run command "${[command, ...args].join(' ')}" because working directory "${params.cwd}" does not exist or is not accessible.`,
+      hint: 'Check configured working directories such as appDirectory and build.workingDirectory. Relative paths are resolved from the directory containing your Stacktape config file.'
+    });
+  }
+
   const start = Date.now();
 
   const childProcess = getChildProcess(command, args, params);

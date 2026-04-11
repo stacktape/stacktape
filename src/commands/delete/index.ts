@@ -4,6 +4,7 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
+import { validateGuardrails } from '@domain-services/config-manager/utils/validation';
 import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
 import { notificationManager } from '@domain-services/notification-manager';
 import { templateManager } from '@domain-services/template-manager';
@@ -36,6 +37,7 @@ export const commandDelete = async () => {
   });
 
   await configManager.loadGlobalConfig();
+  validateGuardrails({ guardrails: configManager.guardrails, hasConfig: !!configManager.config });
   await notificationManager.init();
 
   const stackName = globalStateManager.targetStack.stackName;

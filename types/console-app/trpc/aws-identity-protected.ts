@@ -45,6 +45,25 @@ export type ReportAlarmEventParams = {
   details?: Record<string, unknown>;
 };
 
+export type ReportIssueEventParams = {
+  fingerprint: string;
+  errorMessage: string;
+  errorType: string;
+  stackTrace: Array<{
+    function: string;
+    file: string;
+    line: number;
+    column: number;
+  }>;
+  functionName?: string;
+  logGroup?: string;
+  requestId?: string;
+  project: string;
+  stage: string;
+  region: string;
+  rawLog?: string;
+};
+
 export type AwsIdentityTrpcClient = {
   validateCertificate: {
     mutate: (args: ValidateCertificateParams) => Promise<void>;
@@ -57,5 +76,8 @@ export type AwsIdentityTrpcClient = {
   };
   reportAlarmEvent: {
     mutate: (args: ReportAlarmEventParams) => Promise<string>;
+  };
+  reportIssueEvent: {
+    mutate: (args: ReportIssueEventParams) => Promise<string>;
   };
 };

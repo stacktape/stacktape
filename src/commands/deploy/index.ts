@@ -32,6 +32,7 @@ import { getLambdaFunctionHotswapInformation, updateFunctionCode } from '../_uti
 import { initializeAllStackServices } from '../_utils/initialization';
 import { promptCiCdSetupAfterDeploy } from '../_utils/cicd-setup';
 import { ensureMissingSecretsCreated } from '../_utils/secret-preflight';
+import { ensureMissingSsmParamsCreated } from '../_utils/ssm-param-preflight';
 
 export const commandDeploy = async () => {
   await initializeAllStackServices({
@@ -49,9 +50,10 @@ export const commandDeploy = async () => {
     });
   }
 
-  validateGuardrails(configManager.guardrails);
+  validateGuardrails({ guardrails: configManager.guardrails, hasConfig: true });
 
   await ensureMissingSecretsCreated();
+  await ensureMissingSsmParamsCreated();
 
   eventManager.setPhase('BUILD_AND_PACKAGE');
   const [{ packagedWorkloads, abort, cfTemplateDiff }] = await Promise.all([

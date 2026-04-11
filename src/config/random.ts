@@ -91,7 +91,8 @@ export const linksMap = {
   console: 'https://console.stacktape.com/',
   apiKeys: 'https://console.stacktape.com/api-keys',
   connectedAwsAccounts: 'https://console.stacktape.com/aws-accounts',
-  subscription: 'https://console.stacktape.com/subscription-plans'
+  subscription: 'https://console.stacktape.com/subscription-plans',
+  ssmParams: 'https://console.stacktape.com/ssm-params'
 };
 
 export const SUPPORTED_AWS_REGIONS = [
