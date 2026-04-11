@@ -20,7 +20,8 @@
     "gen": "bun gen:cli && bun gen:sdk",
     "check:links": "bunx check-html-links public",
     "enhance:config:schema": "bun scripts/enhance-config-schema.ts",
-    "gen:necessary": "bun scripts/generate-necessary.ts"
+    "gen:necessary": "bun scripts/generate-necessary.ts",
+    "gen:docs": "bun scripts/generate-docs/index.ts"
   },
   "dependencies": {
     "@calcom/embed-react": "^1.5.3",

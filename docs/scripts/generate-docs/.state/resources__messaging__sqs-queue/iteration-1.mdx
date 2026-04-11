@@ -1,0 +1,276 @@
+---
+title: 'SQS Queue'
+order: 2
+seoTitle: 'SQS Queue Resource | Stacktape Docs'
+seoDescription: 'Configure serverless SQS message queues in Stacktape. FIFO queues, dead-letter queues, long polling, EventBridge integration, and Lambda triggers — all from simple config.'
+---
+
+# SQS Queue
+
+Amazon SQS queues let you decouple services by passing messages asynchronously between producers and consumers. A producer sends a message; a consumer retrieves and processes it independently, at its own pace. Queues are fully managed and serverless — there are no servers to provision, and you pay only per message.
+
+## When to use an SQS queue
+
+SQS is the right tool when you want:
+
+- **Background processing** — offload slow work (image resizing, email sending, report generation) from your request path
+- **Rate limiting** — protect a downstream service or database from traffic spikes by buffering messages
+- **Retry resilience** — messages stay in the queue until a consumer successfully processes and deletes them; if a consumer crashes, the message becomes visible again automatically
+- **Decoupling** — allow services to evolve and scale independently without direct dependencies
+
+**When not to use SQS:** If multiple independent services need to react to the same event, use an SNS topic or EventBridge event bus instead. A single SQS queue should have only one consumer. SQS is also not suited for real-time bidirectional communication or ordered streaming at high throughput (use Kinesis for that).
+
+## Basic example
+
+```yaml
+resources:
+  jobQueue:
+    type: sqs-queue
+
+  jobProcessor:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/process-job.ts
+      events:
+        - type: sqs
+          properties:
+            sqsQueueName: jobQueue
+            batchSize: 10
+```
+
+```typescript
+import type { StacktapeConfig } from 'stacktape';
+
+const config: StacktapeConfig = {
+  resources: {
+    jobQueue: {
+      type: 'sqs-queue',
+    },
+    jobProcessor: {
+      type: 'function',
+      properties: {
+        packaging: {
+          type: 'stacktape-lambda-buildpack',
+          properties: { entryfilePath: 'src/process-job.ts' },
+        },
+        events: [
+          {
+            type: 'sqs',
+            properties: {
+              sqsQueueName: 'jobQueue',
+              batchSize: 10,
+            },
+          },
+        ],
+      },
+    },
+  },
+};
+```
+
+This creates a standard SQS queue and a Lambda function that polls it in batches of up to 10 messages. The Lambda automatically scales based on queue depth.
+
+## Key configuration areas
+
+### Visibility timeout
+
+When a consumer retrieves a message, SQS hides it from other consumers for `visibilityTimeoutSeconds` (default: **30 seconds**). The consumer must fully process and delete the message before this window closes — otherwise the message becomes visible again and another consumer will pick it up.
+
+**Set this higher than your expected processing time.** If your function takes up to 2 minutes, use at least 150 seconds.
+
+```yaml
+resources:
+  slowQueue:
+    type: sqs-queue
+    properties:
+      visibilityTimeoutSeconds: 300  # 5 minutes
+```
+
+### FIFO queues
+
+Standard queues deliver messages at least once, in approximate order. Enable `fifoEnabled` when processing order is critical — financial transactions, state transitions, sequential workflows.
+
+FIFO queues guarantee:
+- **Exactly-once processing** within a 5-minute deduplication window
+- **Strict ordering** within each `MessageGroupId`
+
+Tradeoff: lower throughput — approximately 300 messages/second without batching, 3,000 with batching (versus effectively unlimited for standard queues).
+
+```yaml
+resources:
+  orderedQueue:
+    type: sqs-queue
+    properties:
+      fifoEnabled: true
+      contentBasedDeduplication: true  # SQS deduplicates based on SHA-256 hash of message body
+```
+
+For higher throughput on FIFO queues, enable `fifoHighThroughput`. This partitions messages by `MessageGroupId` and supports up to approximately 70,000 messages/second, but ordering is only guaranteed within a group.
+
+### Dead-letter queues
+
+A dead-letter queue (DLQ) receives messages that failed processing too many times. After `maxReceiveCount` failed attempts, SQS automatically moves the message to the DLQ for inspection and reprocessing.
+
+```yaml
+resources:
+  jobDlq:
+    type: sqs-queue
+
+  jobQueue:
+    type: sqs-queue
+    properties:
+      visibilityTimeoutSeconds: 120
+      redrivePolicy:
+        targetSqsQueueName: jobDlq
+        maxReceiveCount: 3  # move to DLQ after 3 failed attempts
+```
+
+<Info>Set `maxReceiveCount` to 3–5 for most workloads. Use a lower value for tasks that fail fast and should not be retried aggressively.</Info>
+
+### Long polling
+
+By default, SQS uses short polling (`longPollingSeconds: 0`) — the consumer gets an immediate response even if the queue is empty, and must poll again. This drives unnecessary API calls and cost.
+
+Set `longPollingSeconds` to `1`–`20` to enable long polling. The queue waits up to that many seconds for a message before returning. **20 seconds is recommended for most workloads** — it's the most cost-effective and reduces empty responses dramatically.
+
+```yaml
+resources:
+  jobQueue:
+    type: sqs-queue
+    properties:
+      longPollingSeconds: 20
+```
+
+<Info>When consuming SQS from a Lambda function trigger, AWS manages polling automatically and long polling is applied internally. Set `longPollingSeconds` primarily when you are polling the queue yourself from application code.</Info>
+
+### Message delay
+
+`delayMessagesSecond` (0–900) makes newly added messages invisible to consumers for a fixed period. Useful when a downstream service needs time to prepare before processing (for example, waiting for related records to appear in a database).
+
+```yaml
+resources:
+  delayedQueue:
+    type: sqs-queue
+    properties:
+      delayMessagesSecond: 60  # messages are held for 1 minute before delivery
+```
+
+### Message retention
+
+Messages that are not processed are retained for `messageRetentionPeriodSeconds` (default: **4 days**, or 345,600 seconds). Range is 60 seconds to 14 days (1,209,600 seconds). Increase this if consumers might fall behind or be temporarily offline.
+
+### Large payloads
+
+The maximum message size is 256 KB (`maxMessageSizeBytes: 262144`, the default). For larger payloads, store the data in S3 and send a reference (URL or key) as the message body.
+
+### EventBridge integration
+
+You can route events from an EventBridge event bus directly into an SQS queue using the `events` field. This lets you connect event-driven workflows without writing fan-out code.
+
+```yaml
+resources:
+  orderEvents:
+    type: event-bus
+
+  orderQueue:
+    type: sqs-queue
+    properties:
+      events:
+        - type: event-bus
+          properties:
+            eventBusName: orderEvents
+            eventPattern:
+              detail-type:
+                - OrderPlaced
+```
+
+For FIFO queues as EventBridge targets, also provide `messageGroupId` to control ordering.
+
+### Alarms
+
+Monitor queue health with built-in alarm types:
+
+- **`sqs-queue-not-empty`** — fires when the queue has any unprocessed messages (visible, in-flight, received, or sent)
+- **`sqs-queue-received-messages-count`** — fires when the number of received messages crosses a threshold
+
+```yaml
+resources:
+  jobQueue:
+    type: sqs-queue
+    properties:
+      alarms:
+        - trigger:
+            type: sqs-queue-not-empty
+          notificationTargets:
+            - type: slack
+              properties:
+                webhookUrl: $Secret('slack-webhook')
+```
+
+### Cross-account and SNS access
+
+By default, only your stack's resources can send messages to the queue. Use `policyStatements` to grant access to external AWS accounts or services like SNS.
+
+```yaml
+resources:
+  inboundQueue:
+    type: sqs-queue
+    properties:
+      policyStatements:
+        - Effect: Allow
+          Action:
+            - sqs:SendMessage
+          Principal:
+            Service: sns.amazonaws.com
+          Condition:
+            ArnEquals:
+              aws:SourceArn: arn:aws:sns:eu-west-1:123456789012:my-topic
+```
+
+## How it works
+
+Each `sqs-queue` resource creates an AWS SQS queue. Stacktape manages the queue lifecycle through CloudFormation — creation, updates, and deletion are handled automatically during `deploy` and `delete` commands.
+
+When you use `connectTo` on a workload to reference an SQS queue, Stacktape:
+1. Grants the workload's IAM role `sqs:SendMessage`, `sqs:ReceiveMessage`, `sqs:DeleteMessage`, and related permissions
+2. Injects environment variables with the queue's ARN, name, and URL
+
+When you add an `sqs` event trigger to a Lambda function, AWS creates an event source mapping that polls the queue and invokes the function with batches of messages. If the function fails, messages become visible again after the visibility timeout and will be retried — up to `maxReceiveCount` times if a DLQ is configured.
+
+**Standard vs. FIFO:** Standard queues use a distributed architecture optimized for high throughput; FIFO queues use a stricter sequencing mechanism that reduces throughput in exchange for ordering and deduplication guarantees.
+
+## Connecting to other resources
+
+Add the queue to `connectTo` on any workload that needs to send or receive messages. Stacktape grants permissions and injects connection details automatically.
+
+```yaml
+resources:
+  myApi:
+    type: web-service
+    properties:
+      connectTo:
+        - jobQueue
+      # Injects:
+      #   STP_JOB_QUEUE_ARN
+      #   STP_JOB_QUEUE_NAME
+      #   STP_JOB_QUEUE_URL
+```
+
+### Injected environment variables
+
+| Variable | Description |
+|---|---|
+| `STP_[NAME]_ARN` | Queue ARN |
+| `STP_[NAME]_NAME` | Queue name |
+| `STP_[NAME]_URL` | Queue URL (used by AWS SDK to send/receive) |
+
+## Referenceable parameters
+
+<ReferenceableParams resourceType="sqs-queue" />
+
+## API reference
+
+<PropertiesTable definitionName="SqsQueueConfig" />

@@ -1,0 +1,156 @@
+---
+docType: recipe
+title: REST API + Database
+tags:
+  - rest
+  - api
+  - database
+  - recipe
+source: docs/_curated-docs/recipes/rest-api-with-database.mdx
+priority: 1
+---
+
+# REST API with PostgreSQL
+
+A complete REST API using Lambda functions connected to a PostgreSQL database.
+
+## Final Configuration
+
+```typescript
+import {
+  defineConfig,
+  LambdaFunction,
+  RelationalDatabase,
+  RdsEnginePostgres,
+  HttpApiGateway,
+  $Secret
+} from 'stacktape';
+
+export default defineConfig(({ stage }) => {
+  const isProduction = stage === 'production';
+
+  // PostgreSQL database
+  const database = new RelationalDatabase({
+    engine: new RdsEnginePostgres({
+      version: '16',
+      primaryInstance: {
+        instanceSize: isProduction ? 'db.t4g.small' : 'db.t4g.micro'
+      }
+    }),
+    credentials: {
+      masterUserPassword: $Secret(`db-password-${stage}`)
+    }
+  });
+
+  // API handler
+  const api = new LambdaFunction({
+    packaging: {
+      type: 'stacktape-lambda-buildpack',
+      properties: {
+        entryfilePath: './src/handler.ts'
+      }
+    },
+    connectTo: [database],
+    environment: {
+      NODE_ENV: isProduction ? 'production' : 'development'
+    }
+  });
+
+  // HTTP Gateway
+  const gateway = new HttpApiGateway({
+    routes: [{ path: '/{proxy+}', method: '*', integration: { type: 'function', properties: { function: api } } }]
+  });
+
+  return {
+    resources: { database, api, gateway }
+  };
+});
+```
+
+## Project Structure
+
+## Handler Code
+
+```typescript
+// src/handler.ts
+import { APIGatewayProxyHandlerV2 } from 'aws-lambda';
+import { Pool } from 'pg';
+
+// Connection pool (reused across invocations)
+const pool = new Pool({
+  connectionString: process.env.STP_DATABASE_CONNECTION_STRING
+});
+
+export const handler: APIGatewayProxyHandlerV2 = async (event) => {
+  const { httpMethod, path } = event.requestContext.http;
+
+  if (path === '/users' && httpMethod === 'GET') {
+    const result = await pool.query('SELECT * FROM users LIMIT 100');
+    return {
+      statusCode: 200,
+      body: JSON.stringify(result.rows)
+    };
+  }
+
+  if (path === '/users' && httpMethod === 'POST') {
+    const body = JSON.parse(event.body || '{}');
+    const result = await pool.query('INSERT INTO users (name, email) VALUES ($1, $2) RETURNING *', [
+      body.name,
+      body.email
+    ]);
+    return {
+      statusCode: 201,
+      body: JSON.stringify(result.rows[0])
+    };
+  }
+
+  return { statusCode: 404, body: 'Not found' };
+};
+```
+
+## Adding Migrations
+
+Run database migrations on every deployment:
+
+```typescript
+export default defineConfig(({ stage }) => {
+  // ... resources ...
+
+  return {
+    hooks: {
+      afterDeploy: [{ scriptName: 'migrate' }]
+    },
+    scripts: {
+      migrate: {
+        executeCommand: 'npx prisma migrate deploy',
+        environment: {
+          DATABASE_URL: $ResourceParam('database', 'connectionString')
+        }
+      }
+    },
+    resources: { database, api, gateway }
+  };
+});
+```
+
+## Development
+
+```bash
+# Start local development
+stacktape dev --stage dev --region us-east-1
+
+# Database runs locally in Docker
+# API runs locally with hot-reload
+# Requests tunnel through AWS
+```
+
+## Deploy
+
+```bash
+# Create the database password secret first
+stacktape secret:create --region us-east-1
+# name: db-password-dev
+
+# Deploy
+stacktape deploy --stage dev --region us-east-1
+```

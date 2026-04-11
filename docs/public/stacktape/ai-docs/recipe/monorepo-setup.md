@@ -1,0 +1,183 @@
+---
+docType: recipe
+title: Monorepo Setup
+tags:
+  - monorepo
+  - setup
+  - recipe
+source: docs/_curated-docs/recipes/monorepo-setup.mdx
+priority: 1
+---
+
+# Monorepo Setup
+
+Deploy multiple services from a single repository.
+
+## Project Structure
+
+## Shared Infrastructure Stack
+
+```typescript
+// packages/infra/stacktape.ts
+import { defineConfig, RelationalDatabase, RdsEnginePostgres, $Secret } from 'stacktape';
+
+export default defineConfig(({ stage }) => {
+  const database = new RelationalDatabase({
+    engine: new RdsEnginePostgres({ version: '16' }),
+    credentials: {
+      masterUserPassword: $Secret(`db-password-${stage}`)
+    }
+  });
+
+  return {
+    resources: { database }
+  };
+});
+```
+
+## API Service Stack
+
+```typescript
+// packages/api/stacktape.ts
+import { defineConfig, LambdaFunction, HttpApiGateway, $CfStackOutput } from 'stacktape';
+
+export default defineConfig(({ stage }) => {
+  const api = new LambdaFunction({
+    packaging: {
+      type: 'stacktape-lambda-buildpack',
+      properties: {
+        entryfilePath: './src/handler.ts'
+      }
+    },
+    environment: {
+      // Reference the shared database from infra stack
+      DATABASE_URL: $CfStackOutput(`infra-${stage}`, 'database', 'connectionString')
+    }
+  });
+
+  const gateway = new HttpApiGateway({
+    routes: [{ path: '/{proxy+}', method: '*', integration: { type: 'function', properties: { function: api } } }]
+  });
+
+  return {
+    resources: { api, gateway }
+  };
+});
+```
+
+## Web Service Stack
+
+```typescript
+// packages/web/stacktape.ts
+import { defineConfig, NextjsWeb, $CfStackOutput } from 'stacktape';
+
+export default defineConfig(({ stage }) => {
+  const website = new NextjsWeb({
+    appDirectory: './',
+    environment: [
+      {
+        name: 'NEXT_PUBLIC_API_URL',
+        value: $CfStackOutput(`api-${stage}`, 'gateway', 'url')
+      }
+    ]
+  });
+
+  return {
+    resources: { website }
+  };
+});
+```
+
+## Deployment Scripts
+
+```json
+// package.json (root)
+{
+  "scripts": {
+    "deploy:infra": "cd packages/infra && stacktape deploy",
+    "deploy:api": "cd packages/api && stacktape deploy",
+    "deploy:web": "cd packages/web && stacktape deploy",
+    "deploy:all": "npm run deploy:infra && npm run deploy:api && npm run deploy:web"
+  }
+}
+```
+
+## Deploy Order
+
+Infrastructure must be deployed first since other stacks reference it:
+
+```bash
+# 1. Deploy shared infrastructure
+cd packages/infra
+stacktape deploy --stage dev --region us-east-1
+
+# 2. Deploy API (references infra)
+cd packages/api
+stacktape deploy --stage dev --region us-east-1
+
+# 3. Deploy Web (references API)
+cd packages/web
+stacktape deploy --stage dev --region us-east-1
+```
+
+## CI/CD with GitHub Actions
+
+```yaml
+# .github/workflows/deploy.yml
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v1
+
+      - run: bun install
+
+      # Deploy in order
+      - name: Deploy Infrastructure
+        run: |
+          cd packages/infra
+          stacktape deploy --stage production --region us-east-1 --autoConfirmOperation
+        env:
+          STACKTAPE_API_KEY: ${{ secrets.STACKTAPE_API_KEY }}
+
+      - name: Deploy API
+        run: |
+          cd packages/api
+          stacktape deploy --stage production --region us-east-1 --autoConfirmOperation
+        env:
+          STACKTAPE_API_KEY: ${{ secrets.STACKTAPE_API_KEY }}
+
+      - name: Deploy Web
+        run: |
+          cd packages/web
+          stacktape deploy --stage production --region us-east-1 --autoConfirmOperation
+        env:
+          STACKTAPE_API_KEY: ${{ secrets.STACKTAPE_API_KEY }}
+```
+
+## With Turborepo
+
+```json
+// turbo.json
+{
+  "pipeline": {
+    "deploy": {
+      "dependsOn": ["^deploy"],
+      "cache": false
+    }
+  }
+}
+```
+
+```bash
+# Deploy all in dependency order
+turbo run deploy
+```

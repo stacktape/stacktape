@@ -1,0 +1,211 @@
+---
+docType: recipe
+title: GraphQL API
+tags:
+  - graphql
+  - api
+  - recipe
+source: docs/_curated-docs/recipes/graphql-api.mdx
+priority: 1
+---
+
+# GraphQL API
+
+Deploy a GraphQL API using Apollo Server.
+
+## Lambda-based (Serverless)
+
+```typescript
+import {
+  defineConfig,
+  LambdaFunction,
+  RelationalDatabase,
+  RdsEnginePostgres,
+  HttpApiGateway,
+  $Secret
+} from 'stacktape';
+
+export default defineConfig(({ stage }) => {
+  const database = new RelationalDatabase({
+    engine: new RdsEnginePostgres({ version: '16' }),
+    credentials: {
+      masterUserPassword: $Secret(`db-password-${stage}`)
+    }
+  });
+
+  const graphql = new LambdaFunction({
+    packaging: {
+      type: 'stacktape-lambda-buildpack',
+      properties: {
+        entryfilePath: './src/graphql.ts'
+      }
+    },
+    timeout: 30,
+    memory: 1024,
+    connectTo: [database]
+  });
+
+  const gateway = new HttpApiGateway({
+    routes: [{ path: '/graphql', method: '*', integration: { type: 'function', properties: { function: graphql } } }]
+  });
+
+  return {
+    resources: { database, graphql, gateway }
+  };
+});
+```
+
+## Apollo Server Handler
+
+```typescript
+// src/graphql.ts
+import { ApolloServer } from '@apollo/server';
+import { startServerAndCreateLambdaHandler, handlers } from '@as-integrations/aws-lambda';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+const typeDefs = `#graphql
+  type User {
+    id: ID!
+    email: String!
+    name: String
+    posts: [Post!]!
+  }
+
+  type Post {
+    id: ID!
+    title: String!
+    content: String
+    author: User!
+  }
+
+  type Query {
+    users: [User!]!
+    user(id: ID!): User
+    posts: [Post!]!
+  }
+
+  type Mutation {
+    createUser(email: String!, name: String): User!
+    createPost(title: String!, content: String, authorId: ID!): Post!
+  }
+`;
+
+const resolvers = {
+  Query: {
+    users: () => prisma.user.findMany(),
+    user: (_: any, { id }: { id: string }) => prisma.user.findUnique({ where: { id: parseInt(id) } }),
+    posts: () => prisma.post.findMany()
+  },
+  Mutation: {
+    createUser: (_: any, { email, name }: { email: string; name?: string }) =>
+      prisma.user.create({ data: { email, name } }),
+    createPost: (_: any, { title, content, authorId }: { title: string; content?: string; authorId: string }) =>
+      prisma.post.create({ data: { title, content, authorId: parseInt(authorId) } })
+  },
+  User: {
+    posts: (user: any) => prisma.post.findMany({ where: { authorId: user.id } })
+  },
+  Post: {
+    author: (post: any) => prisma.user.findUnique({ where: { id: post.authorId } })
+  }
+};
+
+const server = new ApolloServer({
+  typeDefs,
+  resolvers,
+  introspection: process.env.NODE_ENV !== 'production'
+});
+
+export const handler = startServerAndCreateLambdaHandler(server, handlers.createAPIGatewayProxyEventV2RequestHandler());
+```
+
+## Container-based (For Complex APIs)
+
+```typescript
+import { defineConfig, WebService, RelationalDatabase, RdsEnginePostgres, $Secret } from 'stacktape';
+
+export default defineConfig(({ stage }) => {
+  const database = new RelationalDatabase({
+    engine: new RdsEnginePostgres({ version: '16' }),
+    credentials: {
+      masterUserPassword: $Secret(`db-password-${stage}`)
+    }
+  });
+
+  const graphql = new WebService({
+    packaging: {
+      type: 'stacktape-image-buildpack',
+      properties: {
+        entryfilePath: './src/server.ts'
+      }
+    },
+    resources: {
+      cpu: 0.5,
+      memory: 1024
+    },
+    connectTo: [database],
+    scaling: {
+      minInstances: 1,
+      maxInstances: 10
+    }
+  });
+
+  return {
+    resources: { database, graphql }
+  };
+});
+```
+
+## Container Server
+
+```typescript
+// src/server.ts
+import { ApolloServer } from '@apollo/server';
+import { expressMiddleware } from '@apollo/server/express4';
+import express from 'express';
+import cors from 'cors';
+
+const app = express();
+
+const server = new ApolloServer({
+  typeDefs,
+  resolvers
+});
+
+await server.start();
+
+app.use('/graphql', cors(), express.json(), expressMiddleware(server));
+
+app.listen(process.env.PORT || 80, () => {
+  console.log('GraphQL server running');
+});
+```
+
+## Dependencies
+
+```json
+{
+  "dependencies": {
+    "@apollo/server": "^4.0.0",
+    "@as-integrations/aws-lambda": "^3.0.0",
+    "@prisma/client": "^5.0.0",
+    "graphql": "^16.0.0"
+  }
+}
+```
+
+## Testing
+
+```bash
+# Query
+curl -X POST https://your-api.execute-api.us-east-1.amazonaws.com/graphql \
+  -H "Content-Type: application/json" \
+  -d '{"query": "{ users { id email name } }"}'
+
+# Mutation
+curl -X POST https://your-api.execute-api.us-east-1.amazonaws.com/graphql \
+  -H "Content-Type: application/json" \
+  -d '{"query": "mutation { createUser(email: \"test@example.com\", name: \"Test\") { id } }"}'
+```
