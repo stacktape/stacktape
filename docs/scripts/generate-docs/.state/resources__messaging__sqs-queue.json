@@ -1,0 +1,704 @@
+{
+  "pageId": "resources__messaging__sqs-queue",
+  "pageRoute": "resources/messaging/sqs-queue",
+  "startedAt": "2026-04-10T01:23:18.374Z",
+  "updatedAt": "2026-04-10T01:47:54.731Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\resources__messaging__sqs-queue\\iteration-1.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "startup-cto",
+          "persona": "Small startup CTO with low to medium AWS experience. Cares most about time-to-production and shipping quickly without getting trapped in AWS complexity.",
+          "modelProvider": "claude",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Strong opening paragraph — self-contained, defines the resource and value proposition in under 60 words",
+            "The 'When to use / When not to use' section is genuinely opinionated and decision-useful; explicitly calling out SNS/Kinesis as alternatives is rare and valuable",
+            "Concrete defaults throughout (visibility timeout 30s, retention 345,600s/4 days, FIFO limits ~300/3,000/70,000 msg/s) — AI-extractable and trust-building",
+            "DLQ example is realistic and paired with a 3–5 maxReceiveCount recommendation, not just a syntax dump",
+            "Both YAML and TypeScript examples in the basic section reduces friction regardless of user's config style preference",
+            "The injected environment variables table is practical and directly actionable for writing application code",
+            "The 'single consumer' constraint is clearly called out — prevents a common architectural mistake"
+          ],
+          "problems": [
+            "No pricing context anywhere — startup CTOs making infrastructure decisions need ballpark numbers (SQS standard ~$0.40/million requests, FIFO ~$0.50/million). This is a page-level gap, not an edge case.",
+            "The Info callout on long polling and Lambda is subtly misleading: 'AWS manages polling automatically' could lead users to conclude they should skip longPollingSeconds entirely. It should clarify this property matters when polling from non-Lambda consumers (e.g., worker services, containers, scripts).",
+            "maxBatchWindowSeconds for the SQS Lambda trigger is not mentioned at all. This controls how long Lambda waits to fill a batch before invoking — directly affects cost and latency tradeoffs for job queues, which is the primary use case shown in the basic example.",
+            "No mention of message durability guarantees (stored redundantly across multiple AZs) — a startup CTO evaluating SQS for critical workloads needs this reassurance to justify skipping a more complex queue infrastructure.",
+            "The 'How it works' section is mostly filler — it restates things already said elsewhere (IAM permissions, env vars, retry behavior) without adding new insight. The section on event source mapping adds some value but could be merged into relevant sections."
+          ],
+          "mandatoryFixes": [
+            "Add a pricing callout — at minimum one sentence: standard queues ~$0.40/million requests, FIFO ~$0.50/million, first 1 million free. Startup CTOs evaluate cost before committing to a pattern.",
+            "Fix the long polling Info callout: replace 'Set longPollingSeconds primarily when you are polling the queue yourself' with a clearer statement — e.g., 'Set longPollingSeconds when anything other than a Lambda trigger is consuming the queue (container worker services, scripts, application code). Lambda-triggered queues have polling managed by AWS.' The current phrasing implies Lambda consumers should ignore this setting entirely, which leaves container/worker consumers without guidance.",
+            "Add maxBatchWindowSeconds to the Lambda trigger section (or a 'Tuning Lambda batch behavior' subsection): explain that it controls how long Lambda waits to accumulate a full batch before invoking (max 300 seconds), and give a concrete recommendation — e.g., use 5–30 seconds to reduce invocations on low-volume queues, use 0 for latency-sensitive processing."
+          ],
+          "optionalImprovements": [
+            "Trim or remove the 'How it works' section — it restates connectTo behavior already covered in 'Connecting to other resources' and adds ~200 words of low-signal content. The CloudFormation lifecycle sentence is the only unique part worth keeping.",
+            "Add a one-line durability note near the opening or 'When to use' section: SQS stores messages redundantly across multiple availability zones, so the queue itself is not a single point of failure.",
+            "In the basic example, add a brief comment showing how the Lambda handler receives and acknowledges messages — even pseudocode — to complete the mental model for readers who haven't used SQS before.",
+            "For FIFO queues, add a note that AWS automatically appends .fifo to the queue name, which may appear in ARNs and SDK calls — this is a gotcha when constructing queue references in application code.",
+            "Consider adding a small decision table or summary block at the start of 'Key configuration areas' listing the most impactful settings and when to change them (visibility timeout, DLQ, FIFO, long polling) — reduces time-to-decision for readers scanning the page."
+          ]
+        },
+        {
+          "reviewerId": "smb-manager",
+          "persona": "SMB engineering manager with medium to high AWS knowledge. Cares about long-term maintainability, team clarity, and operational fit.",
+          "modelProvider": "claude",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Strong 'When to use / When not to use' section upfront — exactly what a decision-making reader needs before reading further",
+            "FIFO throughput numbers (300/3,000/70,000 msg/s) are specific and match source, giving an engineering manager concrete data for capacity planning",
+            "DLQ example is realistic and the maxReceiveCount recommendation (3–5) gives a useful default",
+            "Visibility timeout section directly links the config value to real processing time with a concrete example",
+            "Both YAML and TypeScript variants for all examples reduces friction for different team setups",
+            "The Info callout correctly explains that Lambda triggers manage their own polling, preventing a common misconfiguration",
+            "EventBridge integration is documented with a realistic order-routing example"
+          ],
+          "problems": [
+            "No pricing context at all — an engineering manager evaluating SQS at scale needs to know the cost model (per-million requests, FIFO premium) before committing to this pattern",
+            "maxBatchWindowSeconds for the SQS Lambda trigger is entirely absent — this directly affects Lambda cold-start behavior and cost efficiency for low-volume queues",
+            "targetSqsQueueArn in redrivePolicy is not mentioned — cross-stack or cross-account DLQ setups (a real operational pattern) are invisible from this page",
+            "The long polling Info callout says AWS 'applies [long polling] internally' for Lambda triggers but doesn't state whether longPollingSeconds on the queue resource still has any effect — this leaves ambiguity for teams that use both Lambda triggers and SDK polling on the same queue",
+            "The 6 MB Lambda batch payload limit (visible in source comments) is not mentioned — teams with large messages could hit this invisibly",
+            "No application code example showing how to use the injected STP_[NAME]_URL to actually send a message — the page is complete on the infrastructure side but leaves the runtime usage implicit"
+          ],
+          "mandatoryFixes": [
+            "Add a brief pricing callout: Standard queues are priced per million API calls (~$0.40/million); FIFO queues cost ~25% more (~$0.50/million). First 1M requests/month are free. This is decision-critical for an engineering manager.",
+            "Document maxBatchWindowSeconds under the Lambda trigger section — explain that it buffers up to N seconds to fill a batch, and that leaving it unset invokes the function as soon as any messages are available (higher cost, lower latency).",
+            "In the Dead-letter queues section, add that targetSqsQueueArn accepts an ARN for DLQs in another stack or AWS account, with a one-line example. Currently the DLQ must appear to be in the same stack.",
+            "Clarify the long polling callout: state explicitly that longPollingSeconds on the queue resource has no effect on Lambda event source mapping (AWS hardcodes 20-second long polling internally), and only matters when polling via the SDK directly."
+          ],
+          "optionalImprovements": [
+            "Add a Standard vs. FIFO comparison table (throughput, ordering guarantee, deduplication, pricing) — this would crystallize the tradeoff faster than the prose currently does",
+            "Mention the 6 MB batch payload limit for Lambda triggers alongside batchSize to prevent silent failures with large messages",
+            "State the visibility timeout maximum (12 hours / 43,200 seconds) in the section — useful for workloads with very long processing windows like ML inference jobs",
+            "Add a minimal TypeScript snippet (3–5 lines) using the AWS SDK SQSClient and SendMessageCommand with the STP_JOB_QUEUE_URL env var — the runtime usage is the most common follow-up question after the infrastructure is set up"
+          ]
+        },
+        {
+          "reviewerId": "developer-low-aws",
+          "persona": "Developer with little AWS or DevOps experience. Needs jargon kept under control and wants examples that are easy to follow.",
+          "modelProvider": "claude",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 6,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Opening paragraph is tight and self-contained — explains what SQS does, why it matters, and the serverless/pay-per-message model in under 60 words",
+            "Visibility timeout section gives a concrete, actionable recommendation with a specific example ('if your function takes up to 2 minutes, use at least 150 seconds') — exactly what a beginner needs",
+            "FIFO section explains the tradeoff honestly: ordering/deduplication guarantees come at a real throughput cost, with concrete numbers (300 vs 3,000 msg/s)",
+            "Dead-letter queue example is realistic and includes an opinionated recommendation for maxReceiveCount (3–5)",
+            "Both YAML and TypeScript examples are provided throughout, making the page usable for either config style",
+            "The Info callout about Lambda polling and long polling is genuinely useful and prevents a common misconfiguration",
+            "Injected environment variables table is clear and scannable"
+          ],
+          "problems": [
+            "No code example showing how to actually send a message to the queue from application code — this is the most common operation, and a beginner reading this page still won't know how to use `STP_JOB_QUEUE_URL` with the AWS SDK to enqueue a job",
+            "No Lambda handler example showing what the SQS event payload looks like — a beginner needs to know how to read `event.Records` and access message bodies",
+            "`MessageGroupId` and `MessageDeduplicationId` are used multiple times without ever being defined — a junior developer won't know these are message-level fields set when calling SendMessage, not config properties",
+            "The `policyStatements` section uses full IAM policy syntax (Effect, Action, Principal, Condition, ARNs) with zero onboarding context and no warning that most users can skip it — it will confuse beginners who encounter it before they have any IAM understanding",
+            "EventBridge integration section dives into `detail-type` event filtering without a single sentence explaining what EventBridge is or when a developer would route events into SQS vs directly triggering a Lambda",
+            "The `fifoHighThroughput` subsection says 'ordering is only guaranteed within a group' but `MessageGroupId` has never been defined at that point, making the statement opaque",
+            "No pricing information beyond 'pay per message' — even a rough number ($0.40/million for standard queues) would help beginners reason about cost"
+          ],
+          "mandatoryFixes": [
+            "Add a short code snippet (TypeScript) showing how to send a message to the queue from application code using the injected `STP_JOB_QUEUE_URL` env var and the AWS SDK `SQSClient` — place it in or just after the 'Connecting to other resources' section",
+            "Add a minimal Lambda handler snippet showing how to iterate over `event.Records` and read `record.body` — place it in or near the basic example so readers know what to do on the consumer side",
+            "Define `MessageGroupId` the first time it appears: one sentence explaining it is a string you attach to each message when calling SendMessage, used to group related messages for ordering — then the FIFO and fifoHighThroughput sections will make sense",
+            "Add a one-line 'skip this section unless you need it' note at the top of the `policyStatements` section, clarifying it is only needed for cross-account or SNS access — most users don't need it"
+          ],
+          "optionalImprovements": [
+            "Add a one-sentence definition of EventBridge at the start of the EventBridge integration section (e.g., 'EventBridge is a serverless event bus that can route events from your app or AWS services to other resources — including this queue')",
+            "Include approximate SQS pricing ($0.40/million standard, $0.50/million FIFO) so cost-conscious beginners can reason about it without leaving the page",
+            "Convert some H3 headings to question format where natural — 'What is a visibility timeout?' scans better for a beginner than 'Visibility timeout', and matches SEO guidance",
+            "Remove 'SHA-256 hash of the body' from the contentBasedDeduplication description — the implementation detail adds noise for this audience; 'SQS automatically deduplicates identical messages' is sufficient",
+            "The `maxBatchWindowSeconds` property for the Lambda SQS trigger is in the source but not mentioned in prose — worth one sentence noting it exists for batching-latency tradeoffs",
+            "Consider a brief 'Standard vs FIFO — which should I use?' decision block near the top of the FIFO section to help beginners make the choice faster without reading the full section"
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "claude-verifier",
+          "modelProvider": "claude",
+          "summary": "The draft is highly accurate and well-grounded in the source files. All key property names, defaults, ranges, alarm types, and referenceable parameters are confirmed. Two minor issues were found: one ambiguous claim about specific IAM action names (source only says \"send/receive/delete\" generically) and one unsupported claim about Lambda auto-scaling behavior that, while correct AWS behavior, does not appear in any provided source file.",
+          "issues": [
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "When you use `connectTo` on a workload to reference an SQS queue, Stacktape: 1. Grants the workload's IAM role `sqs:SendMessage`, `sqs:ReceiveMessage`, `sqs:DeleteMessage`, and related permissions",
+              "reason": "The source only describes the capability as 'send/receive/delete' generically. It does not enumerate exact IAM action names. The real grant may include additional actions such as `sqs:GetQueueUrl`, `sqs:GetQueueAttributes`, or others that are not listed in the draft's enumeration.",
+              "suggestedFix": "Replace the specific IAM action names with the generic description from the source: 'Grants the workload's IAM role send, receive, and delete permissions on the queue' — or use 'and related permissions' without listing specific action strings.",
+              "evidence": [
+                {
+                  "file": "types/stacktape-config/__helpers.d.ts",
+                  "quote": "**`SqsQueue`** — send/receive/delete → `ARN`, `NAME`, `URL`"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "The Lambda automatically scales based on queue depth.",
+              "reason": "No source file provided confirms or describes Lambda auto-scaling behavior in relation to SQS queue depth. While this is standard AWS behavior, it is not grounded in any of the provided source files.",
+              "suggestedFix": "Either remove the sentence or qualify it as AWS platform behavior: 'AWS automatically scales Lambda invocations as queue depth increases.' This makes clear it is an AWS platform guarantee, not a Stacktape-specific feature.",
+              "evidence": [
+                {
+                  "file": "types/stacktape-config/sqs-queues.d.ts",
+                  "quote": "Message queue for decoupling services. Producers send messages, consumers process them at their own pace."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "All property names are correct: `visibilityTimeoutSeconds`, `fifoEnabled`, `contentBasedDeduplication`, `fifoHighThroughput`, `redrivePolicy`, `longPollingSeconds`, `delayMessagesSecond`, `messageRetentionPeriodSeconds`, `maxMessageSizeBytes`, `policyStatements`, `alarms`, `events` — all confirmed in `sqs-queues.d.ts`.",
+            "Default values are all accurate: `visibilityTimeoutSeconds` default 30 ✓, `longPollingSeconds` default 0 ✓, `messageRetentionPeriodSeconds` default 345600 (4 days) ✓, `maxMessageSizeBytes` default 262144 (256 KB) ✓, `fifoEnabled` default false ✓.",
+            "FIFO throughput figures are correct: ~300 msg/s without batching, ~3,000 with batching, and ~70,000 msg/s for high-throughput FIFO — all match the source JSDoc comments exactly.",
+            "The 5-minute deduplication window for `contentBasedDeduplication` and the SHA-256 hash claim are both confirmed in the source.",
+            "Both SQS alarm trigger types (`sqs-queue-not-empty` and `sqs-queue-received-messages-count`) are the only two defined in `SqsQueueAlarmTrigger` — the draft correctly lists exactly these two.",
+            "The `sqs-queue-not-empty` alarm description (visible, in-flight, received, or sent messages) matches the source JSDoc verbatim.",
+            "The `redrivePolicy` structure with `targetSqsQueueName` and `maxReceiveCount` is confirmed; `maxReceiveCount` is correctly treated as required (non-optional in the type).",
+            "The injected environment variables for `connectTo` (`ARN`, `NAME`, `URL` → `STP_[NAME]_ARN`, `STP_[NAME]_NAME`, `STP_[NAME]_URL`) are confirmed in both `sqs-queues.d.ts` and `__helpers.d.ts`.",
+            "The SQS Lambda event integration properties (`sqsQueueName`, `batchSize`) and their defaults (`batchSize` default 10, maximum 10,000) are confirmed in `events.d.ts`.",
+            "The EventBridge integration structure (`type: event-bus`, `eventBusName`, `eventPattern`, `messageGroupId` for FIFO) is correctly described and matches `SqsQueueEventBusIntegration` and `SqsQueueEventBusIntegrationProps`.",
+            "The referenceable parameters (`arn`, `name`, `url`) match `SqsQueueReferencableParam = 'arn' | 'name' | 'url'` exactly.",
+            "The `longPollingSeconds` range (0–20) and recommendation of 20 for most workloads both match the source JSDoc.",
+            "The `delayMessagesSecond` range (0–900) and `messageRetentionPeriodSeconds` range (60–1,209,600 seconds / 14 days) are both confirmed in the source."
+          ]
+        },
+        {
+          "verifierId": "codex-verifier",
+          "modelProvider": "codex",
+          "summary": "The draft is strong on the SQS config surface area, examples, and most defaults/ranges, but it overreaches on several behavior and access-control claims. The biggest problems are unsupported Lambda scaling/long-polling statements, an over-broad consumer recommendation, a misleading default-access claim, and FIFO/alarm wording that does not match the source-backed behavior precisely.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "This creates a standard SQS queue and a Lambda function that polls it in batches of up to 10 messages. The Lambda automatically scales based on queue depth.",
+              "reason": "The provided source supports the batching/event-source-mapping part, but it does not document or implement any Stacktape-specific claim that Lambda \"automatically scales based on queue depth.\" The SQS event resolver only creates an `AWS::Lambda::EventSourceMapping`.",
+              "suggestedFix": "Remove the scaling claim or narrow it to the source-backed behavior: Stacktape creates an event source mapping that polls the queue and invokes the function in batches.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "Messages are processed in batches. The function fires when `batchSize` is reached, `maxBatchWindowSeconds` expires, or the 6 MB payload limit is hit."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\domain\\calculated-stack-overview-manager\\resource-resolvers\\functions\\events\\sqs\\index.ts",
+                  "quote": "const resource = new EventSourceMapping({ BatchSize: eventDetails.batchSize, MaximumBatchingWindowInSeconds: eventDetails.maxBatchWindowSeconds, EventSourceArn: queueArn, Enabled: true, FunctionName: lambdaEndpointArn });"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "A single SQS queue should have only one consumer.",
+              "reason": "The source only makes this recommendation in the narrower context of Lambda SQS event integrations, and even there it says \"one consumer function.\" The draft generalizes that guidance to all SQS consumers.",
+              "suggestedFix": "Narrow this to the supported guidance: for Stacktape Lambda SQS triggers, use one consumer function per queue; for fan-out, use SNS or EventBridge.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "**Important:** A single SQS queue should only have one consumer function. For fan-out (multiple consumers for the same message), use an SNS topic or EventBridge event bus instead."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "Standard queues deliver messages at least once, in approximate order. Tradeoff: lower throughput — approximately 300 messages/second without batching, 3,000 with batching (versus effectively unlimited for standard queues). Standard queues use a distributed architecture optimized for high throughput; FIFO queues use a stricter sequencing mechanism that reduces throughput in exchange for ordering and deduplication guarantees.",
+              "reason": "The source backs the FIFO guarantees and the FIFO throughput numbers, and only says FIFO throughput is lower \"compared to standard queues.\" It does not back the draft's added claims about standard-queue delivery semantics, \"effectively unlimited\" throughput, or the architecture explanation.",
+              "suggestedFix": "Keep the comparison to what the source actually says: FIFO queues guarantee message order and exactly-once delivery, and they have lower throughput than standard queues.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\sqs-queues.d.ts",
+                  "quote": "Creates a FIFO queue that guarantees message order and exactly-once delivery. ... FIFO queues have lower throughput (~300 msg/s without batching, ~3,000 with) compared to standard queues."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "FIFO queues guarantee: Exactly-once processing within a 5-minute deduplication window",
+              "reason": "The source says `fifoEnabled` guarantees message order and exactly-once delivery. The 5-minute window appears under `contentBasedDeduplication`, where it applies to identical messages being delivered only once. The draft changes \"delivery\" to \"processing\" and turns the deduplication window into a blanket FIFO guarantee.",
+              "suggestedFix": "Write this as: FIFO queues guarantee message order and exactly-once delivery. If you enable `contentBasedDeduplication`, identical messages are deduplicated within a 5-minute window.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\sqs-queues.d.ts",
+                  "quote": "Creates a FIFO queue that guarantees message order and exactly-once delivery."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\sqs-queues.d.ts",
+                  "quote": "Within the 5-minute deduplication window, identical messages are delivered only once."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "For FIFO queues as EventBridge targets, also provide `messageGroupId` to control ordering.",
+              "reason": "The source is stricter: `messageGroupId` is required when the target queue has `fifoEnabled: true`. The draft presents it as optional extra guidance.",
+              "suggestedFix": "Say explicitly that `messageGroupId` is required when the target queue has `fifoEnabled: true`.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\sqs-queues.d.ts",
+                  "quote": "Message group ID for FIFO queues. Required when the target queue has `fifoEnabled: true`."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "When consuming SQS from a Lambda function trigger, AWS manages polling automatically and long polling is applied internally. Set `longPollingSeconds` primarily when you are polling the queue yourself from application code.",
+              "reason": "The source documents `longPollingSeconds` as the queue's receive wait time and shows that Stacktape creates an event source mapping for Lambda triggers. It does not document any special \"internally applied\" long polling behavior for Lambda or recommend restricting `longPollingSeconds` to non-Lambda consumers.",
+              "suggestedFix": "Remove this info box, or limit it to source-backed facts about `longPollingSeconds` and the Lambda event source mapping.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\sqs-queues.d.ts",
+                  "quote": "Set to `1`–`20` to enable long polling, which reduces costs by making fewer API calls. With short polling (`0`), the consumer gets an immediate (often empty) response and must poll again."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\domain\\calculated-stack-overview-manager\\resource-resolvers\\sqs-queues\\index.ts",
+                  "quote": "ReceiveMessageWaitTimeSeconds: resource.longPollingSeconds,"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\domain\\calculated-stack-overview-manager\\resource-resolvers\\functions\\events\\sqs\\index.ts",
+                  "quote": "const resource = new EventSourceMapping({ BatchSize: eventDetails.batchSize, MaximumBatchingWindowInSeconds: eventDetails.maxBatchWindowSeconds, EventSourceArn: queueArn, Enabled: true, FunctionName: lambdaEndpointArn });"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "`sqs-queue-not-empty` — fires when the queue has any unprocessed messages (visible, in-flight, received, or sent)",
+              "reason": "The implementation sums `NumberOfMessagesReceived`, `ApproximateNumberOfMessagesVisible`, `ApproximateNumberOfMessagesNotVisible`, and `NumberOfMessagesSent`. `received` and `sent` are activity counters, not \"unprocessed messages,\" so the draft's wording is narrower than the actual alarm behavior.",
+              "suggestedFix": "Describe the alarm in metric terms: it fires when any of those queue metrics are non-zero.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\alarms.d.ts",
+                  "quote": "The queue is considered \"not empty\" if any of these are non-zero: visible messages, in-flight messages, messages received, or messages sent."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\domain\\calculated-stack-overview-manager\\resource-resolvers\\_utils\\alarms\\sqs-queue-alarms\\not-empty\\index.ts",
+                  "quote": "Expression: 'received + visible + not_visible + sent'"
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "By default, only your stack's resources can send messages to the queue.",
+              "reason": "The source does not show any default queue policy that restricts sends to \"your stack's resources.\" Queue policies are only created when `policyStatements` or certain auto-generated integration statements exist. Separately, `connectTo` grants IAM permissions to workloads. This is an access-control claim and should not be stated without source support.",
+              "suggestedFix": "Replace this with source-backed wording: `connectTo` grants Stacktape-managed workloads SQS permissions, and `policyStatements` adds queue resource-policy access for cross-account principals or AWS services such as SNS.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\sqs-queues.d.ts",
+                  "quote": "Custom access-control statements added to the queue's resource policy. ... Use to grant cross-account access or allow specific AWS services (e.g., SNS) to send messages to this queue."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\domain\\calculated-stack-overview-manager\\resource-resolvers\\sqs-queues\\index.ts",
+                  "quote": "const queuePolicyStatements = getAllQueuePolicyStatements({ resource }); if (queuePolicyStatements.length) { ... resource: new QueuePolicy({ ... }) }"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "List the names of resources this workload needs to communicate with. Stacktape automatically: - Grants IAM permissions ... **`SqsQueue`** — send/receive/delete → `ARN`, `NAME`, `URL`"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The property names, defaults, and ranges for `visibilityTimeoutSeconds`, `longPollingSeconds`, `messageRetentionPeriodSeconds`, `maxMessageSizeBytes`, and `delayMessagesSecond` are all aligned with `types/stacktape-config/sqs-queues.d.ts`.",
+            "The dead-letter queue example uses the correct `redrivePolicy` shape, and the `maxReceiveCount` recommendation of `3`–`5` matches the source comment.",
+            "The EventBridge integration example uses the supported `events: [{ type: 'event-bus', properties: ... }]` shape from `SqsQueueEventBusIntegration`.",
+            "The `connectTo` section is correctly grounded on the supported SQS referenceable parameters/env vars: `ARN`, `NAME`, and `URL`."
+          ]
+        }
+      ],
+      "passed": false
+    },
+    {
+      "iteration": 2,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\resources__messaging__sqs-queue\\iteration-2.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "startup-cto",
+          "persona": "Small startup CTO with low to medium AWS experience. Cares most about time-to-production and shipping quickly without getting trapped in AWS complexity.",
+          "modelProvider": "claude",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Opening paragraph is tight and self-contained — defines what SQS is, why it matters, and the pricing model in 60 words or fewer.",
+            "Pricing callout with concrete numbers ($0.40/$0.50 per million, free tier) is exactly what a cost-conscious startup CTO needs up front.",
+            "The 'When not to use SQS' section is genuinely useful and honest — rare in docs, rewards the reader.",
+            "Handler code example with TypeScript types is realistic and immediately copyable.",
+            "Injected environment variables table is clear and concrete — STP_JOB_QUEUE_URL, ARN, NAME all explained with examples.",
+            "The visibility timeout section includes the right practical advice: 'set this higher than your expected processing time' with a concrete example.",
+            "Lambda trigger configuration table comparing batchSize and maxBatchWindowSeconds is an excellent scannable reference.",
+            "The 6 MB batch payload warning is a well-placed, specific gotcha that prevents silent failures.",
+            "FIFO section correctly covers throughput limits (~300 msg/s / ~3,000 with batching) sourced from the type definitions."
+          ],
+          "problems": [
+            "The 'Alarms' section describes alarm types accurately but does not explain what thresholds to set or what the sqs-queue-received-messages-count trigger requires (a thresholdCount property). A developer implementing this section would be stuck.",
+            "The EventBridge integration section explains what EventBridge is but doesn't clarify the input/inputPath/inputTransformer options that are available on the event bus integration — advanced but useful for message transformation pipelines.",
+            "The 'How Stacktape manages SQS queue lifecycle' section is mostly boilerplate that restates what was already said earlier. It adds minimal value for this audience.",
+            "The 'Cross-account and SNS access' section uses the phrase 'most users don't need policyStatements' — correct guidance — but the example is for SNS publishing to SQS. It never mentions that internal stack-to-stack permissions are handled automatically by connectTo, which is the key nuance a startup CTO needs to not get confused.",
+            "The page does not mention that sqsQueueArn can be used as an alternative to sqsQueueName in the sqs trigger — useful when consuming a queue from another stack.",
+            "The long polling section note says it only matters for non-Lambda consumers but doesn't explain what happens when a Lambda trigger IS used — a beginner might wonder if they need to set it.",
+            "FIFO section mentions 'MessageDeduplicationId on each message' but doesn't clarify this is a field you set in the AWS SDK SendMessage call — a small but confusing gap for lower-AWS-experience readers."
+          ],
+          "mandatoryFixes": [
+            "Add a concrete alarm configuration example for sqs-queue-received-messages-count that includes the required thresholdCount property — the current alarms example only shows sqs-queue-not-empty, leaving the second alarm type undocumented in practice.",
+            "Clarify in the long polling section that when a Lambda event source mapping is used, AWS manages the polling loop internally and longPollingSeconds has no effect on Lambda-triggered queues — not just bury it in an Info callout.",
+            "In the FIFO section, briefly clarify that MessageDeduplicationId and MessageGroupId are fields passed in the AWS SDK SendMessageCommand call (not Stacktape config properties) — the current text implies they're config options, which will confuse users with lower AWS experience.",
+            "The policyStatements / cross-account section should explicitly state that connectTo handles all within-stack permissions automatically and policyStatements is only for external AWS accounts or services like SNS — the current Info callout says this but it needs to be in the prose, not buried in a callout that's easy to skip."
+          ],
+          "optionalImprovements": [
+            "Add a one-liner mention that sqsQueueArn can be used instead of sqsQueueName in the Lambda sqs trigger for consuming queues from another stack or external account.",
+            "The 'How Stacktape manages SQS queue lifecycle' section could be removed or condensed to one sentence — it adds little value for a reader who just wants to build something.",
+            "Consider adding a brief mention of EventBridge input transformation (input/inputPath/inputTransformer) in the EventBridge integration section so users know they can reshape the event payload before it lands in the queue.",
+            "The DLQ section recommends maxReceiveCount of 3-5 but does not mention that you typically also want to configure a Lambda trigger on the DLQ itself to alert or reprocess — a small but high-value addition for startup teams without dedicated ops.",
+            "Consider reordering: move 'Connecting to other resources' and the SDK send example earlier (before alarms/cross-account) since sending messages is the first thing a reader will want to do after configuring the queue."
+          ]
+        },
+        {
+          "reviewerId": "smb-manager",
+          "persona": "SMB engineering manager with medium to high AWS knowledge. Cares about long-term maintainability, team clarity, and operational fit.",
+          "modelProvider": "claude",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Pricing callout at the top with concrete per-million numbers is immediately useful for an engineering manager making infrastructure decisions.",
+            "Visibility timeout section is exemplary: explains the mechanics, states the default (30s), and gives a concrete rule of thumb ('if your function takes 2 minutes, use at least 150 seconds').",
+            "DLQ section covers both in-stack (`targetSqsQueueName`) and cross-stack (`targetSqsQueueArn`) patterns with realistic examples — exactly the operational detail a team lead needs.",
+            "The 'When not to use SQS' section is specific and opinionated, correctly calling out fan-out and streaming as better alternatives.",
+            "Handler code is typed (`SQSHandler`) and realistic, not a toy example.",
+            "The `connectTo` lifecycle section explains the full automation (IAM, env vars, event source mapping) concisely.",
+            "The 6 MB batch payload `<Warning>` is a real gotcha that prevents silent failures in production — good catch."
+          ],
+          "problems": [
+            "The `<Info>` note on long polling is misleading: it implies `longPollingSeconds` is irrelevant for Lambda-triggered queues. In practice, `longPollingSeconds` sets the queue's `ReceiveMessageWaitTimeSeconds` attribute, which affects any consumer that calls `ReceiveMessage` directly (including scripts, container workers, and third-party tools) even when Lambda is the primary consumer. The statement 'For Lambda-triggered queues, AWS manages polling as part of the event source mapping' is correct but the framing encourages readers to skip this property entirely, which could cause unnecessary polling costs from other consumers.",
+            "The Lambda trigger section only shows `sqsQueueName`. The source defines `sqsQueueArn` as an equally valid option, essential for consuming queues from other stacks or AWS accounts. This is a common real-world pattern that is completely absent.",
+            "The FIFO deduplication explanation implies `contentBasedDeduplication: true` is the only option, but the source notes you can alternatively provide a `MessageDeduplicationId` per message via the SDK. The current wording could lead a reader to incorrectly enable content-based deduplication when they need per-message control.",
+            "The alarms section example uses `sqs-queue-not-empty` but never shows `sqs-queue-received-messages-count` with a concrete threshold value. The alarm section is therefore incomplete — a reader has to guess the shape of the second alarm type.",
+            "`disabledGlobalAlarms` is present in the source type definition but is not mentioned anywhere in the page."
+          ],
+          "mandatoryFixes": [
+            "Add a `sqsQueueArn` example to the Lambda trigger section. Show the pattern: `sqsQueueArn: $ResourceParam('otherStack', 'jobQueueArn')` or a literal ARN. Note that `sqsQueueName` and `sqsQueueArn` are mutually exclusive. This covers the cross-stack and external-queue patterns that teams regularly need.",
+            "Revise the long polling `<Info>` note to clarify that `longPollingSeconds` configures the queue attribute itself and affects all consumers — not just Lambda. The correct guidance is: 'For Lambda-triggered queues, the event source mapping has its own polling behavior, but any additional consumers (container workers, scripts) will inherit this queue setting. Setting `longPollingSeconds: 20` is still a good default for cost efficiency.'",
+            "Add a concrete `sqs-queue-received-messages-count` alarm example with a `thresholdCount` value, alongside the existing `sqs-queue-not-empty` example. The current alarm section shows only one of the two supported trigger types."
+          ],
+          "optionalImprovements": [
+            "Add a one-liner note about `disabledGlobalAlarms` in the alarms section: 'To suppress a globally configured alarm on this queue, add its name to `disabledGlobalAlarms`.'",
+            "Convert the H2 'Configuring an SQS queue in Stacktape' and its H3 children to question-format headings to improve SEO alignment (e.g., 'How do I configure visibility timeout?' instead of 'Visibility timeout').",
+            "In the FIFO section, clarify that `contentBasedDeduplication: true` is an alternative to providing `MessageDeduplicationId` on each message — not the only deduplication path. One sentence is enough.",
+            "Add a note about the `visibilityTimeoutSeconds` maximum of 43,200 seconds (12 hours) somewhere in the visibility timeout section — currently the default and advice are given but not the ceiling, which matters when users have very long-running jobs.",
+            "The 'How Stacktape manages SQS queue lifecycle' section repeats information already covered in other sections (event source mapping, DLQ retry behavior). Consider trimming it to two sentences or removing it entirely to reduce redundancy."
+          ]
+        },
+        {
+          "reviewerId": "developer-low-aws",
+          "persona": "Developer with little AWS or DevOps experience. Needs jargon kept under control and wants examples that are easy to follow.",
+          "modelProvider": "claude",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Opening paragraph is tight and self-contained — defines SQS, the producer/consumer model, and the serverless/pay-per-use model in two sentences. Works as a standalone AI-cited snippet.",
+            "Pricing block is placed immediately after the intro with specific numbers ($0.40/$0.50 per million, free tier). Concrete, scannable, and exactly what this audience checks before committing.",
+            "Both YAML and TypeScript config examples are provided side-by-side throughout, so readers can pick their preferred format without hunting.",
+            "The handler code snippet with SQSHandler type and record.body parsing is realistic and immediately copy-paste usable — a beginner can run this without modification.",
+            "The DLQ section shows both targetSqsQueueName and targetSqsQueueArn, covering the in-stack and cross-stack cases with actual examples rather than just describing the options.",
+            "Info callout on policyStatements ('most users don't need this') is well-placed gatekeeping — prevents beginners from getting lost in an advanced section.",
+            "The Lambda trigger comparison table (batchSize, maxBatchWindowSeconds) is scannable and includes a concrete recommendation ('use 5–30s for low-volume queues').",
+            "The 6MB batch payload warning is a genuine gotcha that catches many beginners — calling it out with a Warning callout is the right treatment.",
+            "The 'Sending a message from application code' section with the AWS SDK snippet closes the loop — reader can produce and consume without leaving the page."
+          ],
+          "problems": [
+            "The FIFO section explains that MessageGroupId is required and must be set per-message via the AWS SDK, but shows no code for sending to a FIFO queue. A beginner reading this section has no way to know what the SendMessageCommand call looks like for FIFO — they will get stuck.",
+            "The sqs-queue-not-empty alarm description ('fires when any of these queue metrics are non-zero: visible messages, in-flight messages, messages received, or messages sent') will fire on virtually any active queue. There is no guidance on when this alarm is actually useful — the correct use case is monitoring a DLQ that should normally be empty, not a production queue with constant traffic.",
+            "'IAM role' is mentioned in 'How Stacktape manages SQS queue lifecycle' without any explanation. For a developer with little DevOps experience, this term is unexplained jargon — even a one-clause aside would help.",
+            "The EventBridge integration section introduces `event-bus` without first explaining what EventBridge is to this audience. There is a one-sentence definition buried in the paragraph text, but it comes after the code block, not before it. Beginners will read the example first and be confused by the unfamiliar resource type.",
+            "SHA-256 hash is mentioned in the contentBasedDeduplication description — this is unnecessary technical detail for the target audience and adds noise without aiding comprehension.",
+            "The longPollingSeconds Info callout ('matters when anything other than a Lambda trigger is consuming the queue') uses the term 'polling' without defining it. Beginners who only know Lambda triggers may not understand what 'polling' is or why it doesn't apply to them."
+          ],
+          "mandatoryFixes": [
+            "Add a TypeScript code snippet in the FIFO section showing how to send a message to a FIFO queue using SendMessageCommand with MessageGroupId (and optionally MessageDeduplicationId). Without this, the section tells the reader they must set MessageGroupId but gives them no way to do it.",
+            "Fix the sqs-queue-not-empty alarm guidance. Add a sentence explicitly stating this alarm is most useful on a dead-letter queue (which should normally be empty) — not on an active processing queue. A beginner who adds this alarm to their main queue will see it constantly firing and not understand why.",
+            "Either briefly explain 'IAM role' when it first appears in 'How Stacktape manages SQS queue lifecycle' (e.g., 'IAM role — the permission identity Stacktape assigns to your workload'), or remove the implementation detail from the prose and keep only the user-facing outcome ('grants permissions and injects connection details')."
+          ],
+          "optionalImprovements": [
+            "Move the EventBridge one-line definition ('EventBridge is a serverless event router') to before the code block, not after. Readers see the example first.",
+            "Remove the SHA-256 hash detail from the contentBasedDeduplication description. Replace with: 'Identical messages within a 5-minute window are delivered only once, based on their content.' The hashing mechanism is irrelevant to a beginner.",
+            "Add a note in the FIFO section about choosing a MessageGroupId when you don't have a natural grouping — e.g., 'If your messages don't have a natural group, use a single fixed string like \"default\" for global ordering, or a user/entity ID for per-entity ordering.' This is a common beginner question.",
+            "The longPollingSeconds Info box would benefit from a one-clause explanation of polling: 'When your code manually calls SQS to check for messages (rather than using a Lambda trigger), it is polling.' This removes the need for the reader to already know the term.",
+            "Consider adding a brief note about what happens when a Lambda function throws an error mid-batch — the entire batch becomes visible again and is retried. This is a common beginner mistake (non-idempotent handlers) and is a direct consequence of the visibility timeout behavior already explained on the page."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "claude-verifier",
+          "modelProvider": "claude",
+          "summary": "The draft is well-grounded in the source files. Property names, defaults, ranges, alarm types, referenceable params, and behavioral descriptions all match the TypeScript type definitions. Three issues found: AWS SQS pricing figures are entirely absent from source files (medium severity); two general AWS behavioral claims about multi-AZ redundancy and Lambda auto-scaling are not sourced (low severity). All other technical claims are directly verified.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "Standard queues cost approximately $0.40 per million requests. FIFO queues cost approximately $0.50 per million. The first 1 million requests per month are free.",
+              "reason": "None of the provided source files contain any pricing information. These figures may be approximately correct for current AWS SQS pricing but cannot be verified against source, and AWS pricing changes over time. Stale pricing in docs erodes trust.",
+              "suggestedFix": "Either remove the pricing blockquote entirely, or replace with a link to the official AWS SQS pricing page (e.g., 'See the [AWS SQS pricing page](https://aws.amazon.com/sqs/pricing/) for current rates.') so the figures are always up-to-date.",
+              "evidence": [
+                {
+                  "file": "types/stacktape-config/sqs-queues.d.ts",
+                  "quote": "(No pricing information present anywhere in the provided source files.)"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "Messages are stored redundantly across multiple availability zones, so your data is durable even if individual infrastructure fails.",
+              "reason": "This is a factual claim about AWS SQS internal architecture (multi-AZ storage). It is generally accurate, but it does not appear in any of the provided source files and cannot be verified from them.",
+              "suggestedFix": "Either remove the sentence, or qualify it as an AWS SQS guarantee and link to AWS documentation, since Stacktape source files do not make this claim.",
+              "evidence": [
+                {
+                  "file": "types/stacktape-config/sqs-queues.d.ts",
+                  "quote": "(No mention of multi-AZ redundancy or durability guarantees in source files.)"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "AWS automatically scales Lambda invocations as queue depth increases.",
+              "reason": "This is a general AWS behavioral claim about Lambda event source mapping scaling. It is accurate AWS behavior, but it does not appear in any of the provided source files.",
+              "suggestedFix": "This is broadly correct and unlikely to mislead, but if precision is required, qualify it: 'Lambda scales invocations up as the queue depth grows (subject to your Lambda concurrency limits).' No source change needed otherwise.",
+              "evidence": [
+                {
+                  "file": "types/stacktape-config/events.d.ts",
+                  "quote": "(SQS event source mapping described but no mention of auto-scaling behavior.)"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "visibilityTimeoutSeconds default (30s) and range (0–43,200, 12 hours) correctly stated — matches source @default 30 and JSDoc range.",
+            "fifoEnabled default (false) correctly stated — matches source @default false.",
+            "FIFO standard throughput figures (~300 msg/s without batching, ~3,000 with) correctly stated — verbatim from source JSDoc.",
+            "fifoHighThroughput throughput figure (~70,000 msg/s) correctly stated — matches source 'up to ~70,000 msg/s per queue'.",
+            "contentBasedDeduplication SHA-256 hash and 5-minute deduplication window correctly stated — matches source JSDoc.",
+            "redrivePolicy fields (targetSqsQueueName, targetSqsQueueArn, maxReceiveCount) correctly described and all present in source.",
+            "fifoHighThroughput requires fifoEnabled: true correctly stated — matches source 'Requires fifoEnabled: true'.",
+            "longPollingSeconds range (0–20), default (0), and recommendation of 20 correctly stated — matches source.",
+            "delayMessagesSecond range (0–900) correctly stated — matches source.",
+            "messageRetentionPeriodSeconds default (345,600s / 4 days) and range (60s–1,209,600s / 14 days) correctly stated — matches source.",
+            "maxMessageSizeBytes default (262,144) and range (1,024–262,144) correctly stated — matches source.",
+            "batchSize default (10) and maximum (10,000) for SQS Lambda trigger correctly stated — matches source @default 10 and 'Maximum is 10,000'.",
+            "maxBatchWindowSeconds maximum (300 seconds) correctly stated — matches source.",
+            "6 MB combined batch payload limit correctly stated — matches source 'the 6 MB payload limit is hit'.",
+            "sqs-queue-not-empty alarm trigger description (visible + in-flight + received + sent messages) correctly stated — verbatim from source alarms.d.ts.",
+            "sqs-queue-received-messages-count alarm type correctly stated — present in source as SqsQueueReceivedMessagesCountTrigger.",
+            "Referenceable params (arn, name, url) correctly stated — matches SqsQueueReferencableParam type in source.",
+            "connectTo permissions described as send/receive/delete correctly — matches source ResourceAccessProps 'send/receive/delete → ARN, NAME, URL'.",
+            "Injected environment variables (ARN, NAME, URL) with STP_[NAME]_ prefix correctly documented — matches source.",
+            "messageGroupId described as required when fifoEnabled: true for EventBridge integration — matches source JSDoc.",
+            "Single consumer per queue caveat correctly noted — matches source SqsIntegration JSDoc 'A single SQS queue should only have one consumer function'.",
+            "policyStatements use case (cross-account, SNS) correctly described — matches source SqsQueuePolicyStatement structure.",
+            "FIFO deduplication requires either contentBasedDeduplication or MessageDeduplicationId — matches source JSDoc."
+          ]
+        },
+        {
+          "verifierId": "codex-verifier",
+          "modelProvider": "codex",
+          "summary": "Core Stacktape-specific config details are mostly correct: queue properties, FIFO/DLQ/EventBridge support, alarm types, and `connectTo`/referenceable params all line up with source. The main problems are unsupported pricing and AWS-runtime claims, plus one copy-paste-invalid Slack alarm example.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "unsupported-claim",
+              "statement": "The `seoDescription`, intro, and pricing callout claim `~$0.40/million requests`, `$0.50/million` for FIFO, `the first 1 million requests per month are free`, `costs scale with message volume, not queue count`, and `you pay only per message sent or received`.",
+              "reason": "The provided Stacktape source only supports the narrower `pay-per-message` characterization. It does not include any current pricing numbers, free-tier details, or the exact billing granularity implied by `sent or received`.",
+              "suggestedFix": "Remove the concrete pricing/free-tier details unless you add an approved pricing source. A source-backed version can say the queue is `fully managed, serverless, pay-per-message`.",
+              "evidence": [
+                {
+                  "file": "C:/Projects/stacktape/types/stacktape-config/sqs-queues.d.ts",
+                  "quote": "Fully managed, serverless, pay-per-message. Use for background processing, task queues, or buffering between services."
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "The `Alarms` example uses `notificationTargets: - type: slack` with `properties.webhookUrl`.",
+              "reason": "That example does not match the Stacktape config type. `slack` notifications use `conversationId` and `accessToken`. `webhookUrl` is used by other integrations such as `ms-teams` and `discord`, not Slack.",
+              "suggestedFix": "Either change the example to `type: ms-teams` or `type: discord` when using `webhookUrl`, or keep `type: slack` and provide `conversationId` plus `accessToken`.",
+              "evidence": [
+                {
+                  "file": "C:/Projects/stacktape/types/stacktape-config/user-integrations.d.ts",
+                  "quote": "interface SlackIntegration {\n  type: 'slack';\n  properties?: SlackIntegrationProps;\n}"
+                },
+                {
+                  "file": "C:/Projects/stacktape/types/stacktape-config/user-integrations.d.ts",
+                  "quote": "conversationId: string;"
+                },
+                {
+                  "file": "C:/Projects/stacktape/types/stacktape-config/user-integrations.d.ts",
+                  "quote": "accessToken: string;"
+                },
+                {
+                  "file": "C:/Projects/stacktape/types/stacktape-config/user-integrations.d.ts",
+                  "quote": "interface MsTeamsIntegrationProps {\n  /**\n   * #### Incoming Webhook URL for the MS Teams channel. Store as `$Secret()` for security.\n   *\n   * ---\n   *\n   * Create an Incoming Webhook connector in your Teams channel settings to get this URL.\n   */\n  webhookUrl: string;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The page says the event source mapping polls the queue, AWS automatically scales Lambda invocations as queue depth increases, and Lambda handlers receive an `event.Records[].body` payload.",
+              "reason": "The Stacktape source supports only the narrower claim that Stacktape creates an `AWS::Lambda::EventSourceMapping` with SQS batch settings. It does not document polling behavior, Lambda autoscaling behavior, or the Lambda SQS event payload shape.",
+              "suggestedFix": "Keep the source-backed statement that Stacktape creates an event source mapping between the queue and the function, and that batching is controlled by `batchSize` and `maxBatchWindowSeconds`. Remove polling/autoscaling/payload-shape details unless you add a separate AWS source.",
+              "evidence": [
+                {
+                  "file": "C:/Projects/stacktape/src/domain/calculated-stack-overview-manager/resource-resolvers/functions/events/sqs/index.ts",
+                  "quote": "const resource = new EventSourceMapping({\n    BatchSize: eventDetails.batchSize,\n    MaximumBatchingWindowInSeconds: eventDetails.maxBatchWindowSeconds,\n    EventSourceArn: queueArn,\n    Enabled: true,\n    FunctionName: lambdaEndpointArn\n  });"
+                },
+                {
+                  "file": "C:/Projects/stacktape/types/stacktape-config/events.d.ts",
+                  "quote": "Messages are processed in batches. The function fires when `batchSize` is reached,\n * `maxBatchWindowSeconds` expires, or the 6 MB payload limit is hit."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "`maxBatchWindowSeconds` is documented as `0-300 seconds`, with `0` equivalent to leaving it unset, and the page recommends `5-30` seconds on low-volume queues to reduce invocations and cost.",
+              "reason": "The source says only that `maxBatchWindowSeconds` has a maximum of 300 seconds and that, if it is not set, the function is invoked as soon as messages are available. It does not state a minimum of `0`, that `0` is equivalent to unset, or recommend a `5-30` second range.",
+              "suggestedFix": "Use the narrower source-backed wording: `maxBatchWindowSeconds` has a maximum of 300 seconds; if omitted, the function is invoked as soon as messages are available. Drop the `0` equivalence and the `5-30` recommendation unless separately sourced.",
+              "evidence": [
+                {
+                  "file": "C:/Projects/stacktape/types/stacktape-config/events.d.ts",
+                  "quote": "The maximum time (in seconds) to wait before invoking the function with a batch of records.\n *\n * ---\n *\n * Maximum is 300 seconds. If not set, the function is invoked as soon as messages are available."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "`longPollingSeconds` matters only when something other than a Lambda trigger is consuming the queue. For Lambda-triggered queues, AWS manages polling as part of the event source mapping.",
+              "reason": "The Stacktape source defines `longPollingSeconds` as a queue property, recommends `20` for most workloads, and maps it directly to `ReceiveMessageWaitTimeSeconds` on the SQS queue resource. It does not carve out Lambda-triggered queues or say the setting is irrelevant there.",
+              "suggestedFix": "Remove the Lambda-specific exception. A source-backed version can explain what `longPollingSeconds` configures on the queue and that `20` is the recommended value.",
+              "evidence": [
+                {
+                  "file": "C:/Projects/stacktape/types/stacktape-config/sqs-queues.d.ts",
+                  "quote": "Seconds the queue waits for messages before returning an empty response. Range: 0–20."
+                },
+                {
+                  "file": "C:/Projects/stacktape/types/stacktape-config/sqs-queues.d.ts",
+                  "quote": "Recommended: `20` for most workloads — it's the most cost-effective."
+                },
+                {
+                  "file": "C:/Projects/stacktape/src/domain/calculated-stack-overview-manager/resource-resolvers/sqs-queues/index.ts",
+                  "quote": "ReceiveMessageWaitTimeSeconds: resource.longPollingSeconds,"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "`Messages are stored redundantly across multiple availability zones, so your data is durable even if individual infrastructure fails.`",
+              "reason": "None of the inspected Stacktape source files mention multi-AZ replication or durability guarantees for `sqs-queue`. The source only describes the queue as fully managed/serverless and shows Stacktape provisioning an SQS queue resource.",
+              "suggestedFix": "Remove the multi-AZ durability sentence, or replace it with source-backed wording about Stacktape provisioning an SQS queue.",
+              "evidence": [
+                {
+                  "file": "C:/Projects/stacktape/types/stacktape-config/sqs-queues.d.ts",
+                  "quote": "Fully managed, serverless, pay-per-message. Use for background processing, task queues, or buffering between services."
+                },
+                {
+                  "file": "C:/Projects/stacktape/src/domain/calculated-stack-overview-manager/resource-resolvers/sqs-queues/index.ts",
+                  "quote": "resource: new SqsQueue({"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "`SQS is also not suited for real-time bidirectional communication...`",
+              "reason": "The inspected source does not say anything about bidirectional communication as an SQS limitation. The closest supported comparison is that Kinesis is for real-time processing with sub-second latency, while SQS is async messaging.",
+              "suggestedFix": "Remove the bidirectional-communication claim. If you want a comparison, use the source-backed contrast that Kinesis is for real-time stream processing and SQS is for async messaging.",
+              "evidence": [
+                {
+                  "file": "C:/Projects/stacktape/types/stacktape-config/kinesis-streams.d.ts",
+                  "quote": "Use when you need real-time processing with sub-second latency, not just async messaging (use SQS for that)."
+                },
+                {
+                  "file": "C:/Projects/stacktape/types/stacktape-config/sqs-queues.d.ts",
+                  "quote": "Message queue for decoupling services. Producers send messages, consumers process them at their own pace."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "The FIFO and sending-code sections say `MessageGroupId` is something you attach when calling `SendMessage` via the AWS SDK, and that `STP_JOB_QUEUE_URL` should be passed to the AWS SDK to send/receive messages.",
+              "reason": "The Stacktape source supports the existence of the queue `url` referenceable param and the injected `STP_[NAME]_URL` env var, but it does not document AWS SDK call shapes or prescribe SDK usage.",
+              "suggestedFix": "Keep the Stacktape-specific part (`url` is a referenceable param and is injected via `connectTo`) and either remove the SDK-specific guidance or source it separately.",
+              "evidence": [
+                {
+                  "file": "C:/Projects/stacktape/src/domain/calculated-stack-overview-manager/resource-resolvers/sqs-queues/index.ts",
+                  "quote": "calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({\n    paramName: 'url',\n    nameChain: resource.nameChain,\n    paramValue: Ref(cfLogicalNames.sqsQueue(resource.name))\n  });"
+                },
+                {
+                  "file": "C:/Projects/stacktape/types/stacktape-config/__helpers.d.ts",
+                  "quote": "**`SqsQueue`**: `ARN`, `NAME`, `URL`"
+                },
+                {
+                  "file": "C:/Projects/stacktape/shared/naming/utils.ts",
+                  "quote": "export const injectedParameterEnvVarName = (stpResourceReference: string, parameterName: string) =>\n  snakeCase(`STP_${stpResourceReference.replaceAll('.', '_')}_${parameterName}`).toUpperCase();"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The queue property names, defaults, and ranges are well aligned with `SqsQueueProps`, including `visibilityTimeoutSeconds`, `longPollingSeconds`, `messageRetentionPeriodSeconds`, `maxMessageSizeBytes`, and `delayMessagesSecond`.",
+            "The FIFO, dead-letter queue, and EventBridge sections are grounded in source, including `fifoHighThroughput`, `contentBasedDeduplication`, `redrivePolicy`, and `messageGroupId` for FIFO EventBridge targets.",
+            "The Lambda `sqs` trigger section correctly reflects the supported `sqsQueueName`/`sqsQueueArn` shape, `batchSize` default `10`, max `10,000`, and the one-consumer guidance from `events.d.ts`.",
+            "The page correctly treats SQS queue referenceable params and `connectTo` env vars as `ARN`, `NAME`, and `URL`, which matches both the type definitions and the resolver implementation.",
+            "The alarm types `sqs-queue-not-empty` and `sqs-queue-received-messages-count` match both the config types and the CloudWatch alarm resolver implementation.",
+            "The `policyStatements` section is directionally correct: Stacktape merges custom queue policy statements with auto-generated ones and adds the queue ARN in the resolver."
+          ]
+        }
+      ],
+      "passed": true
+    }
+  ],
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\_new-docs\\resources\\messaging\\sqs-queue.mdx",
+  "completedAt": "2026-04-10T01:47:54.731Z"
+}

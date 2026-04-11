@@ -1,0 +1,322 @@
+---
+title: 'Connecting Resources'
+order: 4
+---
+
+# Connecting Resources
+
+Most real-world applications need multiple resources working together: a function that queries a database, a service that reads from a queue, a script that runs migrations. In raw AWS, wiring two resources together means writing <Jargon>IAM</Jargon> policies (permission rules that control what AWS resources can do), threading ARNs (unique resource identifiers) through environment variables, and setting up security groups and <Jargon>VPC</Jargon> networking (a private network that isolates your resources). One pair is already tedious. A stack of five is a maintenance burden.
+
+`connectTo` handles all of that in one line.
+
+## What `connectTo` Does
+
+Add a resource name to `connectTo` and Stacktape automatically:
+
+1. **Grants IAM permissions** — the connecting resource gets appropriate access to the target (S3 read/write, SQS send/receive, DynamoDB CRUD, etc.)
+2. **Injects environment variables** — connection details arrive at runtime as `STP_[RESOURCE_NAME]_[PARAM]` variables
+3. **Configures network access** — for VPC-only resources like databases and Redis, security group rules are added and the connecting resource is placed in the same private network
+
+## Without vs. With `connectTo`
+
+To make the value concrete, here is what you would write manually to connect a function to a database:
+
+```yaml
+# Without connectTo — manual wiring
+resources:
+  database:
+    type: relational-database
+    properties:
+      engine:
+        type: postgres
+
+  api:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/handler.ts
+      environment:
+        - name: DB_HOST
+          value: $ResourceParam('database', 'host')
+        - name: DB_PORT
+          value: $ResourceParam('database', 'port')
+        - name: DB_CONNECTION_STRING
+          value: $ResourceParam('database', 'connectionString')
+      vpc:
+        useDefaultVpc: true
+        securityGroupIds:
+          - $ResourceParam('database', 'securityGroupId')
+      # plus a separate IAM policy granting network access...
+```
+
+With `connectTo`:
+
+```yaml
+# With connectTo — everything above is handled automatically
+resources:
+  database:
+    type: relational-database
+    properties:
+      engine:
+        type: postgres
+
+  api:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/handler.ts
+      connectTo:
+        - database
+```
+
+The function now has VPC placement, security group access, and `STP_DATABASE_CONNECTION_STRING`, `STP_DATABASE_HOST`, and `STP_DATABASE_PORT` injected automatically.
+
+## Environment Variable Naming
+
+Injected variables follow this pattern:
+
+```
+STP_[RESOURCE_NAME]_[PARAM]
+```
+
+The resource name is uppercased: camelCase splits at word boundaries and hyphens become underscores.
+
+| Resource name | Env var prefix | Example variable |
+|---|---|---|
+| `database` | `STP_DATABASE_` | `STP_DATABASE_CONNECTION_STRING` |
+| `my-database` | `STP_MY_DATABASE_` | `STP_MY_DATABASE_HOST` |
+| `jobQueue` | `STP_JOB_QUEUE_` | `STP_JOB_QUEUE_URL` |
+| `uploads` | `STP_UPLOADS_` | `STP_UPLOADS_NAME` |
+
+## Using Injected Variables
+
+```typescript
+// src/handler.ts
+import { Client } from 'pg';
+
+export const handler = async () => {
+  const client = new Client({
+    connectionString: process.env.STP_DATABASE_CONNECTION_STRING,
+  });
+
+  await client.connect();
+  const result = await client.query('SELECT NOW()');
+  await client.end();
+
+  return { statusCode: 200, body: JSON.stringify(result.rows) };
+};
+```
+
+With multiple connected resources, each gets its own prefixed variable set:
+
+```typescript
+// connectTo: [database, uploads, cache]
+const dbUrl      = process.env.STP_DATABASE_CONNECTION_STRING;
+const bucketName = process.env.STP_UPLOADS_NAME;
+const redisHost  = process.env.STP_CACHE_HOST;
+const redisPort  = process.env.STP_CACHE_PORT;
+```
+
+## Connecting to Multiple Resources
+
+`connectTo` accepts a list. All resources are connected simultaneously:
+
+```yaml
+resources:
+  database:
+    type: relational-database
+    properties:
+      engine:
+        type: postgres
+
+  uploads:
+    type: bucket
+
+  cache:
+    type: redis-cluster
+    properties:
+      instanceSize: cache.t4g.micro
+      defaultUserPassword: $Secret('redis-password')
+
+  api:
+    type: web-service
+    properties:
+      packaging:
+        type: stacktape-image-buildpack
+        properties:
+          entryfilePath: src/server.ts
+      resources:
+        cpu: 0.5
+        memory: 1024
+      connectTo:
+        - database
+        - uploads
+        - cache
+```
+
+`connectTo` works identically on functions, web services, worker services, private services, multi-container workloads, batch jobs, and scripts.
+
+## VPC Behavior
+
+Relational databases and Redis clusters run inside a private VPC. When you connect a function or container service to one of these resources, Stacktape automatically places the connecting resource in the same VPC and opens the appropriate security group rules.
+
+<Warning>
+Lambda functions placed in a VPC lose direct internet access by default. If your function needs to call external APIs while also reaching a database or Redis cluster, you will need a NAT Gateway (`stackConfig.vpc.nat`) or you can set the database's `accessibilityMode` to allow public access for development environments.
+</Warning>
+
+## Using `connectTo` in Scripts
+
+Scripts support `connectTo` for tasks like database migrations. Use `local-script` for general local execution:
+
+```yaml
+resources:
+  database:
+    type: relational-database
+    properties:
+      engine:
+        type: postgres
+
+scripts:
+  migrate:
+    type: local-script
+    properties:
+      executeCommand: npx prisma migrate deploy
+      connectTo:
+        - database
+      environment:
+        - name: DATABASE_URL
+          value: $ResourceParam('database', 'connectionString')
+```
+
+```bash
+stacktape script:run --scriptName migrate --stage dev --region eu-west-1
+```
+
+### Scripts That Need VPC Access
+
+If your script must reach a VPC-private resource (a database or private Redis cluster) from your local machine, use `local-script-with-bastion-tunneling`. This type runs locally but routes the connection through a bastion host in the VPC. The environment variables injected by `connectTo` are automatically adjusted to point at the tunneled endpoints — your script sees no difference:
+
+```yaml
+scripts:
+  migrate:
+    type: local-script-with-bastion-tunneling
+    properties:
+      executeCommand: npx prisma migrate deploy
+      connectTo:
+        - database
+      environment:
+        - name: DATABASE_URL
+          value: $ResourceParam('database', 'connectionString')
+```
+
+Use `local-script` when your database has `accessibilityMode: public` (common for dev stages). Use `local-script-with-bastion-tunneling` when the database is VPC-private and you need to reach it from your laptop.
+
+### Assuming a Deployed Resource's Role
+
+Scripts also support `assumeRoleOfResource`, which lets a script assume the IAM role of an already-deployed workload. This is useful when you want the script to have exactly the same permissions as a running service — for example, to test permission boundaries locally or seed data with production-equivalent credentials:
+
+```yaml
+scripts:
+  seed:
+    type: local-script
+    properties:
+      executeCommand: node scripts/seed.js
+      assumeRoleOfResource: api
+```
+
+Stacktape injects temporary AWS credentials as environment variables. Most AWS SDKs pick these up automatically.
+
+Supported resource types for `assumeRoleOfResource`: `function`, `batch-job`, `worker-service`, `web-service`, `private-service`, `multi-container-workload`, `nextjs-web`, `astro-web`, `nuxt-web`, `sveltekit-web`, `solidstart-web`, `tanstack-web`, `remix-web`.
+
+## Connecting to `aws:ses`
+
+For SES email sending, `connectTo` accepts the `aws:ses` macro:
+
+```yaml
+resources:
+  mailer:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/mailer.ts
+      connectTo:
+        - aws:ses
+```
+
+This grants the full SES email-sending permission set. No environment variables are injected — SES is accessed via the AWS SDK directly using the function's role.
+
+## Custom Permissions with `iamRoleStatements`
+
+`connectTo` always grants the full permission set for a resource type. When you need finer control — read-only bucket access, a specific DynamoDB action, or access to an AWS service with no Stacktape resource model (Rekognition, Bedrock, Textract) — use `iamRoleStatements` alongside or instead of `connectTo`:
+
+```yaml
+resources:
+  uploads:
+    type: bucket
+
+  processor:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/processor.ts
+      connectTo:
+        - uploads
+      iamRoleStatements:
+        - Effect: Allow
+          Action:
+            - s3:GetObjectVersion
+            - s3:GetObjectTagging
+          Resource:
+            - $ResourceParam('uploads', 'bucketArn')/*
+        - Effect: Allow
+          Action:
+            - rekognition:DetectLabels
+          Resource:
+            - '*'
+```
+
+`iamRoleStatements` are additive — they do not replace the permissions from `connectTo`.
+
+## Discovering Injected Variable Names
+
+If a variable isn't defined when you expect it, the fastest way to debug is to log all `STP_` prefixed keys at runtime:
+
+```typescript
+// Quick debug: print all STP_ variables available at runtime
+const stpVars = Object.entries(process.env)
+  .filter(([k]) => k.startsWith('STP_'));
+console.info('Stacktape env vars:', Object.fromEntries(stpVars));
+```
+
+You can also view all injected variables for a deployed stack in the Stacktape Console under the stack's resource info view.
+
+---
+
+## Reference: What Each Resource Type Provides
+
+| Resource type | IAM permissions | Injected variables (`STP_[NAME]_*`) |
+|---|---|---|
+| `relational-database` | Network access (security group) | `CONNECTION_STRING`, `JDBC_CONNECTION_STRING`, `HOST`, `PORT`<br/>Aurora also: `READER_CONNECTION_STRING`, `READER_JDBC_CONNECTION_STRING`, `READER_HOST` |
+| `bucket` | `s3:GetObject`, `PutObject`, `DeleteObject`, `ListBucket` | `NAME`, `ARN`<br/>e.g. `STP_UPLOADS_NAME`, `STP_UPLOADS_ARN` |
+| `dynamo-db-table` | `dynamodb:GetItem`, `PutItem`, `UpdateItem`, `DeleteItem`, `Query`, `Scan` | `NAME`, `ARN`, `STREAM_ARN` |
+| `redis-cluster` | Network access (security group) | `HOST`, `PORT`<br/>With replicas: also `READER_HOST` |
+| `sqs-queue` | `sqs:SendMessage`, `ReceiveMessage`, `DeleteMessage` | `ARN`, `NAME`, `URL` |
+| `sns-topic` | `sns:Publish` | `ARN`, `NAME` |
+| `event-bus` | `events:PutEvents` | `ARN` |
+| `kinesis-stream` | Read and write stream access | `ARN`, `NAME` |
+| `user-auth-pool` | `cognito-idp:*` | `ID`, `CLIENT_ID`, `ARN` |
+| `function` | `lambda:InvokeFunction` | `ARN` |
+| `batch-job` | Submit, list, and terminate jobs | `JOB_DEFINITION_ARN`, `STATE_MACHINE_ARN` |
+| `mongo-db-atlas-cluster` | Temporary credential-less access | `CONNECTION_STRING` |
+| `upstash-redis` | n/a (external service) | `HOST`, `PORT`, `PASSWORD`, `REST_TOKEN`, `REST_URL`, `REDIS_URL` |
+| `upstash-kafka-topic` | n/a (external service) | `TOPIC_NAME`, `TOPIC_ID`, `USERNAME`, `PASSWORD`, `TCP_ENDPOINT`, `REST_URL` |
+| `private-service` | n/a | `ADDRESS` |
+| `web-service` | n/a | `URL` |
