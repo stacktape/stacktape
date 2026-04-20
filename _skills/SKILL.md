@@ -1,25 +1,14 @@
+---
+name: stacktape-skills
+description: "Configure Stacktape services, set up local development environments, and deploy applications to AWS. Covers writing stacktape.yml/stacktape.ts configuration, running stacktape dev for local testing, and deploying stacks with Lambda, API Gateway, and containers. Use when the user asks about Stacktape configuration files, deploying services to AWS via Stacktape, or setting up local Stacktape development environments."
+---
+
 # Stacktape Skills
 
-This directory contains skills for using Stacktape to develop, deploy, and manage applications on AWS.
+Read the specific skill relevant to your current task:
 
-## Available Skills
-
-1.  **[Stacktape Configuration](./stacktape-config.md)**
-    -   **Goal**: Write infrastructure-as-code configurations (`stacktape.ts`).
-    -   **Use when**: Creating new resources, modifying infrastructure, setting up databases/functions.
-
-2.  **[Stacktape Development](./stacktape-dev.md)**
-    -   **Goal**: Run applications locally (`stacktape dev`).
-    -   **Use when**: Testing code changes, running the app locally, debugging logic with fast feedback loop.
-
-3.  **[Stacktape CLI & Operations](./stacktape-cli.md)**
-    -   **Goal**: Deploy, manage, and debug deployed stacks.
-    -   **Use when**: Deploying to production/staging, viewing logs, checking metrics, managing secrets, deleting stacks.
-
-## Usage
-
-Load the specific skill relevant to your current task.
-
--   For **coding and config**, load `stacktape-config.md`.
--   For **running and testing**, load `stacktape-dev.md`.
--   For **deploying and observing**, load `stacktape-cli.md`.
+| Skill | Goal | Use when |
+|-------|------|----------|
+| [Stacktape Configuration](./stacktape-config.md) | Write infrastructure-as-code configurations (`stacktape.ts`) | Creating new resources, modifying infrastructure, setting up databases/functions |
+| [Stacktape Development](./stacktape-dev.md) | Run applications locally (`stacktape dev`) | Testing code changes, running the app locally, debugging logic with fast feedback loop |
+| [Stacktape CLI & Operations](./stacktape-cli.md) | Deploy, manage, and debug deployed stacks | Deploying to production/staging, viewing logs, checking metrics, managing secrets, deleting stacks |
