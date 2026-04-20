@@ -1,6 +1,6 @@
 ---
 name: opentui
-description: Comprehensive OpenTUI skill for building terminal user interfaces. Covers the core imperative API, React reconciler, and Solid reconciler. Use for any TUI development task including components, layout, keyboard handling, animations, and testing.
+description: "Build terminal user interfaces with OpenTUI. Create scrollable lists, render styled text, build form inputs, handle key bindings, and animate transitions using the core imperative API, React reconciler, or Solid reconciler. Use when building a TUI, terminal app, CLI UI, console interface, or text-based UI with OpenTUI."
 metadata:
    references: core, react, solid
 ---
@@ -196,3 +196,32 @@ For component naming differences and text modifiers, see `components/REFERENCE.m
 **Core Docs**: https://github.com/anomalyco/opentui/tree/main/packages/core/docs
 **Examples**: https://github.com/anomalyco/opentui/tree/main/packages/core/src/examples
 **Awesome List**: https://github.com/msmps/awesome-opentui
+
+## Quick Start
+
+Create a new project and render a basic TUI:
+
+```bash
+bunx create-tui -t react my-tui-app
+cd my-tui-app
+bun install
+```
+
+Minimal React TUI (`src/index.tsx`):
+
+```tsx
+import { render, Box, Text } from "@opentui/react";
+
+function App() {
+  return (
+    <Box flexDirection="column" padding={1} borderStyle="round">
+      <Text bold>Hello, OpenTUI!</Text>
+      <Text>Press Ctrl+C to exit.</Text>
+    </Box>
+  );
+}
+
+render(<App />);
+```
+
+Run with `bun run src/index.tsx`. See framework-specific references for full API details.

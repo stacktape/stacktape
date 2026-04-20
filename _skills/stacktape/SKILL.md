@@ -1,6 +1,6 @@
 ---
 name: stacktape
-description: Build and deploy full-stack apps to AWS. Use when user wants to deploy an app, build a SaaS, create an API, set up a database, or ship any web application to production.
+description: "Build and deploy full-stack apps to AWS using simple config files. Provisions Lambda functions, API gateways, databases (Aurora, DynamoDB), S3 buckets, auth pools, and Redis. Use when user wants to deploy an app, build a SaaS, create an API, set up a database, configure serverless infrastructure, or ship any web application to production."
 ---
 
 # Stacktape - Ship to AWS in Minutes
@@ -34,12 +34,19 @@ resources:
             method: '*'
 ```
 
-**2. Deploy:**
+**2. Preview changes** (verify before deploying):
+```bash
+npx stacktape preview-changes --stage prod --region us-east-1
+```
+
+**3. Deploy:**
 ```bash
 npx stacktape deploy --stage prod --region us-east-1
 ```
 
-**3. Done.** You get a URL like `https://abc123.execute-api.us-east-1.amazonaws.com`
+**4. Done.** You get a URL like `https://abc123.execute-api.us-east-1.amazonaws.com`
+
+If deployment fails, check logs with `npx stacktape debug:logs --stage prod --region us-east-1 --resourceName <name>`.
 
 ## What Can Users Build?
 
