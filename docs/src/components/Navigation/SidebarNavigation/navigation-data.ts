@@ -1,172 +1,259 @@
 import config from '../../../../config';
 
-const getGroup = function (url) {
-  return url ? config.sidebar.groups.find((group) => url.startsWith(group.path)) : null;
+/** localStorage key used to persist the user's explicit collapse/expand toggles. */
+export const NAV_STATE_STORAGE_KEY = 'stacktape-docs-nav-state-v1';
+
+/** Map of nav-key → user toggle. Only contains entries the user has explicitly clicked.
+ *  Items without an entry fall back to default behavior (config defaultOpen + active branch). */
+export type NavUserOverrides = Record<string, boolean>;
+
+export type NavItem = {
+  /**
+   * The URL the node links to. Set for real pages; null for virtual intermediate nodes
+   * (e.g. "Compute" inside Resources — there's no /resources/compute page, but the segment
+   * groups its children visually).
+   */
+  url: string | null;
+  /** Stable key used by the expand/collapse state map. Equals url for real pages, equals
+   *  the synthetic path for virtual nodes. */
+  key: string;
+  title: string;
+  /** Page order from frontmatter; virtual nodes inherit min(descendant.order). */
+  order: number;
+  children: NavItem[];
 };
 
-const createUnassignedGroup = () => {
-  return {
+export type NavGroup = {
+  id: string;
+  title: string;
+  icon: any;
+  order: number;
+  defaultOpen: boolean;
+  children: NavItem[];
+};
+
+// Words that should keep their canonical casing in virtual subgroup labels (instead of being
+// title-cased like "Cli" or "Aws"). Add as needed.
+const acronyms = new Set(['cli', 'aws', 'api', 'sdk', 'mcp', 'cdn', 'cdk', 'sql', 'efs', 'sns', 'sqs', 'waf']);
+
+const capitalizeSegment = (segment: string) =>
+  segment
+    .split('-')
+    .map((word) => (acronyms.has(word.toLowerCase()) ? word.toUpperCase() : word.charAt(0).toUpperCase() + word.slice(1)))
+    .join(' ');
+
+/**
+ * Build a deep navigation tree from a flat list of pages.
+ *
+ * Algorithm:
+ * 1. Group every page by its first path segment — this picks one of the configured sidebar groups.
+ * 2. Within each group, walk every page's remaining segments and build a tree. Each segment that
+ *    has no real page becomes a virtual node (no link, expandable, title derived from segment).
+ * 3. Real pages are slotted into the tree at their full URL. If a real page lands on a path that
+ *    a virtual node already occupies, the virtual node is "promoted" — gains the page's url + title.
+ * 4. Sort siblings by order ASC, then title ASC. Virtual nodes carry min(descendant.order) so they
+ *    sort sensibly relative to leaf siblings.
+ */
+export const getNavigationTree = (allDocPages: MdxPageDataForNavigation[]): NavGroup[] => {
+  // Initialize groups from config
+  const groupMap = new Map<string, NavGroup>();
+  for (const g of config.sidebar.groups) {
+    const id = g.path.replace(/^\//, '');
+    groupMap.set(id, {
+      id,
+      title: g.title,
+      icon: g.icon,
+      order: g.order,
+      defaultOpen: (g as any).defaultOpen ?? false,
+      children: []
+    });
+  }
+
+  // Catch-all for the root index page (and anything that fails to match a configured group).
+  const rootGroup: NavGroup = {
+    id: '__root',
     title: '',
     icon: null,
-    order: 0,
-    id: '__root',
+    order: -1,
+    defaultOpen: true,
     children: []
   };
-};
 
-// Sections that should have collapsible parent-child navigation
-// (e.g., CLI commands should be nested under a collapsible "Commands" item)
-const COLLAPSIBLE_SECTIONS = ['/cli'];
+  // Map of "path key" → NavItem within each group's tree. Path key is the full URL for a real
+  // page or a synthetic path like "/resources/compute" for a virtual node.
+  const nodeMap = new Map<string, NavItem>();
 
-const shouldBeCollapsible = (url: string) => {
-  return COLLAPSIBLE_SECTIONS.some((section) => url.startsWith(section));
-};
-
-export const getNavigationTree = (allDocPages: MdxPageDataForNavigation[]) => {
-  // Deep clone to avoid mutating input data (prevents hydration issues)
-  const navigationItems = allDocPages
-    .map((docPage) => ({
-      ...docPage,
-      slug: [...(docPage.slug || [])]
-    }))
-    .map((docPage) => {
-      // Build potential parent URLs from the slug
-      const parents = [];
-      // For a slug like ['sdk', 'methods', 'compileTemplate'], we want to check for:
-      // - '/sdk'
-      // - '/sdk/methods'
-      for (let i = 1; i < docPage.slug.length; i++) {
-        const parentSlug = docPage.slug.slice(0, i);
-        parents.push(`/${parentSlug.join('/')}`);
+  const ensureNode = ({
+    pathKey,
+    isLeaf,
+    realUrl,
+    title,
+    order,
+    parentChildren
+  }: {
+    pathKey: string;
+    isLeaf: boolean;
+    realUrl: string | null;
+    title: string;
+    order: number;
+    parentChildren: NavItem[];
+  }): NavItem => {
+    const existing = nodeMap.get(pathKey);
+    if (existing) {
+      // Promote a virtual node into a real page if the real page just appeared.
+      if (isLeaf && existing.url === null && realUrl) {
+        existing.url = realUrl;
+        existing.title = title;
+        existing.order = order;
+      } else if (!isLeaf && order < existing.order) {
+        // Virtual nodes track the minimum order of their descendants for sensible sibling sort.
+        existing.order = order;
       }
-
-      return {
-        parent: parents.reverse(), // reverse so we check the most specific parent first
-        label: docPage.slug.join(''),
-        url: docPage.url,
-        children: [],
-        title: docPage.title,
-        order: docPage.order,
-        groupName: '',
-        groupIcon: null
-      };
-    });
-
-  navigationItems.sort((a, b) => {
-    const aIdx = config.sidebar.forcedNavOrder.indexOf(a.url);
-    const bIdx = config.sidebar.forcedNavOrder.indexOf(b.url);
-    // Both in forcedNavOrder - sort by index
-    if (aIdx !== -1 && bIdx !== -1) {
-      return aIdx - bIdx;
+      return existing;
     }
-    // One in forcedNavOrder - it comes first
-    if (aIdx !== -1) return -1;
-    if (bIdx !== -1) return 1;
-    // Neither in forcedNavOrder - sort by order, then label, then url
-    const orderDiff = (a.order ?? 999) - (b.order ?? 999);
-    if (orderDiff !== 0) return orderDiff;
-    const labelDiff = (a.label ?? '').localeCompare(b.label ?? '');
-    if (labelDiff !== 0) return labelDiff;
-    return (a.url ?? '').localeCompare(b.url ?? '');
-  });
-
-  let result = {
-    __root: createUnassignedGroup()
+    const node: NavItem = {
+      url: realUrl,
+      key: pathKey,
+      title,
+      order,
+      children: []
+    };
+    nodeMap.set(pathKey, node);
+    parentChildren.push(node);
+    return node;
   };
 
-  navigationItems.forEach((data) => {
-    let isChild = false;
-    let parent = null;
-
-    // Only create parent-child relationships for collapsible sections
-    if (shouldBeCollapsible(data.url)) {
-      data.parent.every((p) => {
-        parent = navigationItems.find((d) => d.url === p);
-        if (parent) {
-          parent.children.push(data);
-          isChild = true;
-          data.parent = parent.url;
-          return false;
-        }
-        return true;
-      });
-      if (parent) {
-        data.parent = parent.title;
-      } else {
-        data.parent = null;
-      }
-    } else {
-      // For non-collapsible sections, don't create parent-child relationships
-      data.parent = null;
+  for (const page of allDocPages) {
+    const url = page.url;
+    if (url === '/') {
+      const node: NavItem = { url: '/', key: '/', title: page.title, order: page.order ?? 999, children: [] };
+      rootGroup.children.push(node);
+      continue;
     }
 
-    if (!isChild) {
-      // Get the first path segment as potential group ID
-      const urlParts = data.url.split('/').filter(Boolean);
-      const groupId = urlParts.length > 0 ? urlParts[0].toLowerCase() : '';
+    const segments = url.split('/').filter(Boolean);
+    const groupId = segments[0];
+    const group = groupMap.get(groupId) || rootGroup;
 
-      // Try to find existing group or create one
-      let group = groupId ? result[groupId] : null;
-      if (group == null) {
-        const configGroup = getGroup(data.url);
-        if (!configGroup) {
-          group = result.__root;
-        } else {
-          group = {
-            title: configGroup.title || '',
-            icon: configGroup.icon || null,
-            order: configGroup.order ?? 999,
-            id: configGroup.path.replace(/^\//, '').toLowerCase(),
-            children: []
-          };
-          result[group.id] = group;
-        }
-      }
-      data.groupName = group.title;
-      data.groupIcon = group.icon;
-      if (data.children) {
-        data.children.forEach((child) => {
-          child.groupName = group.title;
-          child.groupIcon = group.icon;
-        });
-      }
-      group.children.push(data);
-    }
-  });
-  // Convert to array and sort by order, then by title for consistent ordering
-  const resultArray = Object.values(result) as any[];
-  resultArray.sort((a, b) => {
-    // Put __root group last if it exists
-    if (a.id === '__root') return 1;
-    if (b.id === '__root') return -1;
-    const ordered = (a.order ?? 999) - (b.order ?? 999);
-    return ordered !== 0 ? ordered : (a.title ?? '').localeCompare(b.title ?? '');
-  });
-
-  // Also sort children within each group for consistency
-  for (const group of resultArray) {
-    if (group.children) {
-      group.children.sort((a: any, b: any) => {
-        const orderDiff = (a.order ?? 999) - (b.order ?? 999);
-        if (orderDiff !== 0) return orderDiff;
-        const titleDiff = (a.title ?? '').localeCompare(b.title ?? '');
-        if (titleDiff !== 0) return titleDiff;
-        return (a.url ?? '').localeCompare(b.url ?? '');
+    // The first segment IS the group's path prefix — the group itself represents it. Walk only
+    // segments[1..] to build the tree underneath. Pages whose URL is exactly the group root
+    // (e.g. /configuration with no further segment) become the group's first child.
+    let parentChildren = group.children;
+    let pathSoFar = '/' + segments[0];
+    if (segments.length === 1) {
+      // Bare-group page (rare — e.g. would be /configuration as a real page).
+      ensureNode({
+        pathKey: pathSoFar,
+        isLeaf: true,
+        realUrl: url,
+        title: page.title,
+        order: page.order ?? 999,
+        parentChildren
       });
-      // Recursively sort nested children
-      for (const child of group.children) {
-        if (child.children && child.children.length > 0) {
-          child.children.sort((a: any, b: any) => {
-            const orderDiff = (a.order ?? 999) - (b.order ?? 999);
-            if (orderDiff !== 0) return orderDiff;
-            const titleDiff = (a.title ?? '').localeCompare(b.title ?? '');
-            if (titleDiff !== 0) return titleDiff;
-            return (a.url ?? '').localeCompare(b.url ?? '');
-          });
-        }
-      }
+      continue;
+    }
+    for (let i = 1; i < segments.length; i += 1) {
+      pathSoFar += '/' + segments[i];
+      const isLeaf = i === segments.length - 1;
+      const node = ensureNode({
+        pathKey: pathSoFar,
+        isLeaf,
+        realUrl: isLeaf ? url : null,
+        title: isLeaf ? page.title : capitalizeSegment(segments[i]),
+        order: page.order ?? 999,
+        parentChildren
+      });
+      parentChildren = node.children;
     }
   }
 
-  return resultArray;
+  // Sort children recursively. Order is the primary key (lower first), title alphabetic is the
+  // tie-breaker.
+  const sortItems = (items: NavItem[]) => {
+    items.sort((a, b) => {
+      const orderDiff = a.order - b.order;
+      if (orderDiff !== 0) return orderDiff;
+      return a.title.localeCompare(b.title);
+    });
+    for (const item of items) {
+      if (item.children.length > 0) {
+        sortItems(item.children);
+      }
+    }
+  };
+
+  for (const group of groupMap.values()) {
+    sortItems(group.children);
+  }
+  sortItems(rootGroup.children);
+
+  // Final assembly: forced order first, then any unmatched groups.
+  const result: NavGroup[] = [];
+  if (rootGroup.children.length > 0) {
+    result.push(rootGroup);
+  }
+  const orderedPaths = config.sidebar.forcedNavOrder;
+  for (const path of orderedPaths) {
+    const id = path.replace(/^\//, '');
+    const group = groupMap.get(id);
+    if (group && group.children.length > 0) {
+      result.push(group);
+    }
+  }
+  for (const group of groupMap.values()) {
+    if (!result.includes(group) && group.children.length > 0) {
+      result.push(group);
+    }
+  }
+
+  return result;
+};
+
+/**
+ * Compute the expansion state of every group/item.
+ *
+ * Three-layer rule:
+ *   1. Defaults — group `defaultOpen` flags from config + the configured `defaultOpenPaths` for
+ *      virtual subgroups + auto-open of any ancestor of the currently active page.
+ *   2. User overrides — explicit toggles from the persisted store. These trump defaults so a user
+ *      can collapse a section that's also the active branch (and have it stay collapsed across
+ *      navigation).
+ *   3. The merged result is what the renderer reads.
+ */
+export const computeExpandedState = ({
+  groups,
+  pathname,
+  userOverrides
+}: {
+  groups: NavGroup[];
+  pathname: string;
+  userOverrides: NavUserOverrides;
+}): Record<string, boolean> => {
+  const expanded: Record<string, boolean> = {};
+  const normalizedPath = pathname.split('?')[0].replace(/\/$/, '') || '/';
+  const defaultOpenPaths = new Set(((config.sidebar as any).defaultOpenPaths || []) as string[]);
+
+  const isActiveOrAncestor = (item: NavItem): boolean => {
+    if (item.url !== null && normalizedPath === item.url) return true;
+    return item.children.some((child) => isActiveOrAncestor(child));
+  };
+
+  for (const group of groups) {
+    const groupKey = `group:${group.id}`;
+    const containsActive = group.children.some((child) => isActiveOrAncestor(child));
+    const defaultExpanded = group.defaultOpen || containsActive;
+    expanded[groupKey] = userOverrides[groupKey] ?? defaultExpanded;
+
+    const walk = (items: NavItem[]) => {
+      for (const item of items) {
+        if (item.children.length === 0) continue;
+        const itemDefault = defaultOpenPaths.has(item.key) || isActiveOrAncestor(item);
+        expanded[item.key] = userOverrides[item.key] ?? itemDefault;
+        walk(item.children);
+      }
+    };
+    walk(group.children);
+  }
+
+  return expanded;
 };

@@ -1,7 +1,7 @@
 import { debounce } from 'lodash';
 import { useLayoutEffect, useRef } from 'react';
 import { useSessionStorage } from 'react-use';
-import { border, growDownAnimation, pageLayout, prettyScrollBar } from '@/styles/variables';
+import { borderLight, growDownAnimation, pageLayout, prettyScrollBar } from '@/styles/variables';
 import { onMaxW795 } from '../../../styles/responsive';
 import { ContentTree } from './ContentTree';
 
@@ -49,15 +49,11 @@ export function SidebarNavigation({
         css={
           {
             alignContent: 'right',
-            overflowY: 'scroll',
-            '@supports (-moz-appearance:none)': {
-              overflowY: 'scroll'
-            },
-            WebkitOverflowScrolling: 'hidden',
-            '&:hover, &:focus': {
-              overflowY: 'overlay',
-              WebkitOverflowScrolling: 'touch'
-            },
+            // `auto` reserves no space when content fits; `scroll` always reserved a track even
+            // when there was nothing to scroll, and the legacy `overlay`-on-hover swap caused the
+            // scrollbar to disappear when you tried to grab it.
+            overflowY: 'auto',
+            WebkitOverflowScrolling: 'touch',
             alignSelf: 'flex-end',
             width: '100%',
             [onMaxW795]: {
@@ -70,7 +66,7 @@ export function SidebarNavigation({
             margin: '0',
             display: 'block',
             paddingTop: '20px',
-            borderRight: border,
+            borderRight: borderLight,
             ...prettyScrollBar
           } as any
         }

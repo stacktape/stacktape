@@ -1,10 +1,40 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AlignRight } from 'react-feather';
 import { onMaxW1200 } from '@/styles/responsive';
 import { colors, pageLayout, prettyScrollBar } from '@/styles/variables';
 
-export function TableOfContents({ tableOfContents }: { tableOfContents: TableOfContentsItem[] }) {
+const ROW_HEIGHT = 26;
+const INDENT_PX = 12;
+const PATH_X_OFFSET = 8;
+const TRANSITION_ZONE = 8;
+const TEXT_GAP = 14;
+const SNAKE_LENGTH = 18;
+
+const sampleBezierLength = (
+  p0: { x: number; y: number },
+  p1: { x: number; y: number },
+  p2: { x: number; y: number },
+  p3: { x: number; y: number },
+  samples = 16
+) => {
+  let total = 0;
+  let prev = p0;
+  for (let i = 1; i <= samples; i++) {
+    const t = i / samples;
+    const t1 = 1 - t;
+    const x = t1 * t1 * t1 * p0.x + 3 * t1 * t1 * t * p1.x + 3 * t1 * t * t * p2.x + t * t * t * p3.x;
+    const y = t1 * t1 * t1 * p0.y + 3 * t1 * t1 * t * p1.y + 3 * t1 * t * t * p2.y + t * t * t * p3.y;
+    total += Math.hypot(x - prev.x, y - prev.y);
+    prev = { x, y };
+  }
+  return total;
+};
+
+export function TableOfContents({ tableOfContents: rawToc }: { tableOfContents: TableOfContentsItem[] }) {
   const [activeId, setActiveId] = useState<string>('');
+
+  // Skip h1: page heading is already rendered as the page title above the body.
+  const tableOfContents = useMemo(() => rawToc.filter((item) => (item.level || 1) > 1), [rawToc]);
 
   useEffect(() => {
     const headingElements = tableOfContents
@@ -18,11 +48,9 @@ export function TableOfContents({ tableOfContents }: { tableOfContents: TableOfC
       return;
     }
 
-    // Set initial active heading based on current scroll position
     const setInitialActiveHeading = () => {
       const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
 
-      // If we're at the top of the page (within 100px), set the first heading as active
       if (scrollTop < 100) {
         const firstHeading = headingElements[0];
         if (firstHeading) {
@@ -31,29 +59,25 @@ export function TableOfContents({ tableOfContents }: { tableOfContents: TableOfC
         return;
       }
 
-      // Otherwise, find the appropriate heading based on scroll position
       const allHeadings = headingElements
         .map((el) => ({
           id: el!.id,
           top: el!.getBoundingClientRect().top
         }))
-        .filter((heading) => heading.top < 75) // Above the viewport (considering 75px header height)
-        .sort((a, b) => b.top - a.top); // Sort by position, closest to top first
+        .filter((heading) => heading.top < 75)
+        .sort((a, b) => b.top - a.top);
 
       if (allHeadings.length > 0) {
         setActiveId(allHeadings[0].id);
       } else if (headingElements.length > 0) {
-        // Fallback to first heading if no headings are above viewport
         setActiveId(headingElements[0]!.id);
       }
     };
 
-    // Defer initial active heading to avoid direct setState in useEffect
     const rafId = requestAnimationFrame(setInitialActiveHeading);
 
     const observer = new IntersectionObserver(
       (entries) => {
-        // Find the first visible heading
         const visibleHeadings = entries
           .filter((entry) => entry.isIntersecting)
           .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
@@ -61,14 +85,13 @@ export function TableOfContents({ tableOfContents }: { tableOfContents: TableOfC
         if (visibleHeadings.length > 0) {
           setActiveId(visibleHeadings[0].target.id);
         } else {
-          // If no headings are visible, find the last heading that's above the viewport
           const allHeadings = headingElements
             .map((el) => ({
               id: el!.id,
               top: el!.getBoundingClientRect().top
             }))
-            .filter((heading) => heading.top < 75) // Above the viewport (considering 75px header height)
-            .sort((a, b) => b.top - a.top); // Sort by position, closest to top first
+            .filter((heading) => heading.top < 75)
+            .sort((a, b) => b.top - a.top);
 
           if (allHeadings.length > 0) {
             setActiveId(allHeadings[0].id);
@@ -76,7 +99,7 @@ export function TableOfContents({ tableOfContents }: { tableOfContents: TableOfC
         }
       },
       {
-        rootMargin: '-75px 0% -80% 0%', // Account for 75px header height
+        rootMargin: '-75px 0% -80% 0%',
         threshold: 0
       }
     );
@@ -91,6 +114,78 @@ export function TableOfContents({ tableOfContents }: { tableOfContents: TableOfC
     };
   }, [tableOfContents]);
 
+  const { points, pathD, svgWidth, svgHeight, minLevel, cumLen } = useMemo(() => {
+    if (tableOfContents.length === 0) {
+      return {
+        points: [] as { x: number; y: number }[],
+        pathD: '',
+        svgWidth: 0,
+        svgHeight: 0,
+        minLevel: 1,
+        cumLen: [] as number[]
+      };
+    }
+
+    const minLvl = Math.min(...tableOfContents.map((i) => i.level || 1));
+    const maxLvl = Math.max(...tableOfContents.map((i) => i.level || 1));
+    const pts = tableOfContents.map((item, i) => ({
+      x: PATH_X_OFFSET + ((item.level || 0) - minLvl) * INDENT_PX,
+      y: i * ROW_HEIGHT + ROW_HEIGHT / 2
+    }));
+
+    // Build path AND track cumulative length at each item's center, so we can position the
+    // active "snake" along the path with stroke-dashoffset (which animates along the curve).
+    let d = `M ${pts[0].x} 0`;
+    let len = pts[0].y; // M -> first L (down to first item center)
+    d += ` L ${pts[0].x} ${pts[0].y}`;
+    const lengths: number[] = [len];
+
+    for (let i = 0; i < pts.length - 1; i++) {
+      const cur = pts[i];
+      const next = pts[i + 1];
+
+      if (next.x === cur.x) {
+        d += ` L ${next.x} ${next.y}`;
+        len += next.y - cur.y;
+      } else {
+        const midY = (cur.y + next.y) / 2;
+        d += ` L ${cur.x} ${midY - TRANSITION_ZONE}`;
+        len += midY - TRANSITION_ZONE - cur.y;
+
+        const c0 = { x: cur.x, y: midY - TRANSITION_ZONE };
+        const c1 = { x: cur.x, y: midY };
+        const c2 = { x: next.x, y: midY };
+        const c3 = { x: next.x, y: midY + TRANSITION_ZONE };
+        d += ` C ${c1.x} ${c1.y}, ${c2.x} ${c2.y}, ${c3.x} ${c3.y}`;
+        len += sampleBezierLength(c0, c1, c2, c3);
+
+        d += ` L ${next.x} ${next.y}`;
+        len += next.y - (midY + TRANSITION_ZONE);
+      }
+      lengths.push(len);
+    }
+
+    // Tail: extend path past last item to the bottom of the row band.
+    d += ` L ${pts[pts.length - 1].x} ${pts.length * ROW_HEIGHT}`;
+
+    return {
+      points: pts,
+      pathD: d,
+      svgWidth: PATH_X_OFFSET + (maxLvl - minLvl) * INDENT_PX + 4,
+      svgHeight: pts.length * ROW_HEIGHT,
+      minLevel: minLvl,
+      cumLen: lengths
+    };
+  }, [tableOfContents]);
+
+  const activeIdx = tableOfContents.findIndex((item) => activeId === item.href.replace('#', ''));
+  const hasActive = activeIdx >= 0 && cumLen[activeIdx] !== undefined;
+  const activeLen = hasActive ? cumLen[activeIdx] : 0;
+
+  if (tableOfContents.length === 0) {
+    return null;
+  }
+
   return (
     <div
       css={{
@@ -103,40 +198,10 @@ export function TableOfContents({ tableOfContents }: { tableOfContents: TableOfC
         right: 0,
         overflowY: 'auto',
         scrollbarWidth: 'none',
-        '::-webkit-scrollbar': {
-          display: 'none'
-        },
+        '::-webkit-scrollbar': { display: 'none' },
         width: '305px',
         minWidth: '305px',
-        li: {
-          listStyle: 'none',
-          a: {
-            zIndex: 1000,
-            fontSize: '12.5px',
-            lineHeight: 1.2,
-            padding: '5px 24px 4px 0px',
-            color: colors.fontColorPrimary,
-            textDecoration: 'none',
-            display: 'block',
-            position: 'relative',
-            cursor: 'pointer'
-          },
-          '&:hover': {
-            a: {
-              color: colors.navigationHover
-            }
-          }
-        },
-        '.current-item': {
-          a: {
-            backgroundColor: 'rgb(5 97 100 / 80%)',
-            borderLeft: `2.5px solid ${colors.stacktapeGreen}`,
-            borderRadius: '2px'
-          }
-        },
-        [onMaxW1200]: {
-          display: 'none'
-        }
+        [onMaxW1200]: { display: 'none' }
       }}
     >
       <p
@@ -154,44 +219,80 @@ export function TableOfContents({ tableOfContents }: { tableOfContents: TableOfC
         <AlignRight size={15} />
         <span>Contents</span>
       </p>
-      <div
-        css={{
-          marginTop: '4px',
-          display: 'flex'
-        }}
-      >
-        <div
+      <div css={{ position: 'relative', marginTop: '4px' }}>
+        <svg
+          width={svgWidth}
+          height={svgHeight}
           css={{
-            width: '1px',
-            backgroundColor: colors.borderColor
+            position: 'absolute',
+            left: 0,
+            top: 0,
+            pointerEvents: 'none',
+            overflow: 'visible'
           }}
-        />
-        <ul>
-          {(() => {
-            // Find the minimum level to use as baseline for relative indentation
-            const minLevel = Math.min(...tableOfContents.map((item) => item.level || 1));
-
-            return tableOfContents.map((item) => {
-              const isActive = activeId === item.href.replace('#', '');
-              return (
-                <li
-                  key={item.href}
-                  className={isActive ? 'current-item' : ''}
+        >
+          {/* The "rail" — full curve in a muted color. */}
+          <path d={pathD} stroke={colors.borderColorLight} strokeWidth={1} fill="none" />
+          {/* The "snake" — same path, but stroked with a fixed-length dash positioned via
+              stroke-dashoffset. Transitioning the offset moves the visible segment along the
+              curve, so the highlight follows every bend in the rail rather than cutting
+              diagonally between positions. */}
+          {hasActive && (
+            <path
+              d={pathD}
+              stroke={colors.fontColorPrimary}
+              strokeWidth={2}
+              strokeLinecap="round"
+              fill="none"
+              strokeDasharray={`${SNAKE_LENGTH} 99999`}
+              strokeDashoffset={SNAKE_LENGTH / 2 - activeLen}
+              css={{
+                transition: 'stroke-dashoffset 320ms cubic-bezier(0.4, 0, 0.2, 1)'
+              }}
+            />
+          )}
+        </svg>
+        <ul css={{ margin: 0, padding: 0 }}>
+          {tableOfContents.map((item) => {
+            const isActive = activeId === item.href.replace('#', '');
+            const itemX = PATH_X_OFFSET + ((item.level || 0) - minLevel) * INDENT_PX;
+            return (
+              <li
+                key={item.href}
+                css={{
+                  listStyle: 'none',
+                  height: ROW_HEIGHT,
+                  display: 'flex',
+                  alignItems: 'center'
+                }}
+              >
+                <a
+                  href={item.href}
                   css={{
-                    a: {
-                      paddingLeft: `${1 + ((item.level || 0) - minLevel) * 1 - 0.07}rem !important`,
-                      svg: {
-                        float: 'right',
-                        marginRight: '1rem'
-                      }
+                    display: 'block',
+                    width: '100%',
+                    paddingLeft: itemX + TEXT_GAP,
+                    paddingRight: '12px',
+                    fontSize: '12.5px',
+                    lineHeight: 1.2,
+                    color: isActive ? colors.fontColorPrimary : colors.fontColorLighterGray,
+                    fontWeight: isActive ? 500 : 400,
+                    textDecoration: 'none',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    transition: 'color 140ms ease',
+                    '&:hover': {
+                      color: colors.fontColorPrimary
                     }
                   }}
                 >
-                  <a href={item.href}>&nbsp;{item.text}</a>
-                </li>
-              );
-            });
-          })()}
+                  {item.text}
+                </a>
+              </li>
+            );
+          })}
         </ul>
       </div>
       <div css={{ height: '20px' }} />

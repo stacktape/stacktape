@@ -1,6 +1,6 @@
 import { css } from '@emotion/react';
 import { kebabCase } from 'change-case';
-import { AlertCircle, AlertOctagon, AlertTriangle, Info } from 'react-feather';
+import { AlertCircle, AlertOctagon, AlertTriangle, Info, Zap } from 'react-feather';
 import { onMaxW795 } from '../../styles/responsive';
 import { colors } from '../../styles/variables';
 import { Badge } from './Badge';
@@ -15,12 +15,18 @@ import { MdxImage } from './Image';
 import { Jargon } from './Jargon';
 import { Link } from './Link';
 import { PreviousNext } from './PreviousNext';
+import { ApiReference } from './ApiReference';
 import PropDescription from './PropDescription';
-import PropertiesTable from './PropertiesTable';
+// PropertiesTable was removed from the public component map. PropertyInfo from PropertiesTable is
+// still imported by CliCommandsApiReference, so the file itself stays. New resource pages must use
+// <ApiReference definitionName="..." /> instead.
 import { ReferenceableParams } from './ReferenceableParams';
 import { ResourceList } from './ResourceList';
 import { StarterProjectList, StarterProjectListShort } from './StarterProjectList';
 import { Table } from './Table';
+import { ConsoleScreenshot } from './ConsoleScreenshot';
+import { FeatureComparisonTable } from './FeatureComparisonTable';
+import { Tabs, Tab } from './Tabs';
 
 const getNameFromProps = (props) => {
   let name = props.children;
@@ -205,13 +211,14 @@ export const MdxComponents = {
   CodeBlock,
   Link,
   CliCommandsApiReference,
-  PropertiesTable,
+  ApiReference,
   PropDescription,
   EngineVersionsList,
   ReferenceableParams,
   Warning: (props) => <Highlighter props={props} type="warning" icon={AlertTriangle} />,
   Info: (props) => <Highlighter props={props} type="info" icon={Info} />,
   Error: (props) => <Highlighter props={props} type="error" icon={AlertOctagon} />,
+  Tip: (props) => <Highlighter props={props} type="tip" icon={Zap} />,
   Divider,
   WarnIcon: <AlertCircle size={22} />,
   PreviousNext,
@@ -224,7 +231,12 @@ export const MdxComponents = {
   NavBoxGrid,
   DecisionTree,
   ProjectStructure,
-  FlowDiagram
+  FlowDiagram,
+  ConsoleScreenshot,
+  FeatureComparisonTable,
+  Tabs,
+  Tab,
+  Jargon
 };
 
 // <hr

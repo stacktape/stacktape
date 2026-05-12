@@ -48,7 +48,7 @@ const PACKAGING_TYPE_TO_CLASS: Record<string, string> = {
   'external-buildpack': 'ExternalBuildpackPackaging',
   'custom-dockerfile': 'CustomDockerfilePackaging',
   'prebuilt-image': 'PrebuiltImagePackaging',
-  'custom-artifact': 'CustomArtifactPackaging'
+  'custom-artifact': 'CustomArtifactLambdaPackaging'
 };
 
 /** Engine type -> class name mapping */
@@ -98,6 +98,18 @@ const CONTAINER_RESOURCE_TYPES = new Set([
   'multi-container-workload',
   'batch-job'
 ]);
+
+const invertRecord = (record: Record<string, string>) =>
+  Object.fromEntries(Object.entries(record).map(([key, value]) => [value, key])) as Record<string, string>;
+
+const CLASS_TO_RESOURCE_TYPE = invertRecord(RESOURCE_TYPE_TO_CLASS);
+const CLASS_TO_SCRIPT_TYPE = invertRecord(SCRIPT_TYPE_TO_CLASS);
+const CLASS_TO_TYPED_PROPERTY_TYPE = {
+  ...invertRecord(PACKAGING_TYPE_TO_CLASS),
+  ...invertRecord(ENGINE_TYPE_TO_CLASS),
+  ...invertRecord(LAMBDA_EVENT_TYPE_TO_CLASS),
+  ...invertRecord(CONTAINER_EVENT_TYPE_TO_CLASS)
+};
 
 /** Regex to match directive strings like $Secret('value') */
 const DIRECTIVE_REGEX = /^\$([A-Za-z]+)\(.*\)$/;
@@ -410,6 +422,414 @@ export const convertYamlToTypescript = (yamlContent: string): string | null => {
     }
 
     return configObjectToTypescript(config as Record<string, unknown>);
+  } catch {
+    return null;
+  }
+};
+
+type TsParsedValue =
+  | null
+  | string
+  | number
+  | boolean
+  | TsParsedValue[]
+  | {
+      [key: string]: TsParsedValue;
+    };
+
+type IdentifierValue = {
+  __identifier: string;
+};
+
+const isIdentifierValue = (value: unknown): value is IdentifierValue =>
+  Boolean(value && typeof value === 'object' && '__identifier' in value);
+
+class TypescriptConfigExpressionParser {
+  private cursor = 0;
+
+  constructor(private readonly source: string) {}
+
+  parse(): TsParsedValue | IdentifierValue {
+    const value = this.parseValue();
+    this.skipWhitespaceAndComments();
+    return value;
+  }
+
+  private parseValue(): TsParsedValue | IdentifierValue {
+    this.skipWhitespaceAndComments();
+    if (this.source[this.cursor] === '{') return this.parseObject();
+    if (this.source[this.cursor] === '[') return this.parseArray();
+    if (this.source[this.cursor] === "'" || this.source[this.cursor] === '"' || this.source[this.cursor] === '`') {
+      return this.parseString();
+    }
+    if (this.source.startsWith('new ', this.cursor)) return this.parseNewExpression();
+    if (this.source[this.cursor] === '$') return this.parseDirectiveCall();
+    if (this.source.startsWith('true', this.cursor)) {
+      this.cursor += 4;
+      return true;
+    }
+    if (this.source.startsWith('false', this.cursor)) {
+      this.cursor += 5;
+      return false;
+    }
+    if (this.source.startsWith('null', this.cursor)) {
+      this.cursor += 4;
+      return null;
+    }
+    if (this.source.startsWith('undefined', this.cursor)) {
+      this.cursor += 'undefined'.length;
+      return null;
+    }
+    if (/[+-]?\d/.test(this.source.slice(this.cursor, this.cursor + 2))) {
+      return this.parseNumber();
+    }
+    return { __identifier: this.parseIdentifier() };
+  }
+
+  private parseObject(): Record<string, TsParsedValue | IdentifierValue> {
+    const result: Record<string, TsParsedValue | IdentifierValue> = {};
+    this.expect('{');
+    while (this.cursor < this.source.length) {
+      this.skipWhitespaceAndComments();
+      if (this.source[this.cursor] === '}') {
+        this.cursor += 1;
+        break;
+      }
+
+      if (this.source.startsWith('...', this.cursor)) {
+        throw new Error('Object spreads are not supported in generated YAML examples.');
+      }
+
+      const key = this.parseObjectKey();
+      this.skipWhitespaceAndComments();
+      if (this.source[this.cursor] === ':') {
+        this.cursor += 1;
+        result[key] = this.parseValue();
+      } else {
+        result[key] = { __identifier: key };
+      }
+
+      this.skipWhitespaceAndComments();
+      if (this.source[this.cursor] === ',') {
+        this.cursor += 1;
+      }
+    }
+    return result;
+  }
+
+  private parseArray(): Array<TsParsedValue | IdentifierValue> {
+    const result: Array<TsParsedValue | IdentifierValue> = [];
+    this.expect('[');
+    while (this.cursor < this.source.length) {
+      this.skipWhitespaceAndComments();
+      if (this.source[this.cursor] === ']') {
+        this.cursor += 1;
+        break;
+      }
+      result.push(this.parseValue());
+      this.skipWhitespaceAndComments();
+      if (this.source[this.cursor] === ',') {
+        this.cursor += 1;
+      }
+    }
+    return result;
+  }
+
+  private parseObjectKey(): string {
+    this.skipWhitespaceAndComments();
+    if (this.source[this.cursor] === "'" || this.source[this.cursor] === '"' || this.source[this.cursor] === '`') {
+      return this.parseString();
+    }
+    return this.parseIdentifier();
+  }
+
+  private parseNewExpression(): TsParsedValue {
+    this.cursor += 'new '.length;
+    const className = this.parseIdentifier();
+    this.skipWhitespaceAndComments();
+    this.expect('(');
+    const argsStart = this.cursor;
+    const args = this.readBalanced('(', ')', argsStart);
+    this.cursor = args.end + 1;
+
+    const type = CLASS_TO_TYPED_PROPERTY_TYPE[className];
+    if (!type) {
+      throw new Error(`Unsupported class in generated YAML example: ${className}`);
+    }
+
+    return {
+      type,
+      properties: parseTypescriptExpression(args.content) as TsParsedValue
+    };
+  }
+
+  private parseDirectiveCall(): string {
+    const start = this.cursor;
+    this.cursor += 1;
+    this.parseIdentifier();
+    this.skipWhitespaceAndComments();
+    this.expect('(');
+    const args = this.readBalanced('(', ')', this.cursor);
+    this.cursor = args.end + 1;
+    return this.source.slice(start, this.cursor);
+  }
+
+  private parseString(): string {
+    const quote = this.source[this.cursor];
+    this.cursor += 1;
+    let result = '';
+    while (this.cursor < this.source.length) {
+      const ch = this.source[this.cursor];
+      if (ch === '\\') {
+        result += this.source[this.cursor + 1] ?? '';
+        this.cursor += 2;
+        continue;
+      }
+      if (ch === quote) {
+        this.cursor += 1;
+        return result;
+      }
+      if (quote === '`' && ch === '$' && this.source[this.cursor + 1] === '{') {
+        throw new Error('Template interpolation is not supported in generated YAML examples.');
+      }
+      result += ch;
+      this.cursor += 1;
+    }
+    throw new Error('Unterminated string in generated YAML example.');
+  }
+
+  private parseNumber(): number {
+    const start = this.cursor;
+    while (/[0-9.eE+-]/.test(this.source[this.cursor] ?? '')) {
+      this.cursor += 1;
+    }
+    return Number(this.source.slice(start, this.cursor));
+  }
+
+  private parseIdentifier(): string {
+    this.skipWhitespaceAndComments();
+    const match = this.source.slice(this.cursor).match(/^[A-Za-z_$][A-Za-z0-9_$]*/);
+    if (!match) {
+      throw new Error(`Expected identifier near: ${this.source.slice(this.cursor, this.cursor + 30)}`);
+    }
+    this.cursor += match[0].length;
+    return match[0];
+  }
+
+  private expect(char: string) {
+    this.skipWhitespaceAndComments();
+    if (this.source[this.cursor] !== char) {
+      throw new Error(`Expected "${char}" near: ${this.source.slice(this.cursor, this.cursor + 30)}`);
+    }
+    this.cursor += 1;
+  }
+
+  private skipWhitespaceAndComments() {
+    while (this.cursor < this.source.length) {
+      if (/\s/.test(this.source[this.cursor])) {
+        this.cursor += 1;
+        continue;
+      }
+      if (this.source.startsWith('//', this.cursor)) {
+        const newline = this.source.indexOf('\n', this.cursor + 2);
+        this.cursor = newline === -1 ? this.source.length : newline + 1;
+        continue;
+      }
+      if (this.source.startsWith('/*', this.cursor)) {
+        const end = this.source.indexOf('*/', this.cursor + 2);
+        this.cursor = end === -1 ? this.source.length : end + 2;
+        continue;
+      }
+      break;
+    }
+  }
+
+  private readBalanced(open: string, close: string, start: number): { content: string; end: number } {
+    let depth = 1;
+    let cursor = start;
+    let quote: string | null = null;
+    while (cursor < this.source.length) {
+      const ch = this.source[cursor];
+      if (quote) {
+        if (ch === '\\') {
+          cursor += 2;
+          continue;
+        }
+        if (ch === quote) quote = null;
+        cursor += 1;
+        continue;
+      }
+      if (ch === "'" || ch === '"' || ch === '`') {
+        quote = ch;
+        cursor += 1;
+        continue;
+      }
+      if (ch === open) depth += 1;
+      if (ch === close) depth -= 1;
+      if (depth === 0) {
+        return { content: this.source.slice(start, cursor), end: cursor };
+      }
+      cursor += 1;
+    }
+    throw new Error(`Unbalanced "${open}${close}" in generated YAML example.`);
+  }
+}
+
+const parseTypescriptExpression = (source: string) => new TypescriptConfigExpressionParser(source).parse();
+
+const stripCodeMarkers = (source: string) =>
+  source
+    .replace(/^\s*\/\/\s*\[!code\s+(?:focus|highlight)(?:-(?:start|end))?(?::\d+)?\]\s*$/gm, '')
+    .replace(/\/\/\s*\[!code\s+(?:focus|highlight)(?:-(?:start|end))?(?::\d+)?\]/g, '');
+
+const readBalancedFrom = (source: string, openIndex: number, open: string, close: string) => {
+  let depth = 0;
+  let quote: string | null = null;
+  for (let i = openIndex; i < source.length; i += 1) {
+    const ch = source[i];
+    if (quote) {
+      if (ch === '\\') {
+        i += 1;
+        continue;
+      }
+      if (ch === quote) quote = null;
+      continue;
+    }
+    if (ch === "'" || ch === '"' || ch === '`') {
+      quote = ch;
+      continue;
+    }
+    if (ch === open) depth += 1;
+    if (ch === close) depth -= 1;
+    if (depth === 0) {
+      return {
+        content: source.slice(openIndex + 1, i),
+        end: i
+      };
+    }
+  }
+  throw new Error(`Unbalanced "${open}${close}" in generated YAML example.`);
+};
+
+const extractResourceDeclarations = (source: string) => {
+  const declarations = new Map<string, { kind: 'resource' | 'script'; type: string; properties: TsParsedValue }>();
+  const declarationRegex = /\bconst\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*=\s*new\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*\(/g;
+  for (const match of source.matchAll(declarationRegex)) {
+    const name = match[1];
+    const className = match[2];
+    const openIndex = (match.index ?? 0) + match[0].length - 1;
+    const args = readBalancedFrom(source, openIndex, '(', ')');
+    const resourceType = CLASS_TO_RESOURCE_TYPE[className];
+    const scriptType = CLASS_TO_SCRIPT_TYPE[className];
+    if (!resourceType && !scriptType) continue;
+    declarations.set(name, {
+      kind: resourceType ? 'resource' : 'script',
+      type: resourceType || scriptType,
+      properties: parseTypescriptExpression(args.content) as TsParsedValue
+    });
+  }
+  return declarations;
+};
+
+const findReturnedConfigObject = (source: string) => {
+  const returnIndex = source.indexOf('return');
+  if (returnIndex === -1) return null;
+  const openIndex = source.indexOf('{', returnIndex);
+  if (openIndex === -1) return null;
+  return readBalancedFrom(source, openIndex, '{', '}').content;
+};
+
+const replaceIdentifierValues = (
+  value: TsParsedValue | IdentifierValue,
+  declarations: Map<string, { kind: 'resource' | 'script'; type: string; properties: TsParsedValue }>
+): TsParsedValue => {
+  if (isIdentifierValue(value)) return value.__identifier;
+  if (Array.isArray(value)) return value.map((item) => replaceIdentifierValues(item, declarations));
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, childValue]) => [key, replaceIdentifierValues(childValue, declarations)])
+    );
+  }
+  return value;
+};
+
+const buildSectionFromReturnMap = (
+  sectionValue: TsParsedValue | IdentifierValue | undefined,
+  declarations: Map<string, { kind: 'resource' | 'script'; type: string; properties: TsParsedValue }>,
+  kind: 'resource' | 'script'
+) => {
+  if (
+    !sectionValue ||
+    typeof sectionValue !== 'object' ||
+    Array.isArray(sectionValue) ||
+    isIdentifierValue(sectionValue)
+  ) {
+    return undefined;
+  }
+
+  const section: Record<string, { type: string; properties: TsParsedValue }> = {};
+  for (const [outputName, declaredValue] of Object.entries(sectionValue)) {
+    const declarationName = isIdentifierValue(declaredValue) ? declaredValue.__identifier : outputName;
+    const declaration = declarations.get(declarationName);
+    if (declaration?.kind === kind) {
+      section[outputName] = {
+        type: declaration.type,
+        properties: replaceIdentifierValues(declaration.properties, declarations)
+      };
+    }
+  }
+  return Object.keys(section).length > 0 ? section : undefined;
+};
+
+/**
+ * Converts a class-based TypeScript stacktape.ts example to YAML.
+ * Returns null when the example uses unsupported TypeScript constructs.
+ */
+export const convertTypescriptToYaml = (typescriptContent: string): string | null => {
+  try {
+    const source = stripCodeMarkers(typescriptContent);
+    if (!source.includes('defineConfig') || !/from\s+['"]stacktape['"]/.test(source)) {
+      return null;
+    }
+
+    const declarations = extractResourceDeclarations(source);
+    const returnedConfigObject = findReturnedConfigObject(source);
+    if (!returnedConfigObject || declarations.size === 0) {
+      return null;
+    }
+
+    const returnedConfig = parseTypescriptExpression(`{${returnedConfigObject}}`);
+    if (
+      !returnedConfig ||
+      typeof returnedConfig !== 'object' ||
+      Array.isArray(returnedConfig) ||
+      isIdentifierValue(returnedConfig)
+    ) {
+      return null;
+    }
+
+    const yamlConfig: Record<string, TsParsedValue> = {};
+    const resources = buildSectionFromReturnMap(returnedConfig.resources, declarations, 'resource');
+    const scripts = buildSectionFromReturnMap(returnedConfig.scripts, declarations, 'script');
+    if (resources) yamlConfig.resources = resources;
+    if (scripts) yamlConfig.scripts = scripts;
+
+    for (const [key, value] of Object.entries(returnedConfig)) {
+      if (key === 'resources' || key === 'scripts') continue;
+      yamlConfig[key] = replaceIdentifierValues(value, declarations);
+    }
+
+    if (!yamlConfig.resources && !yamlConfig.scripts) {
+      return null;
+    }
+
+    return yaml
+      .stringify(yamlConfig, {
+        indent: 2,
+        lineWidth: 100,
+        singleQuote: true
+      })
+      .trim();
   } catch {
     return null;
   }

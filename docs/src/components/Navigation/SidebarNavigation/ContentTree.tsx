@@ -1,56 +1,84 @@
 import { useRouter } from 'next/router';
-import { useState, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ContentTreeGroup } from './ContentTreeGroup';
-import { getNavigationTree } from './navigation-data';
+import {
+  computeExpandedState,
+  getNavigationTree,
+  NAV_STATE_STORAGE_KEY,
+  type NavUserOverrides
+} from './navigation-data';
 
-const getExpandedNavItems = (treeData: any[], pathname: string) => {
-  const res: Record<string, boolean> = {};
-  // Normalize pathname by removing trailing slash
-  const normalizedPath = pathname.replace(/\/$/, '') || '/';
-
-  for (const group of treeData) {
-    if (!group.children) continue;
-    for (const child of group.children) {
-      const childUrl = child.url;
-      const isMatch =
-        normalizedPath === childUrl ||
-        (child.children && child.children.some((nestedChild: any) => normalizedPath === nestedChild.url));
-      res[childUrl] = isMatch;
+const readPersistedOverrides = (): NavUserOverrides => {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = window.localStorage.getItem(NAV_STATE_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return parsed as NavUserOverrides;
     }
+  } catch {
+    // Corrupt or missing storage — fall through to empty overrides.
   }
-  return res;
+  return {};
+};
+
+const persistOverrides = (overrides: NavUserOverrides) => {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(NAV_STATE_STORAGE_KEY, JSON.stringify(overrides));
+  } catch {
+    // Quota or sandbox issues — ignore; UI still works for the session.
+  }
 };
 
 export function ContentTree({ allDocPages }: { allDocPages: MdxPageDataForNavigation[] }) {
-  // Use useMemo to ensure navigation tree is computed deterministically
-  // and only recomputed when allDocPages changes
-  const navigationTree = useMemo(() => {
-    return getNavigationTree(allDocPages || []);
-  }, [allDocPages]);
-
+  const navigationTree = useMemo(() => getNavigationTree(allDocPages || []), [allDocPages]);
   const router = useRouter();
 
-  // Use empty object for initial render to avoid hydration mismatch
-  // router.asPath can differ between server/client (query params, hash, etc.)
-  const [expandedNavItems, setExpandedNavItems] = useState<Record<string, boolean>>({});
+  // User overrides hydrate from localStorage on mount. SSR returns {}; client takes over after.
+  const [userOverrides, setUserOverrides] = useState<NavUserOverrides>({});
 
-  // Only update expanded items on client after hydration
   useEffect(() => {
-    setExpandedNavItems(getExpandedNavItems(navigationTree, router.asPath));
-  }, [navigationTree, router.asPath]);
+    setUserOverrides(readPersistedOverrides());
+  }, []);
+
+  // Final expanded state = defaults + active-branch auto-open + user overrides.
+  // Recomputes when route changes so newly-active branches auto-open (unless the user has
+  // explicitly closed them, in which case the override wins).
+  const expandedItems = useMemo(
+    () =>
+      computeExpandedState({
+        groups: navigationTree,
+        pathname: router.asPath || '/',
+        userOverrides
+      }),
+    [navigationTree, router.asPath, userOverrides]
+  );
+
+  const toggle = useCallback(
+    (key: string) => {
+      setUserOverrides((prev) => {
+        // Read the current visible state, not the prev override — toggling reflects what the user sees.
+        const currentlyExpanded =
+          computeExpandedState({
+            groups: navigationTree,
+            pathname: router.asPath || '/',
+            userOverrides: prev
+          })[key] ?? false;
+        const next = { ...prev, [key]: !currentlyExpanded };
+        persistOverrides(next);
+        return next;
+      });
+    },
+    [navigationTree, router.asPath]
+  );
 
   return (
     <div css={{ width: '100%' }}>
-      {navigationTree.map((groupData, idx) => {
-        return (
-          <ContentTreeGroup
-            expandedNavItems={expandedNavItems}
-            setExpandedNavItems={setExpandedNavItems}
-            key={groupData.id || idx}
-            {...groupData}
-          />
-        );
-      })}
+      {navigationTree.map((group) => (
+        <ContentTreeGroup key={group.id} group={group} expandedItems={expandedItems} toggle={toggle} />
+      ))}
     </div>
   );
 }

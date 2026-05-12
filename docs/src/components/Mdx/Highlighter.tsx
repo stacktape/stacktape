@@ -20,6 +20,12 @@ export function Highlighter({ type, icon, props }) {
       background: 'rgba(24, 153, 144, 0.12)',
       font: colors.fontColorPrimary,
       iconBg: 'rgba(24, 153, 144, 0.2)'
+    },
+    error: {
+      border: '#e74c3c',
+      background: 'rgba(231, 76, 60, 0.12)',
+      font: colors.fontColorPrimary,
+      iconBg: 'rgba(231, 76, 60, 0.2)'
     }
   }[type];
 
@@ -30,7 +36,7 @@ export function Highlighter({ type, icon, props }) {
         padding: '16px 18px',
         borderLeft: `4px solid ${highlightColor.border}`,
         backgroundColor: highlightColor.background,
-        alignItems: 'flex-start',
+        alignItems: 'center',
         display: 'flex',
         borderRadius: '8px',
         lineHeight: 1.6,
@@ -41,9 +47,13 @@ export function Highlighter({ type, icon, props }) {
       <div
         css={{
           marginRight: '14px',
-          marginTop: '2px',
+          flex: '0 0 auto',
+          width: '52px',
+          height: '52px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
           lineHeight: 0,
-          padding: '6px',
           borderRadius: '6px',
           background: highlightColor.iconBg
         }}
@@ -53,6 +63,9 @@ export function Highlighter({ type, icon, props }) {
       <div
         css={{
           ...typographyCss,
+          flex: '1 1 auto',
+          minWidth: 0,
+          alignSelf: 'center',
           '* > .paragraph': {
             color: `${highlightColor.font} !important`
           },
@@ -62,6 +75,7 @@ export function Highlighter({ type, icon, props }) {
           },
           color: `${highlightColor.font} !important`,
           '.paragraph': {
+            lineHeight: 1.55,
             '&:first-child': {
               marginTop: 0
             },
@@ -70,7 +84,8 @@ export function Highlighter({ type, icon, props }) {
             }
           },
           code: {
-            color: `${highlightColor.font} !important`
+            color: `${highlightColor.font} !important`,
+            verticalAlign: 'baseline'
           }
         }}
         // props}

@@ -53,22 +53,25 @@ const docSearchCustomStyles = {
   // Search Button styling
   '.DocSearch-Button': {
     width: '300px !important',
-    height: '40px !important',
-    backgroundColor: `${colors.inputBackground} !important`,
-    border: `1px solid ${colors.borderColor} !important`,
-    borderRadius: '4.5px !important',
-    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.3) !important',
+    height: '38px !important',
+    background: `${colors.inputBackground} !important`,
+    border: 'none !important',
+    borderRadius: '8px !important',
+    boxShadow:
+      'inset 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 0 rgba(255, 255, 255, 0.05), 0 0 0 1px rgba(255, 255, 255, 0.05) !important',
     margin: '0 !important',
     padding: '0 8px 0 12px !important',
-    transition: 'all 0.2s ease !important',
+    transition: 'background 180ms ease, box-shadow 180ms ease !important',
     fontFamily: `${fontFamily} !important`,
+    backdropFilter: 'blur(10px)',
     '&:hover': {
-      backgroundColor: `${colors.hoverColorDarkGray} !important`,
-      boxShadow: '0 2px 6px rgba(0, 0, 0, 0.4) !important'
+      boxShadow:
+        'inset 0 1px 3px rgba(0, 0, 0, 0.31), 0 1px 0 rgba(255, 255, 255, 0.055), 0 0 0 1px rgba(255, 255, 255, 0.08) !important'
     },
     '&:focus': {
       outline: 'none !important',
-      boxShadow: `0 0 0 2px ${colors.primary} !important`
+      boxShadow:
+        'inset 0 1px 4px rgba(0, 0, 0, 0.4), 0 1px 0 rgba(255, 255, 255, 0.08), 0 0 0 3px rgba(110, 116, 116, 0.12) !important'
     },
     [onMaxW750]: {
       width: 'calc(100% - 40px) !important',
@@ -121,9 +124,11 @@ const docSearchCustomStyles = {
     gap: '4px !important'
   },
   '.DocSearch-Button-Key': {
-    backgroundColor: `${colors.darkerBackground} !important`,
-    border: `1px solid ${colors.borderColor} !important`,
-    borderRadius: '3px !important',
+    background: `${colors.darkerBackground} !important`,
+    border: 'none !important',
+    boxShadow:
+      'inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 0 0 1px rgba(255, 255, 255, 0.06), 0 1px 2px rgba(0, 0, 0, 0.4) !important',
+    borderRadius: '5px !important',
     color: `${colors.fontColorLighterGray} !important`,
     fontSize: '0.85rem !important',
     padding: '2px 6px !important',
@@ -141,10 +146,11 @@ const docSearchCustomStyles = {
     borderRadius: '4.5px !important'
   },
   '.DocSearch-Form': {
-    backgroundColor: `${colors.inputBackground} !important`,
-    border: `1px solid ${colors.borderColor} !important`,
-    borderRadius: '4.5px !important',
-    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.3) !important',
+    background: `${colors.inputBackground} !important`,
+    border: 'none !important',
+    borderRadius: '8px !important',
+    boxShadow:
+      'inset 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 0 rgba(255, 255, 255, 0.05), 0 0 0 1px rgba(255, 255, 255, 0.05) !important',
     marginBottom: '12px !important'
   },
   '.DocSearch-Input': {
@@ -174,9 +180,10 @@ const docSearchCustomStyles = {
     }
   },
   '.DocSearch-Hit-Container': {
-    backgroundColor: `${colors.elementBackground} !important`,
-    // border: `1px solid ${colors.borderColor} !important`,
-    borderRadius: '4px !important',
+    background: `${colors.elementBackground} !important`,
+    boxShadow:
+      '0 2px 8px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.12) !important',
+    borderRadius: '7px !important',
     padding: '12px !important'
   },
   '.DocSearch-Hit-Title': {

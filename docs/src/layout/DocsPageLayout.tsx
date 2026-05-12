@@ -67,14 +67,14 @@ export default function DocsPageLayout({
           <div
             css={{
               flex: 1,
-              code: {
-                border: '1px solid rgba(112,112,112, 0.87)',
-                borderRadius: '4px',
-                padding: '2px 5.5px',
-                marginLeft: '3px',
-                marginRight: '3px',
-                userSelect: 'all'
-              },
+              // code: {
+              //   border: '1px solid rgba(112,112,112, 0.87)',
+              //   borderRadius: '4px',
+              //   padding: '2px 5.5px',
+              //   marginLeft: '3px',
+              //   marginRight: '3px',
+              //   userSelect: 'all'
+              // },
               section: {
                 margin: '2px 0'
               },

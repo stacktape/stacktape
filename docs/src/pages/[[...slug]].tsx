@@ -15,8 +15,7 @@ import { capitalizeFirstLetter } from '@/utils/helpers';
 import GithubSlugger from 'github-slugger';
 import { useHotReload } from '@/utils/hooks';
 
-// Allow overriding the docs content directory via environment variable
-const DOCS_CONTENT_DIR = process.env.DOCS_CONTENT_DIR || 'docs';
+const DOCS_CONTENT_DIR = 'docs';
 
 export default function DocsPage({
   compiledSource,

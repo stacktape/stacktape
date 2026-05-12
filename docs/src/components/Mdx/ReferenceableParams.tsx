@@ -3,13 +3,14 @@ import resources from '../../../.resources.json';
 import { marked } from '../../../scripts/utils/marked-mdx-parser';
 import { Link } from './Link';
 
-export function ReferenceableParams({ resource }: { resource: string }) {
-  const params = resources.find((r) => r.resourceType === resource);
+export function ReferenceableParams({ resource, resourceType }: { resource?: string; resourceType?: string }) {
+  const resolvedResource = resource || resourceType;
+  const params = resources.find((r) => r.resourceType === resolvedResource);
 
   const referenceableParams = params?.referenceableParams;
 
-  if (!referenceableParams) {
-    console.error(`No referenceable params found for ${resource}`);
+  if (!resolvedResource || !referenceableParams) {
+    console.error(`No referenceable params found for ${resolvedResource || 'unknown resource'}`);
     return null;
   }
 

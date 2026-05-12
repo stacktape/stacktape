@@ -1,215 +1,205 @@
 import { useRouter } from 'next/router';
-import { Fragment, useSyncExternalStore } from 'react';
-import { ChevronDown, ChevronRight } from 'react-feather';
+import { useSyncExternalStore } from 'react';
+import { ChevronRight } from 'react-feather';
 import { Link } from '@/components/Mdx/Link';
-import { colors } from '@/styles/variables';
+import { colors, fontFamily } from '@/styles/variables';
 import config from '../../../../config';
+import type { NavItem } from './navigation-data';
 
-const COMING_SOON_PAGES = ['/resources/kubernetes-clusters', '/resources/opensearch', '/resources/nextjs-website'];
+const COLLAPSE_DURATION_MS = 220;
 
-const Badge = () => (
-  <div
-    css={{
-      position: 'absolute',
-      height: '20px',
-      top: '5px',
-      display: 'flex',
-      alignItems: 'center',
-      right: '30px',
-      borderRadius: '4px',
-      border: '1px solid gray',
-      padding: '0px 8px'
-    }}
-  >
-    <span css={{ fontSize: '12px' }}>Soon</span>
-  </div>
-);
+// Layout constants. Rows render as rounded pills with a horizontal gutter; `ROW_OUTER_MARGIN_X`
+// is the space between the pill edge and the sidebar edge. Each depth step adds extra left
+// padding so children visually nest under their parent. The chevron lives on the right edge
+// of subsection rows, matching the top-level group header style.
+const ROW_OUTER_MARGIN_X = 8;
+const ROW_BASE_INDENT = 10;
+const CHEVRON_SIZE = 14;
+const DEPTH_STEP = 12;
+const ROW_PADDING_RIGHT = 12;
+const ROW_PADDING_Y = 7;
+const ROW_MIN_HEIGHT = 32;
+const ROW_BORDER_RADIUS = 7;
 
-const NodeContent = ({
-  text,
-  link,
-  onClick,
-  isCollapseSwitchButton,
-  isExpanded,
-  isNested,
-  isActive
+export function ContentTreeNode({
+  item,
+  expandedItems,
+  toggle,
+  depth
 }: {
-  text: string;
-  link: string;
-  onClick: () => void;
-  isCollapseSwitchButton: boolean;
-  isExpanded: boolean;
-  isNested: boolean;
-  isActive: boolean;
-}) => {
-  // Only show activeNodeCss after client mount to avoid hydration issues
+  item: NavItem;
+  expandedItems: Record<string, boolean>;
+  toggle: (key: string) => void;
+  depth: number;
+}) {
+  const router = useRouter();
+  const hasChildren = item.children.length > 0;
+  const isVirtual = item.url === null;
+
+  const normalizedPath = (router.asPath || '/').split('?')[0].replace(/\/$/, '') || '/';
+  const normalizedUrl = (item.url || '/').replace(/\/$/, '') || '/';
+  const isActive = !isVirtual && (normalizedPath === normalizedUrl || normalizedPath === config.metadata.pathPrefix + normalizedUrl);
+
+  const isExpanded = expandedItems[item.key] ?? false;
+
+  // Only show active styles after client mount to avoid hydration mismatch.
   const isClient = useSyncExternalStore(
     () => () => {},
     () => true,
     () => false
   );
-  const shouldShowActiveNodeCss = isClient && isActive;
+  const showActive = isClient && isActive;
 
-  const activeNodeCss: Css = {
-    borderRight: 'none',
-    '*': {
-      backgroundColor: '#4c4c4c'
-    }
-  };
+  const isSubgroup = hasChildren;
+  const indent = ROW_BASE_INDENT + depth * DEPTH_STEP;
 
-  const linkCss: Css = {
+  // Whole-row interactive surface. Rounded pill with horizontal margin so it doesn't touch the
+  // sidebar edge. Active state shows a small rounded indicator bar via `::before`. Hover/active
+  // styles AND the click handler live here so the hover background exactly matches what's
+  // clickable, and clicks land regardless of whether the pointer is over the chevron, the gap,
+  // or the label.
+  const interactiveRowStyles = {
+    fontFamily,
+    position: 'relative' as const,
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    minHeight: `${ROW_MIN_HEIGHT}px`,
+    margin: `1px ${ROW_OUTER_MARGIN_X}px`,
+    paddingTop: `${ROW_PADDING_Y}px`,
+    paddingBottom: `${ROW_PADDING_Y}px`,
+    paddingLeft: `${indent}px`,
+    paddingRight: `${ROW_PADDING_RIGHT}px`,
+    borderRadius: `${ROW_BORDER_RADIUS}px`,
+    background: showActive ? 'linear-gradient(135deg, rgb(60, 64, 64), rgb(44, 47, 47))' : 'transparent',
+    boxShadow: showActive
+      ? '0 4px 12px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(190, 190, 190, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.1)'
+      : 'none',
     color: colors.fontColorPrimary,
-    position: 'relative',
     textDecoration: 'none',
-    lineHeight: 1.1,
-    width: isCollapseSwitchButton ? 'calc(100% - 85px)' : '100%',
-    margin: isNested ? '0 10px 0 6px' : isCollapseSwitchButton ? '0 10px 0 0px' : '-1px 10px -1px 9px',
-    borderRadius: '4px',
-    letterSpacing: isNested ? 'initial' : '0.025em !important',
-    padding: isNested ? '8px 15px 8px 7px' : isCollapseSwitchButton ? '7px 18px 7px 5px' : '7.5px 18px 7px 15px',
-    ...(shouldShowActiveNodeCss && { paddingLeft: '12.5px' }),
-    ...(shouldShowActiveNodeCss && {
-      borderLeft: `2.5px solid ${colors.fontColorPrimary}`,
-      boxShadow: '2px 2px 4px rgb(20,20,20,1), -2px -2px 9px rgb(22,26,26)'
-    }),
-    borderTopLeftRadius: '2px',
-    borderBottomLeftRadius: '2px',
-    fontWeight: 400
-  };
-
-  const isComingSoon = COMING_SOON_PAGES.includes(link);
-
-  return (
-    <li
-      onClick={onClick}
-      css={{
-        listStyle: 'none',
-        padding: '0',
-        display: 'flex',
-        flexWrap: 'wrap',
-        alignItems: 'center',
-        cursor: 'pointer',
-        letterSpacing: '0.05em',
-        '&:hover': {
-          '> *': {
-            color: colors.navigationHover
-          }
-        },
-        ...(shouldShowActiveNodeCss ? activeNodeCss : {})
-      }}
-    >
-      {isCollapseSwitchButton && <NodeCollapseButton isExpanded={isExpanded} />}
-      {link ? (
-        <Link href={link} rootCss={linkCss}>
-          <span css={{ padding: '1px 0px', position: 'relative' }}>{text}</span>
-          {isComingSoon && <Badge />}
-        </Link>
-      ) : (
-        <a css={linkCss}>
-          <span css={{ position: 'relative' }}>{text}</span>
-          {isComingSoon && <Badge />}
-        </a>
-      )}
-    </li>
-  );
-};
-
-function NestedContentTreeNode({
-  children,
-  toggle,
-  expandedNavItems,
-  setExpandedNavItems
-}: {
-  children: any[];
-  toggle?: () => void;
-  expandedNavItems: Record<string, boolean>;
-  setExpandedNavItems: (items: Record<string, boolean>) => void;
-}) {
-  return (
-    <ul
-      style={{ paddingTop: '3px', paddingBottom: '3px' }}
-      css={{
-        flex: '100%',
-        li: {
-          marginLeft: '30px',
-          borderLeft: `1px solid ${colors.fontColorPrimary}`
-        }
-      }}
-    >
-      {children.map((item) => (
-        <ContentTreeNode
-          isNested
-          isActive={false}
-          key={item.url}
-          toggle={toggle}
-          expandedNavItems={expandedNavItems}
-          setExpandedNavItems={setExpandedNavItems}
-          {...item}
-        />
-      ))}
-    </ul>
-  );
-}
-
-const NodeCollapseButton = ({ isExpanded }: { isExpanded: boolean }) => {
-  const css: Css = {
-    border: 'none',
-    outline: 'none',
-    zIndex: 10,
     cursor: 'pointer',
-    margin: '0px 0px 0px 21px',
-    boxShadow: 'none',
-    color: colors.fontColorPrimary
-  };
+    transition: 'background 140ms ease, box-shadow 140ms ease, color 140ms ease',
+    '&::before': {
+      content: '""',
+      position: 'absolute',
+      left: '6px',
+      top: '20%',
+      width: '3px',
+      height: '60%',
+      borderRadius: '999px',
+      background: colors.fontColorPrimary,
+      opacity: showActive ? 1 : 0,
+      transition: 'opacity 150ms ease'
+    },
+    '&:hover': showActive
+      ? {
+          boxShadow:
+            '0 5px 14px rgba(0, 0, 0, 0.49), 0 0 0 1px rgba(220, 220, 220, 0.17), inset 0 1px 0 rgba(255, 255, 255, 0.11)'
+        }
+      : {
+          background: 'rgba(255, 255, 255, 0.06)',
+          boxShadow: '0 6px 14px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.05)'
+        },
+    '&:hover::before': showActive ? undefined : { opacity: 0.4 }
+  } as const;
 
-  return isExpanded ? <ChevronDown css={css} size={18} /> : <ChevronRight css={css} size={18} />;
-};
+  const labelStyles = {
+    flex: 1,
+    minWidth: 0,
+    color: isSubgroup ? colors.lightGray : colors.fontColorPrimary,
+    fontSize: isSubgroup ? '12px' : '13.5px',
+    fontWeight: isSubgroup ? 600 : 400,
+    letterSpacing: isSubgroup ? '0.5px' : '0.02em',
+    textTransform: isSubgroup ? ('uppercase' as const) : ('none' as const),
+    lineHeight: 1.4,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap' as const,
+    userSelect: 'none' as const
+  } as const;
 
-export function ContentTreeNode({
-  url,
-  title,
-  children,
-  expandedNavItems,
-  setExpandedNavItems,
-  isNested
-}: {
-  url: string;
-  title: string;
-  children: any[];
-  expandedNavItems: Record<string, boolean>;
-  setExpandedNavItems: (items: Record<string, boolean>) => void;
-  isNested: boolean;
-}) {
-  const router = useRouter();
-  const hasChildren = children?.length > 0;
-
-  // Normalize paths for comparison - remove trailing slashes and query params
-  const normalizedPath = (router.asPath || '/').split('?')[0].replace(/\/$/, '') || '/';
-  const normalizedUrl = (url || '/').replace(/\/$/, '') || '/';
-
-  const isActive = normalizedPath === normalizedUrl || normalizedPath === config.metadata.pathPrefix + normalizedUrl;
-
-  const isExpanded = expandedNavItems[url] ?? false;
-  const toggle = () => {
-    setExpandedNavItems({ ...expandedNavItems, [url]: !isExpanded });
-  };
+  // Chevron lives on the right edge — matches the top-level group header so every expandable
+  // row uses the same indicator regardless of depth. Leaves don't render one.
+  const chevronEl = hasChildren ? (
+    <ChevronRight
+      size={CHEVRON_SIZE}
+      css={{
+        flexShrink: 0,
+        opacity: 0.5,
+        transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
+        transition: `transform ${COLLAPSE_DURATION_MS}ms ease`
+      }}
+    />
+  ) : null;
 
   return (
-    <Fragment>
-      <NodeContent
-        text={title}
-        isActive={isActive}
-        isNested={isNested || false}
-        link={hasChildren ? null : url}
-        onClick={toggle}
-        isCollapseSwitchButton={title && hasChildren}
-        isExpanded={isExpanded}
-      />
-      {isExpanded && hasChildren && (
-        <NestedContentTreeNode expandedNavItems={expandedNavItems} setExpandedNavItems={setExpandedNavItems}>
-          {children}
-        </NestedContentTreeNode>
+    <>
+      <li css={{ listStyle: 'none', display: 'block', padding: 0, margin: 0 }}>
+        {hasChildren ? (
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => toggle(item.key)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                toggle(item.key);
+              }
+            }}
+            css={interactiveRowStyles}
+          >
+            <span css={labelStyles}>{item.title}</span>
+            {chevronEl}
+          </div>
+        ) : (
+          <Link href={item.url || '/'} rootCss={interactiveRowStyles}>
+            <span css={labelStyles}>{item.title}</span>
+          </Link>
+        )}
+      </li>
+
+      {hasChildren && (
+        <li
+          aria-hidden={!isExpanded}
+          css={{
+            listStyle: 'none',
+            display: 'grid',
+            gridTemplateRows: isExpanded ? '1fr' : '0fr',
+            transition: `grid-template-rows ${COLLAPSE_DURATION_MS}ms ease`
+          }}
+        >
+          <ul
+            css={{
+              position: 'relative',
+              overflow: 'hidden',
+              minHeight: 0,
+              padding: 0,
+              margin: 0,
+              '&::before': {
+                content: '""',
+                position: 'absolute',
+                left: `${ROW_OUTER_MARGIN_X + ROW_BASE_INDENT + depth * DEPTH_STEP + 4}px`,
+                top: '4px',
+                bottom: '4px',
+                width: '1px',
+                background:
+                  'linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(255,255,255,0.1) 14%, rgba(255,255,255,0.1) 86%, rgba(255,255,255,0) 100%)',
+                pointerEvents: 'none'
+              }
+            }}
+          >
+            {item.children.map((child) => (
+              <ContentTreeNode
+                key={child.key}
+                item={child}
+                expandedItems={expandedItems}
+                toggle={toggle}
+                depth={depth + 1}
+              />
+            ))}
+          </ul>
+        </li>
       )}
-    </Fragment>
+    </>
   );
 }

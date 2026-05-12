@@ -14,13 +14,10 @@ import {
   tabButtonStyle,
   tabContainerStyle
 } from '../../styles/variables';
-import { convertYamlToTypescript } from '../../utils/yaml-to-typescript';
+import { marked } from 'marked';
+import { convertTypescriptToYaml, convertYamlToTypescript } from '../../utils/yaml-to-typescript';
+import { computeYamlHovers } from './yaml-hover';
 
-const START_HIGHLIGHT_MARK = '{start-highlight}';
-const STOP_HIGHLIGHT_MARK = '{stop-highlight}';
-const START_IGNORE_SECTION = '{start-ignore}';
-const STOP_IGNORE_SECTION = '{stop-ignore}';
-const DIRECTIVE_TYPES = [START_HIGHLIGHT_MARK, STOP_HIGHLIGHT_MARK, START_IGNORE_SECTION, STOP_IGNORE_SECTION] as const;
 const STACKTAPE_TYPE_FILES = ['index.d.ts', 'types.d.ts', 'plain.d.ts', 'cloudformation.d.ts'] as const;
 const SHIKI_THEME = 'catppuccin-mocha';
 const DEFAULT_DEV_TYPES_BASE_URL = '/stacktape';
@@ -31,14 +28,34 @@ type CodeTab = { label: ReactNode; code: string; lang: string };
 type CodeBlockNewProps = {
   tabs: CodeTab[];
   lang?: string | null;
+  intellisense?: boolean;
+  stacktapeConfig?: boolean;
   typesCdnBaseUrl?: string;
 };
 
 type ProcessedCode = {
   renderCode: string;
+  fullCode: string;
   copyCode: string;
   highlightedLineNumbers: number[];
+  focusedLineSpecs: FocusedLineSpec[];
+  hasFocusMarkers: boolean;
+  // For each rendered line, the index (0-based) of the original source line it came from,
+  // or -1 for synthetic placeholder lines (e.g. the `...` collapse marker).
+  lineMap: number[];
 };
+
+type FocusedLineSpec =
+  | {
+      kind: 'line';
+      fullLineNumber: number;
+      text: string;
+      displayText: string;
+    }
+  | {
+      kind: 'placeholder';
+      text: string;
+    };
 
 type ShikiRuntime = {
   codeToHtml: (code: string, options: { lang: string; theme: string; transformers?: unknown[] }) => Promise<string>;
@@ -56,6 +73,7 @@ type RenderWithShikiProps = {
   highlightedLineNumbers: number[];
   useTwoslash: boolean;
   twoslashRuntime?: TwoslashRuntime;
+  extraTransformers?: unknown[];
 };
 
 const shikiRuntimePromise = import('shiki').then(({ codeToHtml }) => ({ codeToHtml }) satisfies ShikiRuntime);
@@ -87,65 +105,417 @@ const isTwoslashError = (error: unknown) => {
   return error instanceof Error && error.name === 'TwoslashError';
 };
 
-const getDirectiveFromLine = (line: string) => {
-  return DIRECTIVE_TYPES.find((directive) => line.includes(directive));
+const isStacktapeTypescriptConfig = (tab: CodeTab) => {
+  const lang = normalizeLanguage(tab.lang);
+  return isTwoslashLanguage(lang) && tab.code.includes('defineConfig') && /from\s+['"]stacktape['"]/.test(tab.code);
 };
 
-const preprocessCode = ({ code, lang }: { code: string; lang: string }) => {
-  const lines = code.replace(/\r\n/g, '\n').split('\n');
-  const visibleLines: string[] = [];
-  const highlightedLineNumbers: number[] = [];
-  let shouldHighlight = false;
-  let shouldIgnore = false;
+const withGeneratedYamlTabs = (tabs: CodeTab[], shouldEnableIntellisense: boolean): CodeTab[] => {
+  if (!shouldEnableIntellisense) return tabs;
+  if (tabs.some((tab) => normalizeLanguage(tab.lang) === 'yaml')) return tabs;
 
-  for (const line of lines) {
-    const directive = getDirectiveFromLine(line);
-    if (directive === START_HIGHLIGHT_MARK) {
-      shouldHighlight = true;
+  const stacktapeConfigTab = tabs.find(isStacktapeTypescriptConfig);
+  if (!stacktapeConfigTab) return tabs;
+
+  const yamlCode = convertTypescriptToYaml(stacktapeConfigTab.code);
+  if (!yamlCode) return tabs;
+
+  return [
+    ...tabs,
+    {
+      label: 'YAML',
+      lang: 'yaml',
+      code: yamlCode
+    }
+  ];
+};
+
+// Shiki-style notation parsing. Markers live inside `#` (YAML/bash/python) or `//` (TS/JS/...)
+// comments and are stripped before rendering. Both block (start/end) and trailing single-line
+// (with optional `:N` count) forms are supported.
+//
+//   # [!code focus-start]      ... # [!code focus-end]
+//   // [!code focus-start]     ... // [!code focus-end]
+//   foo: bar  # [!code focus]            (just this line)
+//   foo: bar  # [!code focus:3]          (this line + next 2)
+//   foo: bar  // [!code highlight]
+//   etc.
+const MARKER_RE = /(?:#|\/\/)\s*\[!code\s+(focus|highlight)(?:-(start|end))?(?::(\d+))?\s*\]/;
+const MARKER_RE_GLOBAL = new RegExp(MARKER_RE.source, 'g');
+
+type LineMarker = {
+  kind: 'focus' | 'highlight';
+  form: 'start' | 'end' | 'inline';
+  count?: number;
+};
+
+const parseMarkersFromLine = (line: string): LineMarker[] => {
+  const markers: LineMarker[] = [];
+  for (const m of line.matchAll(MARKER_RE_GLOBAL)) {
+    const kind = m[1] as 'focus' | 'highlight';
+    const suffix = m[2] as 'start' | 'end' | undefined;
+    const count = m[3] ? Math.max(1, parseInt(m[3], 10)) : undefined;
+    markers.push({
+      kind,
+      form: suffix ?? 'inline',
+      count
+    });
+  }
+  return markers;
+};
+
+const stripMarkersFromLine = (line: string): string => {
+  // Remove all markers and any leading whitespace + comment-leader they bring with them.
+  // For trailing markers like `foo: bar  # [!code focus]`, also strip the spaces+comment so we
+  // don't leave dangling comment leaders.
+  const stripped = line.replace(/\s*(?:#|\/\/)\s*\[!code\s+(?:focus|highlight)(?:-(?:start|end))?(?::\d+)?\s*\]/g, '');
+  return stripped;
+};
+
+const isMarkerOnlyLine = (line: string): boolean => {
+  return stripMarkersFromLine(line).trim() === '' && MARKER_RE.test(line);
+};
+
+const leadingIndent = (line: string): string => {
+  const m = line.match(/^[ \t]*/);
+  return m ? m[0] : '';
+};
+
+const commonIndentPrefix = (lines: string[]) => {
+  const indents = lines.filter((line) => line.trim().length > 0).map(leadingIndent);
+  if (indents.length === 0) return '';
+  let prefix = indents[0];
+  for (const indent of indents.slice(1)) {
+    while (prefix && !indent.startsWith(prefix)) {
+      prefix = prefix.slice(0, -1);
+    }
+  }
+  return prefix;
+};
+
+const stripIndentPrefix = (line: string, indent: string) =>
+  indent && line.startsWith(indent) ? line.slice(indent.length) : line;
+
+const dedentLinesForDisplay = (lines: string[]) => {
+  const indent = commonIndentPrefix(lines);
+  return indent ? lines.map((line) => stripIndentPrefix(line, indent)) : lines;
+};
+
+const stripQuotedText = (line: string) =>
+  line
+    .replace(/'(?:\\.|[^'\\])*'/g, "''")
+    .replace(/"(?:\\.|[^"\\])*"/g, '""')
+    .replace(/`(?:\\.|[^`\\])*`/g, '``');
+
+const countChars = (value: string, chars: string) => {
+  let count = 0;
+  for (const char of value) {
+    if (chars.includes(char)) count += 1;
+  }
+  return count;
+};
+
+const formatTypescriptConfigSnippet = (code: string) => {
+  const lines = code.replace(/\r\n/g, '\n').split('\n');
+  const firstContentLine = lines.find((line) => line.trim().length > 0);
+  const baseIndent = firstContentLine ? leadingIndent(firstContentLine) : '';
+  let indentLevel = 0;
+
+  return lines
+    .map((line) => {
+      const trimmed = line.trim();
+      if (!trimmed) return '';
+
+      const codeOnly = stripQuotedText(trimmed).replace(/\/\/.*$/, '');
+      const leadingCloseCount = countChars(codeOnly.match(/^[}\]]+/)?.[0] || '', '}]');
+      const lineIndentLevel = Math.max(0, indentLevel - leadingCloseCount);
+      const formattedLine = `${baseIndent}${'  '.repeat(lineIndentLevel)}${trimmed}`;
+
+      const opens = countChars(codeOnly, '{[');
+      const closes = countChars(codeOnly, '}]');
+      indentLevel = Math.max(0, indentLevel + opens - closes);
+      return formattedLine;
+    })
+    .join('\n');
+};
+
+const preprocessCode = ({
+  code,
+  lang,
+  formatStacktapeConfig = false
+}: {
+  code: string;
+  lang: string;
+  formatStacktapeConfig?: boolean;
+}): ProcessedCode => {
+  const normalizedCode = formatStacktapeConfig ? formatTypescriptConfigSnippet(code) : code;
+  const rawLines = normalizedCode.replace(/\r\n/g, '\n').split('\n');
+
+  // Pass 1: parse markers, strip them, decide focus/highlight per (original) source line.
+  type LineState = {
+    text: string; // line text with markers stripped
+    sourceIndex: number; // original index in `rawLines`
+    isMarkerOnly: boolean; // line had nothing but a marker → drop entirely
+    focused: boolean;
+    highlighted: boolean;
+  };
+  const states: LineState[] = [];
+  let focusBlockActive = false;
+  let highlightBlockActive = false;
+  let focusCounter = 0; // remaining lines (incl. current) to mark focused via inline `:N`
+  let highlightCounter = 0;
+  let anyFocusMarker = false;
+
+  rawLines.forEach((rawLine, idx) => {
+    const markers = parseMarkersFromLine(rawLine);
+    let lineFocused = focusBlockActive;
+    let lineHighlighted = highlightBlockActive;
+
+    // Apply pending counters from previous `:N` markers (counter ticks down per line).
+    if (focusCounter > 0) {
+      lineFocused = true;
+      focusCounter--;
+    }
+    if (highlightCounter > 0) {
+      lineHighlighted = true;
+      highlightCounter--;
+    }
+
+    for (const m of markers) {
+      if (m.kind === 'focus') anyFocusMarker = true;
+      if (m.form === 'start') {
+        if (m.kind === 'focus') focusBlockActive = true;
+        else highlightBlockActive = true;
+      } else if (m.form === 'end') {
+        if (m.kind === 'focus') focusBlockActive = false;
+        else highlightBlockActive = false;
+      } else {
+        // inline: applies to this line + (count - 1) following lines
+        const count = m.count ?? 1;
+        if (m.kind === 'focus') {
+          lineFocused = true;
+          if (count > 1) focusCounter = count - 1;
+        } else {
+          lineHighlighted = true;
+          if (count > 1) highlightCounter = count - 1;
+        }
+      }
+    }
+
+    const stripped = stripMarkersFromLine(rawLine);
+    states.push({
+      text: stripped,
+      sourceIndex: idx,
+      isMarkerOnly: markers.length > 0 && isMarkerOnlyLine(rawLine),
+      focused: lineFocused,
+      highlighted: lineHighlighted
+    });
+  });
+
+  const fullStates = states
+    .filter((state) => !state.isMarkerOnly)
+    .map((state, index) => ({
+      ...state,
+      fullLineNumber: index + 1
+    }));
+  const fullCode = fullStates
+    .map((state) => state.text)
+    .join('\n')
+    .replace(/\n$/, '');
+
+  // Pass 2: emit visible lines, collapsing hidden runs to a single `...` placeholder.
+  const visibleLines: string[] = [];
+  const lineMap: number[] = [];
+  const highlightedLineNumbers: number[] = [];
+  const focusedLineSpecs: FocusedLineSpec[] = [];
+  let pendingHide: typeof fullStates = []; // contiguous hidden run waiting to be collapsed
+
+  const flushHidden = (nextVisibleIndent?: string) => {
+    if (pendingHide.length === 0) return;
+    if (visibleLines.length === 0 || nextVisibleIndent === undefined) {
+      pendingHide = [];
+      return;
+    }
+    // Indent the `...` placeholder to the next visible line's indent (or first hidden line's
+    // indent as fallback) so it visually fits the surrounding tree.
+    const indent = nextVisibleIndent ?? pendingHide.map((s) => leadingIndent(s.text)).find((s) => s.length > 0) ?? '';
+    const placeholderText = `${indent}...`;
+    visibleLines.push(placeholderText);
+    lineMap.push(-1);
+    focusedLineSpecs.push({ kind: 'placeholder', text: placeholderText });
+    pendingHide = [];
+  };
+
+  for (const state of fullStates) {
+    const isFocused = !anyFocusMarker || state.focused;
+    if (!isFocused) {
+      pendingHide.push(state);
       continue;
     }
-    if (directive === STOP_HIGHLIGHT_MARK) {
-      shouldHighlight = false;
-      continue;
-    }
-    if (directive === START_IGNORE_SECTION) {
-      shouldIgnore = true;
-      continue;
-    }
-    if (directive === STOP_IGNORE_SECTION) {
-      shouldIgnore = false;
-      continue;
-    }
-    if (shouldIgnore) {
-      continue;
-    }
-    visibleLines.push(line);
-    if (shouldHighlight && !isTwoslashLanguage(lang)) {
+
+    flushHidden(leadingIndent(state.text));
+    visibleLines.push(state.text);
+    lineMap.push(state.sourceIndex);
+    focusedLineSpecs.push({
+      kind: 'line',
+      fullLineNumber: state.fullLineNumber,
+      text: state.text,
+      displayText: state.text
+    });
+    if (state.highlighted && !isTwoslashLanguage(lang)) {
       highlightedLineNumbers.push(visibleLines.length);
     }
   }
+  pendingHide = [];
 
-  const renderCode = visibleLines.join('\n').replace(/\n$/, '');
+  const displayLines = anyFocusMarker
+    ? dedentLinesForDisplay(focusedLineSpecs.map((spec) => spec.text))
+    : focusedLineSpecs.map((spec) => spec.text);
+  const displayFocusedLineSpecs = focusedLineSpecs.map((spec): FocusedLineSpec => {
+    const displayText = displayLines.shift() ?? spec.text;
+    if (spec.kind === 'line') {
+      return { ...spec, displayText };
+    }
+    return { ...spec, text: displayText };
+  });
+  const renderCode = displayFocusedLineSpecs
+    .map((spec) => (spec.kind === 'line' ? spec.displayText : spec.text))
+    .join('\n')
+    .replace(/\n$/, '');
 
   return {
     renderCode,
-    copyCode: renderCode.trim(),
-    highlightedLineNumbers
-  } satisfies ProcessedCode;
+    fullCode,
+    copyCode: fullCode.trim(),
+    highlightedLineNumbers,
+    focusedLineSpecs: displayFocusedLineSpecs,
+    hasFocusMarkers: anyFocusMarker,
+    lineMap
+  };
+};
+
+const removeLeadingWhitespace = (node: Node) => {
+  for (const child of Array.from(node.childNodes)) {
+    const text = child.textContent || '';
+    if (!text) continue;
+    if (/^\s+$/.test(text)) {
+      child.remove();
+      continue;
+    }
+    if (child.nodeType === Node.TEXT_NODE) {
+      child.textContent = text.replace(/^\s+/, '');
+      return;
+    }
+    removeLeadingWhitespace(child);
+    return;
+  }
+};
+
+const removeAllLeadingWhitespace = (node: Node) => {
+  for (let i = 0; i < 20; i++) {
+    const before = leadingIndent(node.textContent || '');
+    if (!before) return;
+    removeLeadingWhitespace(node);
+    const after = leadingIndent(node.textContent || '');
+    if (after.length >= before.length) return;
+  }
+};
+
+const collapseRenderedHtmlToFocusedLines = ({
+  html,
+  focusedLineSpecs
+}: {
+  html: string;
+  focusedLineSpecs: FocusedLineSpec[];
+}) => {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const pre = doc.querySelector('pre');
+  const code = pre?.querySelector('code');
+  if (!pre || !code) {
+    return html;
+  }
+
+  const lines = Array.from(code.children).filter((child): child is HTMLElement => child.classList.contains('line'));
+  if (lines.length === 0) {
+    return html;
+  }
+
+  const fragment = doc.createDocumentFragment();
+  focusedLineSpecs.forEach((spec) => {
+    if (spec.kind === 'line') {
+      const line = lines[spec.fullLineNumber - 1];
+      if (line) {
+        const clonedLine = line.cloneNode(true) as HTMLElement;
+        const expectedIndent = leadingIndent(spec.displayText);
+        removeAllLeadingWhitespace(clonedLine);
+        if (expectedIndent.length > 0) {
+          clonedLine.insertBefore(doc.createTextNode(expectedIndent), clonedLine.firstChild);
+        }
+        fragment.appendChild(clonedLine);
+      }
+      return;
+    }
+
+    const line = doc.createElement('span');
+    line.className = 'line stacktape-focus-placeholder-line';
+    line.textContent = spec.text;
+    fragment.appendChild(line);
+  });
+
+  code.replaceChildren(fragment);
+
+  return pre.outerHTML;
 };
 
 const decorateRenderedHtml = ({ html, highlightedLineNumbers }: { html: string; highlightedLineNumbers: number[] }) => {
   const doc = new DOMParser().parseFromString(html, 'text/html');
   const pre = doc.querySelector('pre');
+  const code = pre?.querySelector('code');
   if (!pre) {
     return html;
   }
 
   pre.classList.add('stacktape-shiki-pre');
   pre.removeAttribute('tabindex');
-  const lines = Array.from(pre.querySelectorAll('.line'));
+  const lines = code
+    ? Array.from(code.children).filter((child): child is HTMLElement => child.classList.contains('line'))
+    : [];
   highlightedLineNumbers.forEach((lineNumber) => {
     lines[lineNumber - 1]?.classList.add('stacktape-highlighted-line');
+  });
+
+  // Remove the type-info code section when the popup also has docs/JSDoc — the docs are
+  // more useful. Keep the code section as a fallback for variables without JSDoc so their
+  // type signature is still shown.
+  pre.querySelectorAll('.twoslash-popup-container').forEach((container) => {
+    const hasDocs = container.querySelector('.twoslash-popup-docs');
+    const codeEl = container.querySelector('.twoslash-popup-code');
+    if (hasDocs && codeEl) codeEl.remove();
+  });
+
+  // Render markdown in all popup docs sections (YAML hovers and TypeScript twoslash JSDoc).
+  pre.querySelectorAll('.twoslash-popup-docs').forEach((el) => {
+    const raw = el.textContent || '';
+    if (!raw.trim()) return;
+    try {
+      el.innerHTML = marked.parse(raw, { async: false }) as string;
+      // External links open in a new tab
+      el.querySelectorAll('a').forEach((a) => {
+        a.setAttribute('target', '_blank');
+        a.setAttribute('rel', 'noopener noreferrer');
+      });
+    } catch {
+      /* leave raw text on parse failure */
+    }
+  });
+
+  // Strip redundant "\n" text nodes between line elements. `.line` is `display: block` so
+  // line breaks come from layout; the explicit newlines get duplicated on copy.
+  lines.forEach((line) => {
+    const next = line.nextSibling;
+    if (next && next.nodeType === 3 && /^\n+$/.test(next.textContent || '')) {
+      next.remove();
+    }
   });
 
   return pre.outerHTML;
@@ -220,9 +590,7 @@ const createLocalStorageCache = () => {
     setItemRaw(key: string, value: string) {
       try {
         localStorage.setItem(`stacktape-docs-twoslash:${key}`, value);
-      } catch {
-        return;
-      }
+      } catch {}
     }
   };
 };
@@ -235,11 +603,13 @@ const renderWithShiki = async ({
   language,
   highlightedLineNumbers,
   useTwoslash,
-  twoslashRuntime
+  twoslashRuntime,
+  extraTransformers = []
 }: RenderWithShikiProps) => {
-  const transformers = useTwoslash && twoslashRuntime?.transformerTwoslash ? [twoslashRuntime.transformerTwoslash] : [];
+  const hasTwoslash = useTwoslash && twoslashRuntime?.transformerTwoslash;
+  const transformers = [...(hasTwoslash ? [twoslashRuntime.transformerTwoslash] : []), ...extraTransformers];
 
-  if (transformers.length > 0) {
+  if (hasTwoslash) {
     await twoslashRuntime?.prepareTypes(code);
   }
 
@@ -331,6 +701,11 @@ const getPreferredTabLabels = () => {
   return ['macOS', 'Macos'];
 };
 
+const getDisplayTabLabel = (label: ReactNode) => {
+  if (label === 'stacktape.ts') return 'TypeScript';
+  return label;
+};
+
 function TabSwitcher({
   tabs,
   activeIndex,
@@ -359,12 +734,12 @@ function TabSwitcher({
         <div
           css={{
             position: 'absolute',
-            top: '4px',
-            height: 'calc(100% - 8px)',
+            top: '3px',
+            height: 'calc(100% - 6px)',
             background: 'linear-gradient(135deg, rgb(60, 64, 64), rgb(44, 47, 47))',
             boxShadow:
               '0 4px 12px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(190, 190, 190, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
-            borderRadius: '7px',
+            borderRadius: '6px',
             transition: 'left 200ms ease, width 200ms ease',
             zIndex: 0,
             left: indicatorStyle.left,
@@ -384,7 +759,7 @@ function TabSwitcher({
               }}
               onClick={() => onTabClick(index)}
             >
-              {tab.label}
+              {getDisplayTabLabel(tab.label)}
             </button>
           );
         })}
@@ -396,23 +771,29 @@ function TabSwitcher({
 export function MdxCodeBlockNew({
   children: code,
   typescript,
+  intellisense = false,
+  stacktapeConfig = false,
   typesCdnBaseUrl = getDefaultTypesBaseUrl(),
   ...props
 }: {
   children: ReactNode;
   typescript?: string;
+  intellisense?: boolean;
+  stacktapeConfig?: boolean;
   className?: string;
   typesCdnBaseUrl?: string;
 }) {
   const lang = props.className ? props.className.split('-')[1] : null;
   const codeString =
     typeof code === 'string' ? code : (code as { props?: { children?: string } })?.props?.children || '';
+  const shouldEnableIntellisense = intellisense || stacktapeConfig;
 
   const autoTypescript = useMemo(() => {
     if (typescript) return null;
+    if (!shouldEnableIntellisense) return null;
     if (lang !== 'yaml' && lang !== 'yml') return null;
     return convertYamlToTypescript(codeString);
-  }, [codeString, lang, typescript]);
+  }, [codeString, lang, shouldEnableIntellisense, typescript]);
 
   const tsCode = typescript || autoTypescript;
   const tabs: CodeTab[] = tsCode
@@ -422,28 +803,62 @@ export function MdxCodeBlockNew({
       ]
     : [{ code: codeString, label: lang === 'yaml' || lang === 'yml' ? 'YAML' : '', lang: lang || 'text' }];
 
-  return <CodeBlockNew lang={lang} tabs={tabs} typesCdnBaseUrl={typesCdnBaseUrl} />;
+  return (
+    <CodeBlockNew intellisense={shouldEnableIntellisense} lang={lang} tabs={tabs} typesCdnBaseUrl={typesCdnBaseUrl} />
+  );
 }
 
-export function CodeBlockNew({ tabs, lang, typesCdnBaseUrl = getDefaultTypesBaseUrl() }: CodeBlockNewProps) {
-  const [activeTab, setActiveTab] = useState(tabs[0]);
+export function CodeBlockNew({
+  tabs,
+  lang,
+  intellisense = false,
+  stacktapeConfig = false,
+  typesCdnBaseUrl = getDefaultTypesBaseUrl()
+}: CodeBlockNewProps) {
+  const shouldEnableIntellisense = intellisense || stacktapeConfig;
+  const resolvedTabs = useMemo(
+    () => withGeneratedYamlTabs(tabs, shouldEnableIntellisense),
+    [shouldEnableIntellisense, tabs]
+  );
+  const [activeTabLabel, setActiveTabLabel] = useState(() => String(resolvedTabs[0]?.label ?? ''));
   const [isCopiedShown, setIsCopiedShown] = useState(false);
   const [animationKey, setAnimationKey] = useState(0);
   const [renderedHtml, setRenderedHtml] = useState<string | null>(null);
   const [renderError, setRenderError] = useState<string | null>(null);
+  const codeContainerRef = useRef<HTMLDivElement>(null);
+  const resolvedTabLabels = resolvedTabs.map((tab) => String(tab.label)).join('\u0000');
+  const activeTab =
+    resolvedTabs.find((tab) => String(tab.label) === activeTabLabel) ||
+    resolvedTabs.find((tab) => getPreferredTabLabels().includes(String(tab.label))) ||
+    resolvedTabs[0];
+
+  const activeTabCode = activeTab.code;
+  const activeTabLang = activeTab.lang;
+  const activeTabIsStacktapeConfig =
+    isTwoslashLanguage(normalizeLanguage(activeTabLang)) &&
+    activeTabCode.includes('defineConfig') &&
+    /from\s+['"]stacktape['"]/.test(activeTabCode);
 
   const processedCode = useMemo(() => {
-    return preprocessCode({ code: activeTab.code, lang: activeTab.lang || lang || 'text' });
-  }, [activeTab.code, activeTab.lang, lang]);
+    const activeLanguage = activeTabLang || lang || 'text';
+    return preprocessCode({
+      code: activeTabCode,
+      lang: activeLanguage,
+      formatStacktapeConfig: shouldEnableIntellisense && activeTabIsStacktapeConfig
+    });
+  }, [activeTabCode, activeTabIsStacktapeConfig, activeTabLang, lang, shouldEnableIntellisense]);
 
   const amountOfLines = processedCode.renderCode.split('\n').length;
-  const activeIndex = tabs.findIndex((tab) => tab.label === activeTab.label);
+  const activeIndex = resolvedTabs.findIndex((tab) => tab.label === activeTab.label);
 
   useEffect(() => {
     const preferredLabels = getPreferredTabLabels();
-    const matchedTab = tabs.find((tab) => preferredLabels.includes(String(tab.label)));
-    setActiveTab(matchedTab || tabs[0]);
-  }, [tabs]);
+    const matchedTab = resolvedTabs.find((tab) => preferredLabels.includes(String(tab.label)));
+    setActiveTabLabel((currentLabel) => {
+      if (resolvedTabs.some((tab) => String(tab.label) === currentLabel)) return currentLabel;
+      return String((matchedTab || resolvedTabs[0])?.label ?? '');
+    });
+  }, [resolvedTabLabels, resolvedTabs]);
 
   useEffect(() => {
     let isCancelled = false;
@@ -452,20 +867,37 @@ export function CodeBlockNew({ tabs, lang, typesCdnBaseUrl = getDefaultTypesBase
       try {
         setRenderError(null);
         const runtime = await getShikiRuntime();
-        const normalizedLanguage = normalizeLanguage(activeTab.lang || lang || tabs[0]?.lang || 'text');
-        const shouldUseTwoslash = isTwoslashLanguage(normalizedLanguage);
+        const normalizedLanguage = normalizeLanguage(activeTab.lang || lang || 'text');
+        const shouldUseIntellisense = shouldEnableIntellisense;
+        const shouldUseTwoslash = shouldUseIntellisense && isTwoslashLanguage(normalizedLanguage);
         const twoslashRuntime = shouldUseTwoslash ? await getTwoslashRuntime(typesCdnBaseUrl) : undefined;
+
+        const extraTransformers: unknown[] = [];
+        if (shouldUseIntellisense && normalizedLanguage === 'yaml') {
+          // Parse the ORIGINAL code (still valid YAML) and translate hover positions
+          // through `lineMap` to match the rendered (possibly focus-filtered) output.
+          const hoverTransformer = await computeYamlHovers(activeTab.code, processedCode.lineMap);
+          if (hoverTransformer) extraTransformers.push(hoverTransformer);
+        }
 
         let html: string;
         try {
+          const codeToRender = shouldUseTwoslash ? processedCode.fullCode : processedCode.renderCode;
           html = await renderWithShiki({
             runtime,
-            code: processedCode.renderCode,
+            code: codeToRender,
             language: normalizedLanguage,
             highlightedLineNumbers: processedCode.highlightedLineNumbers,
             useTwoslash: shouldUseTwoslash,
-            twoslashRuntime
+            twoslashRuntime,
+            extraTransformers
           });
+          if (shouldUseTwoslash && processedCode.hasFocusMarkers) {
+            html = collapseRenderedHtmlToFocusedLines({
+              html,
+              focusedLineSpecs: processedCode.focusedLineSpecs
+            });
+          }
         } catch (error) {
           if (!shouldUseTwoslash || !isTwoslashError(error)) {
             throw error;
@@ -476,7 +908,8 @@ export function CodeBlockNew({ tabs, lang, typesCdnBaseUrl = getDefaultTypesBase
             code: processedCode.renderCode,
             language: normalizedLanguage,
             highlightedLineNumbers: processedCode.highlightedLineNumbers,
-            useTwoslash: false
+            useTwoslash: false,
+            extraTransformers
           });
         }
 
@@ -495,7 +928,91 @@ export function CodeBlockNew({ tabs, lang, typesCdnBaseUrl = getDefaultTypesBase
     return () => {
       isCancelled = true;
     };
-  }, [activeTab.lang, lang, processedCode, tabs, typesCdnBaseUrl]);
+  }, [activeTab.code, activeTab.lang, lang, processedCode, shouldEnableIntellisense, typesCdnBaseUrl]);
+
+  // Move hover popups out of the code block into a portal attached to <body>, so they escape
+  // any containing block (transforms from animations, overflow clipping, etc.) and can be
+  // positioned freely via viewport-relative `position: fixed`.
+  useEffect(() => {
+    const container = codeContainerRef.current;
+    if (!container || !renderedHtml || typeof document === 'undefined') return;
+
+    // Per-component portal — classes mirror the code block so CSS selectors still match.
+    const portal = document.createElement('div');
+    portal.className = 'stacktape-code-block twoslash stacktape-hover-portal';
+    document.body.appendChild(portal);
+
+    const hovers = Array.from(container.querySelectorAll<HTMLElement>('.twoslash-hover'));
+    const cleanups: Array<() => void> = [];
+
+    for (const hover of hovers) {
+      const popup = hover.querySelector<HTMLElement>('.twoslash-popup-container');
+      if (!popup) continue;
+
+      // Move popup into portal — escapes all ancestor containing blocks and overflow clipping.
+      portal.appendChild(popup);
+
+      let hideTimeout: ReturnType<typeof setTimeout> | null = null;
+
+      const position = () => {
+        const rect = hover.getBoundingClientRect();
+        // Show at (0,0) briefly to get natural size, then clamp into viewport.
+        popup.style.left = '0px';
+        popup.style.top = '0px';
+        const popupRect = popup.getBoundingClientRect();
+        let left = rect.left;
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+        if (left + popupRect.width > vw - 10) left = Math.max(10, vw - popupRect.width - 10);
+        let top = rect.bottom + 2;
+        // Flip above if not enough space below
+        if (top + popupRect.height > vh - 10 && rect.top - popupRect.height - 2 >= 10) {
+          top = rect.top - popupRect.height - 2;
+        }
+        popup.style.left = `${left}px`;
+        popup.style.top = `${top}px`;
+      };
+      const show = () => {
+        if (hideTimeout) {
+          clearTimeout(hideTimeout);
+          hideTimeout = null;
+        }
+        popup.classList.add('visible');
+        // Position after making visible so we get accurate measurements
+        position();
+      };
+      const scheduleHide = () => {
+        if (hideTimeout) clearTimeout(hideTimeout);
+        hideTimeout = setTimeout(() => popup.classList.remove('visible'), 150);
+      };
+
+      hover.addEventListener('mouseenter', show);
+      hover.addEventListener('mouseleave', scheduleHide);
+      popup.addEventListener('mouseenter', show);
+      popup.addEventListener('mouseleave', scheduleHide);
+
+      cleanups.push(() => {
+        if (hideTimeout) clearTimeout(hideTimeout);
+        hover.removeEventListener('mouseenter', show);
+        hover.removeEventListener('mouseleave', scheduleHide);
+        popup.removeEventListener('mouseenter', show);
+        popup.removeEventListener('mouseleave', scheduleHide);
+      });
+    }
+
+    const onScroll = () => {
+      portal.querySelectorAll<HTMLElement>('.twoslash-popup-container.visible').forEach((p) => {
+        p.classList.remove('visible');
+      });
+    };
+    window.addEventListener('scroll', onScroll, { passive: true, capture: true });
+
+    return () => {
+      cleanups.forEach((fn) => fn());
+      window.removeEventListener('scroll', onScroll, { capture: true });
+      portal.remove();
+    };
+  }, [renderedHtml]);
 
   const handleCopyClick = async () => {
     setIsCopiedShown(true);
@@ -504,7 +1021,7 @@ export function CodeBlockNew({ tabs, lang, typesCdnBaseUrl = getDefaultTypesBase
   };
 
   const handleTabClick = (index: number) => {
-    setActiveTab(tabs[index]);
+    setActiveTabLabel(String(resolvedTabs[index].label));
     setAnimationKey((value) => value + 1);
   };
 
@@ -532,7 +1049,8 @@ export function CodeBlockNew({ tabs, lang, typesCdnBaseUrl = getDefaultTypesBase
             --twoslash-docs-color: #a6adc8;
             --twoslash-docs-font: inherit;
             --twoslash-code-font: ${fontFamilyMono};
-            --twoslash-code-font-size: 0.92em;
+            --twoslash-code-bg: rgba(255, 255, 255, 0.08);
+            --twoslash-link-color: #89b4fa;
             --twoslash-matched-color: #f5e0dc;
             --twoslash-unmatched-color: #7f849c;
             --twoslash-cursor-color: rgba(137, 180, 250, 0.45);
@@ -550,77 +1068,46 @@ export function CodeBlockNew({ tabs, lang, typesCdnBaseUrl = getDefaultTypesBase
 
           .stacktape-code-block.twoslash .twoslash-hover {
             border-bottom: 1px dotted transparent;
-            transition: border-color 0.3s ease;
-            position: relative;
+            transition: border-color 0.2s ease;
             cursor: help;
           }
 
-          .stacktape-code-block.twoslash .twoslash-hover:hover {
+          .stacktape-code-block-shell:hover .twoslash-hover,
+          .stacktape-code-block.twoslash:hover .twoslash-hover {
             border-bottom-color: var(--twoslash-underline-color);
           }
 
           .stacktape-code-block.twoslash .twoslash-popup-container {
-            position: absolute;
+            position: fixed;
+            left: 0;
+            top: 0;
             opacity: 0;
             display: inline-flex;
             flex-direction: column;
-            transform: translateY(1.1em);
             background: var(--twoslash-popup-bg);
             color: var(--twoslash-popup-color);
             border: 1px solid var(--twoslash-border-color);
-            border-radius: 8px;
-            transition: opacity 0.2s ease;
+            border-radius: 6px;
+            transition: opacity 0.15s ease;
             pointer-events: none;
-            z-index: 30;
-            user-select: none;
+            z-index: 9999;
             text-align: left;
             box-shadow: var(--twoslash-popup-shadow);
-            min-width: min(360px, calc(100vw - 56px));
-            max-width: min(720px, calc(100vw - 40px));
-            backdrop-filter: blur(12px);
-            white-space: normal;
+            min-width: 280px;
+            max-width: min(600px, calc(100vw - 40px));
+            font-size: 13px;
+            line-height: 1.5;
           }
 
-          .stacktape-code-block.twoslash .twoslash-query-persisted .twoslash-popup-container {
-            z-index: 29;
-            transform: translateY(1.5em);
-          }
-
-          .stacktape-code-block.twoslash .twoslash-hover:hover .twoslash-popup-container,
-          .stacktape-code-block.twoslash .twoslash-error-hover:hover .twoslash-popup-container,
-          .stacktape-code-block.twoslash .twoslash-query-persisted .twoslash-popup-container,
-          .stacktape-code-block.twoslash .twoslash-query-line .twoslash-popup-container {
+          .stacktape-code-block.twoslash .twoslash-popup-container.visible {
             opacity: 1;
             pointer-events: auto;
           }
 
-          .stacktape-code-block.twoslash .twoslash-popup-container:hover,
-          .stacktape-code-block.twoslash .twoslash-completion-list:hover {
-            user-select: auto;
-          }
-
-          .stacktape-code-block.twoslash .twoslash-popup-arrow {
-            position: absolute;
-            top: -4px;
-            left: 1em;
-            border-top: 1px solid var(--twoslash-border-color);
-            border-right: 1px solid var(--twoslash-border-color);
-            background: var(--twoslash-popup-bg);
-            transform: rotate(-45deg);
-            width: 6px;
-            height: 6px;
-            pointer-events: none;
-          }
-
-          .stacktape-code-block.twoslash .twoslash-popup-code,
-          .stacktape-code-block.twoslash .twoslash-popup-error,
-          .stacktape-code-block.twoslash .twoslash-popup-docs {
-            padding: 6px 8px !important;
-          }
-
           .stacktape-code-block.twoslash .twoslash-popup-code {
+            padding: 8px 12px;
             font-family: var(--twoslash-code-font);
-            font-size: var(--twoslash-code-font-size);
+            font-size: 12.5px;
             line-height: 1.45;
             white-space: normal;
             overflow-wrap: anywhere;
@@ -631,41 +1118,114 @@ export function CodeBlockNew({ tabs, lang, typesCdnBaseUrl = getDefaultTypesBase
             white-space: inherit !important;
           }
 
-          .stacktape-code-block.twoslash .twoslash-popup-code pre,
-          .stacktape-code-block.twoslash .twoslash-popup-code code {
-            margin: 0;
-            padding: 0;
-            border: 0;
-            min-width: 0;
-            background: transparent !important;
-            box-shadow: none;
-          }
-
-          .stacktape-code-block.twoslash .twoslash-popup-code .line {
-            display: inline;
-            padding: 0 !important;
-            min-height: 0;
-          }
-
-          .stacktape-code-block.twoslash .twoslash-popup-code .line + .line::before {
-            content: '\a';
-            white-space: pre;
+          /* Only show separator between code and docs sections */
+          .stacktape-code-block.twoslash .twoslash-popup-code + .twoslash-popup-docs {
+            border-top: 1px solid var(--twoslash-border-color);
           }
 
           .stacktape-code-block.twoslash .twoslash-popup-docs {
+            padding: 10px 12px;
             color: var(--twoslash-docs-color);
             font-family: var(--twoslash-docs-font);
-            font-size: 0.8em;
+            font-size: 12px;
             line-height: 1.5;
-            border-top: 1px solid var(--twoslash-border-color);
+            max-height: 360px;
+            overflow-y: auto;
+          }
+
+          .stacktape-code-block.twoslash .twoslash-popup-docs h1,
+          .stacktape-code-block.twoslash .twoslash-popup-docs h2,
+          .stacktape-code-block.twoslash .twoslash-popup-docs h3 {
+            margin: 0 0 8px 0;
+            padding: 0;
+            font-size: 15px;
+            font-weight: 600;
+            color: #ffffff;
+          }
+
+          .stacktape-code-block.twoslash .twoslash-popup-docs h4,
+          .stacktape-code-block.twoslash .twoslash-popup-docs h5,
+          .stacktape-code-block.twoslash .twoslash-popup-docs h6 {
+            margin: 0 0 8px 0;
+            padding: 0;
+            font-size: 14px;
+            font-weight: 600;
+            color: #ffffff;
           }
 
           .stacktape-code-block.twoslash .twoslash-popup-docs p {
             margin: 0 0 6px 0;
+            font-size: 12px;
           }
 
-          .stacktape-code-block.twoslash .twoslash-popup-docs p:last-child {
+          .stacktape-code-block.twoslash .twoslash-popup-docs li {
+            font-size: 12px;
+          }
+
+          .stacktape-code-block.twoslash .twoslash-popup-docs > *:last-child {
             margin-bottom: 0;
+          }
+
+          .stacktape-code-block.twoslash .twoslash-popup-docs code {
+            font-family: var(--twoslash-code-font);
+            background: var(--twoslash-code-bg);
+            padding: 1px 5px;
+            border-radius: 3px;
+            font-size: 0.9em;
+          }
+
+          .stacktape-code-block.twoslash .twoslash-popup-docs a {
+            color: var(--twoslash-link-color);
+            text-decoration: none;
+          }
+
+          .stacktape-code-block.twoslash .twoslash-popup-docs a:hover {
+            text-decoration: underline;
+          }
+
+          .stacktape-code-block.twoslash .twoslash-popup-docs ul,
+          .stacktape-code-block.twoslash .twoslash-popup-docs ol {
+            margin: 0 0 6px 0;
+            padding-left: 20px;
+          }
+
+          .stacktape-code-block.twoslash .twoslash-popup-docs li {
+            margin-bottom: 2px;
+          }
+
+          .stacktape-code-block.twoslash .twoslash-popup-docs hr {
+            border: none;
+            border-top: 1px solid var(--twoslash-border-color);
+            margin: 8px 0;
+          }
+
+          .stacktape-code-block.twoslash .twoslash-popup-docs blockquote {
+            margin: 0 0 6px 0;
+            padding-left: 10px;
+            border-left: 3px solid var(--twoslash-border-color);
+            color: #a8a8a8;
+          }
+
+          .stacktape-code-block.twoslash .twoslash-popup-docs pre {
+            background: var(--twoslash-code-bg);
+            padding: 6px 8px;
+            border-radius: 3px;
+            margin: 0 0 6px 0;
+            overflow-x: auto;
+            font-family: var(--twoslash-code-font);
+            font-size: 0.9em;
+          }
+
+          .stacktape-code-block.twoslash .twoslash-popup-docs pre code {
+            background: transparent;
+            padding: 0;
+            border-radius: 0;
+            font-size: inherit;
+          }
+
+          .stacktape-code-block.twoslash .twoslash-popup-docs strong {
+            color: #ffffff;
+            font-weight: 600;
           }
 
           .stacktape-code-block.twoslash .twoslash-popup-error {
@@ -696,7 +1256,6 @@ export function CodeBlockNew({ tabs, lang, typesCdnBaseUrl = getDefaultTypesBase
             min-width: 100%;
             width: max-content;
             margin: 0.2em 0;
-            padding: 6px 10px;
             border-left: 3px solid var(--twoslash-error-color);
             background-color: var(--twoslash-error-bg);
             color: var(--twoslash-error-color);
@@ -729,7 +1288,7 @@ export function CodeBlockNew({ tabs, lang, typesCdnBaseUrl = getDefaultTypesBase
             z-index: 28;
             box-shadow: var(--twoslash-popup-shadow);
             background: var(--twoslash-popup-bg);
-            border: 1px solid var(--twoslash-border-color);
+            border: none;
           }
 
           .stacktape-code-block.twoslash .twoslash-completion-list {
@@ -788,9 +1347,10 @@ export function CodeBlockNew({ tabs, lang, typesCdnBaseUrl = getDefaultTypesBase
         `}
       />
 
-      <TabSwitcher tabs={tabs} activeIndex={activeIndex >= 0 ? activeIndex : 0} onTabClick={handleTabClick} />
+      <TabSwitcher tabs={resolvedTabs} activeIndex={activeIndex >= 0 ? activeIndex : 0} onTabClick={handleTabClick} />
 
       <div
+        className="stacktape-code-block-shell"
         css={{
           overflowX: 'auto',
           overflowY: 'hidden',
@@ -837,6 +1397,7 @@ export function CodeBlockNew({ tabs, lang, typesCdnBaseUrl = getDefaultTypesBase
         ) : renderedHtml ? (
           <div
             key={animationKey}
+            ref={codeContainerRef}
             className="stacktape-code-block twoslash"
             css={{
               animation: `${fadeIn} 180ms ease-out`,
@@ -859,12 +1420,19 @@ export function CodeBlockNew({ tabs, lang, typesCdnBaseUrl = getDefaultTypesBase
                 display: 'block',
                 width: '100%',
                 padding: '0 18px',
-                minHeight: '1.5em'
+                lineHeight: '1.75',
+                minHeight: '1.75em',
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-word'
               },
               '.stacktape-shiki-pre .stacktape-highlighted-line': {
                 background:
                   'linear-gradient(90deg, rgba(137, 180, 250, 0.18) 0%, rgba(137, 180, 250, 0.08) 55%, rgba(0, 0, 0, 0) 100%)',
                 borderLeft: '2px solid rgba(137, 180, 250, 0.8)'
+              },
+              '.stacktape-shiki-pre .stacktape-focus-placeholder-line': {
+                color: colors.fontColorLightGray,
+                opacity: 0.75
               },
               '.stacktape-shiki-pre .line span': {
                 whiteSpace: 'pre-wrap',

@@ -5,7 +5,14 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import PulseLoader from 'react-spinners/PulseLoader';
-import { boxShadow, colors, ellipsis } from '../../styles/variables';
+import {
+  colors,
+  ellipsis,
+  plainHoverBoxShadow,
+  primaryHoverBoxShadow,
+  secondaryHoverBoxShadow,
+  semanticHoverBoxShadow
+} from '../../styles/variables';
 import { WithTooltip } from '../Tooltip/WithTooltip';
 
 export function Button({
@@ -71,51 +78,74 @@ export function Button({
   const isDisabled = disabled || isLoading || false;
   const buttonStyle = {
     primary: {
-      border: '1px solid #40958e',
-      background: 'linear-gradient(90deg, rgb(12, 95, 95), rgb(27, 109, 103))',
-      backgroundSize: '200% 200%',
-      transition: 'all 0.25s ease-in-out',
+      background: 'linear-gradient(135deg, rgb(12, 95, 95), rgb(27, 109, 103))',
+      boxShadow:
+        '0 4px 12px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(81, 231, 236, 0.5), inset 0 1px 0 rgba(43, 232, 239, 0.4)',
+      border: 'none',
+      transition: 'all 250ms ease, transform 150ms ease',
       '&:hover': {
-        boxShadow: '0 1.5px 12px rgba(32, 109, 109, 0.9)'
+        boxShadow: primaryHoverBoxShadow
       },
-      ...(isDisabled && {
-        opacity: 0.6
-      })
+      '&:active': {
+        transform: 'scale(0.98)'
+      },
+      ...(isDisabled && { opacity: 0.6 })
     },
     secondary: {
-      border: '1px solid rgb(17, 17, 17)',
-      background: 'linear-gradient(90deg, rgb(40, 45, 45), rgb(33, 38, 38))',
-      transition: 'all 0.25s ease-in-out',
-      boxShadow: '0 1.5px 20px rgba(19, 24, 24, 0.9)',
+      background: colors.elementBackground,
+      boxShadow:
+        '0 2px 8px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.15)',
+      border: 'none',
+      transition: 'all 250ms ease, transform 150ms ease',
       '&:hover': {
-        boxShadow: '0 1px 2px 2.5px rgba(19, 24, 24, 0.9)'
+        boxShadow: secondaryHoverBoxShadow
       },
-      ...(isDisabled && {
-        opacity: 0.6
-      })
+      '&:active': {
+        transform: 'scale(0.98)'
+      },
+      ...(isDisabled && { opacity: 0.6 })
     },
     plain: {
-      '*': { fontWeight: 'bold' }
+      background: 'transparent',
+      boxShadow: 'none',
+      border: 'none',
+      transition: 'all 250ms ease',
+      '*': { fontWeight: 'bold' },
+      '&:hover': {
+        boxShadow: plainHoverBoxShadow
+      }
     },
     ternary: {
-      background: colors.secondary,
-      border: `1px solid ${colors.secondaryButtonBorder}`,
-      boxShadow,
-      ...(isDisabled && {
-        opacity: 0.8
-      })
+      background: 'linear-gradient(135deg, rgba(34, 87, 122, 1) 0%, rgba(40, 95, 130, 0.95) 100%)',
+      boxShadow:
+        '0 4px 12px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.25)',
+      border: 'none',
+      transition: 'all 250ms ease, transform 150ms ease',
+      '&:hover': {
+        boxShadow: semanticHoverBoxShadow
+      },
+      '&:active': {
+        transform: 'scale(0.98)'
+      },
+      ...(isDisabled && { opacity: 0.8 })
     },
     negative: {
-      border: '1px solid #232323',
-      backgroundColor: colors.error,
-      ...(!isDisabled && {
-        '&:hover': {}
-      })
+      background: 'linear-gradient(135deg, rgb(235, 97, 97) 0%, rgb(200, 80, 80) 100%)',
+      boxShadow:
+        '0 4px 12px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.25)',
+      border: 'none',
+      transition: 'all 250ms ease, transform 150ms ease',
+      '&:hover': {
+        boxShadow: semanticHoverBoxShadow
+      },
+      '&:active': {
+        transform: 'scale(0.98)'
+      }
     }
   }[visualType];
   const rootStyle: Css = {
     borderImageSlice: 1,
-    borderRadius: '4.5px',
+    borderRadius: '8px',
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',

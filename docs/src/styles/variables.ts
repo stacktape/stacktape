@@ -115,6 +115,16 @@ export const boxShadow = '4px 4px 7px rgb(22,26,26), -4px -4px 11px rgb(28,28,28
 export const boxShadowDark = '3px 3px 5px rgb(20,20,20,1), -3px -3px 11px rgb(22,26,26)';
 
 export const boxShadowInset = 'inset 6px 6px 6px #212121, inset -6px -6px 6px #333333';
+
+// Multi-layer glassy hover shadows (mirror of console-app surfaces.ts)
+export const primaryHoverBoxShadow =
+  '0 6px 16px rgba(0, 0, 0, 0.48), 0 0 0 1px rgba(81, 231, 236, 0.69), inset 0 1px 0 rgba(43, 232, 239, 0.5), 0 0 0 1px rgba(90, 96, 96, 0.21), inset 0 1px 0 rgba(170, 176, 176, 0.17), inset 0 0 0 1px rgba(90, 96, 96, 0.15)';
+export const secondaryHoverBoxShadow =
+  '0 2px 8px rgba(0, 0, 0, 0.66), 0 0 0 1px rgba(255, 255, 255, 0.11), inset 0 1px 0 rgba(255, 255, 255, 0.17), 0 0 0 1px rgba(90, 96, 96, 0.1), inset 0 1px 0 rgba(140, 146, 146, 0.1), inset 0 0 0 1px rgba(90, 96, 96, 0.08)';
+export const plainHoverBoxShadow =
+  '0 1px 4px rgba(0, 0, 0, 0.26), 0 0 0 1px rgba(90, 96, 96, 0.16), inset 0 1px 0 rgba(150, 156, 156, 0.12), inset 0 0 0 1px rgba(90, 96, 96, 0.1)';
+export const semanticHoverBoxShadow =
+  '0 5px 14px rgba(0, 0, 0, 0.44), 0 0 0 1px rgba(255, 255, 255, 0.17), inset 0 1px 0 rgba(255, 255, 255, 0.28), 0 0 0 1px rgba(90, 96, 96, 0.12), inset 0 1px 0 rgba(160, 166, 166, 0.11), inset 0 0 0 1px rgba(90, 96, 96, 0.08)';
 export const boxShadowInsetLarge = 'inset 14px 14px 14px rgba(33,33,33,1), inset -14px -14px 14px rgba(59,59,59,0.75)';
 export const boxShadowInsetXLarge = 'inset 20px 20px 20px rgba(33,33,33,1), inset -20px -20px 20px rgba(59,59,59,0.75)';
 export const boxShadowLarge = '12px 12px 6px rgba(33,33,33,1), -11px -11px 12px rgba(56,56,56,.33)';
@@ -172,10 +182,10 @@ export const tabContainerStyle: Css = {
   position: 'relative',
   display: 'inline-flex',
   alignItems: 'center',
-  gap: '4px',
-  padding: '4px 6px',
+  gap: '3px',
+  padding: '3px',
   background: 'rgba(0, 0, 0, 0.25)',
-  borderRadius: '10px',
+  borderRadius: '8px',
   boxShadow: 'inset 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 0 rgba(255, 255, 255, 0.05)',
   backdropFilter: 'blur(10px)'
 };
@@ -190,13 +200,26 @@ export const activeTabStyle: Css = {
   transition: 'all 250ms ease, transform 150ms ease'
 };
 
+/** Active nav-item style (used by sidebar list rows) */
+export const activeListItemCss: Css = {
+  background: 'linear-gradient(135deg, rgb(60, 64, 64), rgb(44, 47, 47))',
+  boxShadow:
+    '0 4px 12px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(190, 190, 190, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+  border: 'none',
+  transition: 'all 250ms ease, transform 150ms ease',
+  '&:hover': {
+    boxShadow:
+      '0 5px 14px rgba(0, 0, 0, 0.49), 0 0 0 1px rgba(220, 220, 220, 0.17), inset 0 1px 0 rgba(255, 255, 255, 0.11)'
+  }
+};
+
 /** Tab button style */
 export const tabButtonStyle: Css = {
   position: 'relative',
-  fontSize: '13px',
+  fontSize: '12.5px',
   fontWeight: 600,
-  padding: '6px 12px',
-  borderRadius: '7px',
+  padding: '4px 10px',
+  borderRadius: '6px',
   color: 'rgba(190, 190, 190, 0.8)',
   border: 'none',
   display: 'flex',

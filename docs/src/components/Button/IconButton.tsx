@@ -3,7 +3,7 @@ import type { Placement } from 'tippy.js';
 import { merge } from 'lodash';
 import { useEffect, useState } from 'react';
 import PulseLoader from 'react-spinners/PulseLoader';
-import { colors, iconButtonStyle } from '../../styles/variables';
+import { iconButtonStyle } from '../../styles/variables';
 import { WithTooltip } from '../Tooltip/WithTooltip';
 
 export function IconButton({
@@ -47,8 +47,8 @@ export function IconButton({
       css={merge(
         {
           ...iconButtonStyle,
-          width: size || '34px',
-          height: size || '34px',
+          width: size || '32px',
+          height: size || '32px',
           borderRadius: '8px',
           margin: '2px',
           cursor: isLoading ? 'initial' : 'pointer'

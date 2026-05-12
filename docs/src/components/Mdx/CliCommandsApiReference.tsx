@@ -11,7 +11,7 @@ export type CommandArg = {
   allowedTypes: string[];
 };
 
-export function CliCommandsApiReference({ command, sortedArgs }: { command: string; sortedArgs: CommandArg[] }) {
+export function CliCommandsApiReference({ command, sortedArgs = [] }: { command: string; sortedArgs?: CommandArg[] }) {
   return (
     <div
       id={`api-ref-${command}`}
@@ -39,7 +39,7 @@ export function CliCommandsApiReference({ command, sortedArgs }: { command: stri
             ({ name, required, shortDescription, longDescription, alias, allowedValues, allowedTypes }, idx) => (
               <PropertyInfo
                 key={name}
-                propertyName={alias ? `${name} (--${alias})` : name}
+                propertyName={`--${name}${alias ? ` (-${alias})` : ''}`}
                 idx={idx}
                 isLast={sortedArgs.length - 1 === idx}
                 propertyRequired={required}

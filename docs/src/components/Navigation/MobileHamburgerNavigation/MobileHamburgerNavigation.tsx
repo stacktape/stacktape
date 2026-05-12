@@ -1,4 +1,5 @@
 import { onMaxW795 } from '@/styles/responsive';
+import { colors } from '@/styles/variables';
 import { DocSearch } from '../../Search/DocSearch';
 import { SidebarNavigation } from '../SidebarNavigation/Sidebar';
 
@@ -10,7 +11,8 @@ export function MobileHamburgerNavigation({
   allDocPages: MdxPageDataForNavigation[];
 }) {
   const mobileDividerStyle = {
-    border: '1px solid rgb(60,60,60)',
+    border: 'none',
+    borderTop: `1px solid ${colors.borderColorLight}`,
     marginLeft: '26px',
     marginRight: '26px'
   };

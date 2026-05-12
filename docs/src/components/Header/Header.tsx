@@ -150,7 +150,9 @@ export function Header() {
       css={{
         height: pageLayout.headerHeight,
         backgroundColor: colors.backgroundColor,
-        boxShadow: '1px 1px 4px #131313, -1px -1px 4px rgb(53 53 53 / 20%)',
+        boxShadow:
+          '0 2px 8px rgba(0, 0, 0, 0.55), 0 1px 0 rgba(255, 255, 255, 0.04), inset 0 -1px 0 rgba(255, 255, 255, 0.04)',
+        backdropFilter: 'blur(10px)',
         position: 'fixed',
         width: '100%',
         zIndex: 50,
