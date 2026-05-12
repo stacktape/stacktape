@@ -90,7 +90,7 @@ interface RelationalDatabaseProps {
 type StpRelationalDatabase = RelationalDatabase['properties'] & {
   name: string;
   type: RelationalDatabase['type'];
-  configParentResourceType: RelationalDatabase['type'];
+  configParentResourceType: RelationalDatabase['type'] | Convex['type'];
   nameChain: string[];
 };
 

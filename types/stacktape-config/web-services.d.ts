@@ -38,11 +38,11 @@ interface WebServiceProps extends SimpleServiceContainer {
    *   Cheapest at low traffic, but costs grow with volume.
    *
    * - **`application-load-balancer`**: Flat ~$18/month + usage. Required for gradual deployments
-   *   (`deployment`), firewalls (`useFirewall`), and WebSocket support.
+   *   (`deployment`), top-level firewalls (`useFirewall`), and WebSocket support.
    *   More cost-effective above ~500k requests/day. AWS Free Tier eligible.
    *
    * - **`network-load-balancer`**: For non-HTTP traffic (TCP/TLS) like MQTT, game servers, or custom protocols.
-   *   Requires explicit `ports` configuration. Does not support CDN, firewall, or gradual deployments.
+   *   Requires explicit `ports` configuration. Does not support CDN, top-level firewall, or gradual deployments.
    */
   loadBalancing?: WebServiceHttpApiGatewayLoadBalancing | WebServiceAlbLoadBalancing | WebServiceNlbLoadBalancing;
   /**
@@ -67,6 +67,14 @@ interface WebServiceProps extends SimpleServiceContainer {
   deployment?: ContainerWorkloadDeploymentConfig;
   /**
    * #### Name of a `web-app-firewall` resource to protect this service from common web exploits.
+   *
+   * ---
+   *
+   * Attaches a regional firewall directly to the service's application load balancer.
+   * Requires `loadBalancing` type `application-load-balancer`.
+   *
+   * To protect a CDN-enabled service at CloudFront instead, use `cdn.useFirewall`
+   * with a `web-app-firewall` resource whose `scope` is `cdn`.
    */
   useFirewall?: string;
 }

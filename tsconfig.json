@@ -3,8 +3,7 @@
     "target": "ES6",
     "jsx": "preserve",
     "jsxImportSource": "@opentui/solid",
-
-    "lib": ["es2021"],
+    "lib": ["ES2023"],
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
     "baseUrl": "./",
@@ -34,13 +33,12 @@
     "forceConsistentCasingInFileNames": true
   },
   "include": [
-    "src/**/*",
-    "types/**/*",
-    "shared/**/*",
-    "scripts/**/*",
-    "helper-lambdas/**/*",
-    "eslint.config.ts",
-    "TS-CLASS-CONFIG.ts"
+    "./src/**/*",
+    "./types/**/*",
+    "./shared/**/*",
+    "./scripts/**/*",
+    "./helper-lambdas/**/*",
+    "./eslint.config.ts"
   ],
-  "exclude": ["scripts/starter-projects/_script-test-api.ts", "@generated/**/*"]
+  "exclude": ["./scripts/starter-projects/_script-test-api.ts", "./@generated/**/*"]
 }

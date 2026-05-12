@@ -94,7 +94,8 @@ type StpContainerWorkload = ContainerWorkload['properties'] & {
     | WebService['type']
     | PrivateService['type']
     | WorkerService['type']
-    | ContainerWorkload['type'];
+    | ContainerWorkload['type']
+    | Convex['type'];
   nameChain: string[];
 };
 // type StpWebServiceContainerWorkload = Omit<StpContainerWorkload, 'type'> & { type: WebService['type'] };

@@ -159,7 +159,8 @@ type StpBucket = Bucket['properties'] & {
     | SvelteKitWeb['type']
     | SolidStartWeb['type']
     | TanStackWeb['type']
-    | RemixWeb['type'];
+    | RemixWeb['type']
+    | Convex['type'];
   nameChain: string[];
 };
 

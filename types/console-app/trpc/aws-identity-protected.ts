@@ -62,6 +62,7 @@ export type ReportIssueEventParams = {
   stage: string;
   region: string;
   rawLog?: string;
+  occurrenceWeight?: number;
 };
 
 export type AwsIdentityTrpcClient = {
@@ -78,6 +79,6 @@ export type AwsIdentityTrpcClient = {
     mutate: (args: ReportAlarmEventParams) => Promise<string>;
   };
   reportIssueEvent: {
-    mutate: (args: ReportIssueEventParams) => Promise<string>;
+    mutate: (args: ReportIssueEventParams) => Promise<string | null>;
   };
 };

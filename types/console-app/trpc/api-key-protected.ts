@@ -1,36 +1,6 @@
 // GENERATED FILE - DO NOT EDIT
 // Source: console-app/scripts/generate-stacktape-console-types.ts
 
-export type ListIssuesParams = {
-  status?: 'OPEN' | 'RESOLVED' | 'IGNORED';
-  project?: string;
-  stage?: string;
-  limit?: number;
-};
-
-export type ListIssuesResponse = Array<{
-  id: string;
-  createdAt: string;
-  fingerprint: string;
-  status: 'OPEN' | 'RESOLVED' | 'IGNORED';
-  errorMessage: string;
-  errorType: string;
-  lastOccurrence: string;
-  occurrenceCount: number;
-  project: string | null;
-  stage: string | null;
-  region: string | null;
-  functionName: string | null;
-}>;
-
-export type IssueActionParams = {
-  issueId: string;
-};
-
-export type IssueActionResponse = {
-  success: boolean;
-};
-
 export type RecordStackOperationParams = {
   invocationId: string;
   command?: string | null;
@@ -83,6 +53,43 @@ export type ReportEventParams = {
   title: string;
   details?: Record<string, unknown>;
   invocationId?: string;
+};
+
+export type ListIssuesParams = {
+  status?: 'OPEN' | 'RESOLVED' | 'IGNORED';
+  project?: string;
+  stage?: string;
+  limit?: number;
+};
+
+export type ListIssuesResponse = Array<{
+  id: string;
+  createdAt: string | Date;
+  updatedAt: string | Date;
+  fingerprint: string;
+  status: 'OPEN' | 'RESOLVED' | 'IGNORED';
+  errorMessage: string;
+  errorType: string;
+  firstStackFrame: unknown;
+  lastOccurrence: string | Date;
+  occurrenceCount: number;
+  project: string;
+  stage: string;
+  region: string | null;
+  functionName: string | null;
+  organizationId: string;
+  resolvedAt: string | Date | null;
+  resolvedBy: string | null;
+  ignoredAt: string | Date | null;
+  ignoredBy: string | null;
+}>;
+
+export type IssueActionParams = {
+  issueId: string;
+};
+
+export type IssueActionResponse = {
+  success: boolean;
 };
 
 export type CurrentUserAndOrgDataResponse = {
@@ -265,6 +272,42 @@ export type RecentStackOperationsResponse = Array<{
   description?: string | null;
 }>;
 
+export type OrganizationActivityParams = {
+  commands?: string[] | null;
+  projectName?: string | null;
+  stage?: string | null;
+  currentUserOnly?: boolean;
+  search?: string;
+  sortBy?: 'createdAt' | 'projectName' | 'command' | 'deploymentTrigger' | 'gitCommit' | 'userName';
+  sortDirection?: 'asc' | 'desc';
+  page?: number;
+  pageSize?: number;
+};
+
+export type OrganizationActivityResponse = {
+  items: Array<{
+    id: string;
+    startTime: Date | string | null;
+    endTime: Date | string | null;
+    stackName: string | null;
+    githubAvatarUrl: string | null;
+    success: boolean | null;
+    deploymentTrigger: string;
+    createdAt: Date | string;
+    projectName: string | null;
+    stage: string | null;
+    region: string | null;
+    command: string | null;
+    gitCommit: string | null;
+    inProgress: boolean | null;
+    description: string | null;
+    user: { name: string | null; email: string } | null;
+  }>;
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
 export type StackDetailsParams = {
   stackName: string;
   region: string;
@@ -322,6 +365,9 @@ export type ApiKeyTrpcClient = {
   };
   recentStackOperations: {
     query: (args: RecentStackOperationsParams) => Promise<RecentStackOperationsResponse>;
+  };
+  organizationActivityFromCli: {
+    query: (args: OrganizationActivityParams) => Promise<OrganizationActivityResponse>;
   };
   stackDetails: {
     query: (args: StackDetailsParams) => Promise<StackDetailsResponse>;

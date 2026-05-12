@@ -176,6 +176,7 @@ type StacktapeError = Error & {
   isExpected: boolean;
   isNewApproachError: boolean;
   userStackTrace?: string;
+  errorDetails?: { title: string; codeFrame?: string };
 };
 
 type StacktapeCommandResult = {

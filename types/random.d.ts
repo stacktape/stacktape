@@ -25,6 +25,8 @@ type StackActionType =
 
 type AWSRegion = (typeof import('../src/config/random'))['SUPPORTED_AWS_REGIONS'][number];
 
+// Legacy name: records Stacktape CLI operations, including commands that do not
+// directly mutate a CloudFormation stack.
 type StackOperationRecord = {
   id: string;
   createdAt: string;

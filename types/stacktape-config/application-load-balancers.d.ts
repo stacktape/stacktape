@@ -55,7 +55,7 @@ type StpApplicationLoadBalancer = Omit<ApplicationLoadBalancer['properties'], 'c
   customDomains?: DomainConfiguration[];
   name: string;
   type: ApplicationLoadBalancer['type'];
-  configParentResourceType: WebService['type'] | ApplicationLoadBalancer['type'] | PrivateService['type'];
+  configParentResourceType: WebService['type'] | ApplicationLoadBalancer['type'] | PrivateService['type'] | Convex['type'];
   nameChain: string[];
 };
 
