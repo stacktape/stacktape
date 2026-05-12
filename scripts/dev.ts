@@ -75,17 +75,19 @@ const buildSource = async () => {
 };
 
 export const runDev = async () => {
-  const [cliDistPath] = await Promise.all([
-    buildSource(),
-    !skipPackagingHelperLambdas && packageHelperLambdas({ isDev: true, distFolderPath: DEV_TMP_FOLDER_PATH })
-  ]);
-
   const isSilentMode = isMachineMode || isMcpMode;
-  if (!isSilentMode) {
-    logInfo('----- RUN -----');
-  }
+
   try {
     process.env.STP_DEV_MODE = 'true';
+    const [cliDistPath] = await Promise.all([
+      buildSource(),
+      !skipPackagingHelperLambdas && packageHelperLambdas({ isDev: true, distFolderPath: DEV_TMP_FOLDER_PATH })
+    ]);
+
+    if (!isSilentMode) {
+      logInfo('----- RUN -----');
+    }
+
     const { runUsingCli } = dynamicRequire({
       filePath: cliDistPath
     }) as typeof import('../src/api/cli');
