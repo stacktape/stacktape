@@ -1,7 +1,7 @@
 import { Buffer } from 'node:buffer';
 import { createHash } from 'node:crypto';
 import { gunzipSync } from 'node:zlib';
-import { CloudWatchLogsClient, GetLogEventsCommand } from '@aws-sdk/client-cloudwatch-logs';
+import { CloudWatchLogsClient, FilterLogEventsCommand, GetLogEventsCommand } from '@aws-sdk/client-cloudwatch-logs';
 import { defaultProvider } from '@aws-sdk/credential-provider-node';
 import { AwsIdentityProtectedClient } from '@shared/trpc/aws-identity-protected';
 
@@ -42,6 +42,9 @@ type ParsedError = {
   fingerprint: string;
   requestId?: string;
   rawLog: string;
+  sourceLogEventId?: string;
+  sourceTimestamp?: number;
+  sourceMessage?: string;
 };
 
 type LambdaRuntimeError = {
@@ -54,32 +57,90 @@ type LambdaRuntimeError = {
 
 /** Extracts RequestId from Lambda log prefix */
 const REQUEST_ID_REGEX = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+const MAX_RAW_LOG_LENGTH = 4000;
+const DEFAULT_MAX_ERRORS_PER_INVOCATION = 20;
+const DEFAULT_MAX_CONTEXT_FETCHES_PER_INVOCATION = 5;
+const DEFAULT_MAX_LOG_AGE_MS = 10 * 60 * 1000;
+
+const readIntegerEnv = ({
+  name,
+  defaultValue,
+  min,
+  max
+}: {
+  name: string;
+  defaultValue: number;
+  min: number;
+  max: number;
+}) => {
+  const parsed = Number.parseInt(process.env[name] || '', 10);
+  if (!Number.isFinite(parsed)) return defaultValue;
+  return Math.min(max, Math.max(min, parsed));
+};
+
+const issueEventSampleRatePercent = readIntegerEnv({
+  name: 'ISSUE_EVENT_SAMPLE_RATE_PERCENT',
+  defaultValue: 100,
+  min: 1,
+  max: 100
+});
+const issueOccurrenceWeight = Math.max(1, Math.round(100 / issueEventSampleRatePercent));
+const maxErrorsPerInvocation = readIntegerEnv({
+  name: 'ISSUE_MAX_ERRORS_PER_INVOCATION',
+  defaultValue: DEFAULT_MAX_ERRORS_PER_INVOCATION,
+  min: 1,
+  max: 100
+});
+const maxContextFetchesPerInvocation = readIntegerEnv({
+  name: 'ISSUE_MAX_CONTEXT_FETCHES_PER_INVOCATION',
+  defaultValue: DEFAULT_MAX_CONTEXT_FETCHES_PER_INVOCATION,
+  min: 0,
+  max: 50
+});
+const maxLogAgeMs = readIntegerEnv({
+  name: 'ISSUE_MAX_LOG_AGE_MS',
+  defaultValue: DEFAULT_MAX_LOG_AGE_MS,
+  min: 60_000,
+  max: 60 * 60 * 1000
+});
+
+const truncateRawLog = (rawLog: string) =>
+  rawLog.length > MAX_RAW_LOG_LENGTH ? `${rawLog.slice(0, MAX_RAW_LOG_LENGTH)}...` : rawLog;
+
+const shouldProcessSampledError = (error: ParsedError) => {
+  if (issueEventSampleRatePercent >= 100) return true;
+  const sampleKey = `${error.fingerprint}:${error.sourceLogEventId || error.sourceTimestamp || error.rawLog}`;
+  const bucket = createHash('sha256').update(sampleKey).digest().readUInt8(0) % 100;
+  return bucket < issueEventSampleRatePercent;
+};
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // ─── Stack trace parsers per language ────────────────────────────────────────
 
 /** JS/TS: `    at functionName (file:line:col)` or `    at file:line:col` */
-const JS_FRAME_REGEX = /^\s+at\s+(?:(.+?)\s+\()?(.+?):(\d+):(\d+)\)?$/;
+const JS_FRAME_REGEX = /^\s*at\s+(?:(.+?)\s+\()?(.+?):(\d+):(\d+)\)?$/;
 
 /** Python: `  File "path", line N, in function` */
 const PY_FRAME_REGEX = /^\s+File\s+"(.+?)",\s+line\s+(\d+),\s+in\s+(.+)$/;
 
 /** Go: `\t/path/file.go:line +0x...` preceded by `package.function(args)` */
-const GO_FRAME_REGEX = /^\t(.+?\.go):(\d+)/;
-const GO_FUNC_REGEX = /^(.+?)\(.*\)$/;
+const GO_FRAME_REGEX = /^\s*(.+?\.go):(\d+)/;
+const GO_FUNC_REGEX = /^(.+)\(.*\)$/;
 
 /** Java/Kotlin: `    at package.Class.method(File.java:line)` */
-const JAVA_FRAME_REGEX = /^\s+at\s+(.+?)\((.+?):(\d+)\)$/;
+const JAVA_FRAME_REGEX = /^\s*at\s+(.+?)\((.+?):(\d+)\)$/;
 
 /** .NET (C#/F#): `   at Namespace.Class.Method(params) in /path/File.cs:line N` */
-const DOTNET_FRAME_REGEX = /^\s+at\s+(.+?)\s+in\s+(.+?):line\s+(\d+)$/;
+const DOTNET_FRAME_REGEX = /^\s*at\s+(.+?)\s+in\s+(.+?):line\s+(\d+)$/;
 /** .NET fallback without file info: `   at Namespace.Class.Method(params)` */
-const DOTNET_FRAME_NO_FILE_REGEX = /^\s+at\s+(.+?\(.*?\))$/;
+const DOTNET_FRAME_NO_FILE_REGEX = /^\s*at\s+(.+?\(.*?\))$/;
 
 /** Ruby: `/path/file.rb:line:in 'method'` */
-const RUBY_FRAME_REGEX = /^\s*(.+?\.rb):(\d+):in\s+[`'](.+?)'$/;
+const RUBY_FRAME_REGEX = /^\s*(?:from\s+)?(.+?\.rb):(\d+):in\s+[`'"](.+?)[`'"]$/;
 
 /** PHP: `#N /path/file.php(line): Class->method(args)` */
-const PHP_FRAME_REGEX = /^#\d+\s+(.+?\.php)\((\d+)\):\s+(.+)$/;
+const PHP_FRAME_REGEX = /^\s*#\d+\s+(.+?\.php)\((\d+)\):\s+(.+)$/;
 /** PHP: `in /path/file.php:line` or `thrown in /path/file.php on line N` */
 const PHP_INLINE_REGEX = /(?:in|thrown in)\s+(.+?\.php)(?::|\s+on\s+line\s+)(\d+)/;
 
@@ -114,8 +175,9 @@ const parseGoStackTrace = (lines: string[]): ParsedStackFrame[] => {
       // The line above the file path is typically the function name
       const funcLine = i > 0 ? lines[i - 1].trim() : '';
       const funcMatch = GO_FUNC_REGEX.exec(funcLine);
+      const createdByMatch = /^created by (.+?) in goroutine \d+$/.exec(funcLine);
       frames.push({
-        function: funcMatch ? funcMatch[1] : '<unknown>',
+        function: funcMatch ? funcMatch[1] : createdByMatch ? createdByMatch[1] : '<unknown>',
         file: fileMatch[1],
         line: +fileMatch[2],
         column: 0
@@ -181,6 +243,16 @@ const parsePhpStackTrace = (lines: string[]): ParsedStackFrame[] => {
 
 // ─── Multi-language stack trace parser ───────────────────────────────────────
 
+const dedupeStackFrames = (frames: ParsedStackFrame[]): ParsedStackFrame[] => {
+  const seen = new Set<string>();
+  return frames.filter((frame) => {
+    const key = `${frame.function}\0${frame.file}\0${frame.line}\0${frame.column}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
 const parseStackTraceMultiLang = (lines: string[]): ParsedStackFrame[] => {
   // Try each language parser; return the first one that finds frames
   const parsers = [
@@ -194,29 +266,31 @@ const parseStackTraceMultiLang = (lines: string[]): ParsedStackFrame[] => {
   ];
   for (const parser of parsers) {
     const frames = parser(lines);
-    if (frames.length > 0) return frames;
+    if (frames.length > 0) return dedupeStackFrames(frames);
   }
   return [];
 };
+
+const hasStackFrame = (line: string): boolean => parseStackTraceMultiLang([line]).length > 0;
 
 // ─── Error message extraction ────────────────────────────────────────────────
 
 const ERROR_MESSAGE_PATTERNS = [
   // JS/TS: `TypeError: Cannot read properties of undefined`
-  /(?:Error|TypeError|RangeError|ReferenceError|SyntaxError|URIError|EvalError):\s+.+/,
+  /\b(?:Error|TypeError|RangeError|ReferenceError|SyntaxError|URIError|EvalError):\s+.+/,
   // Python: `ValueError: invalid literal` or `TypeError: ...` (last line of traceback)
   /(?:Exception|Error|Warning|KeyError|ValueError|TypeError|AttributeError|ImportError|ModuleNotFoundError|FileNotFoundError|IndexError|RuntimeError|StopIteration|OSError|IOError|PermissionError|ZeroDivisionError|OverflowError|RecursionError|NameError|UnboundLocalError|NotImplementedError|AssertionError):\s*.+/,
   // Java: `java.lang.NullPointerException: ...` or `com.example.CustomException: ...`
   /(?:java\.\w+\.\w+Exception|javax?\.\w+\.\w+Exception|[\w.]+Exception|[\w.]+Error):\s*.+/,
   // .NET: `System.NullReferenceException: ...`
-  /(?:System\.[\w.]+Exception|Microsoft\.[\w.]+Exception|[\w.]+Exception):\s*.+/,
+  /(?:Unhandled exception\.\s*)?(?:System\.[\w.]+Exception|Microsoft\.[\w.]+Exception|[\w.]+Exception):\s*.+/,
   // Go: `panic: runtime error: ...` or `panic: ...` or `http: panic serving ...: message`
   /panic:\s*.+/,
   /panic serving\s+\S+:\s*(.+)/,
   // Ruby: `NoMethodError`, `NameError`, etc.
   /(?:NoMethodError|NameError|ArgumentError|RuntimeError|StandardError|LoadError|SyntaxError|SystemCallError|Errno::\w+|ZeroDivisionError|RegexpError|RangeError|IOError|EOFError|TypeError|FloatDomainError|FrozenError):\s*.+/,
   // PHP: `Fatal error:` or `Uncaught ...`
-  /(?:Fatal error|Uncaught\s+\w+(?:Exception|Error)):\s*.+/,
+  /(?:PHP\s+)?(?:Fatal error|Uncaught\s+[\w\\]+(?:Exception|Error)):\s*.+/,
   // Lambda runtime
   /Runtime\.\w+:\s*.+/
 ];
@@ -230,6 +304,117 @@ const extractErrorMessage = (message: string): string | undefined => {
     }
   }
   return undefined;
+};
+
+const hasJsonError = (message: string): boolean => !!extractJsonError(message);
+
+const isCausedByLine = (line: string): boolean => /^\s*Caused by:\s+/.test(line);
+
+const isGoFunctionLine = (line: string): boolean => {
+  const trimmed = line.trim();
+  return (
+    !isErrorHeaderLine(line) &&
+    !hasStackFrame(line) &&
+    !trimmed.startsWith('created by ') &&
+    /^[\w./*[\]{}?(),\s-]+\(.*\)$/.test(trimmed)
+  );
+};
+
+const isTracePreambleLine = (line: string): boolean => {
+  const trimmed = line.trim();
+  return (
+    trimmed.startsWith('Traceback (most recent call last):') ||
+    trimmed.startsWith('Stack trace:') ||
+    /^goroutine \d+ /.test(trimmed) ||
+    trimmed.startsWith('Exception in thread ') ||
+    trimmed.startsWith('Unhandled exception.')
+  );
+};
+
+const isBackwardTracePreambleLine = (line: string): boolean =>
+  line.trim().startsWith('Traceback (most recent call last):');
+
+const isErrorHeaderLine = (line: string): boolean => hasJsonError(line) || !!extractErrorMessage(line);
+
+const isStackContinuationLine = (line: string): boolean => {
+  const trimmed = line.trim();
+  return (
+    trimmed === '' ||
+    hasStackFrame(line) ||
+    isTracePreambleLine(line) ||
+    isCausedByLine(line) ||
+    /^\.\.\. \d+ more$/.test(trimmed) ||
+    /^goroutine \d+ \[/.test(trimmed) ||
+    trimmed.startsWith('created by ') ||
+    trimmed.startsWith('panic: ') ||
+    isGoFunctionLine(line) ||
+    /^#\d+\s+/.test(trimmed) ||
+    /^\s*from\s+/.test(line)
+  );
+};
+
+const isLikelyIncompleteStackContext = (lines: string[], stackTrace: ParsedStackFrame[]): boolean => {
+  if (stackTrace.length === 0) return true;
+
+  const nonEmptyLines = lines.map((line) => line.trim()).filter(Boolean);
+  const lastLine = nonEmptyLines[nonEmptyLines.length - 1] || '';
+  const rawLog = lines.join('\n');
+
+  return (
+    lastLine.endsWith('Stack trace:') ||
+    /^goroutine \d+ \[.*\]:$/.test(lastLine) ||
+    isGoFunctionLine(lastLine) ||
+    (stackTrace.some((frame) => frame.function === '<unknown>') &&
+      /\b(?:panic serving|goroutine \d+ \[)/.test(rawLog)) ||
+    (stackTrace.length < 2 && /\b(?:Stack trace:|panic serving|goroutine \d+ \[)/.test(rawLog))
+  );
+};
+
+const shouldFetchLogContext = (error: ParsedError): boolean =>
+  error.stackTrace.length === 0 || isLikelyIncompleteStackContext(error.rawLog.split('\n'), error.stackTrace);
+
+const messagesReferToSameError = (line: string, errorMessage: string): boolean => {
+  const lineError = extractErrorMessage(line);
+  return (
+    !!lineError && (lineError === errorMessage || lineError.includes(errorMessage) || errorMessage.includes(lineError))
+  );
+};
+
+const findErrorLineIndex = (lines: string[], errorMessage: string, fallbackIndex: number): number => {
+  const exactIndex = lines.findIndex((line) => line === errorMessage || line.includes(errorMessage));
+  if (exactIndex !== -1) return exactIndex;
+
+  const matchingHeaderIndex = lines.findIndex((line) => messagesReferToSameError(line, errorMessage));
+  if (matchingHeaderIndex !== -1) return matchingHeaderIndex;
+
+  return fallbackIndex;
+};
+
+const extractRelevantContextLines = (lines: string[], errorMessage: string, fallbackIndex: number): string[] => {
+  if (lines.length === 0) return [];
+
+  const index = Math.min(Math.max(findErrorLineIndex(lines, errorMessage, fallbackIndex), 0), lines.length - 1);
+  let start = index;
+  let end = index;
+
+  for (let i = index - 1; i >= 0; i--) {
+    const previous = lines[i];
+    if (isErrorHeaderLine(previous) && !messagesReferToSameError(previous, errorMessage)) break;
+    if (isBackwardTracePreambleLine(previous)) {
+      start = i;
+      break;
+    }
+    if (previous.trim() === '') break;
+  }
+
+  for (let i = index + 1; i < lines.length; i++) {
+    const next = lines[i];
+    if (isErrorHeaderLine(next) && !isCausedByLine(next) && !messagesReferToSameError(next, errorMessage)) break;
+    if (!isStackContinuationLine(next) && !messagesReferToSameError(next, errorMessage)) break;
+    end = i;
+  }
+
+  return lines.slice(start, end + 1);
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -273,7 +458,7 @@ const extractRequestId = (message: string): string | undefined => {
   return REQUEST_ID_REGEX.exec(message)?.[0];
 };
 
-const generateFingerprint = (errorMessage: string, stackTrace: ParsedStackFrame[]): string => {
+const generateFingerprint = (errorMessage: string, resourceName?: string): string => {
   const normalizedMessage = errorMessage
     .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, '<uuid>')
     .replace(/\b\d{4,}\b/g, '<num>')
@@ -281,20 +466,17 @@ const generateFingerprint = (errorMessage: string, stackTrace: ParsedStackFrame[
     .replace(/0x[0-9a-f]+/gi, '<addr>')
     .replace(/\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d+)?/g, '<ip>');
 
-  const frameKeys = stackTrace
-    .slice(0, 3)
-    .map((f) => `${f.file}:${f.line}`)
-    .join('|');
-
-  const fingerprintSource = `${normalizedMessage}||${frameKeys}`;
+  const normalizedResource = resourceName || '<unknown-resource>';
+  const fingerprintSource = `${normalizedResource}||${normalizedMessage}`;
   return createHash('sha256').update(fingerprintSource).digest('hex').slice(0, 16);
 };
 
 // ─── Main parser ─────────────────────────────────────────────────────────────
 
-const parseLogEventForErrors = (logEvent: CloudWatchLogEvent): ParsedError | null => {
-  const { message } = logEvent;
-
+const parseLogMessageForError = (
+  message: string,
+  source?: Pick<CloudWatchLogEvent, 'id' | 'timestamp' | 'message'>
+): ParsedError | null => {
   // Strategy 1: Lambda runtime structured JSON error (works for all Lambda-supported languages)
   const jsonError = extractJsonError(message);
   if (jsonError) {
@@ -323,9 +505,12 @@ const parseLogEventForErrors = (logEvent: CloudWatchLogEvent): ParsedError | nul
       errorType: classifyErrorType(message),
       errorMessage,
       stackTrace,
-      fingerprint: generateFingerprint(errorMessage, stackTrace),
+      fingerprint: generateFingerprint(errorMessage),
       requestId: extractRequestId(message),
-      rawLog: message.length > 4000 ? `${message.slice(0, 4000)}...` : message
+      rawLog: truncateRawLog(message),
+      sourceLogEventId: source?.id,
+      sourceTimestamp: source?.timestamp,
+      sourceMessage: source?.message
     };
   }
 
@@ -340,9 +525,37 @@ const parseLogEventForErrors = (logEvent: CloudWatchLogEvent): ParsedError | nul
     errorType: classifyErrorType(message),
     errorMessage,
     stackTrace,
-    fingerprint: generateFingerprint(errorMessage, stackTrace),
+    fingerprint: generateFingerprint(errorMessage),
     requestId: extractRequestId(message),
-    rawLog: message.length > 4000 ? `${message.slice(0, 4000)}...` : message
+    rawLog: truncateRawLog(message),
+    sourceLogEventId: source?.id,
+    sourceTimestamp: source?.timestamp,
+    sourceMessage: source?.message
+  };
+};
+
+const parseLogEventForErrors = (
+  logEvent: CloudWatchLogEvent,
+  logEvents: CloudWatchLogEvent[] = [logEvent],
+  logEventIndex = 0
+): ParsedError | null => {
+  const parsed = parseLogMessageForError(logEvent.message, logEvent);
+  if (!parsed) return null;
+
+  const contextLines = extractRelevantContextLines(
+    logEvents.map((event) => event.message),
+    parsed.errorMessage,
+    logEventIndex
+  );
+  if (contextLines.length <= 1) return parsed;
+
+  const rawLog = contextLines.join('\n');
+  const stackTrace = parseStackTraceMultiLang(contextLines);
+  return {
+    ...parsed,
+    stackTrace,
+    fingerprint: generateFingerprint(parsed.errorMessage),
+    rawLog: truncateRawLog(rawLog)
   };
 };
 
@@ -376,21 +589,23 @@ const reportToConsoleApi = async (errors: ParsedError[], logGroup: string) => {
   try {
     const client = new AwsIdentityProtectedClient();
     await client.init({ credentials: await defaultProvider()(), region, apiUrl });
+    const functionName = extractResourceNameFromLogGroup(logGroup);
 
     for (const error of errors) {
       try {
         await client.reportIssueEvent.mutate({
-          fingerprint: error.fingerprint,
+          fingerprint: generateFingerprint(error.errorMessage, functionName),
           errorMessage: error.errorMessage,
           errorType: error.errorType,
           stackTrace: error.stackTrace,
-          functionName: extractResourceNameFromLogGroup(logGroup),
+          functionName,
           logGroup,
           requestId: error.requestId,
           project,
           stage,
           region,
-          rawLog: error.rawLog
+          rawLog: error.rawLog,
+          occurrenceWeight: issueOccurrenceWeight
         });
       } catch (err) {
         console.info(`Failed to report issue event: ${err}`);
@@ -413,19 +628,35 @@ const fetchSurroundingLogContext = async (
   logStream: string,
   timestamp: number
 ): Promise<string[]> => {
+  const startTime = timestamp - 10000;
+  const endTime = timestamp + 15000;
   try {
-    const response = await cwLogsClient.send(
+    const getResponse = await cwLogsClient.send(
       new GetLogEventsCommand({
         logGroupName: logGroup,
         logStreamName: logStream,
-        startTime: timestamp - 5000,
-        endTime: timestamp + 5000,
+        startTime,
+        endTime,
         startFromHead: true,
-        limit: 30
+        limit: 100
       })
     );
-    return (response.events || []).map((e) => e.message?.trimEnd() || '');
-  } catch {
+    const getMessages = (getResponse.events || []).map((e) => e.message?.trimEnd() || '');
+    if (getMessages.length > 0) return getMessages;
+
+    const filterResponse = await cwLogsClient.send(
+      new FilterLogEventsCommand({
+        logGroupName: logGroup,
+        logStreamNames: logStream ? [logStream] : undefined,
+        startTime,
+        endTime,
+        limit: 100
+      })
+    );
+    const filterEvents = (filterResponse.events || []).sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+    return filterEvents.map((e) => e.message?.trimEnd() || '');
+  } catch (err) {
+    console.info(`Failed to fetch issue log context from CloudWatch: ${err}`);
     return [];
   }
 };
@@ -440,21 +671,45 @@ const enrichWithLogContext = async (
   logStream: string,
   timestamp: number
 ): Promise<ParsedError> => {
-  if (error.stackTrace.length > 0) return error;
+  if (!shouldFetchLogContext(error)) return error;
 
-  const contextLines = await fetchSurroundingLogContext(logGroup, logStream, timestamp);
-  if (contextLines.length === 0) return error;
+  let bestEnrichedError: ParsedError | null = null;
 
-  const stackTrace = parseStackTraceMultiLang(contextLines);
-  if (stackTrace.length === 0) return error;
+  for (let attempt = 0; attempt < 6; attempt++) {
+    if (attempt > 0) await sleep(250 * 2 ** (attempt - 1));
 
-  const rawLog = contextLines.join('\n');
-  return {
-    ...error,
-    stackTrace,
-    fingerprint: generateFingerprint(error.errorMessage, stackTrace),
-    rawLog: rawLog.length > 4000 ? `${rawLog.slice(0, 4000)}...` : rawLog
-  };
+    const contextLines = await fetchSurroundingLogContext(logGroup, logStream, timestamp);
+    if (contextLines.length === 0) continue;
+
+    const relevantContextLines = extractRelevantContextLines(contextLines, error.errorMessage, 0);
+    const stackTrace = parseStackTraceMultiLang(relevantContextLines);
+    if (stackTrace.length === 0) continue;
+
+    const rawLog = relevantContextLines.join('\n');
+    const enrichedError = {
+      ...error,
+      stackTrace,
+      fingerprint: generateFingerprint(error.errorMessage),
+      rawLog: truncateRawLog(rawLog)
+    };
+
+    if (
+      !bestEnrichedError ||
+      stackTrace.length > bestEnrichedError.stackTrace.length ||
+      rawLog.length > bestEnrichedError.rawLog.length
+    ) {
+      bestEnrichedError = enrichedError;
+    }
+
+    if (attempt > 0 && !isLikelyIncompleteStackContext(relevantContextLines, stackTrace)) {
+      return enrichedError;
+    }
+  }
+
+  if (bestEnrichedError) return bestEnrichedError;
+
+  console.info(`No stack trace context found for issue: ${error.errorMessage}`);
+  return error;
 };
 
 // ─── Handler ─────────────────────────────────────────────────────────────────
@@ -465,18 +720,31 @@ export default async (event: CloudWatchLogsEvent) => {
   if (decodedData.messageType === 'CONTROL_MESSAGE') return;
 
   const errors: ParsedError[] = [];
-  for (const logEvent of decodedData.logEvents) {
-    const parsed = parseLogEventForErrors(logEvent);
-    if (parsed) errors.push(parsed);
+  const now = Date.now();
+  for (let i = 0; i < decodedData.logEvents.length; i++) {
+    const logEvent = decodedData.logEvents[i];
+    if (logEvent.timestamp && now - logEvent.timestamp > maxLogAgeMs) {
+      continue;
+    }
+    const parsed = parseLogEventForErrors(logEvent, decodedData.logEvents, i);
+    if (parsed && shouldProcessSampledError(parsed)) errors.push(parsed);
+    if (errors.length >= maxErrorsPerInvocation) break;
   }
 
   // For errors without stack frames, fetch surrounding context from CloudWatch
   const enrichedErrors: ParsedError[] = [];
+  let contextFetches = 0;
   for (const error of errors) {
-    const matchingLogEvent = decodedData.logEvents.find(
-      (e) => error.rawLog.startsWith(e.message.slice(0, 50)) || e.message.includes(error.errorMessage.slice(0, 50))
-    );
-    if (matchingLogEvent && error.stackTrace.length === 0) {
+    const matchingLogEvent =
+      decodedData.logEvents.find((e) => e.id === error.sourceLogEventId) ||
+      decodedData.logEvents.find(
+        (e) =>
+          e.message === error.sourceMessage ||
+          error.rawLog.startsWith(e.message.slice(0, 50)) ||
+          e.message.includes(error.errorMessage.slice(0, 50))
+      );
+    if (matchingLogEvent && shouldFetchLogContext(error) && contextFetches < maxContextFetchesPerInvocation) {
+      contextFetches += 1;
       const enriched = await enrichWithLogContext(
         error,
         decodedData.logGroup,
@@ -492,4 +760,13 @@ export default async (event: CloudWatchLogsEvent) => {
   if (enrichedErrors.length > 0) {
     await reportToConsoleApi(enrichedErrors, decodedData.logGroup);
   }
+};
+
+export const __issueProcessorTestUtils = {
+  extractErrorMessage,
+  extractRelevantContextLines,
+  parseLogEventForErrors,
+  parseLogMessageForError,
+  parseStackTraceMultiLang,
+  shouldFetchLogContext
 };

@@ -9,7 +9,6 @@ export default defineConfig(() => {
   });
 
   return {
-    stackConfig: { disableIssues: true },
     resources: { myLambda }
   };
 });

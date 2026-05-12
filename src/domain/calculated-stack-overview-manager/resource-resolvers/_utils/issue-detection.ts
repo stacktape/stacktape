@@ -11,13 +11,13 @@ import type { Language } from '@utils/environment';
 const LAMBDA_RUNTIME_PATTERNS = ['?"Invoke Error"', '?"Unhandled Promise Rejection"', '?"Runtime.ExitError"'];
 
 const LANGUAGE_ERROR_PATTERNS: Record<string, string[]> = {
-  typescript: ['?"Error:"', '?"TypeError:"', '?"ReferenceError:"', '?"SyntaxError:"', '?"RangeError:"'],
-  python: ['?"Traceback (most recent call last):"', '?"Exception:"', '?"Error:"'],
-  go: ['?"panic"', '?"runtime error:"', '?"errorMessage"', '?"errorType"'],
-  java: ['?"Exception"', '?"at "', '?"Caused by:"'],
-  dotnet: ['?"Exception:"', '?"Unhandled exception"', '?"at "'],
-  ruby: ['?"Error)"', '?"Error:"', '?"from "'],
-  php: ['?"Fatal error:"', '?"Uncaught"', '?"Stack trace:"']
+  typescript: ['?"Error:"', '?"TypeError:"', '?"ReferenceError:"', '?"SyntaxError:"', '?"RangeError:"', '?"at "'],
+  python: ['?"Traceback (most recent call last):"', '?"Exception:"', '?"Error:"', '?"File "'],
+  go: ['?"panic"', '?"runtime error:"', '?"errorMessage"', '?"errorType"', '?"goroutine"', '?".go:"'],
+  java: ['?"Exception"', '?"Error"', '?"at "', '?"Caused by:"'],
+  dotnet: ['?"Exception:"', '?"Unhandled exception"', '?"at "', '?" in "'],
+  ruby: ['?"Error)"', '?"Error:"', '?"Exception:"', '?"from "', '?"in "'],
+  php: ['?"Fatal error:"', '?"Uncaught"', '?"Stack trace:"', '?"#0"', '?"thrown in"']
 };
 
 /** Returns the CloudWatch filter pattern for Lambda functions (includes runtime markers). */
