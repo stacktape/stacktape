@@ -45,3 +45,7 @@ __dist
 
 # Ignore Gradle build output directory
 build
+
+# Claude Code runtime artifacts
+/.claude/scheduled_tasks.lock
+/.claude/worktrees/
