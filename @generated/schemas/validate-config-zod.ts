@@ -144,8 +144,7 @@ export const stacktapeConfigSchema = z.object({
       "nat": z.object({
         "availabilityZones": z.union([z.literal(1), z.literal(2), z.literal(3)]).optional().describe("#### How many availability zones get a NAT Gateway (~$32/month each).\n\n---\n\n- **1**: Cheapest, but no redundancy if that AZ goes down.\n- **2**: Balanced cost and availability.\n- **3**: Highest availability.\n\nEach NAT Gateway gets a static Elastic IP that persists across deployments —\nuseful for IP whitelisting with external services.").default(2) }).strict()
       .optional().describe("#### NAT Gateway configuration for private subnets.\n\n---\n\nOnly applies when you have workloads using `usePrivateSubnetsWithNAT: true`.\nControls how many availability zones get a NAT Gateway (affects cost and redundancy).").optional() }).strict()
-    .optional().describe("#### VPC configuration: reuse an existing VPC or configure NAT Gateways.").optional(),
-    "disableIssues": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Disable automatic issue detection for all functions in this stack.\n\n---\n\nBy default, Stacktape automatically detects runtime errors (uncaught exceptions,\nunhandled promise rejections, console.error) in your Node.js/TypeScript Lambda functions\nand reports them to the Stacktape Console as Issues.\n\nSet to `true` to disable this feature for the entire stack.").default(false) }).strict()
+    .optional().describe("#### VPC configuration: reuse an existing VPC or configure NAT Gateways.").optional() }).strict()
   .optional().describe("#### Stack-wide settings: custom outputs, tags, VPC configuration, and stack info saving.").optional(),
   "resources": z.record(z.string(), z.union([z.object({
       "type": z.literal("multi-container-workload"),
@@ -723,7 +722,7 @@ export const stacktapeConfigSchema = z.object({
                 "containerPort": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### Port on the container that receives the traffic. Defaults to `port`.").optional() }).strict()
               ) }).strict()
           }).strict()
-        ]).optional().describe("#### How traffic reaches your containers. Affects pricing, features, and protocol support.\n\n---\n\n- **`http-api-gateway`** (default): Pay-per-request (~$1/million requests). Best for most apps.\n  Cheapest at low traffic, but costs grow with volume.\n\n- **`application-load-balancer`**: Flat ~$18/month + usage. Required for gradual deployments\n  (`deployment`), firewalls (`useFirewall`), and WebSocket support.\n  More cost-effective above ~500k requests/day. AWS Free Tier eligible.\n\n- **`network-load-balancer`**: For non-HTTP traffic (TCP/TLS) like MQTT, game servers, or custom protocols.\n  Requires explicit `ports` configuration. Does not support CDN, firewall, or gradual deployments.").optional(),
+        ]).optional().describe("#### How traffic reaches your containers. Affects pricing, features, and protocol support.\n\n---\n\n- **`http-api-gateway`** (default): Pay-per-request (~$1/million requests). Best for most apps.\n  Cheapest at low traffic, but costs grow with volume.\n\n- **`application-load-balancer`**: Flat ~$18/month + usage. Required for gradual deployments\n  (`deployment`), top-level firewalls (`useFirewall`), and WebSocket support.\n  More cost-effective above ~500k requests/day. AWS Free Tier eligible.\n\n- **`network-load-balancer`**: For non-HTTP traffic (TCP/TLS) like MQTT, game servers, or custom protocols.\n  Requires explicit `ports` configuration. Does not support CDN, top-level firewall, or gradual deployments.").optional(),
         "cdn": z.object({
           "enabled": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).describe("#### Enable CDN (CloudFront) for faster global delivery and lower bandwidth costs.\n\n---\n\nCaches responses at edge locations worldwide so users get content from the nearest server.\nThe CDN itself has no monthly fee — you pay per request (~$0.01/10k) and per GB transferred.").default(false),
           "cachingOptions": z.object({
@@ -1005,7 +1004,7 @@ export const stacktapeConfigSchema = z.object({
           "afterTrafficShiftFunction": z.string().optional().describe("#### Lambda function to run after all traffic has shifted (for post-deployment checks).").optional(),
           "testListenerPort": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### ALB listener port for test traffic. Only needed with `beforeAllowTrafficFunction` and custom listeners.").optional() }).strict()
         .optional().describe("#### Gradual traffic shifting for safe deployments (canary, linear, or all-at-once).\n\n---\n\nRequires `loadBalancing` type `application-load-balancer`.").optional(),
-        "useFirewall": z.string().optional().describe("#### Name of a `web-app-firewall` resource to protect this service from common web exploits.").optional(),
+        "useFirewall": z.string().optional().describe("#### Name of a `web-app-firewall` resource to protect this service from common web exploits.\n\n---\n\nAttaches a regional firewall directly to the service's application load balancer.\nRequires `loadBalancing` type `application-load-balancer`.\n\nTo protect a CDN-enabled service at CloudFront instead, use `cdn.useFirewall`\nwith a `web-app-firewall` resource whose `scope` is `cdn`.").optional(),
         "packaging": z.union([z.object({
             "type": z.literal("stacktape-image-buildpack"),
             "properties": z.object({
@@ -4002,6 +4001,399 @@ export const stacktapeConfigSchema = z.object({
       .optional().describe("").optional(),
       "overrides": z.record(z.string(), z.record(z.string(), z.any())).optional().describe("#### Escape hatch to modify the underlying CloudFormation resources Stacktape creates.\n\n---\n\nUse dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with `stacktape stack-info --detailed`.\n\n```yaml\noverrides:\n  MyDbInstance:\n    Properties.StorageEncrypted: true\n```").optional() }).strict()
     .describe("#### Real-time data stream for ingesting high-volume events (logs, clickstreams, IoT, analytics).\n\n---\n\nContinuously captures data from many producers. Consumers (Lambda functions, etc.) process records in order.\nUse when you need real-time processing with sub-second latency, not just async messaging (use SQS for that)."), z.object({
+      "type": z.literal("convex"),
+      "properties": z.object({
+        "appDirectory": z.string().describe("#### Path to the `convex/` directory in your project (where `schema.ts` and function files live).\n\n---\n\nAfter each `stacktape deploy`, Stacktape runs `npx convex deploy` from this directory against the\nfreshly-deployed backend. Type generation (`convex/_generated/`) should be wired in via a\n`hooks.beforeDeploy` script running `npx convex codegen` — see the `convex-nextjs` starter project.\n\nExample: `appDirectory: './convex'`"),
+        "customDomains": z.object({
+          "cloud": z.object({
+            "domainName": z.string().describe("#### Your domain name (e.g., `mydomain.com` or `api.mydomain.com`).\n\n---\n\nDon't include the protocol (`https://`). The domain must have a Route53 hosted zone\nin your AWS account, with your registrar's nameservers pointing to it.\n\nStacktape automatically creates a DNS record and provisions a free TLS certificate."),
+            "customCertificateArn": z.string().optional().describe("#### Use your own TLS certificate instead of the auto-generated one.\n\n---\n\nProvide the ARN of an ACM certificate from your AWS account.\nOnly needed if you have specific certificate requirements (e.g., EV/OV certs).\nBy default, Stacktape provisions and renews free certificates automatically.").optional(),
+            "disableDnsRecordCreation": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Skip DNS record creation for this domain.\n\n---\n\nSet to `true` if you manage DNS records yourself (e.g., through Cloudflare or another DNS provider).\nStacktape will still provision the TLS certificate but won't touch your DNS.").default(false) }).strict()
+          .describe("#### API + WebSocket origin. Set as `CONVEX_CLOUD_ORIGIN` on the backend.\n\n---\n\nFrontend clients connect here via the `convex-js` client. Example: `api.myapp.com`."),
+          "site": z.object({
+            "domainName": z.string().describe("#### Your domain name (e.g., `mydomain.com` or `api.mydomain.com`).\n\n---\n\nDon't include the protocol (`https://`). The domain must have a Route53 hosted zone\nin your AWS account, with your registrar's nameservers pointing to it.\n\nStacktape automatically creates a DNS record and provisions a free TLS certificate."),
+            "customCertificateArn": z.string().optional().describe("#### Use your own TLS certificate instead of the auto-generated one.\n\n---\n\nProvide the ARN of an ACM certificate from your AWS account.\nOnly needed if you have specific certificate requirements (e.g., EV/OV certs).\nBy default, Stacktape provisions and renews free certificates automatically.").optional(),
+            "disableDnsRecordCreation": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Skip DNS record creation for this domain.\n\n---\n\nSet to `true` if you manage DNS records yourself (e.g., through Cloudflare or another DNS provider).\nStacktape will still provision the TLS certificate but won't touch your DNS.").default(false) }).strict()
+          .describe("#### HTTP-actions origin. Set as `CONVEX_SITE_ORIGIN` on the backend.\n\n---\n\nUser-defined `httpAction()` routes (webhooks, OAuth callbacks) are served here.\nExample: `webhooks.myapp.com`."),
+          "dashboard": z.object({
+            "domainName": z.string().describe("#### Your domain name (e.g., `mydomain.com` or `api.mydomain.com`).\n\n---\n\nDon't include the protocol (`https://`). The domain must have a Route53 hosted zone\nin your AWS account, with your registrar's nameservers pointing to it.\n\nStacktape automatically creates a DNS record and provisions a free TLS certificate."),
+            "customCertificateArn": z.string().optional().describe("#### Use your own TLS certificate instead of the auto-generated one.\n\n---\n\nProvide the ARN of an ACM certificate from your AWS account.\nOnly needed if you have specific certificate requirements (e.g., EV/OV certs).\nBy default, Stacktape provisions and renews free certificates automatically.").optional(),
+            "disableDnsRecordCreation": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Skip DNS record creation for this domain.\n\n---\n\nSet to `true` if you manage DNS records yourself (e.g., through Cloudflare or another DNS provider).\nStacktape will still provision the TLS certificate but won't touch your DNS.").default(false) }).strict()
+          .optional().describe("#### Optional dashboard domain. Only used if `dashboard.enabled` is `true`.\n\n---\n\nIf omitted, the dashboard is served on the ALB's default DNS at port 6791.\nExample: `convex-admin.myapp.com`.").optional() }).strict()
+        .optional().describe("#### Custom domains for the Convex backend.\n\n---\n\nConvex exposes two distinct origins that the outside world reaches:\n\n- **`cloud`** — the API + WebSocket endpoint (`CONVEX_CLOUD_ORIGIN`). All client traffic\n  (queries, mutations, actions, reactive subscriptions) hits this URL via the `convex-js`\n  client. Required.\n- **`site`** — the HTTP-actions endpoint (`CONVEX_SITE_ORIGIN`). User-defined `httpAction()`\n  routes (webhooks, OAuth callbacks, etc.) live here. Kept separate from `cloud` so webhook\n  URLs don't collide with internal API paths. Required.\n- **`dashboard`** — optional. If provided and `dashboard.enabled` is `true`, the dashboard\n  serves at this domain. Otherwise the dashboard is reachable via the ALB DNS on port 6791.\n\nEach domain must have a Route53 hosted zone in your AWS account. Stacktape provisions free\nTLS certificates and DNS records automatically.\n\nIf `customDomains` is omitted entirely, the ALB's default DNS is used with port-based routing\n(3210 cloud, 3211 site, 6791 dashboard). Fine for dev/staging; **not recommended for\nproduction** — the ALB DNS is unstable across stack recreations, and clients hard-code the URL.").optional(),
+        "backend": z.object({
+          "resources": z.object({
+            "cpu": z.union([z.literal(0.25), z.literal(0.5), z.literal(1), z.literal(16), z.literal(2), z.literal(4), z.literal(8)]).optional().describe("#### vCPUs for the workload (Fargate). Ignored when using `instanceTypes`.").optional(),
+            "memory": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### Memory in MB. Must be compatible with the vCPU count on Fargate.\n\n---\n\nFargate valid combos: 0.25 vCPU → 512-2048 MB, 0.5 → 1024-4096, 1 → 2048-8192, 2 → 4096-16384,\n4 → 8192-30720, 8 → 16384-61440, 16 → 32768-122880.\nFor EC2: auto-detected from instance type if omitted.").optional(),
+            "instanceTypes": z.array(z.string()).optional().describe("#### EC2 instance types for the workload (e.g., `t3.medium`, `c6g.large`). Use instead of `cpu`/`memory`.\n\n---\n\nFirst type in the list is preferred. Instances auto-scale and are refreshed weekly for patching.\nTip: specify a single type and omit `cpu`/`memory` for optimal sizing.").optional(),
+            "enableWarmPool": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Keep pre-initialized EC2 instances ready for faster scaling. Only works with a single instance type.").optional(),
+            "architecture": z.enum(["arm64","x86_64"]).optional().describe("#### CPU architecture for Fargate. `arm64` is ~20% cheaper. Ignored when using `instanceTypes`.") }).strict()
+          .describe("#### CPU, memory, and compute engine for the backend container.\n\n---\n\nRequired — there is no default. Pick a sizing appropriate to your workload:\n\n- **Hobby / small dev**: `{ cpu: 0.5, memory: 1024 }` — fine for a few dozen concurrent users\n- **Production baseline**: `{ cpu: 1, memory: 2048 }` — handles hundreds of concurrent reactive subscribers\n- **Heavier production**: `{ cpu: 2, memory: 4096 }` or `{ cpu: 4, memory: 8192 }` — thousands of subscribers, vector search\n\nFor EC2 instead of Fargate, specify `instanceTypes` (e.g., `['c6g.large']`). EC2 is typically\ncheaper per vCPU and supports `enableWarmPool: true` for faster cold-starts.\n\nConvex backend is single-process — scale **vertically** (bigger box), not horizontally."),
+          "image": z.string().optional().describe("#### Pinned Convex backend Docker image.\n\n---\n\nDefaults to a known-good version pinned by Stacktape (currently from `ghcr.io/get-convex/convex-backend`).\nOverride to test newer/older versions. Image upgrades trigger Convex's in-place migration path\n(see `deploymentMode`).\n\nExample: `image: 'ghcr.io/get-convex/convex-backend:0a8d9ae0f0e5c6c9c0c0c0c0'`").optional(),
+          "highAvailability": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Run a warm standby task for ~5–10s failover instead of ~60–90s cold start.\n\n---\n\nWhen `true`, Stacktape runs an additional backend task in the same ECS service, kept\nderegistered from the ALB target group. On primary task failure, an event-driven Lambda\nswaps the targets: deregister the dead primary, register the standby, then launch a new\nstandby in the background.\n\nBoth tasks share the same Postgres + S3, but only one ever serves traffic — preserving\nConvex's single-writer correctness invariant.\n\n**Cost:** 2× backend compute (roughly an extra $20–50/month at small sizes).").default(false),
+          "deploymentMode": z.enum(["auto","fast","safe"]).optional().describe("#### How `stacktape deploy` handles backend version upgrades.\n\n---\n\n- **`auto`** *(default)*: Non-image changes (env vars, sizing) use warm-standby blue/green\n  for ~3–8s downtime. Image-version changes follow Convex's official Option 1 in-place\n  migration: stop active → start new version → wait for `MigrationComplete(N)` log line →\n  bring up traffic. ~30s to a few minutes depending on migration size.\n- **`fast`**: Forces warm-standby blue/green even on image changes. **Unsafe** unless you've\n  verified the upgrade has no schema migrations.\n- **`safe`**: Always uses Convex's Option 2 export/import path — full data export before\n  the upgrade, then import after. Most downtime, lowest risk. Use for major version jumps\n  or when in-place migration has previously failed.").default("auto"),
+          "preUpgradeExport": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Run `npx convex export` to the `exports` bucket before any backend image upgrade.\n\n---\n\nProvides a one-command restore path if a migration goes wrong. Recommended by Convex's\nofficial self-hosted upgrade guide. Disable only if you have a separate backup strategy\nand want faster image upgrades.").default(true),
+          "logging": z.object({
+            "disabled": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Disable logging to CloudWatch.").default(false),
+            "retentionDays": z.union([z.literal(1), z.literal(120), z.literal(14), z.literal(150), z.literal(180), z.literal(1827), z.literal(3), z.literal(30), z.literal(365), z.literal(3653), z.literal(400), z.literal(5), z.literal(545), z.literal(60), z.literal(7), z.literal(731), z.literal(90)]).optional().describe("#### How many days to keep logs.").default(90),
+            "logForwarding": z.union([z.object({
+                "type": z.literal("http-endpoint"),
+                "properties": z.object({
+                  "endpointUrl": z.string().describe("#### HTTPS endpoint URL where logs are sent."),
+                  "gzipEncodingEnabled": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Compress request body with GZIP to reduce transfer costs.").default(false),
+                  "parameters": z.record(z.string(), z.string()).optional().describe("#### Extra metadata sent in the `X-Amz-Firehose-Common-Attributes` header.").optional(),
+                  "retryDuration": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### Total retry time (seconds) before sending failed logs to a backup S3 bucket.").default(300),
+                  "accessKey": z.string().optional().describe("#### Auth credential sent in `X-Amz-Firehose-Access-Key` header. Store as `$Secret()` for security.").optional() }).strict()
+              }).strict()
+              , z.object({
+                "type": z.literal("highlight"),
+                "properties": z.object({
+                  "projectId": z.string().describe("#### Your Highlight.io project ID (from the Highlight console)."),
+                  "endpointUrl": z.string().optional().describe("#### Highlight.io endpoint. Override for self-hosted or regional endpoints.").default("https://pub.highlight.io/v1/logs/firehose") }).strict()
+              }).strict()
+              , z.object({
+                "type": z.literal("datadog"),
+                "properties": z.object({
+                  "apiKey": z.string().describe("#### Your Datadog API key. Store as `$Secret()` for security."),
+                  "endpointUrl": z.string().optional().describe("#### Datadog endpoint. Use the EU URL if your account is in the EU region.").default("https://aws-kinesis-http-intake.logs.datadoghq.com/v1/input") }).strict()
+              }).strict()
+            ]).optional().describe("#### Forward logs to an external service (Datadog, Highlight.io, or any HTTP endpoint).\n\n---\n\nUses Kinesis Data Firehose (~$0.03/GB). Failed deliveries go to a backup S3 bucket.").optional() }).strict()
+          .optional().describe("#### Logging configuration for the backend container.\n\n---\n\nContainer `stdout`/`stderr` are sent to CloudWatch and retained for 90 days by default.\nView logs with `stacktape logs <resourceName>`.").optional(),
+          "enableRemoteSessions": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Allow SSH-like sessions into the running backend container for debugging.\n\n---\n\nEnables `stacktape container:session` to open an interactive shell. Adds a small SSM agent\n(negligible CPU/memory).").default(false) }).strict()
+        .describe("#### Configuration for the Convex backend container (the Rust server process)."),
+        "dashboard": z.object({
+          "enabled": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Whether to provision the admin dashboard.\n\n---\n\nThe dashboard is a small stateless Next.js app (~$3–5/month at default sizing) that gives\nyou a data browser, log viewer, function REPL, env-var manager, and snapshot export/import\nUI. Disable only if you have a strong reason — self-hosted Convex without the dashboard is\noperationally painful.").default(true),
+          "allowedIpRanges": z.array(z.string()).optional().describe("#### CIDR ranges allowed to reach the dashboard. By default the dashboard is internet-reachable.\n\n---\n\nThe dashboard has no built-in authentication — the admin key (which you paste on login) is\nthe only security barrier. Convex's admin key is high-entropy and is the same model managed\nConvex uses, but if you want defense-in-depth, pin access to your office IPs or VPN range.\n\nExample: `allowedIpRanges: ['203.0.113.0/24', '198.51.100.42/32']`.").optional(),
+          "resources": z.object({
+            "cpu": z.union([z.literal(0.25), z.literal(0.5), z.literal(1), z.literal(16), z.literal(2), z.literal(4), z.literal(8)]).optional().describe("#### vCPUs for the workload (Fargate). Ignored when using `instanceTypes`.").optional(),
+            "memory": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### Memory in MB. Must be compatible with the vCPU count on Fargate.\n\n---\n\nFargate valid combos: 0.25 vCPU → 512-2048 MB, 0.5 → 1024-4096, 1 → 2048-8192, 2 → 4096-16384,\n4 → 8192-30720, 8 → 16384-61440, 16 → 32768-122880.\nFor EC2: auto-detected from instance type if omitted.").optional(),
+            "instanceTypes": z.array(z.string()).optional().describe("#### EC2 instance types for the workload (e.g., `t3.medium`, `c6g.large`). Use instead of `cpu`/`memory`.\n\n---\n\nFirst type in the list is preferred. Instances auto-scale and are refreshed weekly for patching.\nTip: specify a single type and omit `cpu`/`memory` for optimal sizing.").optional(),
+            "enableWarmPool": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Keep pre-initialized EC2 instances ready for faster scaling. Only works with a single instance type.").optional(),
+            "architecture": z.enum(["arm64","x86_64"]).optional().describe("#### CPU architecture for Fargate. `arm64` is ~20% cheaper. Ignored when using `instanceTypes`.") }).strict()
+          .optional().describe("#### CPU, memory, and compute engine for the dashboard container.\n\n---\n\nRequired when the dashboard is enabled. The dashboard is a Next.js app and is very light —\n`{ cpu: 0.25, memory: 512 }` is plenty for most teams.").optional(),
+          "image": z.string().optional().describe("#### Pinned Convex dashboard Docker image.\n\n---\n\nDefaults to a known-good version pinned by Stacktape (currently from `ghcr.io/get-convex/convex-dashboard`).\nOverride to test newer/older versions.").optional(),
+          "logging": z.object({
+            "disabled": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Disable logging to CloudWatch.").default(false),
+            "retentionDays": z.union([z.literal(1), z.literal(120), z.literal(14), z.literal(150), z.literal(180), z.literal(1827), z.literal(3), z.literal(30), z.literal(365), z.literal(3653), z.literal(400), z.literal(5), z.literal(545), z.literal(60), z.literal(7), z.literal(731), z.literal(90)]).optional().describe("#### How many days to keep logs.").default(90),
+            "logForwarding": z.union([z.object({
+                "type": z.literal("http-endpoint"),
+                "properties": z.object({
+                  "endpointUrl": z.string().describe("#### HTTPS endpoint URL where logs are sent."),
+                  "gzipEncodingEnabled": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Compress request body with GZIP to reduce transfer costs.").default(false),
+                  "parameters": z.record(z.string(), z.string()).optional().describe("#### Extra metadata sent in the `X-Amz-Firehose-Common-Attributes` header.").optional(),
+                  "retryDuration": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### Total retry time (seconds) before sending failed logs to a backup S3 bucket.").default(300),
+                  "accessKey": z.string().optional().describe("#### Auth credential sent in `X-Amz-Firehose-Access-Key` header. Store as `$Secret()` for security.").optional() }).strict()
+              }).strict()
+              , z.object({
+                "type": z.literal("highlight"),
+                "properties": z.object({
+                  "projectId": z.string().describe("#### Your Highlight.io project ID (from the Highlight console)."),
+                  "endpointUrl": z.string().optional().describe("#### Highlight.io endpoint. Override for self-hosted or regional endpoints.").default("https://pub.highlight.io/v1/logs/firehose") }).strict()
+              }).strict()
+              , z.object({
+                "type": z.literal("datadog"),
+                "properties": z.object({
+                  "apiKey": z.string().describe("#### Your Datadog API key. Store as `$Secret()` for security."),
+                  "endpointUrl": z.string().optional().describe("#### Datadog endpoint. Use the EU URL if your account is in the EU region.").default("https://aws-kinesis-http-intake.logs.datadoghq.com/v1/input") }).strict()
+              }).strict()
+            ]).optional().describe("#### Forward logs to an external service (Datadog, Highlight.io, or any HTTP endpoint).\n\n---\n\nUses Kinesis Data Firehose (~$0.03/GB). Failed deliveries go to a backup S3 bucket.").optional() }).strict()
+          .optional().describe("#### Logging configuration for the dashboard container.").optional() }).strict()
+        .optional().describe("#### Configuration for the Convex admin dashboard.\n\n---\n\nEnabled by default. The dashboard is a stateless Next.js app that talks to the backend's\nREST API using the admin key (which you paste on first login). To opt out, set\n`dashboard.enabled: false`.").optional(),
+        "database": z.object({
+          "engine": z.union([z.object({
+              "type": z.enum(["aurora-mysql","aurora-postgresql"]),
+              "properties": z.object({
+                "dbName": z.string().optional().describe("#### Name of the initial database.").default("defdb"),
+                "port": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### Port. Defaults: aurora-mysql 3306, aurora-postgresql 5432.").optional(),
+                "instances": z.array(z.object({
+                  "instanceSize": z.string().describe("#### Instance size (e.g., `db.t4g.medium`, `db.r6g.large`).\n\n---\n\n`t` family = burstable (dev/low-traffic). `r` family = memory-optimized (production).") }).strict()
+                ).describe("#### Cluster instances. First = primary (writer), rest = read replicas.\n\n---\n\nReads are load-balanced across all instances. If the primary fails,\na replica is automatically promoted (usually within 30 seconds)."),
+                "version": z.string().describe("#### Engine version (e.g., `16.6` for PostgreSQL, `8.0.36` for MySQL)."),
+                "disableAutoMinorVersionUpgrade": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Skip automatic minor version upgrades (e.g., 16.4 → 16.5).").default(false) }).strict()
+            }).strict()
+            .describe("#### Aurora: high-performance clustered database with auto-failover.\n\n---\n\nUp to 5x faster than MySQL, 3x faster than PostgreSQL. Data is replicated across 3 AZs\nautomatically. If the primary instance fails, a read replica is promoted in seconds."), z.object({
+              "type": z.enum(["aurora-mysql-serverless-v2","aurora-postgresql-serverless-v2"]),
+              "properties": z.object({
+                "dbName": z.string().optional().describe("#### Name of the initial database.").default("defdb"),
+                "minCapacity": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### Minimum ACUs (0.5-128 in 0.5 increments). ~1 ACU ≈ 2 GB RAM.\n\n---\n\nSet low (0.5) for dev/staging to minimize cost. The database scales up instantly under load.").default(0.5),
+                "maxCapacity": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### Maximum ACUs (0.5-128 in 0.5 increments). Caps your scaling and cost.").default(10),
+                "serverlessReadersCount": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### Number of reader instances in the Aurora Serverless v2 cluster.\n\n---\n\nAurora Serverless v2 always has one writer instance. This value adds additional readers\n(`0` means writer only, `2` means writer + 2 readers).").default(0),
+                "version": z.string().describe("#### Engine version (e.g., `16.6` for PostgreSQL, `8.0.36` for MySQL)."),
+                "disableAutoMinorVersionUpgrade": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Skip automatic minor version upgrades (e.g., 16.4 → 16.5).").default(false) }).strict()
+            }).strict()
+            .describe("#### Aurora Serverless v2: recommended for most new projects.\n\n---\n\nScales instantly from 0.5 to 128 ACUs in 0.5-ACU increments (~1 ACU ≈ 2 GB RAM).\nYou pay only for the capacity used, making it cost-effective for variable workloads."), z.object({
+              "type": z.enum(["mariadb","mysql","oracle-ee","oracle-se2","postgres","sqlserver-ee","sqlserver-ex","sqlserver-se","sqlserver-web"]),
+              "properties": z.object({
+                "dbName": z.string().optional().describe("#### Name of the database created on initialization. For Oracle, this is the SID. Not applicable to SQL Server.").optional(),
+                "port": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### Port the database listens on. Defaults: PostgreSQL 5432, MySQL/MariaDB 3306, Oracle 1521, SQL Server 1433.").optional(),
+                "storage": z.object({
+                  "initialSize": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### Initial storage in GB. Auto-scales up when free space is low.").default(20),
+                  "maxSize": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### Max storage in GB. The database won't auto-scale beyond this.").default(200) }).strict()
+                .optional().describe("#### Storage configuration. Auto-scales up when free space is low.").optional(),
+                "primaryInstance": z.object({
+                  "instanceSize": z.string().describe("#### Instance size (e.g., `db.t4g.micro`, `db.r6g.large`).\n\n---\n\nDetermines CPU, memory, and network capacity. Quick guide:\n- **db.t4g.micro** (~$12/mo): Dev/testing, 2 vCPU, 1 GB RAM\n- **db.t4g.medium** (~$50/mo): Small production, 2 vCPU, 4 GB RAM\n- **db.r6g.large** (~$180/mo): Production, 2 vCPU, 16 GB RAM\n\n`t` family instances are burstable (fine for low/variable load). Use `r` family for steady workloads."),
+                  "multiAz": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Create a standby replica in another availability zone for automatic failover.\n\n---\n\nIf the primary goes down, traffic fails over to the standby automatically.\nAlso reduces downtime during maintenance. Doubles the instance cost.").optional() }).strict()
+                .describe("#### The primary (writer) instance. Handles all write operations."),
+                "readReplicas": z.array(z.object({
+                  "instanceSize": z.string().describe("#### Instance size (e.g., `db.t4g.micro`, `db.r6g.large`).\n\n---\n\nDetermines CPU, memory, and network capacity. Quick guide:\n- **db.t4g.micro** (~$12/mo): Dev/testing, 2 vCPU, 1 GB RAM\n- **db.t4g.medium** (~$50/mo): Small production, 2 vCPU, 4 GB RAM\n- **db.r6g.large** (~$180/mo): Production, 2 vCPU, 16 GB RAM\n\n`t` family instances are burstable (fine for low/variable load). Use `r` family for steady workloads."),
+                  "multiAz": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Create a standby replica in another availability zone for automatic failover.\n\n---\n\nIf the primary goes down, traffic fails over to the standby automatically.\nAlso reduces downtime during maintenance. Doubles the instance cost.").optional() }).strict()
+                ).optional().describe("#### Read replicas to offload read traffic from the primary instance.\n\n---\n\nEach replica gets its own endpoint. Data is replicated asynchronously from the primary.").optional(),
+                "version": z.string().describe("#### Engine version (e.g., `16.6` for PostgreSQL, `8.0.36` for MySQL)."),
+                "disableAutoMinorVersionUpgrade": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Skip automatic minor version upgrades (e.g., 16.4 → 16.5).").default(false) }).strict()
+            }).strict()
+            .describe("#### Standard RDS: single-instance database with predictable pricing.\n\n---\n\nChoose a fixed instance size and pay hourly. AWS handles patching, backups, and recovery.\nFor high availability, enable `multiAz` on the primary instance.")]).optional().describe("#### Database engine override. Defaults to RDS PostgreSQL 16 on `db.t4g.micro`.\n\n---\n\nConvex requires PostgreSQL 13+. To use Aurora Serverless v2 instead (auto-scales 0.5–8 ACU,\nhigher idle cost but elastic), set `{ type: 'aurora-postgresql-serverless-v2', properties: { ... } }`.").optional(),
+          "accessibility": z.object({
+            "accessibilityMode": z.enum(["internet","scoping-workloads-in-vpc","vpc","whitelisted-ips-only"]).describe("#### Controls who can connect to your database.\n\n---\n\n- **`internet`** (default): Anyone with the credentials can connect. Simplest setup, great for development.\n  The database is still protected by username/password.\n- **`vpc`**: Only your app's resources (and anything in the same VPC) can connect.\n  You can also whitelist specific IPs (e.g., your office) using `whitelistedIps`.\n- **`scoping-workloads-in-vpc`**: Most restrictive. Only resources that explicitly list this\n  database in their `connectTo` can reach it. Best for production.\n- **`whitelisted-ips-only`**: Only the IP addresses you list in `whitelistedIps` can connect.\n\n> Aurora Serverless engines only support `vpc` or `scoping-workloads-in-vpc`.").default("internet"),
+            "forceDisablePublicIp": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Remove the database's public IP entirely (VPC-only access).\n\n---\n\n> For Aurora, this can only be set at creation time and cannot be changed later.").optional(),
+            "whitelistedIps": z.array(z.string()).optional().describe("#### IP addresses or CIDR ranges allowed to connect (e.g., `203.0.113.50/32`).\n\n---\n\n- In `vpc`/`scoping-workloads-in-vpc`: adds external IPs on top of VPC access (e.g., your office).\n- In `whitelisted-ips-only`: only these IPs can connect.\n- No effect in `internet` mode.").optional() }).strict()
+          .optional().describe("#### Database network accessibility. Defaults to `scoping-workloads-in-vpc`.\n\n---\n\nThe Convex backend auto-connects internally, so users have no reason to set `internet` here\n— direct `psql` access to Convex's internal Postgres is almost always wrong (use the dashboard\nor `npx convex export` instead).").optional(),
+          "automatedBackupRetentionDays": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### Days to keep automated daily backups (0–35). Defaults to 1.").optional(),
+          "preferredMaintenanceWindow": z.string().optional().describe("#### When maintenance happens. Format: `Sun:02:00-Sun:04:00` (UTC).").optional(),
+          "logging": z.object({
+            "disabled": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Disable CloudWatch logging entirely.").default(false),
+            "retentionDays": z.union([z.literal(1), z.literal(120), z.literal(14), z.literal(150), z.literal(180), z.literal(1827), z.literal(3), z.literal(30), z.literal(365), z.literal(3653), z.literal(400), z.literal(5), z.literal(545), z.literal(60), z.literal(7), z.literal(731), z.literal(90)]).optional().describe("#### How many days to keep logs.").default(90),
+            "logTypes": z.array(z.string()).optional().describe("#### Which log types to export. Depends on engine:\n\n- **PostgreSQL**: `postgresql`\n- **MySQL/MariaDB**: `audit`, `error`, `general`, `slowquery`\n- **Oracle**: `alert`, `audit`, `listener`, `trace`\n- **SQL Server**: `agent`, `error`").optional(),
+            "engineSpecificOptions": z.union([z.object({
+                "log_connections": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Log new client connections.").default(false),
+                "log_disconnections": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Log client disconnections.").default(false),
+                "log_lock_waits": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Log sessions waiting for locks (helps find lock contention issues).").default(false),
+                "log_min_duration_statement": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### Log queries slower than this (ms). `-1` = disabled, `0` = log all. Great for finding slow queries.").default(10000),
+                "log_statement": z.enum(["all","ddl","mod","none"]).optional().describe("#### Which SQL statements to log: `none`, `ddl` (CREATE/ALTER), `mod` (ddl + INSERT/UPDATE/DELETE), `all`.") }).strict()
+              , z.object({
+                "server_audit_events": z.array(z.enum(["CONNECT","QUERY","QUERY_DCL","QUERY_DDL","QUERY_DML","QUERY_DML_NO_SELECT"])).optional().describe("#### What to record in the audit log: connections, all queries, DDL only, DML only, etc.").default(["QUERY_DDL"]),
+                "long_query_time": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### Queries slower than this (seconds) are logged as \"slow queries\". `-1` to disable.").default(10) }).strict()
+            ]).optional().describe("#### Fine-grained logging settings (PostgreSQL: slow queries, statements; MySQL: audit events).").optional(),
+            "logForwarding": z.union([z.object({
+                "type": z.literal("http-endpoint"),
+                "properties": z.object({
+                  "endpointUrl": z.string().describe("#### HTTPS endpoint URL where logs are sent."),
+                  "gzipEncodingEnabled": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Compress request body with GZIP to reduce transfer costs.").default(false),
+                  "parameters": z.record(z.string(), z.string()).optional().describe("#### Extra metadata sent in the `X-Amz-Firehose-Common-Attributes` header.").optional(),
+                  "retryDuration": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### Total retry time (seconds) before sending failed logs to a backup S3 bucket.").default(300),
+                  "accessKey": z.string().optional().describe("#### Auth credential sent in `X-Amz-Firehose-Access-Key` header. Store as `$Secret()` for security.").optional() }).strict()
+              }).strict()
+              , z.object({
+                "type": z.literal("highlight"),
+                "properties": z.object({
+                  "projectId": z.string().describe("#### Your Highlight.io project ID (from the Highlight console)."),
+                  "endpointUrl": z.string().optional().describe("#### Highlight.io endpoint. Override for self-hosted or regional endpoints.").default("https://pub.highlight.io/v1/logs/firehose") }).strict()
+              }).strict()
+              , z.object({
+                "type": z.literal("datadog"),
+                "properties": z.object({
+                  "apiKey": z.string().describe("#### Your Datadog API key. Store as `$Secret()` for security."),
+                  "endpointUrl": z.string().optional().describe("#### Datadog endpoint. Use the EU URL if your account is in the EU region.").default("https://aws-kinesis-http-intake.logs.datadoghq.com/v1/input") }).strict()
+              }).strict()
+            ]).optional().describe("#### Forward logs to an external service (Datadog, Highlight.io, or any HTTP endpoint).\n\n---\n\nUses Kinesis Data Firehose (~$0.03/GB). Failed deliveries go to a backup S3 bucket.").optional() }).strict()
+          .optional().describe("#### Database logging (connections, slow queries, errors).").optional() }).strict()
+        .optional().describe("#### Override the PostgreSQL database that backs the Convex deployment.\n\n---\n\nDefaults to a single-AZ RDS PostgreSQL `db.t4g.micro` instance (cheapest production-viable\noption, ~$13/month). The shape mirrors a subset of [`relational-database`](https://docs.stacktape.com/resources/relational-databases/) — override only what\nyou need. Common reasons to override: bump to Aurora Serverless v2 for auto-scaling, enable\nmulti-AZ for HA, or increase storage retention.\n\nYou cannot bring an existing external database — Convex assumes it owns its Postgres entirely.").optional(),
+        "storage": z.object({
+          "encryption": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Encrypt stored objects at rest (AES-256).").default(true),
+          "versioning": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Keep previous versions of overwritten/deleted objects. Useful for recovery; increases storage cost.").default(false),
+          "lifecycleRules": z.array(z.union([z.object({
+              "type": z.literal("expiration"),
+              "properties": z.object({
+                "daysAfterUpload": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).describe("#### Delete objects this many days after upload."),
+                "prefix": z.string().optional().describe("#### Only apply this rule to objects with this key prefix (e.g., `logs/`, `uploads/`).").optional(),
+                "tags": z.array(z.object({
+                  "key": z.string().describe("#### Key"),
+                  "value": z.string().describe("#### Value") }).strict()
+                ).optional().describe("#### Only apply this rule to objects with these tags.").optional() }).strict()
+            }).strict()
+            , z.object({
+              "type": z.literal("non-current-version-expiration"),
+              "properties": z.object({
+                "daysAfterVersioned": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).describe("#### Delete old versions this many days after they become non-current. Requires `versioning: true`."),
+                "prefix": z.string().optional().describe("#### Only apply this rule to objects with this key prefix (e.g., `logs/`, `uploads/`).").optional(),
+                "tags": z.array(z.object({
+                  "key": z.string().describe("#### Key"),
+                  "value": z.string().describe("#### Value") }).strict()
+                ).optional().describe("#### Only apply this rule to objects with these tags.").optional() }).strict()
+            }).strict()
+            , z.object({
+              "type": z.literal("class-transition"),
+              "properties": z.object({
+                "daysAfterUpload": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).describe("#### Move objects to a cheaper storage class this many days after upload."),
+                "storageClass": z.enum(["DEEP_ARCHIVE","GLACIER","INTELLIGENT_TIERING","ONEZONE_IA","STANDARD_IA"]).describe("#### Target storage class. Cheaper classes have higher retrieval costs/latency.\n\n---\n\n- `STANDARD_IA` / `ONEZONE_IA`: Infrequent access, instant retrieval.\n- `INTELLIGENT_TIERING`: AWS auto-moves between tiers based on access patterns.\n- `GLACIER`: Archive, minutes to hours for retrieval.\n- `DEEP_ARCHIVE`: Cheapest, 12+ hours for retrieval."),
+                "prefix": z.string().optional().describe("#### Only apply this rule to objects with this key prefix (e.g., `logs/`, `uploads/`).").optional(),
+                "tags": z.array(z.object({
+                  "key": z.string().describe("#### Key"),
+                  "value": z.string().describe("#### Value") }).strict()
+                ).optional().describe("#### Only apply this rule to objects with these tags.").optional() }).strict()
+            }).strict()
+            , z.object({
+              "type": z.literal("non-current-version-class-transition"),
+              "properties": z.object({
+                "daysAfterVersioned": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).describe("#### Move old versions to a cheaper storage class this many days after becoming non-current."),
+                "storageClass": z.enum(["DEEP_ARCHIVE","GLACIER","INTELLIGENT_TIERING","ONEZONE_IA","STANDARD_IA"]).describe("#### Target storage class for non-current versions."),
+                "prefix": z.string().optional().describe("#### Only apply this rule to objects with this key prefix (e.g., `logs/`, `uploads/`).").optional(),
+                "tags": z.array(z.object({
+                  "key": z.string().describe("#### Key"),
+                  "value": z.string().describe("#### Value") }).strict()
+                ).optional().describe("#### Only apply this rule to objects with these tags.").optional() }).strict()
+            }).strict()
+            , z.object({
+              "type": z.literal("abort-incomplete-multipart-upload"),
+              "properties": z.object({
+                "daysAfterInitiation": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).describe("#### Clean up incomplete multipart uploads after this many days. Prevents storage waste."),
+                "prefix": z.string().optional().describe("#### Only apply this rule to objects with this key prefix (e.g., `logs/`, `uploads/`).").optional(),
+                "tags": z.array(z.object({
+                  "key": z.string().describe("#### Key"),
+                  "value": z.string().describe("#### Value") }).strict()
+                ).optional().describe("#### Only apply this rule to objects with these tags.").optional() }).strict()
+            }).strict()
+          ])).optional().describe("#### Auto-delete or move objects to cheaper storage classes over time.\n\n---\n\nApplied to all five buckets. Most useful for the `exports` bucket if you don't want old\nsnapshot exports accumulating indefinitely.").optional() }).strict()
+        .optional().describe("#### Shared configuration applied to all five Convex S3 buckets (`modules`, `files`, `search`,\n`exports`, `snapshot_imports`).\n\n---\n\nEach Convex deployment requires five separate buckets internally. By default they are all\nprivate, encrypted at rest, with versioning disabled. Use this property to override defaults\nacross all five at once (e.g., enable versioning for prod).").optional(),
+        "dev": z.object({
+          "remote": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Use the deployed AWS resource instead of a local emulation.\n\n---\n\nBy default, databases, Redis, and DynamoDB run locally in Docker during dev mode.\nSet to `true` to connect to the real deployed resource instead (must be deployed first).\n\nUseful when local emulation doesn't match production behavior closely enough,\nor when you need to work with real data.").default(false) }).strict()
+        .optional().describe("#### Dev mode: runs the convex-backend locally in Docker by default with SQLite + local\nfilesystem storage.\n\n---\n\nSet `remote: true` to point `stacktape dev` at the deployed AWS backend instead. Local mode\nis recommended because Convex's save-push-reload loop is noticeably faster over loopback than\nacross the WAN, and avoids 24/7 Fargate + RDS cost per developer.").optional(),
+        "deletionProtection": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Prevent accidental deletion of the database and the five storage buckets.\n\n---\n\nWhen `true`, Stacktape sets `deletionProtection` on the underlying RDS instance and retention\npolicies on the buckets. You must set this to `false` and redeploy before you can delete the stack.\n\nRecommended for production stages.").default(false),
+        "alarms": z.array(z.union([z.object({
+            "trigger": z.union([z.object({
+                "type": z.literal("application-load-balancer-custom"),
+                "properties": z.object({
+                  "metric": z.enum(["ActiveConnectionCount","AnomalousHostCount","ClientTLSNegotiationErrorCount","ConsumedLCUs","DesyncMitigationMode_NonCompliant_Request_Count","DroppedInvalidHeaderRequestCount","ELBAuthError","ELBAuthFailure","ELBAuthLatency","ELBAuthRefreshTokenSuccess","ELBAuthSuccess","ELBAuthUserClaimsSizeExceeded","ForwardedInvalidHeaderRequestCount","GrpcRequestCount","HTTPCode_ELB_3XX_Count","HTTPCode_ELB_4XX_Count","HTTPCode_ELB_500_Count","HTTPCode_ELB_502_Count","HTTPCode_ELB_503_Count","HTTPCode_ELB_504_Count","HTTPCode_ELB_5XX_Count","HTTPCode_Target_2XX_Count","HTTPCode_Target_3XX_Count","HTTPCode_Target_4XX_Count","HTTPCode_Target_5XX_Count","HTTP_Fixed_Response_Count","HTTP_Redirect_Count","HTTP_Redirect_Url_Limit_Exceeded_Count","HealthyHostCount","HealthyStateDNS","HealthyStateRouting","IPv6ProcessedBytes","IPv6RequestCount","LambdaInternalError","LambdaTargetProcessedBytes","LambdaUserError","MitigatedHostCount","NewConnectionCount","NonStickyRequestCount","ProcessedBytes","RejectedConnectionCount","RequestCount","RequestCountPerTarget","RuleEvaluations","TargetConnectionErrorCount","TargetResponseTime","TargetTLSNegotiationErrorCount","UnHealthyHostCount","UnhealthyRoutingRequestCount","UnhealthyStateDNS","UnhealthyStateRouting"]).describe("#### The metric to monitor on the Load Balancer.\n\n---\n\nThe threshold will be compared against the calculated value of `statistic(METRIC)`, where:\n- `statistic` is the function applied to the metric values collected during the evaluation period (default: `avg`).\n- `METRIC` is the chosen metric.\n\n**Available Metrics:**\n\n- `ActiveConnectionCount`: The total number of concurrent TCP connections active from clients to the load balancer and from the load balancer to targets.\n- `AnomalousHostCount`: The number of hosts detected with anomalies.\n- `ClientTLSNegotiationErrorCount`: The number of TLS connections initiated by the client that did not establish a session with the load balancer due to a TLS error.\n- `ConsumedLCUs`: The number of load balancer capacity units (LCU) used by your load balancer.\n- `DesyncMitigationMode_NonCompliant_Request_Count`: The number of requests that do not comply with RFC 7230.\n- `DroppedInvalidHeaderRequestCount`: The number of requests where the load balancer removed HTTP headers with invalid fields before routing the request.\n- `MitigatedHostCount`: The number of targets under mitigation.\n- `ForwardedInvalidHeaderRequestCount`: The number of requests routed by the load balancer that had HTTP headers with invalid fields.\n- `GrpcRequestCount`: The number of gRPC requests processed over IPv4 and IPv6.\n- `HTTP_Fixed_Response_Count`: The number of successful fixed-response actions.\n- `HTTP_Redirect_Count`: The number of successful redirect actions.\n- `HTTP_Redirect_Url_Limit_Exceeded_Count`: The number of redirect actions that failed because the URL in the response location header exceeded 8K.\n- `HTTPCode_ELB_3XX_Count`: The number of HTTP 3XX redirection codes originating from the load balancer.\n- `HTTPCode_ELB_4XX_Count`: The number of HTTP 4XX client error codes originating from the load balancer.\n- `HTTPCode_ELB_5XX_Count`: The number of HTTP 5XX server error codes originating from the load balancer.\n- `HTTPCode_ELB_500_Count`: The number of HTTP 500 error codes originating from the load balancer.\n- `HTTPCode_ELB_502_Count`: The number of HTTP 502 error codes originating from the load balancer.\n- `HTTPCode_ELB_503_Count`: The number of HTTP 503 error codes originating from the load balancer.\n- `HTTPCode_ELB_504_Count`: The number of HTTP 504 error codes originating from the load balancer.\n- `IPv6ProcessedBytes`: The total number of bytes processed by the load balancer over IPv6.\n- `IPv6RequestCount`: The number of IPv6 requests received by the load balancer.\n- `NewConnectionCount`: The total number of new TCP connections established from clients to the load balancer and from the load balancer to targets.\n- `NonStickyRequestCount`: The number of requests where the load balancer chose a new target because it could not use an existing sticky session.\n- `ProcessedBytes`: The total number of bytes processed by the load balancer over IPv4 and IPv6.\n- `RejectedConnectionCount`: The number of connections rejected because the load balancer reached its maximum number of connections.\n- `RequestCount`: The number of requests processed over IPv4 and IPv6.\n- `RuleEvaluations`: The number of rules processed by the load balancer, averaged over an hour.\n- `HealthyHostCount`: The number of targets that are considered healthy.\n- `HTTPCode_Target_2XX_Count`: The number of HTTP 2XX response codes generated by the targets.\n- `HTTPCode_Target_3XX_Count`: The number of HTTP 3XX response codes generated by the targets.\n- `HTTPCode_Target_4XX_Count`: The number of HTTP 4XX response codes generated by the targets.\n- `HTTPCode_Target_5XX_Count`: The number of HTTP 5XX response codes generated by the targets.\n- `RequestCountPerTarget`: The average number of requests per target in a target group.\n- `TargetConnectionErrorCount`: The number of connections that were not successfully established between the load balancer and a target.\n- `TargetResponseTime`: The time elapsed (in seconds) from when a request leaves the load balancer until the target starts sending response headers.\n- `TargetTLSNegotiationErrorCount`: The number of TLS connections initiated by the load balancer that did not establish a session with the target.\n- `UnHealthyHostCount`: The number of targets that are considered unhealthy.\n- `HealthyStateDNS`: The number of zones that meet the DNS healthy state requirements.\n- `HealthyStateRouting`: The number of zones that meet the routing healthy state requirements.\n- `UnhealthyRoutingRequestCount`: The number of requests routed using the routing failover action (fail open).\n- `UnhealthyStateDNS`: The number of zones that do not meet the DNS healthy state requirements.\n- `UnhealthyStateRouting`: The number of zones that do not meet the routing healthy state requirements.\n- `LambdaInternalError`: The number of requests to a Lambda function that failed due to an issue internal to the load balancer or AWS Lambda.\n- `LambdaTargetProcessedBytes`: The total number of bytes processed by the load balancer for requests to and responses from a Lambda function.\n- `LambdaUserError`: The number of requests to a Lambda function that failed due to an issue with the Lambda function itself.\n- `ELBAuthError`: The number of user authentications that could not be completed due to an internal error.\n- `ELBAuthFailure`: The number of user authentications that could not be completed because the IdP denied access.\n- `ELBAuthLatency`: The time elapsed (in milliseconds) to query the IdP for the ID token and user info.\n- `ELBAuthRefreshTokenSuccess`: The number of times the load balancer successfully refreshed user claims using a refresh token.\n- `ELBAuthSuccess`: The number of successful authentication actions.\n- `ELBAuthUserClaimsSizeExceeded`: The number of times a configured IdP returned user claims that exceeded 11K bytes in size."),
+                  "threshold": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).describe("#### The threshold that triggers the alarm.\n\n---\n\nThe threshold is compared against the calculated value of `statistic(METRIC)`, where:\n- `statistic` is the function applied to the metric values collected during the evaluation period (default: `avg`).\n- `METRIC` is the chosen metric."),
+                  "statistic": z.enum(["avg","max","min","p90","p95","p99","sum"]).optional().describe("#### How to aggregate metric values within each period: `avg`, `sum`, `min`, `max`, `p90`, `p95`, `p99`.").default("avg"),
+                  "comparisonOperator": z.enum(["GreaterThanOrEqualToThreshold","GreaterThanThreshold","LessThanOrEqualToThreshold","LessThanThreshold"]).optional().describe("#### How to compare the metric value against the threshold.").default("GreaterThanThreshold") }).strict()
+              }).strict()
+              , z.object({
+                "type": z.literal("application-load-balancer-error-rate"),
+                "properties": z.object({
+                  "thresholdPercent": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).describe("#### Fires when 4xx/5xx error rate exceeds this percentage.\n\n---\n\nExample: `5` fires the alarm if more than 5% of requests return errors."),
+                  "comparisonOperator": z.enum(["GreaterThanOrEqualToThreshold","GreaterThanThreshold","LessThanOrEqualToThreshold","LessThanThreshold"]).optional().describe("#### How to compare the metric value against the threshold.").default("GreaterThanThreshold") }).strict()
+              }).strict()
+              , z.object({
+                "type": z.literal("application-load-balancer-unhealthy-targets"),
+                "properties": z.object({
+                  "thresholdPercent": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).describe("#### Fires when the percentage of unhealthy targets exceeds this value.\n\n---\n\nIf the load balancer has multiple target groups, the alarm fires if *any* group breaches the threshold."),
+                  "onlyIncludeTargets": z.array(z.string()).optional().describe("#### Only monitor health of these target container services. If omitted, monitors all targets.\n\n---\n\nOnly services actually targeted by the load balancer can be listed.").optional(),
+                  "comparisonOperator": z.enum(["GreaterThanOrEqualToThreshold","GreaterThanThreshold","LessThanOrEqualToThreshold","LessThanThreshold"]).optional().describe("#### How to compare the metric value against the threshold.") }).strict()
+              }).strict()
+            ]),
+            "evaluation": z.object({
+              "period": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### Duration of one evaluation period in seconds. Must be a multiple of 60.").default(60),
+              "evaluationPeriods": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### How many recent periods to evaluate. Prevents alarms from firing on short spikes.\n\n---\n\nExample: set to `5` with `breachedPeriods: 3` — the alarm fires only if the threshold is breached\nin at least 3 of the last 5 periods.").default(1),
+              "breachedPeriods": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### How many periods (within `evaluationPeriods`) must breach the threshold to fire the alarm.\n\n---\n\nMust be ≤ `evaluationPeriods`.").default(1) }).strict()
+            .optional().describe("#### How long and how often to evaluate the metric before triggering.\n\n---\n\nControls the evaluation window (period), how many periods to look at, and how many must breach\nthe threshold to fire the alarm. Useful for filtering out short spikes.").optional(),
+            "notificationTargets": z.array(z.union([z.object({
+                "type": z.literal("ms-teams"),
+                "properties": z.object({
+                  "webhookUrl": z.string().describe("#### Incoming Webhook URL for the MS Teams channel. Store as `$Secret()` for security.\n\n---\n\nCreate an Incoming Webhook connector in your Teams channel settings to get this URL.") }).strict()
+                .optional().describe("").optional() }).strict()
+              , z.object({
+                "type": z.literal("slack"),
+                "properties": z.object({
+                  "conversationId": z.string().describe("#### The Slack channel or DM ID to send notifications to.\n\n---\n\nTo find the ID: open the channel, click its name, and look at the bottom of the **About** tab."),
+                  "accessToken": z.string().describe("#### Bot User OAuth Token for your Slack app. Store as `$Secret()` for security.\n\n---\n\nCreate a Slack app, add the `chat:write` scope, install it to your workspace, then copy the Bot User OAuth Token.") }).strict()
+                .optional().describe("").optional() }).strict()
+              , z.object({
+                "type": z.literal("email"),
+                "properties": z.object({
+                  "sender": z.string().describe("#### The email address of the sender."),
+                  "recipient": z.string().describe("#### The email address of the recipient.") }).strict()
+              }).strict()
+              , z.object({
+                "type": z.literal("discord"),
+                "properties": z.object({
+                  "webhookUrl": z.string().describe("#### Discord Webhook URL for the channel. Store as `$Secret()` for security.\n\n---\n\nCreate a webhook in your Discord channel settings (Edit Channel → Integrations → Webhooks).") }).strict()
+                .optional().describe("").optional() }).strict()
+              , z.object({
+                "type": z.literal("webhook"),
+                "properties": z.object({
+                  "url": z.string().describe("#### The URL to send webhook POST requests to."),
+                  "secret": z.string().optional().describe("#### Optional signing secret for HMAC-SHA256 payload verification.\n\n---\n\nIf provided, each request includes an `X-Stacktape-Signature` header.").optional(),
+                  "headers": z.record(z.string(), z.any()).optional().describe("#### Optional custom headers to include in each request.").optional() }).strict()
+                .optional().describe("").optional() }).strict()
+            ])).optional().describe("#### Where to send notifications when the alarm fires — Slack, MS Teams, or email.").optional(),
+            "includeInHistory": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Whether alarm state changes should appear in monitoring history.").default(true),
+            "description": z.string().optional().describe("#### Custom alarm description used in notification messages and the AWS console.").optional() }).strict()
+          , z.object({
+            "trigger": z.union([z.object({
+                "type": z.literal("database-read-latency"),
+                "properties": z.object({
+                  "thresholdSeconds": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).describe("#### Fires when average read I/O latency exceeds this value (seconds)."),
+                  "comparisonOperator": z.enum(["GreaterThanOrEqualToThreshold","GreaterThanThreshold","LessThanOrEqualToThreshold","LessThanThreshold"]).optional().describe("#### How to compare the metric value against the threshold.").default("GreaterThanThreshold"),
+                  "statistic": z.enum(["avg","max","min","p90","p95","p99","sum"]).optional().describe("#### How to aggregate metric values within each period: `avg`, `sum`, `min`, `max`, `p90`, `p95`, `p99`.").default("avg") }).strict()
+              }).strict()
+              , z.object({
+                "type": z.literal("database-write-latency"),
+                "properties": z.object({
+                  "thresholdSeconds": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).describe("#### Fires when average write I/O latency exceeds this value (seconds)."),
+                  "comparisonOperator": z.enum(["GreaterThanOrEqualToThreshold","GreaterThanThreshold","LessThanOrEqualToThreshold","LessThanThreshold"]).optional().describe("#### How to compare the metric value against the threshold.").default("GreaterThanThreshold"),
+                  "statistic": z.enum(["avg","max","min","p90","p95","p99","sum"]).optional().describe("#### How to aggregate metric values within each period: `avg`, `sum`, `min`, `max`, `p90`, `p95`, `p99`.").default("avg") }).strict()
+              }).strict()
+              , z.object({
+                "type": z.literal("database-cpu-utilization"),
+                "properties": z.object({
+                  "thresholdPercent": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).describe("#### Fires when CPU utilization exceeds this percentage."),
+                  "comparisonOperator": z.enum(["GreaterThanOrEqualToThreshold","GreaterThanThreshold","LessThanOrEqualToThreshold","LessThanThreshold"]).optional().describe("#### How to compare the metric value against the threshold.").default("GreaterThanThreshold"),
+                  "statistic": z.enum(["avg","max","min","p90","p95","p99","sum"]).optional().describe("#### How to aggregate metric values within each period: `avg`, `sum`, `min`, `max`, `p90`, `p95`, `p99`.").default("avg") }).strict()
+              }).strict()
+              , z.object({
+                "type": z.literal("database-free-storage"),
+                "properties": z.object({
+                  "thresholdMB": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).describe("#### Fires when free disk space drops below this value (MB).\n\n---\n\nDefault: fires if **minimum** free storage < threshold."),
+                  "comparisonOperator": z.enum(["GreaterThanOrEqualToThreshold","GreaterThanThreshold","LessThanOrEqualToThreshold","LessThanThreshold"]).optional().describe("#### How to compare the metric value against the threshold.").default("GreaterThanThreshold"),
+                  "statistic": z.enum(["avg","max","min","p90","p95","p99","sum"]).optional().describe("#### How to aggregate metric values within each period: `avg`, `sum`, `min`, `max`, `p90`, `p95`, `p99`.").default("avg") }).strict()
+              }).strict()
+              , z.object({
+                "type": z.literal("database-free-memory"),
+                "properties": z.object({
+                  "thresholdMB": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).describe("#### Fires when free memory drops below this value (MB).\n\n---\n\nDefault: fires if **average** free memory < threshold. Customize with `statistic` and `comparisonOperator`."),
+                  "comparisonOperator": z.enum(["GreaterThanOrEqualToThreshold","GreaterThanThreshold","LessThanOrEqualToThreshold","LessThanThreshold"]).optional().describe("#### How to compare the metric value against the threshold.").default("GreaterThanThreshold"),
+                  "statistic": z.enum(["avg","max","min","p90","p95","p99","sum"]).optional().describe("#### How to aggregate metric values within each period: `avg`, `sum`, `min`, `max`, `p90`, `p95`, `p99`.").default("avg") }).strict()
+              }).strict()
+              , z.object({
+                "type": z.literal("database-connection-count"),
+                "properties": z.object({
+                  "thresholdCount": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).describe("#### Fires when the number of active database connections exceeds this value."),
+                  "comparisonOperator": z.enum(["GreaterThanOrEqualToThreshold","GreaterThanThreshold","LessThanOrEqualToThreshold","LessThanThreshold"]).optional().describe("#### How to compare the metric value against the threshold.").default("GreaterThanThreshold"),
+                  "statistic": z.enum(["avg","max","min","p90","p95","p99","sum"]).optional().describe("#### How to aggregate metric values within each period: `avg`, `sum`, `min`, `max`, `p90`, `p95`, `p99`.").default("avg") }).strict()
+              }).strict()
+            ]),
+            "evaluation": z.object({
+              "period": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### Duration of one evaluation period in seconds. Must be a multiple of 60.").default(60),
+              "evaluationPeriods": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### How many recent periods to evaluate. Prevents alarms from firing on short spikes.\n\n---\n\nExample: set to `5` with `breachedPeriods: 3` — the alarm fires only if the threshold is breached\nin at least 3 of the last 5 periods.").default(1),
+              "breachedPeriods": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### How many periods (within `evaluationPeriods`) must breach the threshold to fire the alarm.\n\n---\n\nMust be ≤ `evaluationPeriods`.").default(1) }).strict()
+            .optional().describe("#### How long and how often to evaluate the metric before triggering.\n\n---\n\nControls the evaluation window (period), how many periods to look at, and how many must breach\nthe threshold to fire the alarm. Useful for filtering out short spikes.").optional(),
+            "notificationTargets": z.array(z.union([z.object({
+                "type": z.literal("ms-teams"),
+                "properties": z.object({
+                  "webhookUrl": z.string().describe("#### Incoming Webhook URL for the MS Teams channel. Store as `$Secret()` for security.\n\n---\n\nCreate an Incoming Webhook connector in your Teams channel settings to get this URL.") }).strict()
+                .optional().describe("").optional() }).strict()
+              , z.object({
+                "type": z.literal("slack"),
+                "properties": z.object({
+                  "conversationId": z.string().describe("#### The Slack channel or DM ID to send notifications to.\n\n---\n\nTo find the ID: open the channel, click its name, and look at the bottom of the **About** tab."),
+                  "accessToken": z.string().describe("#### Bot User OAuth Token for your Slack app. Store as `$Secret()` for security.\n\n---\n\nCreate a Slack app, add the `chat:write` scope, install it to your workspace, then copy the Bot User OAuth Token.") }).strict()
+                .optional().describe("").optional() }).strict()
+              , z.object({
+                "type": z.literal("email"),
+                "properties": z.object({
+                  "sender": z.string().describe("#### The email address of the sender."),
+                  "recipient": z.string().describe("#### The email address of the recipient.") }).strict()
+              }).strict()
+              , z.object({
+                "type": z.literal("discord"),
+                "properties": z.object({
+                  "webhookUrl": z.string().describe("#### Discord Webhook URL for the channel. Store as `$Secret()` for security.\n\n---\n\nCreate a webhook in your Discord channel settings (Edit Channel → Integrations → Webhooks).") }).strict()
+                .optional().describe("").optional() }).strict()
+              , z.object({
+                "type": z.literal("webhook"),
+                "properties": z.object({
+                  "url": z.string().describe("#### The URL to send webhook POST requests to."),
+                  "secret": z.string().optional().describe("#### Optional signing secret for HMAC-SHA256 payload verification.\n\n---\n\nIf provided, each request includes an `X-Stacktape-Signature` header.").optional(),
+                  "headers": z.record(z.string(), z.any()).optional().describe("#### Optional custom headers to include in each request.").optional() }).strict()
+                .optional().describe("").optional() }).strict()
+            ])).optional().describe("#### Where to send notifications when the alarm fires — Slack, MS Teams, or email.").optional(),
+            "includeInHistory": z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean()).optional().describe("#### Whether alarm state changes should appear in monitoring history.").default(true),
+            "description": z.string().optional().describe("#### Custom alarm description used in notification messages and the AWS console.").optional() }).strict()
+        ])).optional().describe("#### Alarms for this Convex deployment (backend container, ALB, database). Merged with global\nalarms from the Stacktape Console.").optional(),
+        "disabledGlobalAlarms": z.array(z.string()).optional().describe("#### Global alarm names to exclude from this deployment.").optional() }).strict()
+      ,
+      "overrides": z.record(z.string(), z.record(z.string(), z.any())).optional().describe("#### Escape hatch to modify the underlying CloudFormation resources Stacktape creates.\n\n---\n\nUse dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with `stacktape stack-info --detailed`.\n\n```yaml\noverrides:\n  MyDbInstance:\n    Properties.StorageEncrypted: true\n```").optional() }).strict()
+    .describe("#### Self-hosted Convex backend on AWS — reactive database, functions, file storage, and dashboard.\n\n---\n\nProvisions everything needed to run [Convex](https://www.convex.dev) self-hosted on your own AWS account:\na Fargate-based backend container, a PostgreSQL database, five S3 buckets (modules, files, search,\nexports, snapshot imports), an ALB for HTTPS + WebSocket traffic, and an optional admin dashboard.\n\nOn every `stacktape deploy`, after the infrastructure is healthy, Stacktape runs `npx convex deploy`\nfrom your `appDirectory` to push the latest function code to the freshly-deployed backend, with the\nadmin key auto-injected from AWS Secrets Manager.\n\n---\n\n##### Single-instance constraint\n\nThe open-source convex-backend distribution is **single-process**: it cannot be horizontally scaled.\nRunning two backends against the same Postgres would corrupt MVCC transaction validation and break\nreactive query invalidation. Stacktape therefore enforces a single active task. For higher\navailability, set `backend.highAvailability: true` to run a warm standby that fails over in ~5–10s\ninstead of the ~60–90s cold-start window.\n\nScale **vertically** by bumping `backend.resources.cpu`/`memory` (or by switching to `instanceTypes`\nwith EC2). A single 4 vCPU / 8 GB backend comfortably handles thousands of concurrent reactive\nsubscribers per Convex's own self-hosted guidance.\n\n---\n\n##### Cost\n\nThe smallest viable configuration (single-AZ `db.t4g.micro` Postgres, 0.5 vCPU / 1 GB Fargate\nbackend, 0.25 vCPU / 512 MB dashboard, ALB, S3) lands around **$45–65/month idle**. Production\nconfigurations with HA and larger backends scale up from there."), z.object({
       "type": z.literal("function"),
       "properties": z.object({
         "packaging": z.union([z.object({
