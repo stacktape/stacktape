@@ -15,6 +15,7 @@ import kleur from 'kleur';
 import boxen from 'boxen';
 import stringWidth from 'string-width';
 import terminalLink from 'terminal-link';
+import { toast } from '@opentui-ui/toast';
 import { ConsoleInterceptor } from './console-interceptor';
 import type { OpenTuiHandle } from './opentui-renderer';
 import { tuiDebug } from './tui-debug-log';
@@ -34,6 +35,8 @@ import {
   formatCommandHeaderTarget
 } from './command-header';
 import { formatDuration, stripAnsi } from './utils';
+
+const CLI_TOAST_MAX_WORD_WIDTH = 32;
 
 export { UserCancelledError };
 export type { Spinner } from './spinners';
@@ -57,6 +60,7 @@ export type ErrorDisplayData = {
   hints?: string[];
   stackTrace?: string;
   userStackTrace?: string;
+  errorDetails?: { title: string; codeFrame?: string };
   sentryEventId?: string;
   isExpected?: boolean;
 };
@@ -140,6 +144,7 @@ class TuiManager {
   start() {
     this._isEnabled = true;
     this._wasEverStarted = true;
+    toast.dismiss();
     this.stateSink.reset();
     const profile = getOutputModeProfile(this.outputMode);
     tuiDebug('TUI', 'start()', { mode: this.outputMode, useTtyUi: profile.useTtyUi });
@@ -719,13 +724,63 @@ class TuiManager {
 
     const hasActivePhase = this.stateSink.getState().currentPhase !== undefined;
     if (this._isEnabled && this.isTTY && hasActivePhase) {
-      this.stateSink.addMessage(type, message);
+      this.showToast(type, message);
       return;
     }
 
     if (!this._devTuiActive || !this._isEnabled) {
       this.printToConsole(type, message);
     }
+  }
+
+  private showToast(type: TuiMessageType, message: string) {
+    const text = this.formatToastText(stripAnsi(message).trim());
+    if (!text) return;
+
+    const lines = text.split(/\r?\n/);
+    const title = lines.shift() || text;
+    const description = lines.length ? lines.join('\n') : undefined;
+    const options = description ? { description } : undefined;
+
+    switch (type) {
+      case 'success':
+        toast.success(title, options);
+        return;
+      case 'error':
+        toast.error(title, options);
+        return;
+      case 'warn':
+        toast.warning(title, options);
+        return;
+      case 'hint':
+      case 'announcement':
+      case 'start':
+      case 'info':
+      case 'debug':
+        toast.info(title, options);
+        return;
+    }
+  }
+
+  private formatToastText(message: string) {
+    return message
+      .split(/\r?\n/)
+      .map((line) =>
+        line
+          .split(/(\s+)/)
+          .map((part) => this.wrapLongToastToken(part))
+          .join('')
+      )
+      .join('\n');
+  }
+
+  private wrapLongToastToken(token: string) {
+    if (/^\s+$/.test(token) || token.length <= CLI_TOAST_MAX_WORD_WIDTH) return token;
+    const chunks: string[] = [];
+    for (let i = 0; i < token.length; i += CLI_TOAST_MAX_WORD_WIDTH) {
+      chunks.push(token.slice(i, i + CLI_TOAST_MAX_WORD_WIDTH));
+    }
+    return chunks.join(' ');
   }
 
   private printToConsole(type: TuiMessageType, message: string) {
@@ -1083,6 +1138,7 @@ class TuiManager {
       hints: this.logLevel !== 'error' ? hints : undefined,
       stackTrace: prettyStackTrace || undefined,
       userStackTrace: (error as ExpectedError).userStackTrace || (error as any).userStackTrace || undefined,
+      errorDetails: (error as any).errorDetails || undefined,
       sentryEventId: sentryEventId || undefined,
       isExpected: error.isExpected
     };
@@ -1146,7 +1202,19 @@ class TuiManager {
     write('');
     write(errorData.message);
 
-    if (errorData.userStackTrace) {
+    if (errorData.errorDetails) {
+      write('');
+      write(this.makeBold(this.colorize('red', '▌ Error details')));
+      write(this.makeBold(`  ${errorData.errorDetails.title}`));
+      if (errorData.errorDetails.codeFrame) {
+        write('');
+        const indented = errorData.errorDetails.codeFrame
+          .split('\n')
+          .map((l) => `  ${this.colorize('gray', '│')} ${l}`)
+          .join('\n');
+        write(indented);
+      }
+    } else if (errorData.userStackTrace) {
       write('');
       write(this.makeBold('Stack trace in your code:'));
       write(this.colorize('cyan', errorData.userStackTrace));
