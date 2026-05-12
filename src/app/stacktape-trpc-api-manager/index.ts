@@ -57,6 +57,8 @@ class StacktapeTrpcApiManager {
     }
   };
 
+  // Historical API name kept for console compatibility. These methods record
+  // Stacktape CLI operations, not only commands that directly mutate a stack.
   recordStackOperationProgress = async ({
     stackName,
     projectName,

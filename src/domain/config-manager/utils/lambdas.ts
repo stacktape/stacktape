@@ -98,6 +98,22 @@ export const getStacktapeServiceLambdaEnvironment = ({
       name: 'NODE_OPTIONS',
       value: '--enable-source-maps'
     },
+    {
+      name: 'ISSUE_EVENT_SAMPLE_RATE_PERCENT',
+      value: String(configManager.issueDetectionPolicy.eventSamplingRate)
+    },
+    {
+      name: 'ISSUE_MAX_ERRORS_PER_INVOCATION',
+      value: '20'
+    },
+    {
+      name: 'ISSUE_MAX_CONTEXT_FETCHES_PER_INVOCATION',
+      value: '5'
+    },
+    {
+      name: 'ISSUE_MAX_LOG_AGE_MS',
+      value: String(10 * 60 * 1000)
+    },
     ...(IS_DEV ? [{ name: 'DEV_MODE', value: IS_DEV }] : [])
   ];
 };
@@ -567,7 +583,7 @@ export const getStacktapeServiceLambdaCustomTaggingInducedStatement = (): StpIam
 
 export const getStacktapeServiceLambdaIssueDetectionStatements = (): StpIamRoleStatement[] => {
   if (!configManager.isIssueDetectionEnabled) return [];
-  return [{ Resource: ['*'], Action: ['logs:GetLogEvents'] }];
+  return [{ Resource: ['*'], Action: ['logs:GetLogEvents', 'logs:FilterLogEvents'] }];
 };
 
 export const getLambdaHandler = ({ name, packaging }: { packaging: LambdaPackaging; name: string }) => {

@@ -1991,8 +1991,7 @@ Property ${tuiManager.prettyConfigProperty('runAppAs')} can be specified only fo
     return {
       type: 'CONFIG_VALIDATION',
       message: `Failed to execute TypeScript config ${tuiManager.prettyFilePath(configPath)}.`,
-      hint: `Error details: ${errorMessage}`,
-      userStackTrace
+      errorDetails: { title: errorMessage, codeFrame: userStackTrace }
     };
   },
   e139({ configPath }: { configPath: string }): ReturnedError {

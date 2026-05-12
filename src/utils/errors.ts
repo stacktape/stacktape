@@ -165,6 +165,9 @@ export const getUserCodeStackTrace = (error: Error, colorize?: (msg: string) => 
       if (fileName.includes('stacktape/src') || fileName.includes('stacktape\\src')) return false;
       if (fileName.includes('__publish-folder') || fileName.includes('stacktape.js')) return false;
       if (isBundledStacktapeInternalFrame(fileName)) return false;
+      // Filter Bun's package install cache (e.g. ~/.bun/install/cache/stacktape@x.y.z/index.js)
+      const normalized = fileName.replaceAll('\\', '/');
+      if (normalized.includes('/.bun/install/')) return false;
       return true;
     })
     .map((callsite) => {

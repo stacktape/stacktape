@@ -1362,6 +1362,10 @@ export const CHILD_RESOURCES: Record<
     { logicalName: cfLogicalNames.lambdaUrl, resourceType: 'AWS::Lambda::Url', conditional: true }
   ],
 
+  // ===== CONVEX =====
+  // TODO(convex): populate with backend service, dashboard service, ALB, RDS, 5 buckets, admin-key custom resource.
+  convex: [],
+
   // ===== OTHER RESOURCES =====
   'custom-resource-instance': [],
   'custom-resource-definition': [],

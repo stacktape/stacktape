@@ -38,6 +38,7 @@ import { resolveBatchJobs } from './resource-resolvers/batch-jobs';
 import { resolveBuckets } from './resource-resolvers/buckets';
 import { resolveBudget } from './resource-resolvers/budget';
 import { resolveCloudformationResources } from './resource-resolvers/cloudformation-resources';
+import { resolveConvexes } from './resource-resolvers/convex';
 import { resolveCustomResources } from './resource-resolvers/custom-resources';
 import { resolveDatabases } from './resource-resolvers/databases';
 import { resolveDeploymentScripts } from './resource-resolvers/deployment-scripts';
@@ -143,6 +144,7 @@ export class CalculatedStackOverviewManager {
       resolveTanStackWebs(),
       resolveRemixWebs(),
       resolveEfsFilesystems(),
+      resolveConvexes(),
       resolveDevAgentRole(),
       resolveDebugAgentRole(),
       resolveDevContainerWorkloadRoles()

@@ -20,6 +20,8 @@ import type {
   ListIssuesParams,
   ListIssuesResponse,
   ListOrganizationsResponse,
+  OrganizationActivityParams,
+  OrganizationActivityResponse,
   ProjectsWithStagesResponse,
   RecentStackOperationsParams,
   RecentStackOperationsResponse,
@@ -54,6 +56,8 @@ export type {
   ListIssuesParams,
   ListIssuesResponse,
   ListOrganizationsResponse,
+  OrganizationActivityParams,
+  OrganizationActivityResponse,
   OrganizationSummary,
   ProjectsWithStagesResponse,
   RecentStackOperationsParams,
@@ -90,6 +94,8 @@ export class ApiKeyProtectedClient {
     return this.#client;
   };
 
+  // Legacy API name: this records Stacktape CLI operations in the console,
+  // including commands that are not direct stack deploy/delete operations.
   recordStackOperation = async (args: RecordStackOperationParams): Promise<void> => {
     return this.#ensureInitialized().recordStackOperation.mutate(args);
   };
@@ -144,6 +150,10 @@ export class ApiKeyProtectedClient {
 
   recentStackOperations = async (args: RecentStackOperationsParams): Promise<RecentStackOperationsResponse> => {
     return this.#ensureInitialized().recentStackOperations.query(args);
+  };
+
+  organizationActivity = async (args: OrganizationActivityParams): Promise<OrganizationActivityResponse> => {
+    return this.#ensureInitialized().organizationActivityFromCli.query(args);
   };
 
   stackDetails = async (args: StackDetailsParams): Promise<StackDetailsResponse> => {

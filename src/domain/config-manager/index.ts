@@ -311,10 +311,14 @@ export class ConfigManager {
   }
 
   get containerWorkloads() {
-    return [
-      ...this.getResourcesFromConfig<StpContainerWorkload>('multi-container-workload')
-      // ...this.webServicesBreakdown.containerWorkloads
-    ];
+    const fromConvex = this.convexes.flatMap((c) => {
+      const out: StpContainerWorkload[] = [c._nestedResources.backendContainerWorkload];
+      if (c._nestedResources.dashboardContainerWorkload) {
+        out.push(c._nestedResources.dashboardContainerWorkload);
+      }
+      return out;
+    });
+    return [...this.getResourcesFromConfig<StpContainerWorkload>('multi-container-workload'), ...fromConvex];
   }
 
   get batchJobs() {
@@ -355,7 +359,14 @@ export class ConfigManager {
   }
 
   get buckets() {
-    return this.getResourcesFromConfig<StpBucket>('bucket');
+    const fromConvex = this.convexes.flatMap((c) => [
+      c._nestedResources.modulesBucket,
+      c._nestedResources.filesBucket,
+      c._nestedResources.searchBucket,
+      c._nestedResources.exportsBucket,
+      c._nestedResources.snapshotImportsBucket
+    ]);
+    return [...this.getResourcesFromConfig<StpBucket>('bucket'), ...fromConvex];
   }
 
   get hostingBuckets() {
@@ -423,7 +434,295 @@ export class ConfigManager {
   }
 
   get databases() {
-    return this.getResourcesFromConfig<StpRelationalDatabase>('relational-database');
+    const topLevel = this.getResourcesFromConfig<StpRelationalDatabase>('relational-database');
+    const fromConvex = this.convexes.map((c) => c._nestedResources.database).filter(Boolean);
+    return [...topLevel, ...fromConvex];
+  }
+
+  get convexes() {
+    return this.getResourcesFromConfig<StpConvex>('convex').map((convex) => {
+      const { name, nameChain, type, configParentResourceType } = convex;
+
+      // helper: build a child name chain + resolved Stp name
+      const child = (suffix: string) => {
+        const childNameChain = [...nameChain, suffix];
+        return {
+          nameChain: childNameChain,
+          name: getStpNameForResource({ nameChain: childNameChain, parentResourceType: type })
+        };
+      };
+
+      const childRef = (suffix: string) => [...nameChain, suffix].join('.');
+
+      // suffix MUST match the _nestedResources key — findResourceInConfig walks via that map
+      const backendChild = child('backendContainerWorkload');
+      const dashboardChild = child('dashboardContainerWorkload');
+      const databaseChild = child('database');
+      const albChild = child('loadBalancer');
+      const albRef = childRef('loadBalancer');
+      const modulesBucketChild = child('modulesBucket');
+      const modulesBucketRef = childRef('modulesBucket');
+      const filesBucketChild = child('filesBucket');
+      const filesBucketRef = childRef('filesBucket');
+      const searchBucketChild = child('searchBucket');
+      const searchBucketRef = childRef('searchBucket');
+      const exportsBucketChild = child('exportsBucket');
+      const exportsBucketRef = childRef('exportsBucket');
+      const snapshotImportsBucketChild = child('snapshotImportsBucket');
+      const snapshotImportsBucketRef = childRef('snapshotImportsBucket');
+      const databaseRef = childRef('database');
+
+      const mkBucket = (c: { nameChain: string[]; name: string }): StpBucket => ({
+        type: 'bucket',
+        name: c.name,
+        nameChain: c.nameChain,
+        configParentResourceType: type,
+        encryption: convex.storage?.encryption ?? true,
+        versioning: convex.storage?.versioning ?? false,
+        lifecycleRules: convex.storage?.lifecycleRules,
+        cors: {
+          corsRules: [
+            {
+              allowedOrigins: ['*'],
+              allowedMethods: ['GET', 'PUT', 'POST', 'DELETE', 'HEAD'],
+              allowedHeaders: ['*']
+            }
+          ]
+        } as unknown as StpBucket['cors']
+      });
+
+      // TODO(convex): pin to a specific digest after testing each upgrade. `:latest`
+      // is fine for development but unsafe for production — Convex's in-place migrate
+      // path needs known-good versions.
+      const backendImage = convex.backend.image || 'ghcr.io/get-convex/convex-backend:latest';
+      const dashboardImage = convex.dashboard?.image || 'ghcr.io/get-convex/convex-dashboard:latest';
+
+      // Build the backend container workload. Convex exposes 3210 (cloud) + 3211 (site)
+      // — both routed through the same ALB on different listener ports.
+      const backendContainerWorkload = {
+        type: 'multi-container-workload' as const,
+        name: backendChild.name,
+        nameChain: backendChild.nameChain,
+        configParentResourceType: type,
+        resources: convex.backend.resources,
+        // Single-instance correctness invariant: convex-backend OSS does not support
+        // horizontal scaling. Hard-coded to 1/1.
+        scaling: { minInstances: 1, maxInstances: 1 },
+        enableRemoteSessions: convex.backend.enableRemoteSessions,
+        usePrivateSubnetsWithNAT: false,
+        connectTo: [
+          databaseRef,
+          modulesBucketRef,
+          filesBucketRef,
+          searchBucketRef,
+          exportsBucketRef,
+          snapshotImportsBucketRef
+        ],
+        containers: [
+          {
+            name: 'convex-backend',
+            essential: true,
+            packaging: {
+              type: 'prebuilt-image' as const,
+              properties: { image: backendImage }
+            },
+            logging: convex.backend.logging,
+            // Both convex ports listen but only the cloud port (3210) returns
+            // 200 on `/`. The site port (3211) returns 404 because that origin
+            // only serves user-defined HTTP actions. The convex resolver patches
+            // each ALB target group's HttpCode matcher to accept 200-499 so the
+            // 404 on port 3211's `/` counts as healthy — both ports run in the
+            // same Fargate process so liveness is identical.
+            loadBalancerHealthCheck: {
+              healthcheckPath: '/'
+            },
+            environment: [
+              { name: 'INSTANCE_NAME', value: name },
+              {
+                name: 'INSTANCE_SECRET',
+                // Stacktape's $Secret directive auto-creates the secret on first deploy.
+                value: `$Secret('${name}.instanceSecret')` as unknown as string | boolean | number
+              },
+              {
+                name: 'CONVEX_CLOUD_ORIGIN',
+                value:
+                  (convex.customDomains?.cloud?.domainName && `https://${convex.customDomains.cloud.domainName}`) ||
+                  ''
+              },
+              {
+                name: 'CONVEX_SITE_ORIGIN',
+                value:
+                  (convex.customDomains?.site?.domainName && `https://${convex.customDomains.site.domainName}`) || ''
+              },
+              { name: 'AWS_REGION', value: globalStateManager.region },
+              // Convex skips its own TLS init when this is set. Combined with the
+              // `rds.force_ssl=0` parameter-group override the convex resolver
+              // injects, the connection goes plaintext over the VPC's internal
+              // network.
+              { name: 'DO_NOT_REQUIRE_SSL', value: 'true' },
+              { name: 'PORT', value: 3210 },
+              { name: 'SITE_PROXY_PORT', value: 3211 },
+              {
+                name: 'S3_STORAGE_MODULES_BUCKET',
+                value: `$ResourceParam('${modulesBucketRef}', 'name')` as unknown as string
+              },
+              {
+                name: 'S3_STORAGE_FILES_BUCKET',
+                value: `$ResourceParam('${filesBucketRef}', 'name')` as unknown as string
+              },
+              {
+                name: 'S3_STORAGE_SEARCH_BUCKET',
+                value: `$ResourceParam('${searchBucketRef}', 'name')` as unknown as string
+              },
+              {
+                name: 'S3_STORAGE_EXPORTS_BUCKET',
+                value: `$ResourceParam('${exportsBucketRef}', 'name')` as unknown as string
+              },
+              {
+                name: 'S3_STORAGE_SNAPSHOT_IMPORTS_BUCKET',
+                value: `$ResourceParam('${snapshotImportsBucketRef}', 'name')` as unknown as string
+              },
+              // Placeholder POSTGRES_URL — the convex resolver patches this with a
+              // properly-formed Fn::Sub at template-override time. Stacktape's normal
+              // `connectionString` resource param includes a `/defdb` path that convex
+              // rejects, and directive composition (`$Secret(...)` mid-string) is not
+              // supported, so the URL has to be built directly against CF intrinsics.
+              { name: 'POSTGRES_URL', value: '__resolver_overrides_this__' }
+            ],
+            events: [
+              {
+                type: 'application-load-balancer' as const,
+                properties: {
+                  priority: 10,
+                  containerPort: 3210,
+                  loadBalancerName: albRef,
+                  paths: ['*'],
+                  hostnames: convex.customDomains?.cloud?.domainName
+                    ? [convex.customDomains.cloud.domainName]
+                    : undefined
+                }
+              },
+              {
+                type: 'application-load-balancer' as const,
+                properties: {
+                  priority: 20,
+                  containerPort: 3211,
+                  loadBalancerName: albRef,
+                  paths: ['*'],
+                  hostnames: convex.customDomains?.site?.domainName ? [convex.customDomains.site.domainName] : undefined
+                }
+              }
+            ],
+            stopTimeout: 30
+          }
+        ]
+      } as unknown as StpContainerWorkload;
+
+      const dashboardEnabled = convex.dashboard?.enabled !== false;
+      const dashboardContainerWorkload = dashboardEnabled
+        ? ({
+            type: 'multi-container-workload' as const,
+            name: dashboardChild.name,
+            nameChain: dashboardChild.nameChain,
+            configParentResourceType: type,
+            resources: convex.dashboard?.resources ?? { cpu: 0.25 as const, memory: 512 },
+            scaling: { minInstances: 1, maxInstances: 1 },
+            usePrivateSubnetsWithNAT: false,
+            containers: [
+              {
+                name: 'convex-dashboard',
+                essential: true,
+                packaging: {
+                  type: 'prebuilt-image' as const,
+                  properties: { image: dashboardImage }
+                },
+                logging: convex.dashboard?.logging,
+                environment: [
+                  {
+                    name: 'NEXT_PUBLIC_DEPLOYMENT_URL',
+                    value:
+                      (convex.customDomains?.cloud?.domainName &&
+                        `https://${convex.customDomains.cloud.domainName}`) ||
+                      ''
+                  },
+                  { name: 'PORT', value: 6791 }
+                ],
+                events: [
+                  {
+                    type: 'application-load-balancer' as const,
+                    properties: {
+                      priority: 30,
+                      containerPort: 6791,
+                      loadBalancerName: albRef,
+                      paths: ['*'],
+                      hostnames: convex.customDomains?.dashboard?.domainName
+                        ? [convex.customDomains.dashboard.domainName]
+                        : undefined
+                    }
+                  }
+                ],
+                stopTimeout: 5
+              }
+            ]
+          } as unknown as StpContainerWorkload)
+        : undefined;
+
+      // Database default: smallest single-AZ Postgres 16, scoping-workloads-in-vpc.
+      const database = {
+        type: 'relational-database' as const,
+        name: databaseChild.name,
+        nameChain: databaseChild.nameChain,
+        configParentResourceType: type,
+        credentials: {
+          masterUserName: 'convex',
+          masterUserPassword: `$Secret('${name}.dbPassword')` as unknown as string
+        },
+        engine: convex.database?.engine ?? {
+          type: 'postgres',
+          properties: {
+            version: '16.6',
+            // Postgres defaults the database name to the connecting user when the
+            // URL has no path. Convex rejects URLs with a path. Naming the RDS
+            // default db `convex` keeps both sides happy.
+            dbName: 'convex',
+            primaryInstance: { instanceSize: 'db.t4g.micro', multiAz: false }
+          }
+        },
+        accessibility: convex.database?.accessibility ?? { accessibilityMode: 'scoping-workloads-in-vpc' as const },
+        automatedBackupRetentionDays: convex.database?.automatedBackupRetentionDays ?? 1,
+        preferredMaintenanceWindow: convex.database?.preferredMaintenanceWindow,
+        logging: convex.database?.logging,
+        deletionProtection: convex.deletionProtection ?? false
+      } as unknown as StpRelationalDatabase;
+
+      const collectedCustomDomains: DomainConfiguration[] = [];
+      if (convex.customDomains?.cloud) collectedCustomDomains.push(convex.customDomains.cloud);
+      if (convex.customDomains?.site) collectedCustomDomains.push(convex.customDomains.site);
+      if (convex.customDomains?.dashboard) collectedCustomDomains.push(convex.customDomains.dashboard);
+
+      const loadBalancer = {
+        type: 'application-load-balancer' as const,
+        name: albChild.name,
+        nameChain: albChild.nameChain,
+        configParentResourceType: type,
+        customDomains: collectedCustomDomains.length ? collectedCustomDomains : undefined
+      } as unknown as StpApplicationLoadBalancer;
+
+      return {
+        ...convex,
+        _nestedResources: {
+          backendContainerWorkload,
+          dashboardContainerWorkload,
+          database,
+          modulesBucket: mkBucket(modulesBucketChild),
+          filesBucket: mkBucket(filesBucketChild),
+          searchBucket: mkBucket(searchBucketChild),
+          exportsBucket: mkBucket(exportsBucketChild),
+          snapshotImportsBucket: mkBucket(snapshotImportsBucketChild),
+          loadBalancer
+        }
+      } as unknown as StpConvex;
+    });
   }
 
   get efsFilesystems() {
@@ -435,12 +734,24 @@ export class ConfigManager {
   }
 
   get applicationLoadBalancers() {
-    return this.getResourcesFromConfig<StpApplicationLoadBalancer>('application-load-balancer').map((resource) => ({
-      ...resource,
+    const topLevel = this.getResourcesFromConfig<StpApplicationLoadBalancer>('application-load-balancer').map(
+      (resource) => ({
+        ...resource,
+        customDomains: normalizeCustomDomains({
+          customDomains: resource.customDomains as (string | DomainConfiguration)[] | null | undefined
+        })
+      })
+    );
+    const fromConvex = this.convexes.map((c) => ({
+      ...c._nestedResources.loadBalancer,
       customDomains: normalizeCustomDomains({
-        customDomains: resource.customDomains as (string | DomainConfiguration)[] | null | undefined
+        customDomains: c._nestedResources.loadBalancer.customDomains as
+          | (string | DomainConfiguration)[]
+          | null
+          | undefined
       })
     }));
+    return [...topLevel, ...fromConvex];
   }
 
   get httpApiGateways() {
@@ -2728,7 +3039,67 @@ export class ConfigManager {
   }
 
   get isIssueDetectionEnabled() {
-    return !this.stackConfig?.disableIssues;
+    return this.issueDetectionPolicy.enabled;
+  }
+
+  get issueDetectionPolicy(): {
+    enabled: boolean;
+    reason: string;
+    eventSamplingRate: number;
+  } {
+    const organization = globalStateManager.organizationData as
+      | (typeof globalStateManager.organizationData & {
+          issuesAllProjectsEnabled?: boolean;
+          issuesEnabledStages?: string[];
+          issuesEventSamplingRate?: number;
+        })
+      | undefined;
+    const stage = globalStateManager.targetStack?.stage;
+    const eventSamplingRate = Math.min(100, Math.max(1, Number(organization?.issuesEventSamplingRate || 100)));
+
+    if (!organization || !stage) {
+      return {
+        enabled: false,
+        reason: 'disabled because Console issue settings could not be loaded',
+        eventSamplingRate
+      };
+    }
+
+    const enabledStages = organization.issuesEnabledStages || [];
+    if (enabledStages.length > 0 && !enabledStages.includes('*') && !enabledStages.includes(stage)) {
+      return {
+        enabled: false,
+        reason: `disabled by Console policy for stage "${stage}"`,
+        eventSamplingRate
+      };
+    }
+
+    if (organization.issuesAllProjectsEnabled) {
+      return {
+        enabled: true,
+        reason: 'enabled by Console policy for all projects',
+        eventSamplingRate
+      };
+    }
+
+    const projectName = globalStateManager.targetStack?.projectName;
+    const project = globalStateManager.projects?.find((projectData) => projectData.name === projectName) as
+      | ((typeof globalStateManager.projects)[number] & { issuesEnabled?: boolean })
+      | undefined;
+
+    if (project?.issuesEnabled) {
+      return {
+        enabled: true,
+        reason: `enabled by Console policy for project "${projectName}"`,
+        eventSamplingRate
+      };
+    }
+
+    return {
+      enabled: false,
+      reason: 'disabled by Console policy',
+      eventSamplingRate
+    };
   }
 
   get guardrails() {
@@ -3132,7 +3503,7 @@ export class ConfigManager {
 
   get allSecretReferencesUsedInConfig() {
     const secretRefs = new Map<string, Set<string>>();
-    processAllNodesSync(this.config, (node) => {
+    const visit = (node: unknown) => {
       if (typeof node === 'string' && getIsDirective(node) && node.startsWith('$Secret')) {
         const fullRef = getDirectiveParams('Secret', node)[0].value as string;
         const [secretName, jsonKey] = fullRef.split('.');
@@ -3143,7 +3514,12 @@ export class ConfigManager {
           secretRefs.get(secretName).add(jsonKey);
         }
       }
-    });
+    };
+    processAllNodesSync(this.config, visit);
+    // Also scan synthesized nested resources (e.g., the env vars + DB credentials a
+    // `convex` resource expands into during preprocessing) so secret-preflight can
+    // auto-create those secrets.
+    processAllNodesSync(this.convexes, visit);
     return secretRefs;
   }
 
@@ -3167,6 +3543,15 @@ export class ConfigManager {
     for (const mongo of this.atlasMongoClusters) {
       const name = extractSecretName(mongo.adminUserCredentials?.password);
       if (name) names.add(name);
+    }
+    // Convex auto-generates secrets for its synthesized backing Postgres (`dbPassword`)
+    // and for its `INSTANCE_SECRET` boot token.
+    for (const convex of this.convexes) {
+      const dbName = extractSecretName(convex._nestedResources.database?.credentials?.masterUserPassword);
+      if (dbName) names.add(dbName);
+      // INSTANCE_SECRET is referenced from the backend container env, which is keyed
+      // by the same secret name. Adding it explicitly is harmless (Set dedups).
+      names.add(convex.name);
     }
     return names;
   }
@@ -3252,7 +3637,8 @@ export class ConfigManager {
       ...this.tanstackWebs,
       ...this.remixWebs,
       ...this.openSearchDomains,
-      ...this.efsFilesystems
+      ...this.efsFilesystems,
+      ...this.convexes
     ];
   }
 

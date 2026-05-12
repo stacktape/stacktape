@@ -46,7 +46,8 @@ export const getError = ({
   hint,
   stack,
   code,
-  userStackTrace
+  userStackTrace,
+  errorDetails
 }: {
   message: string;
   type: ErrorType;
@@ -55,6 +56,7 @@ export const getError = ({
   data?: any;
   stack?: Error['stack'];
   userStackTrace?: string;
+  errorDetails?: { title: string; codeFrame?: string };
 }) => {
   const error = new Error(message) as StacktapeError;
   if (stack) {
@@ -67,6 +69,7 @@ export const getError = ({
   error.isExpected = type !== 'UNEXPECTED';
   error.isNewApproachError = true;
   error.userStackTrace = userStackTrace;
+  error.errorDetails = errorDetails;
   return error;
 };
 

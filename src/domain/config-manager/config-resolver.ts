@@ -51,7 +51,7 @@ const formatBuildErrors = (errors: BuildError[]): string => {
  * Parse TypeScript config loading errors and throw appropriate user-friendly errors
  */
 const handleTypescriptConfigError = (error: Error, configPath: string): never => {
-  const errorMessage = error.message || String(error);
+  const rawMessage = error.message || String(error);
 
   if ('errors' in error) {
     const aggregateError = error as Error & { errors: BuildError[] };
@@ -62,13 +62,13 @@ const handleTypescriptConfigError = (error: Error, configPath: string): never =>
   }
 
   // Check for missing package errors
-  const packageMatch = errorMessage.match(/Cannot find package '([^']+)'/);
+  const packageMatch = rawMessage.match(/Cannot find package '([^']+)'/);
   if (packageMatch) {
     throw stpErrors.e136({ configPath, packageName: packageMatch[1] });
   }
 
   // Check for module not found (different format)
-  const moduleMatch = errorMessage.match(/Cannot find module '([^']+)'/);
+  const moduleMatch = rawMessage.match(/Cannot find module '([^']+)'/);
   if (moduleMatch) {
     const moduleName = moduleMatch[1];
     // If it looks like a package (not a relative path), suggest installing
@@ -78,18 +78,101 @@ const handleTypescriptConfigError = (error: Error, configPath: string): never =>
   }
 
   // Check for syntax errors
-  if (errorMessage.includes('SyntaxError') || errorMessage.includes('Parse error')) {
-    throw stpErrors.e137({ configPath, errorMessage });
+  if (rawMessage.includes('SyntaxError') || rawMessage.includes('Parse error')) {
+    throw stpErrors.e137({ configPath, errorMessage: rawMessage });
   }
 
   // Check for export not found
-  if (errorMessage.includes('Export named') && errorMessage.includes('not found')) {
-    throw stpErrors.e137({ configPath, errorMessage });
+  if (rawMessage.includes('Export named') && rawMessage.includes('not found')) {
+    throw stpErrors.e137({ configPath, errorMessage: rawMessage });
   }
 
-  // Generic execution error - try to extract user stack trace
-  const userStackTrace = getUserCodeStackTrace(error);
+  // Prefix the error message with its class name (TypeError, ReferenceError, ...) so the
+  // user knows what kind of failure occurred, not just the bare message.
+  const errorClassName = error.name && error.name !== 'Error' ? error.name : null;
+  let errorMessage = errorClassName ? `${errorClassName}: ${rawMessage}` : rawMessage;
+
+  // Extract a user-friendly stack trace. Many runtime errors thrown during top-level
+  // module evaluation (TDZ errors, "undefined is not an object", bare property reads
+  // on undefined globals, etc.) reach us without any user frames in the in-process
+  // stack — Bun has already unwound the call stack by the time we catch. In those
+  // cases we re-execute the config file in a subprocess so we can parse Bun's own
+  // stderr, which includes a code frame pointing at the offending line/column.
+  let userStackTrace = getUserCodeStackTrace(error) ?? getFilteredRawStack(error);
+  const hasUsefulTrace = !!userStackTrace && /:\d+(:\d+)?/.test(userStackTrace);
+  const looksLikeTdz = /Cannot access '.*' before initialization/.test(rawMessage);
+  if (!hasUsefulTrace || looksLikeTdz) {
+    const reExecOutput = reExecuteConfigForError(configPath);
+    if (reExecOutput) {
+      const { message, codeFrame } = reExecOutput;
+      if (message) errorMessage = message;
+      if (codeFrame) userStackTrace = codeFrame;
+    }
+  }
   throw stpErrors.e138({ configPath, errorMessage, userStackTrace });
+};
+
+/**
+ * Re-execute the config file in a subprocess to surface the real top-level error
+ * (including Bun's code frame) when the in-process error is a wrapper like
+ * "Cannot access 'default' before initialization".
+ */
+const reExecuteConfigForError = (configPath: string): { message: string; codeFrame: string } | null => {
+  try {
+    const result = Bun.spawnSync({
+      cmd: [process.execPath, configPath],
+      stdout: 'pipe',
+      stderr: 'pipe',
+      env: { ...process.env, NODE_ENV: 'production' }
+    });
+    const stderr = result.stderr?.toString() ?? '';
+    if (!stderr.trim()) return null;
+    return parseBunErrorOutput(stderr);
+  } catch {
+    return null;
+  }
+};
+
+const parseBunErrorOutput = (stderr: string): { message: string; codeFrame: string } | null => {
+  const lines = stderr.split('\n');
+  // Find the primary error line. Bun prints either the uppercase JS error class
+  // ("TypeError: …", "ReferenceError: …") or a bare lowercase "error: …" for
+  // generic throws — match both.
+  const errorLineIndex = lines.findIndex((l) => {
+    const trimmed = l.trim();
+    return (
+      /^(Error|TypeError|ReferenceError|SyntaxError|RangeError|AggregateError|URIError|EvalError):/.test(trimmed) ||
+      /^error:/.test(trimmed)
+    );
+  });
+  if (errorLineIndex === -1) return null;
+  const message = lines[errorLineIndex].trim();
+  // Collect the code-frame block that precedes the error (lines like "  4 | const x = ...")
+  // plus the "at ..." frames that follow.
+  const frameStart = Math.max(0, errorLineIndex - 10);
+  const frameLines = lines
+    .slice(frameStart, errorLineIndex)
+    .concat(lines.slice(errorLineIndex + 1).filter((l) => l.trim().startsWith('at ')))
+    .map((l) => l.trimEnd())
+    .filter(Boolean);
+  return { message, codeFrame: frameLines.join('\n') };
+};
+
+const getFilteredRawStack = (error: Error): string | null => {
+  if (!error.stack) return null;
+  const lines = error.stack.split('\n');
+  const kept = lines.filter((line) => {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith('at ')) return false;
+    const normalized = trimmed.replaceAll('\\', '/');
+    if (normalized.includes('/src/utils/file-loaders.ts')) return false;
+    if (normalized.includes('/src/domain/config-manager/')) return false;
+    if (normalized.includes('/src/utils/errors.ts')) return false;
+    if (normalized.includes('processTicksAndRejections')) return false;
+    if (normalized.includes('(native)')) return false;
+    return true;
+  });
+  return kept.length ? kept.map((l) => `  ${l.trim()}`).join('\n') : null;
 };
 
 type DirectiveToProcess = Directive & {

@@ -214,7 +214,8 @@ export const RESOURCE_DEFAULTS: { [_resourceType in StpResourceType]: Partial<St
   'remix-web': {},
   'open-search-domain': {},
   'efs-filesystem': {},
-  'network-load-balancer': {}
+  'network-load-balancer': {},
+  convex: {}
 };
 
 export const configurableGlobalDefaultCliArgs = {
@@ -312,6 +313,9 @@ export const HELPER_LAMBDAS: HelperLambdaName[] = [
   'stacktapeServiceLambda'
 ];
 
+// The console API/table still use the legacy "StackOperation" name, but these
+// are recorded CLI operations and may include commands that do not mutate a
+// CloudFormation stack.
 export const RECORDED_STACKTAPE_COMMANDS: StacktapeRecordedCommand[] = [
   'deploy',
   'codebuild:deploy',
