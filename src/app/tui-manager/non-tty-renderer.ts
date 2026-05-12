@@ -6,6 +6,7 @@ export type ErrorDisplayData = {
   hints?: string[];
   stackTrace?: string;
   userStackTrace?: string;
+  errorDetails?: { title: string; codeFrame?: string };
   sentryEventId?: string;
   isExpected?: boolean;
 };
@@ -109,7 +110,17 @@ export const renderErrorToString = (
     lines.push(msgLine);
   }
 
-  if (error.userStackTrace) {
+  if (error.errorDetails) {
+    lines.push('');
+    lines.push(makeBold(colorize('red', '▌ Error details')));
+    lines.push(makeBold(`  ${error.errorDetails.title}`));
+    if (error.errorDetails.codeFrame) {
+      lines.push('');
+      for (const frameLine of error.errorDetails.codeFrame.split('\n')) {
+        lines.push(`  ${colorize('gray', '│')} ${frameLine}`);
+      }
+    }
+  } else if (error.userStackTrace) {
     lines.push('');
     lines.push(makeBold('Stack trace in your code:'));
     lines.push(colorize('cyan', error.userStackTrace));

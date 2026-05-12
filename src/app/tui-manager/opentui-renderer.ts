@@ -11,6 +11,13 @@ export type OpenTuiHandle = {
   resume: () => void;
 };
 
+type OpenTuiAppOptions = {
+  useMouse?: boolean;
+  useAlternateScreen?: boolean;
+  experimentalSplitHeight?: number;
+  releaseStdinOnDestroy?: boolean;
+};
+
 /**
  * Creates an OpenTUI app using the Solid reconciler.
  *
@@ -25,7 +32,7 @@ export type OpenTuiHandle = {
  */
 export const createOpenTuiApp = async (
   component: () => JSX.Element,
-  options?: { useMouse?: boolean }
+  options?: OpenTuiAppOptions
 ): Promise<OpenTuiHandle> => {
   tuiDebug('RENDERER', 'createOpenTuiApp() begin');
   const { render } = await import('@opentui/solid');
@@ -42,11 +49,12 @@ export const createOpenTuiApp = async (
 
   await render(RendererCapture, {
     exitOnCtrlC: false,
-    useAlternateScreen: true,
+    useAlternateScreen: options?.useAlternateScreen ?? true,
     useMouse: options?.useMouse ?? false,
+    experimental_splitHeight: options?.experimentalSplitHeight,
     targetFps: 60,
     exitSignals: []
-  });
+  } as any);
   tuiDebug('RENDERER', 'render() called');
 
   rendererInstance = capturedRenderer;
@@ -63,12 +71,14 @@ export const createOpenTuiApp = async (
           await Promise.race([capturedRenderer.idle(), new Promise<void>((resolve) => setTimeout(resolve, 500))]);
         }
       } catch {}
-      try {
-        if (process.stdin.isTTY) {
-          process.stdin.pause();
-          process.stdin.unref();
-        }
-      } catch {}
+      if (options?.releaseStdinOnDestroy ?? true) {
+        try {
+          if (process.stdin.isTTY) {
+            process.stdin.pause();
+            process.stdin.unref();
+          }
+        } catch {}
+      }
       rendererInstance = null;
       capturedRenderer = null;
       tuiDebug('RENDERER', 'handle.destroy() complete');
