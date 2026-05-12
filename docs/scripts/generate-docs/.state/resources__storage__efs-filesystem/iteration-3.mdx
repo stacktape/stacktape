@@ -1,0 +1,190 @@
+---
+title: 'EFS Filesystem'
+order: 54
+seoTitle: 'EFS Filesystem: Shared Container Storage on AWS | Stacktape Docs'
+seoDescription: 'Mount shared persistent file storage across containers and Lambda functions on AWS EFS with Stacktape. Auto-scaling throughput, automatic backups, and pay-per-use pricing.'
+---
+
+# EFS Filesystem
+
+An EFS filesystem is shared file storage that multiple containers and Lambda functions can read and write simultaneously. Built on AWS Elastic File System, it grows and shrinks automatically as you add or remove files, and data persists even when containers are replaced. Use it for shared uploads, CMS media, ML model files, or any data that needs durable, concurrent access from multiple compute resources.
+
+**Pricing**: Storage costs ~$0.30/GB/month for standard access — you pay only for what you store. Additional fees apply when using provisioned throughput.
+
+## When to use it
+
+**Use an EFS filesystem when:**
+
+- Multiple containers or Lambda functions need to read and write the same files concurrently (shared upload directories, CMS media libraries)
+- You need file storage that persists when containers are replaced
+- ML model files or large shared assets need to be accessible from multiple compute resources
+
+**Use something else when:**
+
+| Situation | Better option |
+|-----------|---------------|
+| Object storage accessed via API (images, backups, static assets) | [Bucket](/resources/storage/bucket) |
+| Structured data (rows, queries, relations) | [Relational database](/resources/databases/relational-database) or [DynamoDB](/resources/databases/dynamodb-table) |
+| Key-value caching, sessions | [Redis cluster](/resources/databases/redis-cluster) |
+| Temporary files used by a single container | No EFS needed — use the container's local disk |
+
+## Basic example
+
+This creates an EFS filesystem with default settings (elastic throughput):
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'stacktape.ts',
+      lang: 'typescript',
+      code: `import { defineConfig, EfsFilesystem } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const sharedStorage = new EfsFilesystem({});
+
+  return {
+    resources: { sharedStorage },
+  };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+An EFS filesystem on its own only creates the storage. To use it, mount it into a compute resource via the `volumeMounts` property.
+
+## Mounting
+
+Compute resources that expose `volumeMounts` can mount EFS filesystems. This includes container-based resources — [web service](/resources/compute/web-service), [worker service](/resources/compute/worker-service), [private service](/resources/compute/private-service), and [multi-container workload](/resources/compute/multi-container-workload) — as well as [Lambda functions](/resources/compute/lambda-function).
+
+Data written to the mount path persists when containers are replaced, and is shared across all instances that mount the same filesystem. Data is encrypted in transit between the compute resource and the filesystem.
+
+This example creates an EFS filesystem and mounts it into a web service at `/mnt/shared`:
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'stacktape.ts',
+      lang: 'typescript',
+      code: `import {
+  defineConfig,
+  EfsFilesystem,
+  WebService,
+  StacktapeImageBuildpackPackaging,
+} from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const sharedStorage = new EfsFilesystem({});
+
+  const api = new WebService({
+    packaging: new StacktapeImageBuildpackPackaging({
+      entryfilePath: './src/server.ts',
+    }),
+    resources: {
+      cpu: 0.5,
+      memory: 1024,
+    },
+    volumeMounts: [
+      {
+        type: 'efs',
+        properties: {
+          efsFilesystemName: 'sharedStorage',
+          mountPath: '/mnt/shared',
+        },
+      },
+    ],
+  });
+
+  return {
+    resources: { sharedStorage, api },
+  };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+`efsFilesystemName` must match the key used for the EFS filesystem in the `resources` object. `mountPath` is the absolute path inside the container where the filesystem is accessible. You can optionally set `rootDirectory` to mount a subdirectory of the EFS filesystem instead of the root (defaults to `"/"`).
+
+<Info>Lambda functions use a similar `volumeMounts` property but require `joinDefaultVpc: true` because Lambda needs VPC access to reach the EFS filesystem. The Lambda mount path must start with `/mnt/`.</Info>
+
+## Throughput
+
+The `throughputMode` property controls how read/write performance scales with your workload.
+
+| Mode | Behavior | Best for |
+|------|----------|----------|
+| `elastic` (default) | Auto-scales throughput with demand | Most workloads, spiky access patterns |
+| `provisioned` | Fixed throughput you set in MiB/s | Steady, high-throughput workloads |
+| `bursting` | Throughput scales with storage size (50 KiB/s per GiB stored) | Large filesystems with low-to-moderate throughput |
+
+For most use cases, start with `elastic` — it auto-scales throughput and is recommended for spiky workloads.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'stacktape.ts',
+      lang: 'typescript',
+      code: `import { defineConfig, EfsFilesystem } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const storage = new EfsFilesystem({
+    throughputMode: 'provisioned',
+    provisionedThroughputInMibps: 100,
+  });
+
+  return {
+    resources: { storage },
+  };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+`provisionedThroughputInMibps` is required when `throughputMode` is `provisioned` and ignored otherwise. You can change the provisioned value after creation. Additional fees apply based on the provisioned amount.
+
+<Tip>Use `bursting` only if your filesystem stores enough data to sustain the throughput you need (50 KiB/s per GiB). With `bursting`, throughput can drop once burst credits are exhausted.</Tip>
+
+## Backups
+
+Enable daily automatic backups with 35-day retention. Backups are incremental — only changes since the last backup are stored.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'stacktape.ts',
+      lang: 'typescript',
+      code: `import { defineConfig, EfsFilesystem } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const storage = new EfsFilesystem({
+    backupEnabled: true,
+  });
+
+  return {
+    resources: { storage },
+  };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+For production data that cannot be regenerated, enable backups.
+
+## API reference
+
+<ApiReference definitionName="EfsFilesystemProps" />
+
+## Referenceable parameters
+
+<ReferenceableParams resource="efs-filesystem" />

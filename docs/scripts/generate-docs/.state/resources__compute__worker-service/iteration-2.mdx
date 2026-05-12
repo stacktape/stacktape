@@ -1,0 +1,534 @@
+---
+title: 'Worker Service'
+order: 33
+seoTitle: 'Worker Service: Background Containers on AWS | Stacktape Docs'
+seoDescription: 'Deploy always-on background workers on AWS with Stacktape. Queue consumers, data pipelines, and background processors with auto-scaling, health checks, and graceful shutdown.'
+---
+
+# Worker Service
+
+A worker service is an always-on container with no public endpoint, running on AWS ECS (Fargate by default, EC2 optional). Use it for queue consumers, background processors, data pipelines, and any workload that runs continuously without receiving inbound HTTP traffic. The container runs inside your VPC and can connect to databases, queues, and other resources in your stack.
+
+**Pricing**: A minimal Fargate task (0.25 vCPU, 512 MB) costs ~$9/month. Fargate cannot scale to zero — idle tasks still bill. ARM (Graviton) tasks cost ~20% less.
+
+## When should I use a worker service?
+
+**Use a worker service when:**
+
+- Your workload runs continuously but does not need to receive HTTP requests (queue consumers, stream processors, scheduled pollers)
+- You need a long-running background process — processing uploads, sending emails, or running ML inference
+- Processing runs longer than Lambda's timeout allows
+- You want to run any language or framework in a container
+
+**Use something else when:**
+
+| Situation | Better option |
+|-----------|---------------|
+| Needs a public HTTPS URL | [Web service](/resources/compute/web-service) |
+| Internal HTTP traffic between services | [Private service](/resources/compute/private-service) |
+| Event-driven, sporadic work | [Lambda function](/resources/compute/lambda-function) — scales to zero, pay per request |
+| Finite task that starts, runs, and terminates | [Batch job](/resources/compute/batch-job) |
+
+## Basic example
+
+This deploys a background worker as an always-on container:
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'stacktape.ts',
+      lang: 'typescript',
+      code: `import { defineConfig, WorkerService, StacktapeImageBuildpackPackaging } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const worker = new WorkerService({
+    packaging: new StacktapeImageBuildpackPackaging({
+      entryfilePath: './src/worker.ts',
+    }),
+    resources: {
+      cpu: 0.25,
+      memory: 512,
+    },
+  });
+
+  return {
+    resources: { worker },
+  };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+```typescript
+// src/worker.ts
+const processWork = async () => {
+  console.info('Processing batch...');
+  // Your processing logic here
+};
+
+const main = async () => {
+  console.info('Worker started');
+  while (true) {
+    try {
+      await processWork();
+    } catch (err) {
+      console.error('Processing error:', err);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+  }
+};
+
+main();
+```
+
+A worker service has no public URL — your application code must initiate its own work loop (polling a queue, reading a stream, running on a timer). Stacktape does not attach event triggers to a worker service. For event-driven invocations, use a [Lambda function](/resources/compute/lambda-function) with a trigger instead.
+
+The Stacktape image buildpack builds a container image from your source code automatically. For other packaging options (custom Dockerfile, prebuilt image, Nixpacks), see [container packaging](/packaging/containers/).
+
+## How do I configure CPU and memory?
+
+The `resources` property sets CPU, memory, and the compute engine for your container.
+
+Two compute engines are available:
+
+- **Fargate** (default) — serverless. Specify `cpu` and `memory`. AWS manages the underlying infrastructure.
+- **EC2** — specify `instanceTypes` for more control and potentially lower cost on steady workloads.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'stacktape.ts',
+      lang: 'typescript',
+      code: `import { defineConfig, WorkerService, StacktapeImageBuildpackPackaging } from 'stacktape';
+
+export default defineConfig(() => {
+  const worker = new WorkerService({
+    packaging: new StacktapeImageBuildpackPackaging({
+      entryfilePath: './src/worker.ts',
+    }),
+    // [!code focus-start]
+    resources: {
+      cpu: 1,
+      memory: 2048,
+    },
+    // [!code focus-end]
+  });
+
+  return {
+    resources: { worker },
+  };
+});`
+    }
+  ]}
+/>
+
+Fargate CPU and memory must use valid combinations. Available CPU values: `0.25`, `0.5`, `1`, `2`, `4`, `8`, `16`. Common sizes and approximate monthly costs (us-east-1, single container):
+
+| vCPU | Memory | ~Cost/month |
+|------|--------|-------------|
+| 0.25 | 512 MB | ~$9 |
+| 0.5 | 1024 MB | ~$18 |
+| 1 | 2048 MB | ~$36 |
+| 2 | 4096 MB | ~$71 |
+| 4 | 8192 MB | ~$142 |
+
+<Tip>Set `architecture: 'arm64'` to use ARM (Graviton) tasks for ~20% lower compute cost. The default is `x86_64`. The `architecture` property applies to Fargate only — when using EC2 `instanceTypes`, the architecture is determined by the instance type itself (e.g., `c6g.large` for ARM).</Tip>
+
+## How does auto-scaling work?
+
+Auto-scaling adds or removes container instances based on CPU and memory utilization. More instances means more capacity to process background work in parallel.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'stacktape.ts',
+      lang: 'typescript',
+      code: `import { defineConfig, WorkerService, StacktapeImageBuildpackPackaging } from 'stacktape';
+
+export default defineConfig(() => {
+  const worker = new WorkerService({
+    packaging: new StacktapeImageBuildpackPackaging({
+      entryfilePath: './src/worker.ts',
+    }),
+    resources: {
+      cpu: 0.5,
+      memory: 1024,
+    },
+    // [!code focus-start]
+    scaling: {
+      minInstances: 2,
+      maxInstances: 10,
+      scalingPolicy: {
+        keepAvgCpuUtilizationUnder: 70,
+      },
+    },
+    // [!code focus-end]
+  });
+
+  return {
+    resources: { worker },
+  };
+});`
+    }
+  ]}
+/>
+
+Without scaling configured, a single container handles all work (`minInstances` and `maxInstances` both default to `1`). `minInstances` cannot be set to `0` — Fargate always runs at least one container. For workloads where interruption matters, configure at least `minInstances: 2` so your worker stays available if one container fails.
+
+Scaling policy defaults: scale out when average CPU or memory exceeds 80%, scale in when utilization drops below the target. `maxInstances` must be greater than or equal to `minInstances`.
+
+Fargate does not support scaling to zero — at least one container is always running and billed. For scale-to-zero workloads, use a [Lambda function](/resources/compute/lambda-function) instead.
+
+## Graceful shutdown
+
+When a container is replaced (during deployments, scaling events, or health check failures), it receives `SIGTERM` followed by `SIGKILL` after the `stopTimeout` expires. The default is **2 seconds** (range: 2–120).
+
+<Warning>The default `stopTimeout` of 2 seconds is almost always too short for background workers. If your worker processes jobs that take more than 2 seconds, increase `stopTimeout` to avoid silently dropping in-progress work during deployments and scaling events.</Warning>
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'stacktape.ts',
+      lang: 'typescript',
+      code: `import { defineConfig, WorkerService, StacktapeImageBuildpackPackaging } from 'stacktape';
+
+export default defineConfig(() => {
+  const worker = new WorkerService({
+    packaging: new StacktapeImageBuildpackPackaging({
+      entryfilePath: './src/worker.ts',
+    }),
+    resources: {
+      cpu: 0.5,
+      memory: 1024,
+    },
+    // [!code focus-start]
+    stopTimeout: 120,
+    // [!code focus-end]
+  });
+
+  return {
+    resources: { worker },
+  };
+});`
+    }
+  ]}
+/>
+
+Set `stopTimeout` to at least the maximum time your worker needs to finish in-progress work. Your application should listen for `SIGTERM` and begin a graceful shutdown (stop accepting new work, finish current tasks, then exit).
+
+## Connecting to other resources
+
+Use `connectTo` to grant your worker service access to databases, buckets, queues, and other resources in your stack. Stacktape automatically grants IAM permissions, opens network access (security group rules for databases and Redis), and injects environment variables with connection details.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'stacktape.ts',
+      lang: 'typescript',
+      code: `import { defineConfig, WorkerService, StacktapeImageBuildpackPackaging, SqsQueue } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const jobs = new SqsQueue({});
+
+  const worker = new WorkerService({
+    packaging: new StacktapeImageBuildpackPackaging({
+      entryfilePath: './src/worker.ts',
+    }),
+    resources: {
+      cpu: 0.5,
+      memory: 1024,
+    },
+    connectTo: ['jobs'],
+  });
+
+  return {
+    resources: { jobs, worker },
+  };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+```typescript
+// src/worker.ts — SQS queue consumer
+import {
+  SQSClient,
+  ReceiveMessageCommand,
+  DeleteMessageCommand,
+} from '@aws-sdk/client-sqs';
+
+const sqs = new SQSClient({});
+const queueUrl = process.env.STP_JOBS_URL;
+
+const main = async () => {
+  console.info('Worker started, polling for messages...');
+  while (true) {
+    try {
+      const { Messages } = await sqs.send(
+        new ReceiveMessageCommand({
+          QueueUrl: queueUrl,
+          MaxNumberOfMessages: 10,
+          WaitTimeSeconds: 20,
+        }),
+      );
+      if (Messages) {
+        for (const msg of Messages) {
+          console.info('Processing:', msg.Body);
+          await sqs.send(
+            new DeleteMessageCommand({
+              QueueUrl: queueUrl,
+              ReceiptHandle: msg.ReceiptHandle,
+            }),
+          );
+        }
+      }
+    } catch (err) {
+      console.error('Polling error:', err);
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+    }
+  }
+};
+
+main();
+```
+
+Environment variables are injected in the format `STP_[RESOURCE_NAME]_[PARAM]`. Connecting to an SQS queue named `jobs` injects `STP_JOBS_ARN`, `STP_JOBS_NAME`, and `STP_JOBS_URL`.
+
+For the full list of injected variables per resource type, see [connecting resources](/configuration/connecting-resources).
+
+For permissions not covered by `connectTo` (e.g., AWS Rekognition, Textract, Bedrock), use `iamRoleStatements` to add raw IAM policy statements.
+
+## How do I detect and replace unhealthy containers?
+
+A worker service has no public endpoint, so configure `internalHealthCheck` when you want unhealthy containers to be replaced automatically. The health check runs a command inside the container — if it fails, the container is terminated and replaced.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'stacktape.ts',
+      lang: 'typescript',
+      code: `import { defineConfig, WorkerService, StacktapeImageBuildpackPackaging } from 'stacktape';
+
+export default defineConfig(() => {
+  const worker = new WorkerService({
+    packaging: new StacktapeImageBuildpackPackaging({
+      entryfilePath: './src/worker.ts',
+    }),
+    resources: {
+      cpu: 0.5,
+      memory: 1024,
+    },
+    // [!code focus-start]
+    internalHealthCheck: {
+      healthCheckCommand: ['CMD-SHELL', 'test -f /tmp/healthy || exit 1'],
+      intervalSeconds: 30,
+      timeoutSeconds: 5,
+      retries: 3,
+      startPeriodSeconds: 60,
+    },
+    // [!code focus-end]
+  });
+
+  return {
+    resources: { worker },
+  };
+});`
+    }
+  ]}
+/>
+
+Defaults: interval `30s`, timeout `5s`, `3` retries before marking unhealthy. Use `startPeriodSeconds` to give the container a grace period during startup before health check failures count.
+
+A common pattern for worker health checks: have your processing loop write a heartbeat file (e.g., `/tmp/healthy`) on each successful iteration, then check for it in the health command. If the worker hangs or crashes, the file stops updating and the container is replaced.
+
+## Side containers
+
+Run helper containers alongside your main container using the `sideContainers` property:
+
+- **`run-on-init`** — runs to completion before the main container starts. Must exit with code 0. Use for database migrations, cache warming, or configuration setup.
+- **`always-running`** — runs for the entire lifecycle alongside the main container. If it crashes, the whole task fails. An `always-running` helper container can reach the main container via `localhost`. Use for log forwarders, monitoring agents, or sidecar proxies.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'stacktape.ts',
+      lang: 'typescript',
+      code: `import {
+  defineConfig,
+  WorkerService,
+  StacktapeImageBuildpackPackaging,
+  CustomDockerfilePackaging,
+} from 'stacktape';
+
+export default defineConfig(() => {
+  const worker = new WorkerService({
+    packaging: new StacktapeImageBuildpackPackaging({
+      entryfilePath: './src/worker.ts',
+    }),
+    resources: {
+      cpu: 0.5,
+      memory: 1024,
+    },
+    // [!code focus-start]
+    sideContainers: [
+      {
+        name: 'migrate',
+        containerType: 'run-on-init',
+        packaging: new CustomDockerfilePackaging({
+          buildContextPath: './migrations',
+        }),
+      },
+    ],
+    // [!code focus-end]
+  });
+
+  return {
+    resources: { worker },
+  };
+});`
+    }
+  ]}
+/>
+
+## How do I get a static outbound IP?
+
+Enable private subnets with NAT when you need a static outbound IP for IP whitelisting with third-party APIs, payment gateways, or partner services.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'stacktape.ts',
+      lang: 'typescript',
+      code: `import { defineConfig, WorkerService, StacktapeImageBuildpackPackaging } from 'stacktape';
+
+export default defineConfig(() => {
+  const worker = new WorkerService({
+    packaging: new StacktapeImageBuildpackPackaging({
+      entryfilePath: './src/worker.ts',
+    }),
+    resources: {
+      cpu: 0.5,
+      memory: 1024,
+    },
+    // [!code focus-start]
+    usePrivateSubnetsWithNAT: true,
+    // [!code focus-end]
+  });
+
+  return {
+    resources: { worker },
+    stackConfig: {
+      vpc: {
+        nat: { availabilityZones: 2 },
+      },
+    },
+  };
+});`
+    }
+  ]}
+/>
+
+With `usePrivateSubnetsWithNAT: true`, outbound traffic routes through NAT Gateways. Each NAT Gateway gets a static Elastic IP that persists across deployments. Configure how many availability zones get a NAT Gateway with `stackConfig.vpc.nat.availabilityZones` (1–3, default `2`).
+
+<Warning>Each NAT Gateway costs ~$32/month plus data processing fees. Only enable this when you need a static outbound IP.</Warning>
+
+## How do I persist data across container restarts?
+
+Mount EFS (Elastic File System) volumes to persist data across container restarts and share files between container instances. EFS volume mounts persist when containers are replaced, can be mounted by multiple containers, and use encryption in transit.
+
+Use persistent storage when your worker needs to cache large files (ML models, media assets), share state between container instances, or maintain data that survives container replacements.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'stacktape.ts',
+      lang: 'typescript',
+      code: `import {
+  defineConfig,
+  WorkerService,
+  StacktapeImageBuildpackPackaging,
+  EfsFilesystem,
+} from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const storage = new EfsFilesystem({});
+
+  const worker = new WorkerService({
+    packaging: new StacktapeImageBuildpackPackaging({
+      entryfilePath: './src/worker.ts',
+    }),
+    resources: {
+      cpu: 0.5,
+      memory: 1024,
+    },
+    volumeMounts: [
+      {
+        type: 'efs',
+        properties: {
+          efsFilesystemName: 'storage',
+          mountPath: '/mnt/data',
+        },
+      },
+    ],
+  });
+
+  return {
+    resources: { storage, worker },
+  };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+## Where are worker service logs stored?
+
+Container output (`stdout`/`stderr`) is automatically sent to CloudWatch Logs and retained for 90 days by default. You can view logs using `stacktape logs` or in the Stacktape Console. Adjust retention with the `logging.retentionDays` property — available values range from 1 day to 10 years.
+
+## How do I debug a running container?
+
+Enable `enableRemoteSessions: true` to open interactive shell access to running containers using `stacktape container:session`. This installs a small SSM agent that uses minimal CPU/memory. Use this when you need to inspect container state, check file systems, or debug issues that only reproduce in the deployed environment — situations where reading logs alone is not enough.
+
+## FAQ
+
+### What is the difference between a worker service and a Lambda function?
+
+A worker service runs continuously as a Fargate or EC2 container — it stays on 24/7 and your code manages its own work loop (polling queues, processing streams). A Lambda function is event-driven: it starts when triggered, processes one event, and scales to zero when idle. Use a worker for long-running or continuous processes; use Lambda for sporadic, event-triggered tasks where scale-to-zero pricing matters.
+
+### How much does a Fargate worker service cost?
+
+A minimal Fargate task (0.25 vCPU, 512 MB) costs approximately $9/month in us-east-1. Costs scale linearly with CPU and memory — 1 vCPU with 2 GB costs ~$36/month. ARM (Graviton) tasks are ~20% cheaper. Fargate bills continuously, even when idle.
+
+### Can a worker service scale to zero?
+
+No. Fargate always runs at least one container instance and bills for the full duration. If you need scale-to-zero behavior, use a [Lambda function](/resources/compute/lambda-function) with an event trigger (SQS, schedule, EventBridge) instead.
+
+### How do I connect a worker to an SQS queue?
+
+Define an `SqsQueue` resource and list it in the worker's `connectTo` array. Stacktape grants permissions automatically and injects `STP_[QUEUE_NAME]_URL`, `STP_[QUEUE_NAME]_ARN`, and `STP_[QUEUE_NAME]_NAME` as environment variables. Your worker code uses the injected URL to poll the queue.
+
+### How do I get a static outbound IP for my worker?
+
+Set `usePrivateSubnetsWithNAT: true` on the worker service and configure `stackConfig.vpc.nat`. Each availability zone with a NAT Gateway gets a static Elastic IP that persists across deployments. Each NAT Gateway costs ~$32/month.
+
+## API reference
+
+<ApiReference definitionName="WorkerServiceProps" />
+
+## Referenceable parameters
+
+<ReferenceableParams resource="worker-service" />

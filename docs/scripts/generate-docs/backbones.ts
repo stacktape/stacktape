@@ -3,7 +3,10 @@ import type { BackboneTemplate } from './types';
 export const getBackboneSections = (template: BackboneTemplate) => {
   switch (template) {
     case 'resource':
-      return ['When to Use', 'Basic Example', 'Key Configuration Areas', 'How It Works', 'API Reference'];
+      // Bookends only. The writer agent chooses how to subdivide configuration content
+      // between the basic example and the API reference — pick H2/H3 sections that match the
+      // resource's actual shape, source files, and most-touched configuration paths.
+      return ['When to Use', 'Basic Example', 'API Reference'];
     case 'choosing':
       return ['Quick Recommendation', 'Comparison Table', 'When to Choose Each Option', 'Cost and Operational Tradeoffs', 'Related Pages'];
     case 'recipe':

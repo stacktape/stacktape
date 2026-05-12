@@ -1,0 +1,162 @@
+---
+title: 'EFS Filesystem'
+order: 54
+seoTitle: 'EFS Filesystem: Shared Container Storage | Stacktape Docs'
+seoDescription: 'Mount shared persistent file storage across containers on AWS EFS with Stacktape. Auto-scaling throughput, automatic backups, and pay-per-use pricing.'
+---
+
+# EFS Filesystem
+
+An EFS filesystem is shared file storage that multiple containers can read and write simultaneously. Built on AWS Elastic File System, it grows and shrinks automatically, persists data across container restarts and deployments, and is accessible via `volumeMounts`. Use it for shared uploads, CMS media, ML model files, or anything that needs durable, concurrent access.
+
+**Pricing**: Storage costs approximately $0.30/GB/month for standard access — you pay only for what you store. Additional fees apply when using provisioned throughput.
+
+## When to use it
+
+**Use an EFS filesystem when:**
+
+- Multiple containers need to read and write the same files concurrently (shared upload directories, CMS media libraries)
+- You need file storage that survives container restarts, redeployments, and scaling events
+- Your workload requires POSIX filesystem semantics (directory listing, random reads, file locks) that object storage does not provide
+- ML model files, configuration data, or code artifacts need to be shared across compute resources
+
+**Use something else when:**
+
+| Situation | Better option |
+|-----------|---------------|
+| Object storage (images, backups, static assets) | [Bucket](/resources/storage/bucket) — S3 API, CDN-friendly |
+| Structured data (rows, queries, relations) | [Relational database](/resources/databases/relational-database) or [DynamoDB](/resources/databases/dynamodb-table) |
+| Key-value caching, sessions | [Redis cluster](/resources/databases/redis-cluster) |
+| Single-container scratch space | Container's local disk — no setup needed |
+
+EFS costs more per GB than S3 but provides POSIX filesystem semantics that S3 does not — directory listing, random reads within files, and file locks.
+
+## Basic example
+
+This creates an EFS filesystem with default settings (elastic throughput):
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, EfsFilesystem } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const sharedStorage = new EfsFilesystem({});
+
+  return {
+    resources: { sharedStorage },
+  };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+An EFS filesystem on its own only creates the storage. To use it, mount it into a container via the `volumeMounts` property on a compute resource.
+
+## Mounting into containers
+
+Container-based compute resources — [web service](/resources/compute/web-service), [worker service](/resources/compute/worker-service), [private service](/resources/compute/private-service), and [multi-container workload](/resources/compute/multi-container-workload) — can mount EFS filesystems using the `volumeMounts` property.
+
+Files written to the mount path:
+
+- **Persist** across container restarts, deployments, and scaling events
+- **Are shared** across all container instances that mount the same filesystem
+- **Are encrypted in transit** between the container and the filesystem
+
+See the API reference for your compute resource for the full `volumeMounts` configuration.
+
+## Throughput
+
+The `throughputMode` property controls how read/write performance scales with your workload.
+
+| Mode | Behavior | Best for |
+|------|----------|----------|
+| `elastic` (default) | Throughput auto-scales with demand | Most workloads, spiky access patterns |
+| `provisioned` | Fixed throughput you set in MiB/s | Steady, high-throughput workloads |
+| `bursting` | Throughput scales with storage size (50 KiB/s per GiB stored) | Large filesystems with low-to-moderate throughput |
+
+For most use cases, stick with `elastic` (the default). It handles traffic spikes without running out of burst credits.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, EfsFilesystem } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const storage = new EfsFilesystem({
+    throughputMode: 'provisioned',
+    provisionedThroughputInMibps: 100,
+  });
+
+  return {
+    resources: { storage },
+  };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+`provisionedThroughputInMibps` is required when `throughputMode` is `provisioned` and ignored otherwise. You can change the provisioned value later. Additional fees apply based on the provisioned amount.
+
+<Tip>Use `bursting` only if your filesystem stores enough data to sustain the throughput you need (50 KiB/s per GiB). Small filesystems with `bursting` can exhaust burst credits and drop to very low throughput.</Tip>
+
+## Backups
+
+Enable daily automatic backups with 35-day retention. Backups are incremental — only changes since the last backup are copied.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, EfsFilesystem } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const storage = new EfsFilesystem({
+    backupEnabled: true,
+  });
+
+  return {
+    resources: { storage },
+  };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+For production data that cannot be regenerated, enable backups. Backup costs are usage-based.
+
+## FAQ
+
+### How do I share files between containers?
+
+Create an EFS filesystem resource and mount it into each container using the `volumeMounts` property on the compute resource. All containers that mount the same filesystem can read and write the same files concurrently.
+
+### Does EFS persist data across deployments?
+
+Yes. Data stored in EFS persists across container restarts, redeployments, and scaling events. Unlike container-local storage, EFS data is not lost when containers are replaced.
+
+### How much does EFS storage cost?
+
+Approximately $0.30/GB/month for standard access. You pay only for storage used — there is no pre-provisioning. Additional fees apply when using provisioned throughput mode.
+
+### EFS vs S3
+
+Use EFS when your workload needs POSIX filesystem semantics — directory listing, random reads, file locks, or concurrent writes from multiple containers via a mount path. Use a [bucket](/resources/storage/bucket) (S3) for object storage like images, backups, or static assets where you access files through an API rather than a filesystem path.
+
+## API reference
+
+<ApiReference definitionName="EfsFilesystemProps" />

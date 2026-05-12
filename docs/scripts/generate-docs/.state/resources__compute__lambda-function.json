@@ -1,0 +1,1162 @@
+{
+  "pageId": "resources__compute__lambda-function",
+  "pageRoute": "resources/compute/lambda-function",
+  "startedAt": "2026-05-07T08:42:12.666Z",
+  "updatedAt": "2026-05-07T09:26:50.425Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\resources__compute__lambda-function\\iteration-1.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "startup-cto",
+          "persona": "Small startup CTO with low to medium AWS experience. Cares most about time-to-production and shipping quickly without getting trapped in AWS complexity.",
+          "modelProvider": "claude",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "The 'When should I use a Lambda function?' section with the comparison table is excellent decision-making support for a startup CTO evaluating compute options.",
+            "Memory/CPU relationship is explained concretely with the 1,769 MB = 1 vCPU ratio and the actionable insight that increasing memory can make functions faster AND cheaper.",
+            "VPC access section clearly explains the tradeoff (loses internet access) and reassures users they usually don't need to set it manually — reducing anxiety for AWS-light readers.",
+            "Trigger types are presented as a scannable reference table before diving into the most common pattern (HTTP API Gateway), which matches how a busy reader would use the page.",
+            "Cold starts and provisioned concurrency section gives clear guidance on who should use it (user-facing APIs) vs. who should skip it (background jobs), with cost warnings.",
+            "CodeBlock examples are properly focused with focus markers, imports are hidden correctly, and application code uses fenced blocks — all matching the required component patterns.",
+            "The basic example is minimal and copyable — a startup CTO can deploy a function with just packaging + url, which is the fastest path to a working endpoint."
+          ],
+          "problems": [
+            "The `environment` property is not covered anywhere on the page. This is a fundamental feature — nearly every Lambda function needs custom env vars (API keys, feature flags, config values). The page only shows env vars via `connectTo` auto-injection, leaving readers without guidance on setting plain env vars.",
+            "The `alarms` property (`LambdaAlarm[]`) is not mentioned at all. Lambda-specific alarm triggers (error rate, duration) are defined in the source types and are important for production readiness. Even a brief mention with a link would help.",
+            "The Destinations section is too thin — two sentences with no example and no explanation of what 'async invocations' means in practice. A reader unfamiliar with Lambda's invocation modes won't understand when destinations apply vs. when they don't.",
+            "The `layers` property is not mentioned. While niche, layers are relevant for users who need shared native libraries (sharp, puppeteer, FFmpeg) or custom runtimes — common enough for a startup building image processing or PDF generation.",
+            "The `runtime` property deserves explicit mention beyond the implicit 'auto-detected from file extension' note. The source shows specific runtime values (nodejs24.x, python3.13, etc.) and the JSDoc says 'Override only if you need a specific version' — users should know this lever exists.",
+            "The 'Use something else' table row 'Need VPC access + external internet access' is slightly misleading. Lambda CAN join a VPC — it just loses internet. The wording implies Lambda doesn't support VPC at all. Should say 'Need VPC access AND external internet access simultaneously'."
+          ],
+          "mandatoryFixes": [
+            "Add a brief section or subsection covering the `environment` property with a short example showing how to set custom env vars (e.g., API keys, feature flags). This is a fundamental Lambda configuration that most users need.",
+            "Expand the Destinations section: explain that destinations apply to async invocations (S3 triggers, SNS, EventBridge, SDK async invoke) — not synchronous HTTP calls. Add at least one sentence on when to use `onFailure` for dead-letter processing.",
+            "Fix the 'Use something else' table: change 'Need VPC access + external internet access' to 'Need VPC access AND external internet access simultaneously' or similar wording that clarifies Lambda does support VPC, just not VPC + internet together."
+          ],
+          "optionalImprovements": [
+            "Add a brief mention of `layers` (1-2 sentences) for users who need shared native libraries or custom runtimes. Link to AWS docs or a dedicated page if one exists.",
+            "Mention the `runtime` property explicitly — note that it's auto-detected from the file extension when using the buildpack, but can be overridden (e.g., to pin `nodejs22.x` or use `python3.13`). List the most common supported runtimes.",
+            "Add a brief mention of `alarms` (error rate, duration triggers) with a link to the alarms documentation. A startup CTO going to production should know monitoring is built in.",
+            "In the Logging section, mention the specific log forwarding destinations from the source (Datadog, Highlight.io, HTTP endpoint) rather than the generic 'external services' phrasing, so readers know exactly what's supported.",
+            "Consider adding a 'Custom domains' subsection similar to the web-service example page. Lambda functions with CDN enabled can attach custom domains through the CDN configuration — this is a common need for production APIs.",
+            "The Go runtime is listed in the supported languages but Go is not in the `LambdaRuntime` type (it uses `provided.al2023`). Clarify that Go compiles to a binary using the `provided` runtime, so users aren't confused when they don't see a `go` runtime option."
+          ]
+        },
+        {
+          "reviewerId": "smb-manager",
+          "persona": "SMB engineering manager with medium to high AWS knowledge. Cares about long-term maintainability, team clarity, operational fit, technically correct Stacktape class-based config examples, and valid MDX component usage.",
+          "modelProvider": "codex",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Uses the required TypeScript class-based Stacktape config examples inside `<CodeBlock intellisense tabs={[...]}/>` and keeps application handler code in ordinary fenced TypeScript blocks.",
+            "Strong early decision guidance with clear “use” and “use something else” sections, including alternatives for long-running work, always-on HTTP, and VPC plus internet access.",
+            "Covers the important Lambda levers for this audience: packaging, triggers, function URLs, memory and timeout, concurrency, VPC access, storage, logging, destinations, CDN, and deployments.",
+            "Most constraints are scoped precisely to the relevant property paths, especially `url`, `joinDefaultVpc`, `storage`, `volumeMounts`, `deployment`, and `logging`.",
+            "Good practical examples that define resource variables and return them from `defineConfig`, matching the project’s documented config style."
+          ],
+          "problems": [
+            "Several technical claims are broader than the provided source supports: “scale automatically from zero to thousands of concurrent executions,” “pay per request,” “zero cost when idle,” and “steady high traffic where per-request pricing adds up” are not stated in the supplied type/source files.",
+            "The pricing line does not use concrete pricing data because none is provided for Lambda request or GB-second pricing in the source files; it should be narrowed to sourced wording such as paying for compute time consumed and `arm64` being ~20% cheaper per GB-second.",
+            "The page says function URLs are “simpler and cheaper for single-function APIs, webhooks, and microservices.” The source supports “simpler and cheaper than an API Gateway for single-function endpoints,” but “webhooks and microservices” is an extrapolation.",
+            "The “Triggers” table is useful but a little exhaustive for prose. It duplicates API reference territory and may slow scanning; source supports the trigger list, but the page would be stronger if it focused on the common paths and linked out for the full list.",
+            "The HTTP API Gateway example may be copyable, but the supplied sources do not show the `HttpApiGateway` class constructor surface. If this page is being verified only against the provided source bundle, that example needs a schema/type source for the resource class import and empty constructor."
+          ],
+          "mandatoryFixes": [
+            "Narrow or remove unsupported claims about scaling “from zero to thousands,” “pay per request,” “zero cost when idle,” and per-request pricing tradeoffs unless those claims are backed by an included source file.",
+            "Revise the pricing line so every pricing statement is directly sourced; keep the `arm64` ~20% cheaper statement, and avoid unsourced request or GB-second pricing mechanics beyond what the source says.",
+            "Either provide source support for the `HttpApiGateway` class example or adjust the example to only use APIs verified in the provided sources."
+          ],
+          "optionalImprovements": [
+            "Replace the long trigger table with a shorter “common triggers” table and a sentence linking to trigger configuration for the full set.",
+            "Add a small `reservedConcurrency` config example, since the section explains the concept but does not show the property in use.",
+            "In the CDN section, clarify that the source only states CloudFront caching and related options; avoid implying specific cost behavior unless pricing appears in the provided source files.",
+            "Consider adding a brief packaging subsection for `custom-artifact`, since the source explicitly frames it as the alternative to the recommended buildpack."
+          ]
+        },
+        {
+          "reviewerId": "developer-low-aws",
+          "persona": "Developer with little AWS or DevOps experience. Needs jargon kept under control and wants examples that are easy to follow.",
+          "modelProvider": "claude",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Excellent 'when to use / when not to use' decision framework with a concrete comparison table that names specific alternatives — exactly what a developer evaluating compute options needs.",
+            "Memory-CPU relationship explained concisely and practically ('1,769 MB gives 1 vCPU') with the actionable insight that increasing memory can make functions both faster and cheaper.",
+            "VPC tradeoff is one of the most common Lambda gotchas and the page nails it: clear warning about lost internet access, explicit list of what still works (S3, DynamoDB via VPC endpoints), and a pointer to alternatives.",
+            "All defaults and limits are accurately sourced: timeout @default 10, storage @default 512, retention @default 180, authMode @default NONE, architecture @default x86_64. No invented numbers.",
+            "Smart cross-linking strategy — triggers and packaging are linked to dedicated pages rather than re-explained, keeping the page focused on Lambda-specific concerns.",
+            "Trigger types are comprehensively listed in a scannable table with use-case descriptions, then the most common pattern (HTTP API Gateway) gets a full worked example.",
+            "Code examples correctly use <CodeBlock intellisense> for Stacktape config and fenced blocks for handler code, with well-placed focus markers."
+          ],
+          "problems": [
+            "'CodeDeploy' is mentioned in the Gradual deployments section ('Must signal success or failure to CodeDeploy') without any context. A developer with little AWS experience won't know what CodeDeploy is or why their function needs to signal it.",
+            "The Destinations section is only two sentences — it names the supported target types but provides no example and no concrete use case. For an event-driven feature that enables dead-letter processing and workflow chaining, this undersells its value.",
+            "The 'when not to use' table row 'Need VPC access + external internet access' is abstract. A beginner won't immediately understand when this applies. The VPC section later explains it well, but the table is where the reader makes their first decision.",
+            "The basic example handler uses `event: any` — for a TypeScript-focused docs page, this loses the chance to show even minimal typing (e.g., `APIGatewayProxyEventV2`) or at least acknowledge that event types depend on the trigger."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Add a brief inline explanation of CodeDeploy in the gradual deployments section, e.g., 'Must signal success/failure to CodeDeploy (the AWS service managing the traffic shift)' — one parenthetical is enough.",
+            "Expand the Destinations section to at least 4-5 sentences with one concrete scenario (e.g., 'Route failed async invocations to an SQS dead-letter queue for retry or alerting') and ideally a small CodeBlock example.",
+            "Rephrase the VPC + internet table row to something concrete: 'Need to reach VPC resources (databases, Redis) AND call external APIs (Stripe, OpenAI)' — mirrors the language used in the VPC section itself.",
+            "Consider noting in the basic example that `event: any` is simplified and that event types depend on the trigger source, or link to a typing reference.",
+            "Add a brief mention of the `layers` property somewhere in prose — it's relevant for users who share native dependencies (e.g., sharp, ffmpeg) across multiple functions and the API reference alone may not surface it for beginners.",
+            "In the Cold starts section, mention that arm64 functions generally have shorter cold starts than x86_64 — this is a well-known practical benefit that would help the audience make the architecture decision."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "claude-verifier",
+          "modelProvider": "claude",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "For permissions not covered by `connectTo` (e.g., AWS Rekognition, Bedrock, SES), use `iamRoleStatements` to add raw IAM policy statements.",
+              "reason": "SES is actually supported by `connectTo` via the `aws:ses` macro. The source code defines `ConnectToAwsServiceMacros = ['aws:ses']` and the `connectTo` JSDoc explicitly lists `**`aws:ses`** — full SES email sending permissions`. Listing SES as an example of something needing `iamRoleStatements` is factually incorrect and will confuse readers into using the harder path.",
+              "suggestedFix": "Change the example to: \"For permissions not covered by `connectTo` (e.g., AWS Rekognition, Bedrock, Textract), use `iamRoleStatements` to add raw IAM policy statements.\" Alternatively, note that SES is available via `connectTo: ['aws:ses']`.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\domain\\config-manager\\utils\\resource-references.ts",
+                  "quote": "export const ConnectToAwsServiceMacros = ['aws:ses'] as const;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "**`aws:ses`** — full SES email sending permissions"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "Pay per request and per GB-second of compute time — zero cost when idle.",
+              "reason": "The 'per request and per GB-second' pricing model is standard AWS Lambda knowledge but is not explicitly stated in any of the provided source files. The source only says 'You only pay for the compute time you consume.' Per the pricing rules, concrete pricing details should come from source files, not general knowledge.",
+              "suggestedFix": "Rephrase to: 'Pay only for the compute time consumed — zero cost when idle. `arm64` (Graviton) is ~20% cheaper per GB-second than the default `x86_64`.' This stays closer to the source wording while still being informative.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\functions.d.ts",
+                  "quote": "Lambda functions are short-lived, stateless, and scale automatically. You only pay for the compute time you consume."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "Environment variables are injected in the format `STP_[RESOURCE_NAME]_[PARAM]`.",
+              "reason": "The source uses the format `STP_[RESOURCE_NAME]_[VARIABLE_NAME]`, not `STP_[RESOURCE_NAME]_[PARAM]`. While both convey the same idea, using different terminology than the source may confuse users who cross-reference the API docs.",
+              "suggestedFix": "Change to `STP_[RESOURCE_NAME]_[VARIABLE_NAME]` to match the source documentation exactly.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Environment variable names are in the format `STP_[RESOURCE_NAME]_[VARIABLE_NAME]` (e.g., `STP_MY_DATABASE_CONNECTION_STRING`)."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "All 12 trigger types in the triggers table exactly match the union type in the source (`HttpApiIntegration | S3Integration | ScheduleIntegration | SnsIntegration | SqsIntegration | KinesisIntegration | DynamoDbIntegration | CloudwatchLogIntegration | ApplicationLoadBalancerIntegration | EventBusIntegration | KafkaTopicIntegration | AlarmIntegration`).",
+            "All numeric defaults are correctly sourced: timeout @default 10, storage @default 512, architecture @default x86_64, joinDefaultVpc @default false, logging.retentionDays @default 180, logging.disabled @default false, url.authMode @default NONE.",
+            "Memory range (128–10,240 MB) and CPU proportionality (1,769 MB = 1 vCPU, 3,538 MB = 2 vCPUs) precisely match the JSDoc in functions.d.ts.",
+            "VPC tradeoff description (loses internet access, S3/DynamoDB still work via VPC endpoints, recommend web-service/worker-service for both) is a near-verbatim match to the source joinDefaultVpc JSDoc.",
+            "All 9 deployment strategies in the gradual deployments section exactly match the LambdaDeploymentConfig.strategy union type.",
+            "Log forwarding claim ('Datadog, Highlight.io, or any HTTP endpoint') is confirmed by LogForwardingBase which supports types 'datadog', 'highlight', and 'http-endpoint'.",
+            "The function URL streaming claim ('increases max response size from 6 MB to 20 MB') matches the responseStreamEnabled JSDoc verbatim.",
+            "No forbidden patterns detected: all Stacktape config examples use <CodeBlock intellisense tabs={[...]} />, application code uses fenced code blocks, no hand-authored YAML, no StacktapeConfig type usage, no marketing language.",
+            "ApiReference and ReferenceableParams components use correct identifiers: definitionName='LambdaFunctionProps' matches the interface name, resource='function' matches the LambdaFunction type field.",
+            "EFS mount path constraint ('must start with /mnt/') correctly sourced from LambdaEfsMountProps.mountPath JSDoc.",
+            "Provisioned concurrency cost and deploy time impact ('pay even when idle', 'increases deploy time by ~2-5 minutes') match source JSDoc precisely.",
+            "Reserved concurrency description ('no additional cost', 'reserves slots exclusively') accurately reflects the source."
+          ],
+          "summary": "The Lambda Function draft is highly accurate, with nearly all factual claims traceable to the source type definitions. The one medium-severity issue is that SES is listed as needing `iamRoleStatements` when it is actually supported by `connectTo` via the `aws:ses` macro — this could mislead users into the harder configuration path. Two low-severity issues involve minor wording deviations from source (pricing model specificity and environment variable format naming). All defaults, constraints, trigger types, deployment strategies, and component references are correctly sourced. No forbidden patterns (hand-authored YAML, StacktapeConfig type, fenced TS config blocks) were detected."
+        },
+        {
+          "verifierId": "codex-verifier",
+          "modelProvider": "codex",
+          "summary": "The draft is mostly grounded in the provided Lambda function, events, packaging, logging, VPC, and referenceable-parameter sources. The main factual risks are unsupported wording around generated function URL outputs, framework-resource alternatives, CDN capability details, and a few cases where examples use resource classes/imports that are not shown in the provided type sources.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“After deploying with `stacktape deploy`, you receive a public HTTPS URL in the format `https://{id}.lambda-url.{region}.on.aws`.”",
+              "reason": "The source supports the Lambda URL format, but it does not say the deploy command prints or returns this URL after deployment. The “receive” behavior is CLI/output behavior and is not grounded in the provided CLI source.",
+              "suggestedFix": "Say only: “A function URL uses the format `https://{id}.lambda-url.{region}.on.aws`.” If you want to document deploy output, verify it against CLI source.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\functions.d.ts",
+                  "quote": "URL format: `https://{id}.lambda-url.{region}.on.aws`"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Next.js, Remix, Astro, or similar SSR framework | Dedicated [framework resource](/resources/frontend/) with optimized builds and routing.”",
+              "reason": "The provided sources show framework resource types exist, but they do not support the claim that they have optimized builds and routing, nor do they mention a generic “similar SSR framework” option.",
+              "suggestedFix": "Narrow to sourced resource names, for example: “Next.js, Remix, Astro, Nuxt, SvelteKit, SolidStart, or TanStack apps | Use the matching frontend framework resource when your app fits one of those resource types.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "| NextjsWeb\n  | AstroWeb\n  | NuxtWeb\n  | SvelteKitWeb\n  | SolidStartWeb\n  | TanStackWeb\n  | RemixWeb"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The Stacktape config examples import and instantiate classes such as `LambdaFunction`, `StacktapeLambdaBuildpackPackaging`, and `HttpApiGateway`.",
+              "reason": "The provided source files define TypeScript interfaces such as `LambdaFunction`, `LambdaFunctionProps`, `StpBuildpackLambdaPackaging`, and `HttpApiGateway` references, but they do not show exported class-based constructors or the exact class names used in the examples. This may be valid in the actual docs runtime, but it is not grounded in the provided source files.",
+              "suggestedFix": "Verify class export names against the source that defines the documented TypeScript config API, or keep the examples only if that source is added to the verifier packet.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\functions.d.ts",
+                  "quote": "interface LambdaFunction {\n  type: 'function';\n  properties: LambdaFunctionProps;\n  overrides?: ResourceOverrides;\n}"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts",
+                  "quote": "interface StpBuildpackLambdaPackaging {\n  type: 'stacktape-lambda-buildpack';\n  properties: StpBuildpackLambdaPackagingProps;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Additional CDN options include custom domains, route rewrites, edge functions, caching configuration, price class selection, and attaching a web application firewall.”",
+              "reason": "The provided Lambda source only says `cdn?: CdnConfiguration` and summarizes caching/lower latency. The detailed CDN options listed here are not present in the provided sources.",
+              "suggestedFix": "Replace with a narrower sourced statement: “The `cdn` property attaches a CDN to the function for edge caching and lower latency. See the CDN documentation for its full option set.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\functions.d.ts",
+                  "quote": "cdn?: CdnConfiguration;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\functions.d.ts",
+                  "quote": "Caches responses at edge locations worldwide. Reduces function invocations and bandwidth costs."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Application code” handler example assumes `handler` is auto-selected as the Lambda handler function when using `StacktapeLambdaBuildpackPackaging` without `handlerFunction`.",
+              "reason": "The provided packaging source defines optional `handlerFunction`, but does not state the default handler function name. The example may work in the product, but the default is not grounded in the provided source.",
+              "suggestedFix": "Either add `handlerFunction: 'handler'` if that is valid for the class API, or verify the default handler name against runtime packaging code before relying on it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts",
+                  "quote": "handlerFunction?: string;"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“Functions scale automatically from zero to thousands of concurrent executions.”",
+              "reason": "The source says Lambda functions scale automatically, but it does not provide the specific “from zero to thousands” range. This is likely true for AWS Lambda generally, but the number is not in the provided source files.",
+              "suggestedFix": "Use the sourced wording: “Functions scale automatically.”",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“Zero cost when idle.”",
+              "reason": "The source says you only pay for compute time consumed and the draft’s pricing line says zero cost when idle. The provided source does not explicitly discuss request charges, provisioned concurrency, logging, CDN, or other idle-adjacent costs. The statement is broadly plausible for non-provisioned function compute, but too absolute as written.",
+              "suggestedFix": "Say “For non-provisioned functions, Lambda compute has no always-on charge; you pay for requests and compute time consumed.”",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“Need VPC access + external internet access | Web service or worker service.”",
+              "reason": "The Lambda source supports using web-service or worker-service when both VPC access and internet are needed, but the provided web/worker service sources are not included, so the alternative’s exact capability is only indirectly supported.",
+              "suggestedFix": "Keep if cross-resource docs are available elsewhere; otherwise phrase as “The Lambda source recommends a web-service or worker-service for this case.”",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“Internal-only traffic, no public URL needed | Private service.”",
+              "reason": "The provided source list does not include private service type definitions or docs that establish it as the better option for internal-only traffic.",
+              "suggestedFix": "Verify against private-service source or remove this row from the Lambda page.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“The most common pattern: route all HTTP requests from an API Gateway to a single function.”",
+              "reason": "The source supports HTTP API Gateway triggers and greedy paths, but does not state that this is the most common pattern.",
+              "suggestedFix": "Say “A common pattern is to route all HTTP requests from an API Gateway to a single function.”",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“Function URL … Simpler and cheaper for single-function APIs, webhooks, and microservices.”",
+              "reason": "The source says a function URL is simpler and cheaper than API Gateway for single-function endpoints. It does not mention webhooks or microservices specifically.",
+              "suggestedFix": "Use the sourced wording: “Simpler and cheaper than an API Gateway for single-function endpoints.”",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“Use provisioned concurrency for user-facing APIs and web/mobile backends where response time matters.”",
+              "reason": "The source says provisioned concurrency is for user-facing APIs, web/mobile backends, or any function where response time matters. The draft preserves this recommendation, but “respond instantly” earlier is absolute and could be read as a latency guarantee.",
+              "suggestedFix": "Change “so they respond instantly” to “so they avoid most cold-start initialization delay.”",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“Route async invocation results to SQS, SNS, an EventBus, or another Lambda function.”",
+              "reason": "The source says destinations are ARNs for SQS, SNS, EventBus, or Lambda ARN. It does not specify whether Stacktape accepts resource names here, and the draft’s wording may imply high-level Stacktape resources rather than ARNs.",
+              "suggestedFix": "Say “Set `onSuccess` and `onFailure` to destination ARNs for SQS, SNS, EventBus, or another Lambda function.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "No hand-authored Stacktape YAML config examples were found in the draft.",
+            "Stacktape config examples use `<CodeBlock intellisense tabs={[...]} />`; the ordinary fenced TypeScript block is application handler code, not Stacktape config.",
+            "The page uses `defineConfig` and resource variables rather than the forbidden `StacktapeConfig` typed plain-object style.",
+            "The main Lambda properties discussed in prose are present in `LambdaFunctionProps`: `packaging`, `events`, `runtime`, `architecture`, `memory`, `timeout`, `joinDefaultVpc`, `destinations`, `logging`, `provisionedConcurrency`, `reservedConcurrency`, `deployment`, `url`, `cdn`, `storage`, and `volumeMounts`.",
+            "The trigger list matches the event union in `LambdaFunctionProps` and `events.d.ts`.",
+            "The API reference target `LambdaFunctionProps` is present in the provided Lambda type source.",
+            "The referenceable resource type `function` is supported by `LambdaFunction` having `type: 'function'`, and its referenceable params are `arn` and `logGroupArn`."
+          ]
+        },
+        {
+          "verifierId": "code-validator",
+          "modelProvider": "deterministic",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #3 (stacktape.ts): TypeScript config example is not Prettier-formatted.",
+              "reason": "Stacktape config examples must render cleanly and consistently. The pipeline uses Prettier as the formatting contract.",
+              "suggestedFix": "Format the full code string with Prettier using the TypeScript parser."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #8 (stacktape.ts): TypeScript config example is not Prettier-formatted.",
+              "reason": "Stacktape config examples must render cleanly and consistently. The pipeline uses Prettier as the formatting contract.",
+              "suggestedFix": "Format the full code string with Prettier using the TypeScript parser."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "seoReviewResult": {
+        "score": 7,
+        "suggestions": [
+          "Rewrite the opening paragraph to mention Stacktape by name (e.g., 'A Stacktape Lambda function is a serverless compute resource…'). The current opener is indistinguishable from AWS's own docs — search engines and AI engines need a reason to surface *this* page over the canonical AWS reference. Adding 'with Stacktape' also anchors the brand for AI answer attribution.",
+          "Convert more H2s to question format to match real search queries. Candidates: 'Memory and performance' → 'How does Lambda memory affect CPU and performance?', 'Cold starts and concurrency' → 'How do I reduce Lambda cold starts?', 'VPC access' → 'When does a Lambda function need VPC access?', 'Connecting to other resources' → 'How do I connect a Lambda function to a database or bucket?'. The lone question heading ('When should I use a Lambda function?') is the strongest section for discoverability — replicate that pattern.",
+          "Add an explicit FAQ section (structured data candidate) with 3–5 questions the page already answers but doesn't surface in heading format: 'What is the maximum Lambda execution time?' (15 min), 'How much memory can a Lambda function use?' (128–10,240 MB), 'How do I avoid Lambda cold starts?' (provisioned concurrency), 'Can a Lambda function access a VPC database?' (joinDefaultVpc), 'What languages does Stacktape Lambda support?' (JS, TS, Python, Go, Java, Ruby, PHP, .NET). These are high-volume long-tail queries that AI engines frequently answer.",
+          "The 'Basic example' heading is SEO-invisible — rename it to something like 'How to deploy a Lambda function with Stacktape' so it matches intent-based queries. Similarly 'Triggers' → 'What events can trigger a Lambda function?' and 'CDN' → 'How do I add a CDN to a Lambda function?'.",
+          "The VPC warning paragraph is strong but buries the key constraint. Lead with the concrete impact: 'VPC-connected Lambda functions cannot make outbound internet calls (Stripe, OpenAI, third-party APIs will fail).' then explain S3/DynamoDB exceptions. This makes the paragraph extractable as a standalone answer to 'Can Lambda access the internet from a VPC?' — a common search query.",
+          "Add a short 'Pricing overview' or 'How much does a Lambda function cost?' section consolidating the scattered pricing mentions (per-request + per-GB-second, arm64 discount, provisioned concurrency cost, zero idle cost). Pricing is among the highest-intent search queries for Lambda and currently the page only has a one-line bold callout under the opening paragraph."
+        ]
+      },
+      "passed": false
+    },
+    {
+      "iteration": 2,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\resources__compute__lambda-function\\iteration-2.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "startup-cto",
+          "persona": "Small startup CTO with low to medium AWS experience. Cares most about time-to-production and shipping quickly without getting trapped in AWS complexity.",
+          "modelProvider": "claude",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Strong 'When should I use / When not to use' section with a concrete alternatives table — exactly what a startup CTO needs to make a fast decision",
+            "VPC tradeoff is explained clearly and honestly, including the critical gotcha that VPC-connected Lambda loses internet access and the S3/DynamoDB VPC endpoint exception",
+            "Memory/CPU relationship is well explained with the 1,769 MB = 1 vCPU reference, framed as a practical performance lever rather than just a config knob",
+            "Trigger summary table gives a quick scannable overview of all 12 trigger types before linking to dedicated docs — avoids re-explaining each trigger in full",
+            "Code examples use focus markers well, and the handler code is correctly placed in a fenced block (not intellisense CodeBlock), following the config vs. application code distinction",
+            "Cold start section is practical: explains what provisioned concurrency costs, when to skip it, and the deploy-time penalty — honest tradeoff framing"
+          ],
+          "problems": [
+            "FAQ section exists despite explicit instructions stating 'Do NOT add an FAQ section — only add one when SEO reviewer feedback explicitly requests it.' Every FAQ answer restates content already covered in earlier sections (timeout in memory section, cold starts in provisioned concurrency section, VPC in VPC section, languages in basic example section). This is a backbone section padded with restated content.",
+            "The 'Environment variables' section is somewhat thin — it shows static values but doesn't include a concrete example using `$Secret()` or `$ResourceParam()` directives, and doesn't link to their respective documentation pages despite mentioning them",
+            "Gradual deployments section lists all strategies but provides no code example, unlike the example page (web-service) which at least describes the feature comparably. A minimal config snippet would make this section actionable.",
+            "The pricing context line at the top is vague — 'You pay only for compute time consumed' is true but unhelpful. The source types don't include per-invocation pricing, so the line can't be more specific, but it could at least mention the free tier (1M requests/month, 400k GB-seconds/month) if that data were available. As written, it's close to filler."
+          ],
+          "mandatoryFixes": [
+            "Remove the 'Frequently asked questions' section entirely. Every answer duplicates content already present in earlier sections (timeout, memory, cold starts, VPC, languages). The SEO instructions explicitly forbid FAQ sections unless requested by a reviewer. Redistribute any unique phrasing into the relevant earlier sections if needed.",
+            "Trim or remove the redundant FAQ section; do not pad backbones with restated content."
+          ],
+          "optionalImprovements": [
+            "Add a minimal code example to the Gradual deployments section showing `deployment: { strategy: 'Canary10Percent5Minutes' }` — this makes the section immediately actionable instead of just descriptive",
+            "In the Environment variables section, add a brief example or link showing `$Secret()` and `$ResourceParam()` usage, since those are mentioned in prose but not demonstrated or linked",
+            "Consider adding a 'Custom domains' subsection (even 2-3 sentences) explaining that custom domains can be attached via CDN or API Gateway, with a link to the custom domains docs — this is a common question from the target audience",
+            "The 'Alarms' section could include a 2-line inline example showing a `lambda-error-rate` alarm configuration to make it self-contained for quick copy-paste",
+            "In the 'When not to use' table, the row about 'Need VPC access AND external internet access simultaneously' could briefly mention why (Lambda has no NAT Gateway option unlike web-service) to preempt the follow-up question"
+          ]
+        },
+        {
+          "reviewerId": "smb-manager",
+          "persona": "SMB engineering manager with medium to high AWS knowledge. Cares about long-term maintainability, team clarity, operational fit, technically correct Stacktape class-based config examples, and valid MDX component usage.",
+          "modelProvider": "codex",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Strong opening, early pricing context, and clear use/not-use decision table for managers comparing Lambda with container resources.",
+            "Most Stacktape config examples use class-based resources inside <CodeBlock intellisense tabs={[...]} />, which matches the documented config surface.",
+            "The page covers the main 80 percent: packaging, function URLs, API Gateway events, memory/timeout, concurrency, VPC access, storage, logging, deployments, alarms, and API reference.",
+            "Tradeoffs are generally practical, especially around VPC internet loss, provisioned concurrency cost, and when to choose web services instead."
+          ],
+          "problems": [
+            "A FAQ section is included even though the instructions explicitly say not to add an FAQ section unless SEO reviewer feedback requests it.",
+            "The pricing line says there is no charge when idle, but the page later documents provisioned concurrency idle charges. The statement should be scoped to non-provisioned Lambda execution.",
+            "Several factual claims go beyond the provided source wording: API Gateway being cheaper than function URLs, CDN reducing bandwidth costs, cold starts taking 1–5+ seconds, and function URL being cheaper than API Gateway are not grounded in the supplied source files.",
+            "The trigger table lists useful event types, but it flattens several nuanced event-source constraints into a simple list; for example SQS, SNS, Kinesis, EventBus, and DynamoDB stream integrations have mutually exclusive name/ARN choices or retry/batch caveats that are only partially surfaced.",
+            "All Stacktape config CodeBlock tabs are labeled `stacktape.ts`, while the supplied CodeBlock rules require a visible `TypeScript` tab.",
+            "The page is long for a resource overview and repeats some points in the FAQ and earlier sections, which makes the important guidance less scannable for an engineering manager."
+          ],
+          "mandatoryFixes": [
+            "Remove the FAQ section. Keep any unique, sourced answers by folding them into the relevant existing sections.",
+            "Scope the pricing statement to ordinary, non-provisioned execution, or mention the provisioned concurrency exception in the same pricing context.",
+            "Remove or qualify unsupported claims about relative API Gateway/function URL pricing, bandwidth-cost reduction, and cold-start duration unless grounded in source files.",
+            "Change Stacktape config CodeBlock tab labels to the required visible `TypeScript` tab, or align with the project’s validated MDX convention if the renderer explicitly requires `stacktape.ts`.",
+            "Trim duplicated content from the FAQ and avoid restating earlier sections."
+          ],
+          "optionalImprovements": [
+            "Add one compact example for `reservedConcurrency`; it is a practical control for database protection and downstream throttling.",
+            "In the triggers section, add a short caveat that detailed batch, retry, filtering, and name-vs-ARN options live in the triggers docs and API reference.",
+            "Consider renaming `Storage` to `How do I handle temporary or persistent files?` to better match search intent and user goals.",
+            "The CDN section should mention only what the source supports: CloudFront caching and lower latency. Avoid extra cost claims unless sourced.",
+            "Make the first function URL example and the later Function URL section less repetitive by keeping the first as the happy path and the later section focused on auth, CORS, and streaming tradeoffs."
+          ]
+        },
+        {
+          "reviewerId": "developer-low-aws",
+          "persona": "Developer with little AWS or DevOps experience. Needs jargon kept under control and wants examples that are easy to follow.",
+          "modelProvider": "claude",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Strong 'When to use / When not to use' section with a concrete alternatives table that names specific Stacktape resources and links to them — exactly what a decision-making reader needs.",
+            "Memory-CPU relationship explained clearly with the actionable insight that 'increasing memory gives it more CPU — which often makes it faster *and* cheaper because execution time drops.' This is the kind of non-obvious guidance the audience needs.",
+            "Comprehensive trigger table covering all 12 trigger types with one-line use cases, followed by focused deep-dive examples for the two most common patterns (HTTP API Gateway catch-all and Function URL with CORS). Good prioritization of the 80%.",
+            "VPC tradeoff is explained precisely: names which services still work (S3, DynamoDB via auto-created VPC endpoints), which don't (external APIs like Stripe, OpenAI), and offers concrete alternatives (web-service, worker-service). No hand-waving.",
+            "All Stacktape config examples correctly use <CodeBlock intellisense tabs={[...]} /> with focus markers, and application code (handler) uses fenced code blocks — consistent and correct throughout.",
+            "Question-format H2/H3 headings ('How does Lambda memory affect CPU and performance?', 'What events can trigger a Lambda function?') match real search queries and improve both SEO and scannability.",
+            "Cold starts section distinguishes provisioned concurrency (warm instances, costs money, adds deploy time) from reserved concurrency (caps max instances, no cost) with clear when-to-use guidance for each."
+          ],
+          "problems": [
+            "FAQ section at the bottom restates content already covered in dedicated sections above: max execution time (covered in memory/timeout section), memory range (memory section), cold starts (provisioned concurrency section), VPC database access (VPC section), and supported languages (basic example section). This is padded/restated backbone content.",
+            "FAQ section is present despite the style guide explicitly stating 'Do NOT add an FAQ section — only add one when SEO reviewer feedback explicitly requests it.' The example page does not include an FAQ.",
+            "Reserved concurrency subsection under 'How do I reduce Lambda cold starts?' has explanatory text but no code example, unlike every other configuration option on the page. A one-line config snippet would make it actionable.",
+            "Destinations section explains the concept well but lacks a code example showing onFailure configuration for dead-letter processing — the most common destinations use case."
+          ],
+          "mandatoryFixes": [
+            "Remove the 'Frequently asked questions' section entirely. Every answer in the FAQ restates content from a dedicated section above (timeout from the memory section, memory range from memory section, cold starts from provisioned concurrency section, VPC from the VPC section, languages from the basic example section). The style guide prohibits FAQ sections unless SEO reviewer feedback explicitly requests one. Trim or remove the redundant section; do not pad backbones."
+          ],
+          "optionalImprovements": [
+            "Add a short code example for reservedConcurrency — even a 3-line focused snippet showing `reservedConcurrency: 50` would make the subsection immediately actionable, consistent with other config options on this page.",
+            "Add a brief code example for the destinations property showing a realistic onFailure dead-letter pattern (e.g., routing failures to an SQS queue ARN). This is the most common destinations use case and the section currently reads as reference-only.",
+            "The Logging section mentions 'Datadog, Highlight.io, or any HTTP endpoint' for log forwarding — consider linking to a dedicated log-forwarding page if one exists, so readers can find the full forwarding configuration.",
+            "The Gradual deployments section lists all strategy names but doesn't include a code example. A short config snippet showing a Canary10Percent5Minutes deployment would make it match the practical depth of other sections.",
+            "In the pricing line, consider adding the AWS Free Tier mention (1M requests/month and 400,000 GB-seconds/month) if this data is available in source files — this is high-signal for the cost-conscious audience."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "claude-verifier",
+          "modelProvider": "claude",
+          "issues": [
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "Data in `/tmp` is ephemeral — it does not persist across invocations (though it may be reused if the same execution environment handles consecutive requests).",
+              "reason": "The parenthetical about execution environment reuse is accurate AWS Lambda behavior, but the source type definition only says 'Ephemeral per invocation' with no mention of potential reuse. The parenthetical adds nuance not present in the provided source and could confuse readers about the meaning of 'ephemeral'.",
+              "suggestedFix": "Drop the parenthetical or rephrase to match the source more closely: 'Data in `/tmp` is ephemeral — it does not persist across invocations.'",
+              "evidence": [
+                {
+                  "file": "types/stacktape-config/functions.d.ts",
+                  "quote": "Size of the `/tmp` directory in MB (512 - 10,240). Ephemeral per invocation."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "Destinations apply only to **asynchronous invocations** — events from S3 triggers, SNS, EventBridge, scheduled triggers, and SDK async invocations. They do not apply to synchronous calls from API Gateway or function URLs.",
+              "reason": "The source JSDoc says 'Route async invocation results to another service' but does not enumerate which specific trigger types are synchronous vs. asynchronous. The async-only behavior and the enumerated trigger types are accurate AWS knowledge but are not explicitly stated in the provided Stacktape source.",
+              "suggestedFix": "Keep the statement but simplify to what the source says: 'Destinations route the results of asynchronous Lambda invocations.' Omit the specific list of sync/async trigger types, or add a link to AWS documentation for the distinction.",
+              "evidence": [
+                {
+                  "file": "types/stacktape-config/functions.d.ts",
+                  "quote": "Route async invocation results to another service (SQS, SNS, EventBus, or another function)."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "missing-caveat",
+              "statement": "The Frequently asked questions section exists on the page.",
+              "reason": "The SEO/AEO conventions in the page instructions explicitly state: 'Do NOT add an FAQ section — only add one when SEO reviewer feedback explicitly requests it.' This section should be removed unless specifically requested by the SEO reviewer.",
+              "suggestedFix": "Remove the 'Frequently asked questions' section. The key information it contains (max execution time, memory range, cold starts, VPC access, supported languages) is already covered in the corresponding prose sections above.",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "All property names (packaging, events, environment, runtime, architecture, memory, timeout, joinDefaultVpc, storage, volumeMounts, url, cdn, provisionedConcurrency, reservedConcurrency, layers, deployment, alarms, disabledGlobalAlarms, destinations, logging, tags) exactly match the LambdaFunctionProps interface in functions.d.ts.",
+            "All numeric defaults are correct: timeout @default 10, storage @default 512, logging.retentionDays @default 180, architecture @default 'x86_64', joinDefaultVpc @default false, url.authMode @default 'NONE'. Cross-verified timeout default against @generated/schemas/validate-config-zod.ts which shows .default(10).",
+            "Memory range (128–10,240 MB) and CPU proportionality claim (1,769 MB = 1 vCPU, 3,538 MB = 2 vCPUs) match the source JSDoc exactly.",
+            "All 12 trigger types listed in the table match the events union type in functions.d.ts: http-api-gateway, application-load-balancer, s3, sqs, sns, kinesis-stream, dynamo-db-stream, schedule, event-bus, kafka-topic, cloudwatch-log, cloudwatch-alarm.",
+            "All 9 deployment strategy enum values (Canary10Percent5Minutes, Canary10Percent10Minutes, Canary10Percent15Minutes, Canary10Percent30Minutes, Linear10PercentEvery1Minute, Linear10PercentEvery2Minutes, Linear10PercentEvery3Minutes, Linear10PercentEvery10Minutes, AllAtOnce) exactly match LambdaDeploymentConfig.strategy in functions.d.ts.",
+            "Lambda alarm trigger types (lambda-error-rate, lambda-duration) match LambdaAlarmTrigger type in alarms.d.ts.",
+            "Notification targets (Slack, Microsoft Teams, Discord, email, webhook) match AlarmUserIntegration union type in alarms.d.ts.",
+            "Max 5 layers claim matches source JSDoc: 'Max 5 layers per function.'",
+            "Runtime examples (nodejs22.x, python3.13) are valid values in the LambdaRuntime union type in random.d.ts.",
+            "Supported languages claim (JavaScript, TypeScript, Python, Java, Go, Ruby, PHP, .NET) matches StpBuildpackLambdaPackaging JSDoc exactly.",
+            "logging.logForwarding property path verified: LogForwardingBase (in log-forwarding.d.ts) defines 'logForwarding?: HttpEndpointLogForwarding | HighlightLogForwarding | DatadogLogForwarding'. Specific services (Datadog, Highlight.io, HTTP endpoint) are confirmed.",
+            "Function URL claims verified: url.enabled, url.authMode (NONE/AWS_IAM), url.cors, url.responseStreamEnabled all match LambdaUrlConfig. Response streaming 6 MB to 20 MB claim matches source JSDoc.",
+            "connectTo behavior claims (IAM permissions, security group rules, environment variable injection) match ResourceAccessProps JSDoc. SES support via 'aws:ses' confirmed.",
+            "VPC tradeoff claims match joinDefaultVpc JSDoc exactly: loses internet access, S3/DynamoDB still work via VPC endpoints, use web-service/worker-service for VPC+internet.",
+            "<ApiReference definitionName='LambdaFunctionProps' /> uses a valid definition name confirmed in @generated/schemas/config-schema.json.",
+            "<ReferenceableParams resource='function' /> uses the correct resource type ('function') matching LambdaFunction.type and FunctionReferencableParam = 'arn' | 'logGroupArn'.",
+            "All CodeBlock examples correctly use the intellisense flag for Stacktape config. Application code (handler.ts) correctly uses fenced code blocks without intellisense. No hand-authored YAML, no StacktapeConfig typed style, no fenced typescript blocks containing defineConfig.",
+            "EFS mount path constraint ('Must start with /mnt/') matches LambdaEfsMountProps.mountPath JSDoc."
+          ],
+          "summary": "The draft is exceptionally well-grounded in the source files. Every property name, default value, enum value, and numeric range was verified against the TypeScript type definitions and generated schemas. All 12 trigger types, all 9 deployment strategies, and all alarm/notification types match the source exactly. The logging.logForwarding property path and supported destinations (Datadog, Highlight.io, HTTP endpoint) were confirmed by locating the LogForwardingBase interface in log-forwarding.d.ts. Only three low-severity issues were found: (1) a parenthetical about /tmp reuse that adds AWS knowledge not present in the source, (2) an enumeration of sync vs. async trigger types that goes beyond what the source explicitly states, and (3) an FAQ section that violates the explicit 'Do NOT add an FAQ section' instruction. No high or medium severity issues were identified."
+        },
+        {
+          "verifierId": "codex-verifier",
+          "modelProvider": "codex",
+          "summary": "The draft is largely grounded in the provided Lambda, events, packaging, alarms, and helper type sources. The main factual risks are an overbroad idle-pricing statement, a few examples that reference resources not defined in the shown config, and several operational details that go beyond the supplied source files.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "“You pay only for compute time consumed — no charge when idle.”",
+              "reason": "This is accurate for ordinary on-demand Lambda execution, but the same page documents `provisionedConcurrency`, where idle capacity is charged. The pricing line should be scoped so it does not contradict the provisioned concurrency behavior later in the page.",
+              "suggestedFix": "Change to: “For on-demand execution, you pay for compute time consumed and there is no idle compute charge. Provisioned concurrency is different: you pay for provisioned instances even when they are idle.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\functions.d.ts",
+                  "quote": "**Cost:** You pay for each provisioned instance even when idle. Also increases deploy time by ~2-5 minutes."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "The `connectTo: ['myDatabase', 'myBucket']` Stacktape config example returns only `{ resources: { api } }`.",
+              "reason": "`connectTo` is defined as a list of resource names the workload needs to communicate with. The example references `myDatabase` and `myBucket` but does not define those resources in the config, so it is not a valid copyable Stacktape config as shown.",
+              "suggestedFix": "Either define realistic database and bucket resources in the same example, or make the snippet explicitly partial and avoid presenting it as a full copyable config.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "List the names of resources this workload needs to communicate with. Stacktape automatically:"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "The EFS `volumeMounts` example uses `efsFilesystemName: 'myStorage'` but returns only `{ resources: { api } }`.",
+              "reason": "The source requires `efsFilesystemName` to refer to an `efs-filesystem` resource defined in the config. The example does not define `myStorage`, so the shown config is incomplete as a copyable example.",
+              "suggestedFix": "Add an `EfsFilesystem` resource named `myStorage` to the example and return it from `resources`, or state that the snippet assumes an existing `efs-filesystem` resource named `myStorage` in the same config.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\functions.d.ts",
+                  "quote": "Name of the `efs-filesystem` resource defined in your config."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“capture failed invocation details (error message, stack trace, event payload)”",
+              "reason": "The source only says the failure destination receives error details. It does not specify the exact payload fields or guarantee that error message, stack trace, and event payload are all included.",
+              "suggestedFix": "Narrow to: “route failure details to an SQS queue or SNS topic for later inspection,” unless another source explicitly documents the destination payload shape.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\functions.d.ts",
+                  "quote": "ARN to receive error details when the function fails. Useful for dead-letter processing."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "“Always-on HTTP with WebSocket or gRPC” should use a web service because it “supports long-lived connections.”",
+              "reason": "The provided source files do not document web-service support for WebSocket, gRPC, or long-lived connections. This may be true elsewhere, but it is not grounded in the supplied sources.",
+              "suggestedFix": "Either remove the WebSocket/gRPC row or verify it against the web-service source before keeping it.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "“Steady high traffic where always-on containers cost less” should use a web service with “flat-rate compute.”",
+              "reason": "The provided source files do not include web-service pricing or cost-shape details. The recommendation may be reasonable, but the cost comparison is not grounded in the supplied sources.",
+              "suggestedFix": "Rephrase more cautiously or back it with web-service pricing/source files.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "“Internal-only traffic, no public URL needed” should use a private service.",
+              "reason": "The supplied sources include `PrivateService` as a resource type but do not document its traffic model or when to choose it.",
+              "suggestedFix": "Keep the alternative only if private-service source files confirm the claim, or change it to a narrower statement linked to the private-service page.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“The `/{proxy+}` greedy path catches all routes.”",
+              "reason": "The source documents greedy paths by example as matching paths under a prefix. It does not explicitly state that `/{proxy+}` catches every route, including the root path.",
+              "suggestedFix": "Say “matches paths under the greedy prefix” or add a separate root route if the intended behavior is full catch-all routing and that is verified elsewhere.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "**Greedy path**: `/files/{proxy+}`. This will match any path starting with `/files/`."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“Each function invocation gets a private `/tmp` directory” and `/tmp` “may be reused if the same execution environment handles consecutive requests.”",
+              "reason": "The source only documents `/tmp` as ephemeral per invocation and configurable via `storage`. It does not mention privacy or reuse behavior between execution environments.",
+              "suggestedFix": "Keep this source-grounded: “`storage` configures the size of the function’s ephemeral `/tmp` directory.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\functions.d.ts",
+                  "quote": "Size of the `/tmp` directory in MB (512 - 10,240). Ephemeral per invocation."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“Log forwarding is available to send logs to external services (Datadog, Highlight.io, or any HTTP endpoint) via the `logging.logForwarding` property.”",
+              "reason": "The Lambda logging source confirms retention and forwarding generally, but the provided source files do not show the `LogForwardingBase` definition or confirm the `logging.logForwarding` property name or supported destinations.",
+              "suggestedFix": "Say “Lambda logging supports retention and forwarding” without naming destinations or the nested property until `LogForwardingBase` is verified.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\functions.d.ts",
+                  "quote": "Logging configuration (retention, forwarding)."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "“Destinations apply only to asynchronous invocations — events from S3 triggers, SNS, EventBridge, scheduled triggers, and SDK async invocations. They do not apply to synchronous calls from API Gateway or function URLs.”",
+              "reason": "The source supports that Lambda destinations route async invocation results, but it does not enumerate which Stacktape trigger types are asynchronous or explicitly exclude API Gateway and function URLs.",
+              "suggestedFix": "Keep the sourced part: “Destinations route async invocation results.” Add the trigger inclusion/exclusion list only with a source that documents it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\functions.d.ts",
+                  "quote": "Route async invocation results to another service (SQS, SNS, EventBus, or another function)."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "The page avoids the forbidden hand-authored YAML Stacktape config pattern and does not use the plain-object `StacktapeConfig` style.",
+            "Stacktape configuration examples are wrapped in `<CodeBlock intellisense ... />`; the only fenced TypeScript block is application handler code, not Stacktape config.",
+            "The core Lambda properties and constraints for packaging, events, runtime detection, architecture, memory, timeout, VPC access, concurrency, function URLs, CDN, storage, EFS mounts, logging, alarms, layers, and referenceable params are mostly aligned with the provided type sources.",
+            "`<ApiReference definitionName=\"LambdaFunctionProps\" />` matches an interface present in the supplied Lambda function type source, and `<ReferenceableParams resource=\"function\" />` matches the documented function referenceable params."
+          ]
+        },
+        {
+          "verifierId": "code-validator",
+          "modelProvider": "deterministic",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #4 (stacktape.ts): TypeScript config example is not Prettier-formatted.",
+              "reason": "Stacktape config examples must render cleanly and consistently. The pipeline uses Prettier as the formatting contract.",
+              "suggestedFix": "Format the full code string with Prettier using the TypeScript parser."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "seoReviewResult": {
+        "score": 8,
+        "suggestions": [
+          "The opening paragraph should explicitly mention 'AWS Lambda' (not just 'Lambda function') so search engines and AI engines match the query 'AWS Lambda serverless' — e.g., 'A Stacktape Lambda function deploys AWS Lambda as a serverless compute resource that runs your code in response to events…'",
+          "Add the default memory value (likely 128 MB or 256 MB) to the memory section. Users frequently search 'AWS Lambda default memory' and AI engines favor pages that state defaults alongside ranges.",
+          "Convert noun-phrase headings to question format where natural: 'Environment variables' → 'How do I set environment variables on a Lambda function?', 'Gradual deployments' → 'How do I do canary or gradual deployments with Lambda?', 'Storage' → 'What storage options does a Lambda function have?'. These match real search queries and improve Featured Snippet eligibility.",
+          "Include approximate per-GB-second pricing (e.g., '$0.0000133334/GB-second for x86_64, $0.0000106667 for arm64') in the pricing line or a dedicated pricing callout. The current '~20% cheaper' claim is useful but the base price anchors it for AI extraction. Cite the AWS pricing page as the source.",
+          "Add the default account-level concurrency limit (1,000 concurrent executions per region, adjustable via quota request) to either the 'Reserved concurrency' section or the FAQ. 'AWS Lambda concurrency limit' is a high-volume query and this page currently doesn't surface that number.",
+          "The 'Destinations' and 'Layers' sections are too thin for standalone extraction — an AI engine pulling either paragraph would lack actionable detail. Add a minimal config example to each (even 3-4 lines) so the section can stand alone as a useful snippet.",
+          "In the FAQ, add a question about Lambda pricing: 'How much does a Lambda function cost?' with a concise answer citing per-request and per-GB-second rates. This is one of the highest-volume Lambda queries and currently missing from the FAQ."
+        ]
+      },
+      "passed": false
+    },
+    {
+      "iteration": 3,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\resources__compute__lambda-function\\iteration-3.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "startup-cto",
+          "persona": "Small startup CTO with low to medium AWS experience. Cares most about time-to-production and shipping quickly without getting trapped in AWS complexity.",
+          "modelProvider": "claude",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Excellent question-format H2/H3 headings ('How does Lambda memory affect CPU and performance?', 'When does a Lambda function need VPC access?') are highly scannable and SEO-friendly.",
+            "The 'When should I use a Lambda function?' section with the alternatives table is clear and actionable — a startup CTO can immediately determine whether Lambda is the right choice.",
+            "Memory-CPU relationship is explained concretely with the 1,769 MB = 1 vCPU formula and the insight that more memory can be both faster AND cheaper. This is the kind of non-obvious guidance this audience needs.",
+            "VPC section nails the tradeoff framing: explains you usually don't need to set it manually, warns about lost internet access, and points to alternatives. The Warning callout is well-calibrated.",
+            "Trigger types table gives a comprehensive at-a-glance overview, then the HTTP API Gateway and Function URL subsections provide the two most common patterns with copyable examples.",
+            "Cold starts section splits provisioned vs reserved concurrency clearly with distinct use cases and cost implications — no conflation of the two concepts.",
+            "All CodeBlock examples use focus markers to highlight the relevant property, making it easy to see what changed between examples."
+          ],
+          "problems": [
+            "Minor redundancy: the pricing line repeats 'you pay only for compute time consumed' which is already in the opening paragraph. The pricing line should add new information (e.g., approximate cost per million invocations or per GB-second) rather than restate.",
+            "Tab label uses 'TypeScript' while the reviewed example page uses 'stacktape.ts'. Both are defensible but inconsistency across pages in the same section will confuse readers.",
+            "The Destinations example uses a hardcoded ARN ('arn:aws:sqs:us-east-1:123456789012:dead-letter-queue'). A Stacktape-idiomatic example using $ResourceParam to reference an SQS queue from the same stack would be more practical and consistent with the connectTo patterns shown elsewhere on the page.",
+            "The Alarms section is prose-only with no config example. Given that alarms are a common production concern for this audience, even a minimal inline example would improve actionability.",
+            "Import lines are visible in all non-basic CodeBlock examples (the style guide says to hide them with focus markers). The example page exhibits the same pattern, so this appears to be an accepted convention, but technically contradicts the style guide."
+          ],
+          "mandatoryFixes": [
+            "Deduplicate the pricing line: remove 'For on-demand execution, you pay only for compute time consumed' (already stated in the opening paragraph) and replace with concrete pricing context if available from source (e.g., approximate cost per 1M invocations at 128 MB, or per GB-second), or simply trim to avoid restating the same claim twice.",
+            "Change tab label from 'TypeScript' to 'stacktape.ts' in all CodeBlock examples to match the reviewed example page convention. Consistency across pages in the same section is more important than either label choice individually."
+          ],
+          "optionalImprovements": [
+            "Replace the hardcoded ARN in the Destinations example with a $ResourceParam reference to an SQS queue defined in the same config, or at minimum add a comment noting that $ResourceParam can be used for in-stack resources.",
+            "Add a minimal 2-line alarm config example in the Alarms section showing a lambda-error-rate trigger with a Slack notification target — this is the most common alarm pattern for this audience.",
+            "Consider hiding import lines in non-basic examples using focus markers that wrap from export default to the closing, matching the basic example pattern and the style guide rule. This would require each example to show the full defineConfig structure inside the focus region.",
+            "The 'How do I set environment variables on a Lambda function?' section could mention the $Secret directive example inline (not just link to it) since secrets handling is a top-3 concern for startup CTOs deploying to production.",
+            "The basic example handler uses raw event typing (Record<string, unknown>). A brief note that frameworks like Hono with hono/aws-lambda provide typed request/response handling would help this audience pick the right pattern from the start."
+          ]
+        },
+        {
+          "reviewerId": "smb-manager",
+          "persona": "SMB engineering manager with medium to high AWS knowledge. Cares about long-term maintainability, team clarity, operational fit, technically correct Stacktape class-based config examples, and valid MDX component usage.",
+          "modelProvider": "codex",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Strong opening, pricing context, and early decision guidance. The page quickly tells a manager when Lambda is the right fit and when containers or batch jobs are better.",
+            "Stacktape config examples consistently use class-based `defineConfig` with `<CodeBlock intellisense tabs={[...]}/>` and avoid forbidden YAML/plain-object config patterns.",
+            "The page focuses on practical configuration areas users actually care about: packaging, triggers, memory, concurrency, VPC access, deployment strategy, storage, logging, and permissions.",
+            "Tradeoffs are useful and concrete, especially around provisioned concurrency cost, VPC internet access, memory/CPU sizing, function URLs versus HTTP API Gateway, and EFS versus `/tmp` storage."
+          ],
+          "problems": [
+            "Several claims are broader than the provided source supports: CDN custom domains/edge functions/price class options, log forwarding destinations to Datadog/Highlight.io/HTTP, and forwarding implementation via Kinesis Data Firehose are not grounded in the supplied Lambda source files.",
+            "The Function URL section says it is cheaper than API Gateway. The source says function URLs are simpler and cheaper than API Gateway for single-function endpoints, but the page should keep that scope explicit instead of making a broader cost comparison.",
+            "The environment variables section cites `$Secret()` and `$ResourceParam()` for Lambda `environment`, but the provided `LambdaFunctionProps.environment` type only shows `EnvironmentVar[]` with static string/number/boolean values. The directive support is not clearly grounded for Lambda resource environment variables in the supplied files.",
+            "The HTTP API Gateway example uses `new HttpApiGateway({})`, but the supplied source files do not define the `HttpApiGateway` class constructor shape, so this example cannot be fully verified from the provided sources.",
+            "The page is long for a resource overview and starts to drift into reference coverage near the end with Destinations, Alarms, and Layers. Those sections are accurate at a high level, but they may be better as shorter pointers unless the page needs this much depth."
+          ],
+          "mandatoryFixes": [
+            "Remove or narrow unsupported CDN claims that are not present in the supplied Lambda/CDN-compatible source, especially route rewrites, edge functions, custom domains, caching configuration, and price class selection.",
+            "Remove or narrow unsupported log forwarding details: Datadog, Highlight.io, generic HTTP endpoint, Kinesis Data Firehose pricing, and failed-delivery S3 backup are not grounded in the provided source files.",
+            "Either ground `$Secret()` and `$ResourceParam()` support for Lambda `environment` in an additional authoritative source file, or rewrite the environment section to only state that values can be static strings, numbers, or booleans."
+          ],
+          "optionalImprovements": [
+            "Keep the function URL cost wording scoped: “for single-function endpoints” to match the source.",
+            "Consider making the API Gateway example less dependent on unsupplied `HttpApiGateway` constructor details, or ensure the source bundle includes the gateway type/class definition before publishing.",
+            "Compress the final Destinations, Alarms, and Layers sections into shorter operational notes with links/API reference reliance, unless this page is intended to be a deeper Lambda operations guide.",
+            "The `ReferenceableParams` resource value should be verified against the generated referenceable-params source. The type uses resource type `function`, so it is plausible, but the reviewer cannot fully validate the MDX component input from the supplied files alone."
+          ]
+        },
+        {
+          "reviewerId": "developer-low-aws",
+          "persona": "Developer with little AWS or DevOps experience. Needs jargon kept under control and wants examples that are easy to follow.",
+          "modelProvider": "claude",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Question-format H2 headings ('How does Lambda memory affect CPU and performance?', 'When does a Lambda function need VPC access?') match how the target audience thinks and searches. Excellent SEO/AEO hygiene.",
+            "The 'When should I use a Lambda function?' and 'When not to use' table is concrete and opinionated — it names specific alternatives with links, which is exactly what a less-experienced developer needs to make a decision.",
+            "The VPC section is standout for this audience: it explains the tradeoff plainly ('requests to external APIs will fail'), tells users they usually don't need to set it manually, and names the specific services that still work (S3, DynamoDB). This prevents a common gotcha.",
+            "The memory-as-CPU-lever explanation (1,769 MB = 1 vCPU) with the advice that increasing memory can be both faster *and* cheaper is high-signal, practical guidance that most Lambda docs bury or omit.",
+            "Trigger types table is comprehensive and scannable — a developer can quickly find the right trigger type without reading prose for each one, then follow the link to the triggers page for detail.",
+            "All Stacktape config examples correctly use <CodeBlock intellisense tabs={[...]} /> with defineConfig and class-based resources. Application code correctly uses fenced blocks. No forbidden patterns detected."
+          ],
+          "problems": [
+            "The Logging section claims log forwarding uses 'Kinesis Data Firehose (~$0.03/GB)' — this pricing is not present in any provided source file. The LogForwardingBase interface (which LambdaFunctionLogging extends) is not included in the source files, so claims about Datadog, Highlight.io, and HTTP endpoint forwarding cannot be verified. This violates the 'never invent pricing' rule.",
+            "The term 'ARN' appears multiple times (destinations, layers, iamRoleStatements, connectTo docs) without a brief explanation on first use. For a developer with little AWS experience, ARN is opaque jargon. The example page (web service) also uses ARN but this audience persona specifically needs jargon controlled.",
+            "The Destinations section example uses a hardcoded ARN string ('arn:aws:sqs:us-east-1:123456789012:dead-letter-queue') without mentioning how to obtain an ARN in practice — e.g., via $ResourceParam() for a queue defined in the same stack. A beginner may not know where to find an ARN.",
+            "The top-level pricing line says 'you pay only for compute time consumed' twice (once in the intro paragraph, once in the bold Pricing line). The Pricing line lacks concrete numbers — unlike the web service page which gives '~$9/month' and '~$1/million requests'. Lambda pricing (per-request + per-GB-second) is not in the source files, so omitting specifics is defensible, but the repetition weakens the line.",
+            "The Alarms section is prose-only with no code example. While the example page (web service) also omits an alarm example, for this audience a 3-line inline alarm showing e.g. lambda-error-rate with a threshold would make the section actionable rather than just descriptive."
+          ],
+          "mandatoryFixes": [
+            "Remove the ungrounded Firehose pricing ('~$0.03/GB') from the Logging section. Either verify it from a provided source file or replace with a qualitative statement like 'adds a small per-GB cost'. Similarly, verify or soften claims about specific forwarding destinations (Datadog, Highlight.io) if LogForwardingBase source is not available.",
+            "Add a one-sentence explanation of ARN on first use — e.g., 'an ARN (Amazon Resource Name) is the unique identifier for any AWS resource'. The target audience (little AWS experience) will encounter ARNs repeatedly and needs this anchor.",
+            "In the Destinations example, add a brief note on how to get an ARN for a resource in the same stack (e.g., via $ResourceParam('myQueue', 'arn')), so the example is actionable for users who don't already know how AWS resource identifiers work."
+          ],
+          "optionalImprovements": [
+            "Deduplicate the 'you pay only for compute time consumed' phrasing — it appears in both the first paragraph and the Pricing bold line. Keep it in the Pricing line and rephrase the intro to focus on 'scales from zero' without repeating the billing model.",
+            "Add a minimal alarm code example to the Alarms section (e.g., a lambda-error-rate trigger with thresholdPercent: 5) to make the section immediately actionable rather than requiring the reader to consult the API reference.",
+            "Consider mentioning that custom domains for a Lambda function are available through the CDN or API Gateway layer (not directly on the function itself), since 'How do I add a custom domain?' is a common question for this audience.",
+            "The 'Basic example' handler returns raw { statusCode, body }. Consider adding a one-line note that for multi-route HTTP APIs, frameworks like Hono with hono/aws-lambda simplify routing — this matches the codebase's own recommended pattern and helps beginners avoid hand-parsing event objects.",
+            "In the 'When not to use' table, the row 'Need both VPC access and internet access simultaneously' could include a brief parenthetical like '(e.g., calling external APIs while connected to a private database)' to make the scenario concrete for less-experienced readers.",
+            "The Layers section is thin — consider adding a one-liner on where to find layer ARNs (e.g., 'published by AWS or community maintainers, or created with aws lambda publish-layer-version') so the reader knows the next step."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "claude-verifier",
+          "modelProvider": "claude",
+          "issues": [
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "Forwarding uses Kinesis Data Firehose (~$0.03/GB) with failed deliveries automatically backed up to S3.",
+              "reason": "The ~$0.03/GB pricing claim is present in the LogForwardingBase JSDoc comment (confirmed by exploration of log-forwarding.d.ts: 'Uses Kinesis Data Firehose (~$0.03/GB). Failed deliveries go to a backup S3 bucket.'). However, this is a JSDoc approximation, not from a pricing source file. The claim itself is consistent with the type definition but is inherently approximate due to regional variation. The draft already uses '~' to indicate approximation, which is acceptable per the pricing guidelines.",
+              "suggestedFix": "No change needed — the '~' prefix and the JSDoc source are sufficient grounding per the pricing rules.",
+              "evidence": [
+                {
+                  "file": "types/stacktape-config/log-forwarding.d.ts",
+                  "quote": "Uses Kinesis Data Firehose (~$0.03/GB). Failed deliveries go to a backup S3 bucket."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "All property names (packaging, events, environment, runtime, architecture, memory, timeout, joinDefaultVpc, tags, destinations, logging, provisionedConcurrency, reservedConcurrency, layers, deployment, alarms, disabledGlobalAlarms, url, cdn, storage, volumeMounts) match the LambdaFunctionProps interface exactly.",
+            "Default values are accurate: timeout @default 10, architecture @default 'x86_64', storage @default 512, logging.retentionDays @default 180, joinDefaultVpc @default false, url.authMode @default NONE — all match source JSDoc @default annotations.",
+            "All 12 trigger types listed in the table match the events union type exactly: http-api-gateway, application-load-balancer, s3, sqs, sns, kinesis-stream, dynamo-db-stream, schedule, event-bus, kafka-topic, cloudwatch-log, cloudwatch-alarm.",
+            "All 9 deployment strategies (Canary10Percent5Minutes through AllAtOnce) match the LambdaDeploymentConfig.strategy union type verbatim.",
+            "Memory range (128–10,240 MB) and CPU proportionality claim (1,769 MB = 1 vCPU) match the source JSDoc exactly.",
+            "Function URL properties (enabled, cors, authMode, responseStreamEnabled) and their descriptions match LambdaUrlConfig accurately, including the 6 MB to 20 MB response size increase for streaming.",
+            "connectTo environment variable format (STP_[RESOURCE_NAME]_[VARIABLE_NAME]) and specific examples for RelationalDatabase and Bucket match the ResourceAccessProps JSDoc.",
+            "VPC tradeoff warning (loses internet access, S3/DynamoDB still work via VPC endpoints) matches the joinDefaultVpc JSDoc precisely.",
+            "Referenceable params component uses resource='function' which matches the type name 'function' and FunctionReferencableParam = 'arn' | 'logGroupArn'.",
+            "ApiReference uses definitionName='LambdaFunctionProps' which corresponds to the main properties interface for this resource.",
+            "No forbidden patterns detected: no hand-authored YAML, no StacktapeConfig typed style, no fenced TypeScript blocks for Stacktape config, no marketing language, no empty sections.",
+            "Runtime examples (nodejs22.x, python3.13) are valid members of the LambdaRuntime type union.",
+            "Log forwarding property name (logging.logForwarding), supported services (Datadog, Highlight.io, HTTP endpoint), and implementation (Kinesis Data Firehose, S3 backup) all match the LogForwardingBase interface JSDoc.",
+            "Lambda alarm trigger types (lambda-error-rate, lambda-duration) and notification targets (Slack, MS Teams, Discord, email, webhook) match the AlarmUserIntegration union type.",
+            "EFS mount configuration (type: 'efs', efsFilesystemName, mountPath starting with /mnt/) matches LambdaEfsMount and LambdaEfsMountProps interfaces."
+          ],
+          "summary": "The draft is exceptionally well-grounded in the source files. Every property name, default value, constraint, trigger type, deployment strategy, and behavioral claim was verified against the TypeScript type definitions and JSDoc annotations. No high or medium severity issues were found. The single low-severity finding is about Kinesis Data Firehose pricing (~$0.03/GB), which is sourced from JSDoc but is inherently approximate — the draft already handles this correctly with the '~' prefix. The page accurately represents the LambdaFunctionProps interface, uses correct MDX components, follows all formatting rules, and avoids all forbidden patterns."
+        },
+        {
+          "verifierId": "codex-verifier",
+          "modelProvider": "codex",
+          "summary": "The draft is mostly grounded in the provided Lambda function type definitions, but it contains several unsupported or mismatched details around routes, property names, pricing, logging, destinations, and packaging/runtime behavior. The largest concrete problem is an invalid `logging.disabled` property name in prose; the type defines `logging.disabled`, while the draft says `logging.disabled`? Actually the draft says `logging.disabled: true`, which matches. The major confirmed issue is the HTTP API example's `/{proxy+}` wording, which overstates what the source says for greedy paths, plus unsupported claims about several external docs/routes and services that are not present in the supplied source files.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"For other packaging options (pre-built zip), see [Lambda packaging](/packaging/function/).\"",
+              "reason": "The source confirms `custom-artifact` packaging exists and can use a pre-built deployment package, but none of the provided source files establish that `/packaging/function/` is a valid documentation route.",
+              "suggestedFix": "Keep the packaging guidance but either remove the link or link only if the route is verified from docs source outside this source set.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts",
+                  "quote": "interface CustomArtifactLambdaPackagingProps {\n  /**\n   * #### The path to a pre-built deployment package."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "\"The `/{proxy+}` greedy path matches any request path starting with `/`\"",
+              "reason": "The source describes greedy paths as matching paths starting with the literal prefix before `{proxy+}`. Its example is `/files/{proxy+}` matching paths starting with `/files/`; it does not state that `/{proxy+}` matches the root path or all request paths starting with `/`.",
+              "suggestedFix": "Say that `/{proxy+}` is a greedy route for nested paths, and avoid claiming it matches every path unless separately verified against the implementation or AWS route behavior.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "- **Greedy path**: `/files/{proxy+}`. This will match any path starting with `/files/`."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"For detailed configuration of each trigger type, see [triggers](/configuration/triggers/).\"",
+              "reason": "The source confirms the trigger types and their properties, but none of the provided source files establish that `/configuration/triggers/` is a valid documentation route.",
+              "suggestedFix": "Remove the link or verify the route from the docs tree before publishing.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\functions.d.ts",
+                  "quote": "events?: (\n    | HttpApiIntegration\n    | S3Integration\n    | ScheduleIntegration\n    | SnsIntegration\n    | SqsIntegration\n    | KinesisIntegration\n    | DynamoDbIntegration\n    | CloudwatchLogIntegration\n    | ApplicationLoadBalancerIntegration\n    | EventBusIntegration\n    | KafkaTopicIntegration\n    | AlarmIntegration\n  )[];"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"For the full list of injected variables per resource type, see [connecting resources](/configuration/connecting-resources).\"",
+              "reason": "The source confirms injected environment variables for `connectTo`, but none of the provided files establish the `/configuration/connecting-resources` documentation route.",
+              "suggestedFix": "Remove the route or verify the target page exists before publishing.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Environment variable names are in the format `STP_[RESOURCE_NAME]_[VARIABLE_NAME]` (e.g., `STP_MY_DATABASE_CONNECTION_STRING`)."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Function output (`stdout`/`stderr`) is automatically sent to CloudWatch Logs and retained for 180 days by default.\"",
+              "reason": "The type says logs are sent to CloudWatch and retention defaults to 180, but it says CloudWatch, not specifically CloudWatch Logs. The statement is likely true from AWS context, but the provided source only says CloudWatch.",
+              "suggestedFix": "Use the source wording: \"Function output (`stdout`/`stderr`) is automatically sent to CloudWatch and retained for 180 days by default.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\functions.d.ts",
+                  "quote": "Logs (`stdout`/`stderr`) are auto-sent to CloudWatch. View with `stacktape logs` or in the Stacktape Console."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\functions.d.ts",
+                  "quote": "* @default 180"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Log forwarding is available via the `logging.logForwarding` property to send logs to Datadog, Highlight.io, or any HTTP endpoint. Forwarding uses Kinesis Data Firehose (~$0.03/GB) with failed deliveries automatically backed up to S3.\"",
+              "reason": "The provided source only shows `LambdaFunctionLogging extends LogForwardingBase`; it does not include the shape of `LogForwardingBase`, supported destinations, Firehose implementation, pricing, or S3 backup behavior.",
+              "suggestedFix": "Either remove this paragraph or replace it with a narrow source-grounded sentence such as \"Lambda logging supports retention and forwarding configuration; see the logging reference for destination-specific options.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\functions.d.ts",
+                  "quote": "interface LambdaFunctionLogging extends LogForwardingBase {"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\functions.d.ts",
+                  "quote": "* #### Logging configuration (retention, forwarding)."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Set `onSuccess` and `onFailure` destination ARNs to build event-driven workflows.\"",
+              "reason": "The source defines `destinations?: LambdaFunctionDestinations` and destination properties `onSuccess` and `onFailure`, but it does not support placing `onSuccess` and `onFailure` at the top level. The prose could be read as shorthand, but it is imprecise for readers copying property names.",
+              "suggestedFix": "Say \"Set `destinations.onSuccess` and `destinations.onFailure` to destination ARNs.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\functions.d.ts",
+                  "quote": "destinations?: LambdaFunctionDestinations;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\functions.d.ts",
+                  "quote": "interface LambdaFunctionDestinations {\n  /**\n   * #### ARN to receive the result when the function succeeds (SQS, SNS, EventBus, or Lambda ARN).\n   */\n  onSuccess?: string;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Use `onFailure` for dead-letter processing: route failure details to an SQS queue or SNS topic for retry logic, alerting, or debugging.\"",
+              "reason": "For Lambda function destinations, the source says `onFailure` accepts SQS, SNS, EventBus, or Lambda ARN. The draft narrows the destination list to SQS or SNS in this sentence without explaining that EventBus and Lambda are also supported.",
+              "suggestedFix": "Say \"Use `destinations.onFailure` to route error details to SQS, SNS, EventBus, or another Lambda function.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\functions.d.ts",
+                  "quote": "Route async invocation results to another service (SQS, SNS, EventBus, or another function)."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\functions.d.ts",
+                  "quote": "ARN to receive error details when the function fails. Useful for dead-letter processing."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Alarms can send notifications to Slack, Microsoft Teams, Discord, email, or a webhook.\"",
+              "reason": "The alarm integration type supports Slack, MS Teams, email, Discord, and webhook, but the Lambda function source only says Lambda alarms are merged with global alarms from the Stacktape Console. The draft's mention of global Console configuration is not backed by console-app source in the provided source set.",
+              "suggestedFix": "Keep the supported notification target list if desired, but remove or soften \"globally via the Stacktape Console\" unless verified against console-app source.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\alarms.d.ts",
+                  "quote": "type AlarmUserIntegration =\n  | MsTeamsIntegration\n  | SlackIntegration\n  | EmailIntegration\n  | DiscordIntegration\n  | WebhookIntegration;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\functions.d.ts",
+                  "quote": "#### Alarms for this function (merged with global alarms from the Stacktape Console)."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Configure alarms inline on the function via the `alarms` property, or globally via the Stacktape Console.\"",
+              "reason": "The source confirms inline `alarms` and says they are merged with global alarms from the Stacktape Console, but it does not show the Console UI or that users can configure global alarms there. Console behavior must be verified against console-app source, which is not included.",
+              "suggestedFix": "Say \"Function alarms are configured with the `alarms` property and are merged with global alarms from the Stacktape Console.\" Avoid describing the Console flow unless console-app source is available.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\functions.d.ts",
+                  "quote": "alarms?: LambdaAlarm[];"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\functions.d.ts",
+                  "quote": "#### Alarms for this function (merged with global alarms from the Stacktape Console)."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Common uses: shared native libraries (sharp, Puppeteer, FFmpeg), custom runtimes, or shared utility code managed outside your deployment package.\"",
+              "reason": "The source supports layers for shared libraries, custom runtimes, and additional code/data, but it does not name sharp, Puppeteer, or FFmpeg as common examples for Lambda layers.",
+              "suggestedFix": "Use source-grounded examples only: \"shared libraries, native binaries, custom runtimes, or other code/data mounted into the function.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\functions.d.ts",
+                  "quote": "Layers are zip archives with additional code/data mounted into the function."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\functions.d.ts",
+                  "quote": "#### Lambda Layer ARNs to attach (shared libraries, custom runtimes, etc.)."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "\"The language runtime is auto-detected from your source file extension.\"",
+              "reason": "The source says the runtime is auto-detected from the source file extension when using `stacktape-lambda-buildpack`, but it does not specify the exact detection mechanism or whether it is solely based on extension.",
+              "suggestedFix": "Use the exact source wording: \"The runtime is auto-detected when using `stacktape-lambda-buildpack`; override it with `runtime` when you need a specific version.\"",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "\"Override the detected runtime with the `runtime` property when you need a specific version (e.g., `nodejs22.x`, `python3.13`).\"",
+              "reason": "The source examples mention `nodejs22.x` and `python3.13`, but the provided source set does not include the `LambdaRuntime` union, so the verifier cannot confirm these exact values are valid enum members.",
+              "suggestedFix": "Keep the examples only if `LambdaRuntime` is verified elsewhere, or phrase them as examples from the type comment rather than exhaustive validated values.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "\"For multi-route APIs with path-based routing, use an [HTTP API Gateway](/resources/networking/http-api-gateway) instead of a function URL.\"",
+              "reason": "The source supports both function URLs and HTTP API Gateway integrations, and says function URLs are simpler for single-function endpoints, but it does not state this recommendation for multi-route APIs or verify the linked route.",
+              "suggestedFix": "Soften to \"For route-level matching by method and path, use an HTTP API Gateway integration.\" Verify the route separately.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "\"Additional CDN options include route rewrites, edge functions, custom domains, caching configuration, and price class selection.\"",
+              "reason": "The provided source only exposes `cdn?: CdnConfiguration` and a generic description. It does not include `CdnConfiguration`, so these specific CDN option names are not verifiable from the provided source files.",
+              "suggestedFix": "Replace with \"Use the CDN reference for the available `cdn` options\" unless the CDN type source is included.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "\"Data in `/tmp` is ephemeral — it does not persist across invocations.\"",
+              "reason": "The source says `/tmp` is \"Ephemeral per invocation,\" but does not explicitly define persistence semantics. The draft is reasonable, but stronger than the exact source wording.",
+              "suggestedFix": "Use source wording: \"The `/tmp` directory is ephemeral per invocation.\"",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "\"Data persists indefinitely\" for EFS.",
+              "reason": "The source says EFS data persists indefinitely, so the storage behavior is grounded. However, no EFS lifecycle, deletion, or stack deletion caveat is present in the source set, making \"indefinitely\" potentially overbroad for operational docs.",
+              "suggestedFix": "Use the exact scoped wording from source: \"Unlike `/tmp`, EFS data persists and can be shared across multiple functions.\"",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The page uses `defineConfig` and class-based resource examples inside `<CodeBlock intellisense tabs={[...]} />`, with no hand-authored Stacktape YAML examples.",
+            "The first paragraph is within the requested 40-60 word range and accurately defines Lambda functions according to the source type comments.",
+            "Core Lambda properties used in examples are present in `LambdaFunctionProps`: `packaging`, `url`, `memory`, `timeout`, `environment`, `events`, `provisionedConcurrency`, `reservedConcurrency`, `connectTo`, `joinDefaultVpc`, `deployment`, `cdn`, `volumeMounts`, and `destinations`.",
+            "The pricing line is largely grounded in the source comments for pay-per-use Lambda, `arm64` being approximately 20% cheaper, and provisioned concurrency charging while idle.",
+            "The API reference component uses `LambdaFunctionProps`, which is present in the provided type source, and `ReferenceableParams resource=\"function\"` matches the Lambda resource type."
+          ]
+        },
+        {
+          "verifierId": "code-validator",
+          "modelProvider": "deterministic",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #4 (TypeScript): TypeScript config example is not Prettier-formatted.",
+              "reason": "Stacktape config examples must render cleanly and consistently. The pipeline uses Prettier as the formatting contract.",
+              "suggestedFix": "Format the full code string with Prettier using the TypeScript parser."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #11 (TypeScript): TypeScript config example is not Prettier-formatted.",
+              "reason": "Stacktape config examples must render cleanly and consistently. The pipeline uses Prettier as the formatting contract.",
+              "suggestedFix": "Format the full code string with Prettier using the TypeScript parser."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "seoReviewResult": {
+        "score": 8,
+        "suggestions": [
+          "Rename the noun-only headings at the bottom to question format for consistency and search alignment: 'Logging' → 'How do I configure logging for a Lambda function?', 'Destinations' → 'How do I route async Lambda results to other services?', 'Alarms' → 'How do I monitor a Lambda function with alarms?', 'Layers' → 'How do I add shared libraries with Lambda layers?'",
+          "Rename 'Basic example' to something more search-friendly like 'How do I deploy a Lambda function with Stacktape?' — 'basic example' is not a phrase anyone searches for and wastes the strongest heading position after the title.",
+          "Add a structured FAQ section near the bottom with 3-5 high-value questions that summarize key facts from the page (e.g., 'What is the maximum Lambda execution time?' → '900 seconds (15 minutes)', 'How much memory can a Lambda function use?' → '128 MB to 10,240 MB', 'Does a Lambda function need a VPC?'). This gives search engines explicit FAQ schema candidates and gives AI engines pre-extracted Q&A pairs.",
+          "The cold starts section explains provisioned concurrency but never quantifies the problem — add a sentence like 'Cold starts typically add 100ms–2s of latency depending on runtime, package size, and whether the function is in a VPC' so AI engines can extract a concrete answer to 'how long are Lambda cold starts?'",
+          "The Logging section mentions retention (180 days) and forwarding cost (~$0.03/GB) but doesn't mention CloudWatch Logs ingestion pricing. Either add the approximate cost (~$0.50/GB ingested) or remove the Firehose cost to avoid an inconsistent level of pricing detail — partial pricing can mislead AI engines into presenting incomplete cost comparisons.",
+          "In the VPC section, make the key constraint more extractable by leading with the tradeoff: 'A VPC-connected Lambda function cannot access the public internet' as a standalone sentence before the explanation. AI engines often grab the first sentence of a paragraph — currently the first sentence is about the default (outside VPC), which buries the important gotcha."
+        ]
+      },
+      "passed": false
+    }
+  ],
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\resources\\compute\\lambda-function.mdx"
+}

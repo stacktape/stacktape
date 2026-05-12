@@ -34,6 +34,7 @@ export type StacktapeResourceDefinition =
   | OpenSearchDomain
   | EfsFilesystem
   | KinesisStream
+  | Convex
   | LambdaFunction
   | EdgeLambdaFunction
   | AstroWeb
@@ -958,18 +959,6 @@ export interface StackConfig {
    */
   stackInfoDirectory?: string;
   vpc?: VpcSettings;
-  /**
-   * #### Disable automatic issue detection for all functions in this stack.
-   *
-   * ---
-   *
-   * By default, Stacktape automatically detects runtime errors (uncaught exceptions,
-   * unhandled promise rejections, console.error) in your Node.js/TypeScript Lambda functions
-   * and reports them to the Stacktape Console as Issues.
-   *
-   * Set to `true` to disable this feature for the entire stack.
-   */
-  disableIssues?: boolean;
 }
 export interface StackOutput {
   /**
@@ -3560,11 +3549,11 @@ export interface WebServiceProps {
    *   Cheapest at low traffic, but costs grow with volume.
    *
    * - **`application-load-balancer`**: Flat ~$18/month + usage. Required for gradual deployments
-   *   (`deployment`), firewalls (`useFirewall`), and WebSocket support.
+   *   (`deployment`), top-level firewalls (`useFirewall`), and WebSocket support.
    *   More cost-effective above ~500k requests/day. AWS Free Tier eligible.
    *
    * - **`network-load-balancer`**: For non-HTTP traffic (TCP/TLS) like MQTT, game servers, or custom protocols.
-   *   Requires explicit `ports` configuration. Does not support CDN, firewall, or gradual deployments.
+   *   Requires explicit `ports` configuration. Does not support CDN, top-level firewall, or gradual deployments.
    */
   loadBalancing?: WebServiceHttpApiGatewayLoadBalancing | WebServiceAlbLoadBalancing | WebServiceNlbLoadBalancing;
   cdn?: CdnConfiguration;
@@ -3579,6 +3568,14 @@ export interface WebServiceProps {
   deployment?: ContainerWorkloadDeploymentConfig1;
   /**
    * #### Name of a `web-app-firewall` resource to protect this service from common web exploits.
+   *
+   * ---
+   *
+   * Attaches a regional firewall directly to the service's application load balancer.
+   * Requires `loadBalancing` type `application-load-balancer`.
+   *
+   * To protect a CDN-enabled service at CloudFront instead, use `cdn.useFirewall`
+   * with a `web-app-firewall` resource whose `scope` is `cdn`.
    */
   useFirewall?: string;
   /**
@@ -11044,6 +11041,672 @@ export interface KinesisStreamEncryption {
    * #### ARN of your own KMS key. If omitted, uses the AWS-managed `alias/aws/kinesis` key (no extra cost).
    */
   kmsKeyArn?: string;
+}
+/**
+ * #### Self-hosted Convex backend on AWS — reactive database, functions, file storage, and dashboard.
+ *
+ * ---
+ *
+ * Provisions everything needed to run [Convex](https://www.convex.dev) self-hosted on your own AWS account:
+ * a Fargate-based backend container, a PostgreSQL database, five S3 buckets (modules, files, search,
+ * exports, snapshot imports), an ALB for HTTPS + WebSocket traffic, and an optional admin dashboard.
+ *
+ * On every `stacktape deploy`, after the infrastructure is healthy, Stacktape runs `npx convex deploy`
+ * from your `appDirectory` to push the latest function code to the freshly-deployed backend, with the
+ * admin key auto-injected from AWS Secrets Manager.
+ *
+ * ---
+ *
+ * ##### Single-instance constraint
+ *
+ * The open-source convex-backend distribution is **single-process**: it cannot be horizontally scaled.
+ * Running two backends against the same Postgres would corrupt MVCC transaction validation and break
+ * reactive query invalidation. Stacktape therefore enforces a single active task. For higher
+ * availability, set `backend.highAvailability: true` to run a warm standby that fails over in ~5–10s
+ * instead of the ~60–90s cold-start window.
+ *
+ * Scale **vertically** by bumping `backend.resources.cpu`/`memory` (or by switching to `instanceTypes`
+ * with EC2). A single 4 vCPU / 8 GB backend comfortably handles thousands of concurrent reactive
+ * subscribers per Convex's own self-hosted guidance.
+ *
+ * ---
+ *
+ * ##### Cost
+ *
+ * The smallest viable configuration (single-AZ `db.t4g.micro` Postgres, 0.5 vCPU / 1 GB Fargate
+ * backend, 0.25 vCPU / 512 MB dashboard, ALB, S3) lands around **$45–65/month idle**. Production
+ * configurations with HA and larger backends scale up from there.
+ */
+export interface Convex {
+  type: "convex";
+  properties: ConvexProps;
+  /**
+   * #### Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
+   *
+   * ---
+   *
+   * Use dot-notation paths to override specific properties on any child resource.
+   * Find resource logical IDs with `stacktape stack-info --detailed`.
+   *
+   * ```yaml
+   * overrides:
+   *   MyDbInstance:
+   *     Properties.StorageEncrypted: true
+   * ```
+   */
+  overrides?: {
+    [k: string]: any;
+  };
+}
+export interface ConvexProps {
+  /**
+   * #### Path to the `convex/` directory in your project (where `schema.ts` and function files live).
+   *
+   * ---
+   *
+   * After each `stacktape deploy`, Stacktape runs `npx convex deploy` from this directory against the
+   * freshly-deployed backend. Type generation (`convex/_generated/`) should be wired in via a
+   * `hooks.beforeDeploy` script running `npx convex codegen` — see the `convex-nextjs` starter project.
+   *
+   * Example: `appDirectory: './convex'`
+   */
+  appDirectory: string;
+  customDomains?: ConvexCustomDomains;
+  backend: ConvexBackendConfig;
+  dashboard?: ConvexDashboardConfig;
+  database?: ConvexDatabaseConfig;
+  storage?: ConvexStorageConfig;
+  dev?: DevModeConfig3;
+  /**
+   * #### Prevent accidental deletion of the database and the five storage buckets.
+   *
+   * ---
+   *
+   * When `true`, Stacktape sets `deletionProtection` on the underlying RDS instance and retention
+   * policies on the buckets. You must set this to `false` and redeploy before you can delete the stack.
+   *
+   * Recommended for production stages.
+   */
+  deletionProtection?: boolean;
+  /**
+   * #### Alarms for this Convex deployment (backend container, ALB, database). Merged with global
+   * alarms from the Stacktape Console.
+   */
+  alarms?: (ApplicationLoadBalancerAlarm | RelationalDatabaseAlarm)[];
+  /**
+   * #### Global alarm names to exclude from this deployment.
+   */
+  disabledGlobalAlarms?: string[];
+}
+/**
+ * #### Custom domains for the Convex backend.
+ *
+ * ---
+ *
+ * Convex exposes two distinct origins that the outside world reaches:
+ *
+ * - **`cloud`** — the API + WebSocket endpoint (`CONVEX_CLOUD_ORIGIN`). All client traffic
+ *   (queries, mutations, actions, reactive subscriptions) hits this URL via the `convex-js`
+ *   client. Required.
+ * - **`site`** — the HTTP-actions endpoint (`CONVEX_SITE_ORIGIN`). User-defined `httpAction()`
+ *   routes (webhooks, OAuth callbacks, etc.) live here. Kept separate from `cloud` so webhook
+ *   URLs don't collide with internal API paths. Required.
+ * - **`dashboard`** — optional. If provided and `dashboard.enabled` is `true`, the dashboard
+ *   serves at this domain. Otherwise the dashboard is reachable via the ALB DNS on port 6791.
+ *
+ * Each domain must have a Route53 hosted zone in your AWS account. Stacktape provisions free
+ * TLS certificates and DNS records automatically.
+ *
+ * If `customDomains` is omitted entirely, the ALB's default DNS is used with port-based routing
+ * (3210 cloud, 3211 site, 6791 dashboard). Fine for dev/staging; **not recommended for
+ * production** — the ALB DNS is unstable across stack recreations, and clients hard-code the URL.
+ */
+export interface ConvexCustomDomains {
+  cloud: DomainConfiguration1;
+  site: DomainConfiguration2;
+  dashboard?: DomainConfiguration3;
+}
+/**
+ * #### API + WebSocket origin. Set as `CONVEX_CLOUD_ORIGIN` on the backend.
+ *
+ * ---
+ *
+ * Frontend clients connect here via the `convex-js` client. Example: `api.myapp.com`.
+ */
+export interface DomainConfiguration1 {
+  /**
+   * #### Your domain name (e.g., `mydomain.com` or `api.mydomain.com`).
+   *
+   * ---
+   *
+   * Don't include the protocol (`https://`). The domain must have a Route53 hosted zone
+   * in your AWS account, with your registrar's nameservers pointing to it.
+   *
+   * Stacktape automatically creates a DNS record and provisions a free TLS certificate.
+   */
+  domainName: string;
+  /**
+   * #### Use your own TLS certificate instead of the auto-generated one.
+   *
+   * ---
+   *
+   * Provide the ARN of an ACM certificate from your AWS account.
+   * Only needed if you have specific certificate requirements (e.g., EV/OV certs).
+   * By default, Stacktape provisions and renews free certificates automatically.
+   */
+  customCertificateArn?: string;
+  /**
+   * #### Skip DNS record creation for this domain.
+   *
+   * ---
+   *
+   * Set to `true` if you manage DNS records yourself (e.g., through Cloudflare or another DNS provider).
+   * Stacktape will still provision the TLS certificate but won't touch your DNS.
+   */
+  disableDnsRecordCreation?: boolean;
+}
+/**
+ * #### HTTP-actions origin. Set as `CONVEX_SITE_ORIGIN` on the backend.
+ *
+ * ---
+ *
+ * User-defined `httpAction()` routes (webhooks, OAuth callbacks) are served here.
+ * Example: `webhooks.myapp.com`.
+ */
+export interface DomainConfiguration2 {
+  /**
+   * #### Your domain name (e.g., `mydomain.com` or `api.mydomain.com`).
+   *
+   * ---
+   *
+   * Don't include the protocol (`https://`). The domain must have a Route53 hosted zone
+   * in your AWS account, with your registrar's nameservers pointing to it.
+   *
+   * Stacktape automatically creates a DNS record and provisions a free TLS certificate.
+   */
+  domainName: string;
+  /**
+   * #### Use your own TLS certificate instead of the auto-generated one.
+   *
+   * ---
+   *
+   * Provide the ARN of an ACM certificate from your AWS account.
+   * Only needed if you have specific certificate requirements (e.g., EV/OV certs).
+   * By default, Stacktape provisions and renews free certificates automatically.
+   */
+  customCertificateArn?: string;
+  /**
+   * #### Skip DNS record creation for this domain.
+   *
+   * ---
+   *
+   * Set to `true` if you manage DNS records yourself (e.g., through Cloudflare or another DNS provider).
+   * Stacktape will still provision the TLS certificate but won't touch your DNS.
+   */
+  disableDnsRecordCreation?: boolean;
+}
+/**
+ * #### Optional dashboard domain. Only used if `dashboard.enabled` is `true`.
+ *
+ * ---
+ *
+ * If omitted, the dashboard is served on the ALB's default DNS at port 6791.
+ * Example: `convex-admin.myapp.com`.
+ */
+export interface DomainConfiguration3 {
+  /**
+   * #### Your domain name (e.g., `mydomain.com` or `api.mydomain.com`).
+   *
+   * ---
+   *
+   * Don't include the protocol (`https://`). The domain must have a Route53 hosted zone
+   * in your AWS account, with your registrar's nameservers pointing to it.
+   *
+   * Stacktape automatically creates a DNS record and provisions a free TLS certificate.
+   */
+  domainName: string;
+  /**
+   * #### Use your own TLS certificate instead of the auto-generated one.
+   *
+   * ---
+   *
+   * Provide the ARN of an ACM certificate from your AWS account.
+   * Only needed if you have specific certificate requirements (e.g., EV/OV certs).
+   * By default, Stacktape provisions and renews free certificates automatically.
+   */
+  customCertificateArn?: string;
+  /**
+   * #### Skip DNS record creation for this domain.
+   *
+   * ---
+   *
+   * Set to `true` if you manage DNS records yourself (e.g., through Cloudflare or another DNS provider).
+   * Stacktape will still provision the TLS certificate but won't touch your DNS.
+   */
+  disableDnsRecordCreation?: boolean;
+}
+/**
+ * #### Configuration for the Convex backend container (the Rust server process).
+ */
+export interface ConvexBackendConfig {
+  resources: ContainerWorkloadResourcesConfig4;
+  /**
+   * #### Pinned Convex backend Docker image.
+   *
+   * ---
+   *
+   * Defaults to a known-good version pinned by Stacktape (currently from `ghcr.io/get-convex/convex-backend`).
+   * Override to test newer/older versions. Image upgrades trigger Convex's in-place migration path
+   * (see `deploymentMode`).
+   *
+   * Example: `image: 'ghcr.io/get-convex/convex-backend:0a8d9ae0f0e5c6c9c0c0c0c0'`
+   */
+  image?: string;
+  /**
+   * #### Run a warm standby task for ~5–10s failover instead of ~60–90s cold start.
+   *
+   * ---
+   *
+   * When `true`, Stacktape runs an additional backend task in the same ECS service, kept
+   * deregistered from the ALB target group. On primary task failure, an event-driven Lambda
+   * swaps the targets: deregister the dead primary, register the standby, then launch a new
+   * standby in the background.
+   *
+   * Both tasks share the same Postgres + S3, but only one ever serves traffic — preserving
+   * Convex's single-writer correctness invariant.
+   *
+   * **Cost:** 2× backend compute (roughly an extra $20–50/month at small sizes).
+   */
+  highAvailability?: boolean;
+  /**
+   * #### How `stacktape deploy` handles backend version upgrades.
+   *
+   * ---
+   *
+   * - **`auto`** *(default)*: Non-image changes (env vars, sizing) use warm-standby blue/green
+   *   for ~3–8s downtime. Image-version changes follow Convex's official Option 1 in-place
+   *   migration: stop active → start new version → wait for `MigrationComplete(N)` log line →
+   *   bring up traffic. ~30s to a few minutes depending on migration size.
+   * - **`fast`**: Forces warm-standby blue/green even on image changes. **Unsafe** unless you've
+   *   verified the upgrade has no schema migrations.
+   * - **`safe`**: Always uses Convex's Option 2 export/import path — full data export before
+   *   the upgrade, then import after. Most downtime, lowest risk. Use for major version jumps
+   *   or when in-place migration has previously failed.
+   */
+  deploymentMode?: "auto" | "fast" | "safe";
+  /**
+   * #### Run `npx convex export` to the `exports` bucket before any backend image upgrade.
+   *
+   * ---
+   *
+   * Provides a one-command restore path if a migration goes wrong. Recommended by Convex's
+   * official self-hosted upgrade guide. Disable only if you have a separate backup strategy
+   * and want faster image upgrades.
+   */
+  preUpgradeExport?: boolean;
+  logging?: ContainerWorkloadContainerLogging5;
+  /**
+   * #### Allow SSH-like sessions into the running backend container for debugging.
+   *
+   * ---
+   *
+   * Enables `stacktape container:session` to open an interactive shell. Adds a small SSM agent
+   * (negligible CPU/memory).
+   */
+  enableRemoteSessions?: boolean;
+}
+/**
+ * #### CPU, memory, and compute engine for the backend container.
+ *
+ * ---
+ *
+ * Required — there is no default. Pick a sizing appropriate to your workload:
+ *
+ * - **Hobby / small dev**: `{ cpu: 0.5, memory: 1024 }` — fine for a few dozen concurrent users
+ * - **Production baseline**: `{ cpu: 1, memory: 2048 }` — handles hundreds of concurrent reactive subscribers
+ * - **Heavier production**: `{ cpu: 2, memory: 4096 }` or `{ cpu: 4, memory: 8192 }` — thousands of subscribers, vector search
+ *
+ * For EC2 instead of Fargate, specify `instanceTypes` (e.g., `['c6g.large']`). EC2 is typically
+ * cheaper per vCPU and supports `enableWarmPool: true` for faster cold-starts.
+ *
+ * Convex backend is single-process — scale **vertically** (bigger box), not horizontally.
+ */
+export interface ContainerWorkloadResourcesConfig4 {
+  /**
+   * #### vCPUs for the workload (Fargate). Ignored when using `instanceTypes`.
+   */
+  cpu?: 0.25 | 0.5 | 1 | 16 | 2 | 4 | 8;
+  /**
+   * #### Memory in MB. Must be compatible with the vCPU count on Fargate.
+   *
+   * ---
+   *
+   * Fargate valid combos: 0.25 vCPU → 512-2048 MB, 0.5 → 1024-4096, 1 → 2048-8192, 2 → 4096-16384,
+   * 4 → 8192-30720, 8 → 16384-61440, 16 → 32768-122880.
+   * For EC2: auto-detected from instance type if omitted.
+   */
+  memory?: number;
+  /**
+   * #### EC2 instance types for the workload (e.g., `t3.medium`, `c6g.large`). Use instead of `cpu`/`memory`.
+   *
+   * ---
+   *
+   * First type in the list is preferred. Instances auto-scale and are refreshed weekly for patching.
+   * Tip: specify a single type and omit `cpu`/`memory` for optimal sizing.
+   */
+  instanceTypes?: string[];
+  /**
+   * #### Keep pre-initialized EC2 instances ready for faster scaling. Only works with a single instance type.
+   */
+  enableWarmPool?: boolean;
+  /**
+   * #### CPU architecture for Fargate. `arm64` is ~20% cheaper. Ignored when using `instanceTypes`.
+   */
+  architecture?: "arm64" | "x86_64";
+}
+/**
+ * #### Logging configuration for the backend container.
+ *
+ * ---
+ *
+ * Container `stdout`/`stderr` are sent to CloudWatch and retained for 90 days by default.
+ * View logs with `stacktape logs <resourceName>`.
+ */
+export interface ContainerWorkloadContainerLogging5 {
+  /**
+   * #### Disable logging to CloudWatch.
+   */
+  disabled?: boolean;
+  /**
+   * #### How many days to keep logs.
+   */
+  retentionDays?: 1 | 120 | 14 | 150 | 180 | 1827 | 3 | 30 | 365 | 3653 | 400 | 5 | 545 | 60 | 7 | 731 | 90;
+  /**
+   * #### Forward logs to an external service (Datadog, Highlight.io, or any HTTP endpoint).
+   *
+   * ---
+   *
+   * Uses Kinesis Data Firehose (~$0.03/GB). Failed deliveries go to a backup S3 bucket.
+   */
+  logForwarding?: HttpEndpointLogForwarding | HighlightLogForwarding | DatadogLogForwarding;
+}
+/**
+ * #### Configuration for the Convex admin dashboard.
+ *
+ * ---
+ *
+ * Enabled by default. The dashboard is a stateless Next.js app that talks to the backend's
+ * REST API using the admin key (which you paste on first login). To opt out, set
+ * `dashboard.enabled: false`.
+ */
+export interface ConvexDashboardConfig {
+  /**
+   * #### Whether to provision the admin dashboard.
+   *
+   * ---
+   *
+   * The dashboard is a small stateless Next.js app (~$3–5/month at default sizing) that gives
+   * you a data browser, log viewer, function REPL, env-var manager, and snapshot export/import
+   * UI. Disable only if you have a strong reason — self-hosted Convex without the dashboard is
+   * operationally painful.
+   */
+  enabled?: boolean;
+  /**
+   * #### CIDR ranges allowed to reach the dashboard. By default the dashboard is internet-reachable.
+   *
+   * ---
+   *
+   * The dashboard has no built-in authentication — the admin key (which you paste on login) is
+   * the only security barrier. Convex's admin key is high-entropy and is the same model managed
+   * Convex uses, but if you want defense-in-depth, pin access to your office IPs or VPN range.
+   *
+   * Example: `allowedIpRanges: ['203.0.113.0/24', '198.51.100.42/32']`.
+   */
+  allowedIpRanges?: string[];
+  resources?: ContainerWorkloadResourcesConfig5;
+  /**
+   * #### Pinned Convex dashboard Docker image.
+   *
+   * ---
+   *
+   * Defaults to a known-good version pinned by Stacktape (currently from `ghcr.io/get-convex/convex-dashboard`).
+   * Override to test newer/older versions.
+   */
+  image?: string;
+  logging?: ContainerWorkloadContainerLogging6;
+}
+/**
+ * #### CPU, memory, and compute engine for the dashboard container.
+ *
+ * ---
+ *
+ * Required when the dashboard is enabled. The dashboard is a Next.js app and is very light —
+ * `{ cpu: 0.25, memory: 512 }` is plenty for most teams.
+ */
+export interface ContainerWorkloadResourcesConfig5 {
+  /**
+   * #### vCPUs for the workload (Fargate). Ignored when using `instanceTypes`.
+   */
+  cpu?: 0.25 | 0.5 | 1 | 16 | 2 | 4 | 8;
+  /**
+   * #### Memory in MB. Must be compatible with the vCPU count on Fargate.
+   *
+   * ---
+   *
+   * Fargate valid combos: 0.25 vCPU → 512-2048 MB, 0.5 → 1024-4096, 1 → 2048-8192, 2 → 4096-16384,
+   * 4 → 8192-30720, 8 → 16384-61440, 16 → 32768-122880.
+   * For EC2: auto-detected from instance type if omitted.
+   */
+  memory?: number;
+  /**
+   * #### EC2 instance types for the workload (e.g., `t3.medium`, `c6g.large`). Use instead of `cpu`/`memory`.
+   *
+   * ---
+   *
+   * First type in the list is preferred. Instances auto-scale and are refreshed weekly for patching.
+   * Tip: specify a single type and omit `cpu`/`memory` for optimal sizing.
+   */
+  instanceTypes?: string[];
+  /**
+   * #### Keep pre-initialized EC2 instances ready for faster scaling. Only works with a single instance type.
+   */
+  enableWarmPool?: boolean;
+  /**
+   * #### CPU architecture for Fargate. `arm64` is ~20% cheaper. Ignored when using `instanceTypes`.
+   */
+  architecture?: "arm64" | "x86_64";
+}
+/**
+ * #### Logging configuration for the dashboard container.
+ */
+export interface ContainerWorkloadContainerLogging6 {
+  /**
+   * #### Disable logging to CloudWatch.
+   */
+  disabled?: boolean;
+  /**
+   * #### How many days to keep logs.
+   */
+  retentionDays?: 1 | 120 | 14 | 150 | 180 | 1827 | 3 | 30 | 365 | 3653 | 400 | 5 | 545 | 60 | 7 | 731 | 90;
+  /**
+   * #### Forward logs to an external service (Datadog, Highlight.io, or any HTTP endpoint).
+   *
+   * ---
+   *
+   * Uses Kinesis Data Firehose (~$0.03/GB). Failed deliveries go to a backup S3 bucket.
+   */
+  logForwarding?: HttpEndpointLogForwarding | HighlightLogForwarding | DatadogLogForwarding;
+}
+/**
+ * #### Override the PostgreSQL database that backs the Convex deployment.
+ *
+ * ---
+ *
+ * Defaults to a single-AZ RDS PostgreSQL `db.t4g.micro` instance (cheapest production-viable
+ * option, ~$13/month). The shape mirrors a subset of [`relational-database`](https://docs.stacktape.com/resources/relational-databases/) — override only what
+ * you need. Common reasons to override: bump to Aurora Serverless v2 for auto-scaling, enable
+ * multi-AZ for HA, or increase storage retention.
+ *
+ * You cannot bring an existing external database — Convex assumes it owns its Postgres entirely.
+ */
+export interface ConvexDatabaseConfig {
+  /**
+   * #### Database engine override. Defaults to RDS PostgreSQL 16 on `db.t4g.micro`.
+   *
+   * ---
+   *
+   * Convex requires PostgreSQL 13+. To use Aurora Serverless v2 instead (auto-scales 0.5–8 ACU,
+   * higher idle cost but elastic), set `{ type: 'aurora-postgresql-serverless-v2', properties: { ... } }`.
+   */
+  engine?: AuroraEngine | AuroraServerlessV2Engine | RdsEngine;
+  accessibility?: DatabaseAccessibility1;
+  /**
+   * #### Days to keep automated daily backups (0–35). Defaults to 1.
+   */
+  automatedBackupRetentionDays?: number;
+  /**
+   * #### When maintenance happens. Format: `Sun:02:00-Sun:04:00` (UTC).
+   */
+  preferredMaintenanceWindow?: string;
+  logging?: RelationalDatabaseLogging1;
+}
+/**
+ * #### Database network accessibility. Defaults to `scoping-workloads-in-vpc`.
+ *
+ * ---
+ *
+ * The Convex backend auto-connects internally, so users have no reason to set `internet` here
+ * — direct `psql` access to Convex's internal Postgres is almost always wrong (use the dashboard
+ * or `npx convex export` instead).
+ */
+export interface DatabaseAccessibility1 {
+  /**
+   * #### Controls who can connect to your database.
+   *
+   * ---
+   *
+   * - **`internet`** (default): Anyone with the credentials can connect. Simplest setup, great for development.
+   *   The database is still protected by username/password.
+   * - **`vpc`**: Only your app's resources (and anything in the same VPC) can connect.
+   *   You can also whitelist specific IPs (e.g., your office) using `whitelistedIps`.
+   * - **`scoping-workloads-in-vpc`**: Most restrictive. Only resources that explicitly list this
+   *   database in their `connectTo` can reach it. Best for production.
+   * - **`whitelisted-ips-only`**: Only the IP addresses you list in `whitelistedIps` can connect.
+   *
+   * > Aurora Serverless engines only support `vpc` or `scoping-workloads-in-vpc`.
+   */
+  accessibilityMode: "internet" | "scoping-workloads-in-vpc" | "vpc" | "whitelisted-ips-only";
+  /**
+   * #### Remove the database's public IP entirely (VPC-only access).
+   *
+   * ---
+   *
+   * > For Aurora, this can only be set at creation time and cannot be changed later.
+   */
+  forceDisablePublicIp?: boolean;
+  /**
+   * #### IP addresses or CIDR ranges allowed to connect (e.g., `203.0.113.50/32`).
+   *
+   * ---
+   *
+   * - In `vpc`/`scoping-workloads-in-vpc`: adds external IPs on top of VPC access (e.g., your office).
+   * - In `whitelisted-ips-only`: only these IPs can connect.
+   * - No effect in `internet` mode.
+   */
+  whitelistedIps?: string[];
+}
+/**
+ * #### Database logging (connections, slow queries, errors).
+ */
+export interface RelationalDatabaseLogging1 {
+  /**
+   * #### Disable CloudWatch logging entirely.
+   */
+  disabled?: boolean;
+  /**
+   * #### How many days to keep logs.
+   */
+  retentionDays?: 1 | 120 | 14 | 150 | 180 | 1827 | 3 | 30 | 365 | 3653 | 400 | 5 | 545 | 60 | 7 | 731 | 90;
+  /**
+   * #### Which log types to export. Depends on engine:
+   *
+   * - **PostgreSQL**: `postgresql`
+   * - **MySQL/MariaDB**: `audit`, `error`, `general`, `slowquery`
+   * - **Oracle**: `alert`, `audit`, `listener`, `trace`
+   * - **SQL Server**: `agent`, `error`
+   */
+  logTypes?: string[];
+  /**
+   * #### Fine-grained logging settings (PostgreSQL: slow queries, statements; MySQL: audit events).
+   */
+  engineSpecificOptions?: PostgresLoggingOptions | MysqlLoggingOptions;
+  /**
+   * #### Forward logs to an external service (Datadog, Highlight.io, or any HTTP endpoint).
+   *
+   * ---
+   *
+   * Uses Kinesis Data Firehose (~$0.03/GB). Failed deliveries go to a backup S3 bucket.
+   */
+  logForwarding?: HttpEndpointLogForwarding | HighlightLogForwarding | DatadogLogForwarding;
+}
+/**
+ * #### Shared configuration applied to all five Convex S3 buckets (`modules`, `files`, `search`,
+ * `exports`, `snapshot_imports`).
+ *
+ * ---
+ *
+ * Each Convex deployment requires five separate buckets internally. By default they are all
+ * private, encrypted at rest, with versioning disabled. Use this property to override defaults
+ * across all five at once (e.g., enable versioning for prod).
+ */
+export interface ConvexStorageConfig {
+  /**
+   * #### Encrypt stored objects at rest (AES-256).
+   */
+  encryption?: boolean;
+  /**
+   * #### Keep previous versions of overwritten/deleted objects. Useful for recovery; increases storage cost.
+   */
+  versioning?: boolean;
+  /**
+   * #### Auto-delete or move objects to cheaper storage classes over time.
+   *
+   * ---
+   *
+   * Applied to all five buckets. Most useful for the `exports` bucket if you don't want old
+   * snapshot exports accumulating indefinitely.
+   */
+  lifecycleRules?: (
+    | Expiration
+    | NonCurrentVersionExpiration
+    | ClassTransition
+    | NonCurrentVersionClassTransition
+    | AbortIncompleteMultipartUpload
+  )[];
+}
+/**
+ * #### Dev mode: runs the convex-backend locally in Docker by default with SQLite + local
+ * filesystem storage.
+ *
+ * ---
+ *
+ * Set `remote: true` to point `stacktape dev` at the deployed AWS backend instead. Local mode
+ * is recommended because Convex's save-push-reload loop is noticeably faster over loopback than
+ * across the WAN, and avoids 24/7 Fargate + RDS cost per developer.
+ */
+export interface DevModeConfig3 {
+  /**
+   * #### Use the deployed AWS resource instead of a local emulation.
+   *
+   * ---
+   *
+   * By default, databases, Redis, and DynamoDB run locally in Docker during dev mode.
+   * Set to `true` to connect to the real deployed resource instead (must be deployed first).
+   *
+   * Useful when local emulation doesn't match production behavior closely enough,
+   * or when you need to work with real data.
+   */
+  remote?: boolean;
 }
 /**
  * #### A serverless compute resource that runs your code in response to events.

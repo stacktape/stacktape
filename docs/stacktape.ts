@@ -46,6 +46,9 @@ export default defineConfig(({ stage }) => {
 
   return {
     resources: { webBucket },
-    scripts: { build: buildScript }
+    scripts: { build: buildScript },
+    hooks: {
+      beforeDeploy: [{ scriptName: 'build' }]
+    }
   };
 });

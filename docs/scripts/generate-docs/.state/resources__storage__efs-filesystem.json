@@ -1,0 +1,1325 @@
+{
+  "pageId": "resources__storage__efs-filesystem",
+  "pageRoute": "resources/storage/efs-filesystem",
+  "startedAt": "2026-05-07T16:19:12.922Z",
+  "updatedAt": "2026-05-07T16:56:32.380Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\resources__storage__efs-filesystem\\iteration-1.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "startup-cto",
+          "persona": "Small startup CTO with low to medium AWS experience. Cares most about time-to-production and shipping quickly without getting trapped in AWS complexity.",
+          "modelProvider": "claude",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Strong 'When to use' / 'When not to use' section with a concise comparison table that helps a startup CTO quickly decide if EFS is the right fit vs. S3, Redis, or local disk.",
+            "Implementation claims in 'How it works' are fully verified against source code: encryption at rest, generalPurpose performance mode, 2 mount targets, NFS 2049 security group rules — all confirmed in src/domain/calculated-stack-overview-manager/resource-resolvers/efs-filesystems/utils.ts.",
+            "Both consumer-side use cases (container mounting and Lambda mounting) are covered with realistic, copyable examples. The subdirectory mount section is a practical addition that addresses real multi-tenant or isolation scenarios.",
+            "The Lambda VPC warning is critical, well-placed, and accurately reflects the codebase's own recommendation (types/stacktape-config/functions.d.ts lines 104-108 explicitly recommend web-service or worker-service as alternatives).",
+            "Throughput mode comparison table with mode/behavior/best-for/cost columns helps the reader pick the right option without deep AWS knowledge. The Tip about bursting + small filesystems is a valuable gotcha.",
+            "All CodeBlock examples use correct intellisense + tabs pattern with well-placed focus markers. Application-level prose is kept out of CodeBlock. No forbidden patterns detected.",
+            "Heading structure is compact and scannable — all H2s are 1-3 words, H3 is 2 words. Page rhythm matches the example page well."
+          ],
+          "problems": [
+            "Transit encryption claim in 'How it works' is overly broad. The sentence 'Data in transit between containers/functions and the filesystem is also encrypted' is only verified for ECS containers (TransitEncryption: 'ENABLED' in multi-container-workloads/utils.ts line 1158). Lambda's FileSystemConfigs API does not expose a transit encryption setting — the claim should be scoped to container workloads only.",
+            "The intro paragraph also states 'encrypts everything at rest and in transit' without scoping the transit encryption to containers. This propagates the same inaccuracy into the AI-extractable first paragraph.",
+            "Unsourced pricing: '$~0.023/GB' for S3 in the 'When to use it' section and '~$0.05/GB/month for storage' for backup costs are not present in any provided source file (prices.json has no EFS entries, type JSDoc only mentions ~$0.30/GB for standard access). The throughput table's 'Extra cost' column also includes pricing characterizations not grounded in source.",
+            "The 'Elastic throughput mode adds per-read/write charges. Provisioned throughput has a flat fee based on the MiB/s you reserve.' line in the pricing context isn't directly sourced — only the $0.30/GB standard access cost comes from the type JSDoc."
+          ],
+          "mandatoryFixes": [
+            "Scope the transit encryption claim in 'How it works' to container workloads only. Change 'Data in transit between containers/functions and the filesystem is also encrypted' to something like 'Data in transit between containers and the filesystem is encrypted (ECS mounts use transit encryption).' Remove or caveat the Lambda transit encryption implication.",
+            "Narrow the intro paragraph's 'encrypts everything at rest and in transit' to 'encrypts data at rest' or scope transit encryption to containers, so the AI-extractable first paragraph is accurate.",
+            "Remove unsourced pricing numbers: drop '~$0.023/GB' S3 comparison in 'When to use it' (or replace with a qualitative statement like 'significantly cheaper per GB'). Remove '~$0.05/GB/month for storage' from the Backups section. Keep only the ~$0.30/GB/month figure that appears in the type JSDoc.",
+            "Trim the pricing context paragraph to only include what's sourced. The elastic/provisioned throughput cost characterizations can stay as qualitative descriptions (they're in the JSDoc) but remove any specific dollar figures not in source."
+          ],
+          "optionalImprovements": [
+            "Consider adding a brief note that the mount path for Lambda must start with /mnt/ — the draft mentions this in passing but could make it more prominent since it's a common error that blocks deploys.",
+            "The throughput Tip about bursting and small filesystems is good but could include a concrete example: 'A 10 GB filesystem with bursting mode only sustains ~500 KiB/s baseline throughput' to make the tradeoff tangible.",
+            "In the Lambda VPC warning, consider mentioning that container-based resources (web-service, worker-service) naturally have internet access, which is why they're the recommended alternative — this helps the reader understand the 'why' behind the suggestion.",
+            "The 'Basic example' creates an EFS with `new EfsFilesystem({})` — adding a one-line comment like '// Default: elastic throughput, encryption enabled' would make the example more self-documenting without adding clutter.",
+            "The page has no mention of how to inspect or debug EFS usage (e.g., CloudWatch metrics for burst credit balance, throughput utilization). A brief pointer to monitoring would help a CTO operating this in production."
+          ]
+        },
+        {
+          "reviewerId": "smb-manager",
+          "persona": "SMB engineering manager with medium to high AWS knowledge. Cares about long-term maintainability, team clarity, operational fit, technically correct Stacktape class-based config examples, and valid MDX component usage.",
+          "modelProvider": "codex",
+          "scores": {
+            "clarity": 6,
+            "scannability": 8,
+            "completeness": 5,
+            "practicalUsefulness": 6,
+            "audienceFit": 6
+          },
+          "strengths": [
+            "Strong page structure: early pricing, clear when-to-use guidance, copyable class-based TypeScript config examples, and short headings.",
+            "The throughput and backups sections are well aligned with the authoritative EfsFilesystemProps source.",
+            "The page makes useful tradeoffs between EFS, buckets, databases, Redis, and local scratch storage."
+          ],
+          "problems": [
+            "Several technical statements are not grounded in the provided EFS sources: Lambda mounting support, `joinDefaultVpc: true`, `/mnt/` mount-path requirement, Lambda internet-access behavior, automatic VPC endpoints for S3/DynamoDB, mount target count, access point creation, automatic subdirectory creation, and security group rule behavior.",
+            "The first paragraph says multiple Lambda functions can read and write EFS, but the EFS source only says multiple containers and access from containers via `volumeMounts`. Lambda EFS may exist elsewhere, but it is not in the provided source set.",
+            "The page states EFS encrypts everything at rest and in transit. The provided source only explicitly grounds encryption in transit for EFS volume mounts; at-rest encryption is not stated in the provided EFS source.",
+            "The pricing line includes Elastic throughput read/write charges, provisioned throughput flat fees, backup pricing, and an S3 comparison price that are not present in the provided source files.",
+            "The mounting examples use `volumeMounts` property shapes (`type: 'efs'`, `efsFilesystemName`, `mountPath`, `rootDirectory`) that are not visible in the provided source files, so they cannot be verified from this source set.",
+            "The How it works section overstates implementation details from AWS internals without source support, especially fixed two mount targets, access points per mount, performance mode fixed to `generalPurpose`, and at-rest encryption."
+          ],
+          "mandatoryFixes": [
+            "Remove or narrow all unsupported Lambda EFS claims unless the source set includes Lambda volume mount types and validators proving them. Do not document `joinDefaultVpc`, `/mnt/`, or internet-access side effects from the current provided files.",
+            "Remove unsupported pricing details. Keep only the grounded storage price: approximately `$0.30/GB/month` for standard access, plus cautious wording that additional fees apply for provisioned throughput if mentioned from the JSDoc.",
+            "Remove unsupported implementation claims in How it works, or replace the section with only sourced behavior: EFS is persistent shared file storage for containers, uses `volumeMounts`, encrypts data in transit for mounts, supports backupEnabled, and supports elastic/provisioned/bursting throughput.",
+            "Do not claim automatic security group rules, NFS port 2049, mount target count, EFS access point behavior, or automatic subdirectory creation unless those statements are grounded in provided runtime validators or types.",
+            "Remove unsupported at-rest encryption claims unless a source file explicitly documents at-rest encryption for EFS filesystems."
+          ],
+          "optionalImprovements": [
+            "Use `label: 'TypeScript'` for Stacktape config tabs to match the stated CodeBlock rule, even though the examples otherwise use the correct class-based pattern.",
+            "Add a short note that the API reference is the source for exhaustive options, since the prose intentionally covers only `backupEnabled`, `throughputMode`, and `provisionedThroughputInMibps`.",
+            "Tone down S3 comparisons to decision guidance without unsourced S3 pricing or POSIX details, or cite source files that support those details.",
+            "If mounting is important to the page, include the source file that defines `ContainerEfsMount` and any Lambda equivalent, then re-review the examples against that schema."
+          ]
+        },
+        {
+          "reviewerId": "developer-low-aws",
+          "persona": "Developer with little AWS or DevOps experience. Needs jargon kept under control and wants examples that are easy to follow.",
+          "modelProvider": "claude",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Strong 'when to use / when not to use' section with a practical comparison table that helps readers make the right storage choice quickly.",
+            "Pricing context is grounded in the source JSDoc (~$0.30/GB/month) and placed prominently at the top.",
+            "Mounting examples cover both containers and Lambda functions — the two main consumption patterns — with realistic, copyable configs.",
+            "Throughput comparison table is clear and actionable, with concrete guidance on which mode to pick.",
+            "Important Lambda VPC caveat is called out prominently in a Warning block, preventing a common footgun.",
+            "All headings are short and scannable (1-3 words for most H2s). Page rhythm follows the example page well.",
+            "CodeBlock usage is correct throughout — all Stacktape config examples use <CodeBlock intellisense tabs={[...]} /> with focus markers hiding imports."
+          ],
+          "problems": [
+            "The 'How it works' section states 'Performance mode is fixed to generalPurpose' and claims exactly 'Two mount targets — one in each of two availability zones.' Neither claim appears in the provided source types (EfsFilesystemProps). These are plausible AWS implementation details but are not grounded in the provided source files.",
+            "The S3 pricing comparison '~$0.023/GB' in the 'When to use it' section is not present in the provided source files. The EFS pricing (~$0.30/GB/month) is source-grounded via JSDoc, but the S3 figure is invented for comparison.",
+            "The Lambda VPC warning says 'If you need both EFS and internet access, use a container-based compute resource instead.' This is misleading — a Lambda function in a VPC with NAT Gateway (usePrivateSubnetsWithNAT) can also reach the internet. Container services in a VPC face the same networking constraint.",
+            "The Lambda VPC warning claims 'It can still reach S3 and DynamoDB (Stacktape auto-creates VPC endpoints)' — this claim about auto-created VPC endpoints is not grounded in the provided source files.",
+            "'POSIX user enforcement' in the subdirectory mounts section is jargon that the target audience (little DevOps experience) may not understand. The earlier mention of 'POSIX filesystem semantics' is better handled because it is followed by concrete examples (directory listing, random reads, file locks)."
+          ],
+          "mandatoryFixes": [
+            "Remove or qualify ungrounded claims in 'How it works': either verify 'generalPurpose performance mode', 'two mount targets', and 'access points per mount' from source, or soften the wording (e.g., 'Stacktape creates the underlying EFS filesystem, security groups, mount targets, and access points needed for each volume mount').",
+            "Remove the S3 pricing figure (~$0.023/GB) that is not present in the provided source files. The cost comparison can remain qualitative: 'EFS costs more per GB than S3 but provides POSIX filesystem semantics.'",
+            "Fix the Lambda VPC warning: instead of recommending containers as the only path for EFS + internet, mention that adding NAT Gateway (usePrivateSubnetsWithNAT + stackConfig.vpc.nat) is also an option for Lambda. The current wording will send users down an unnecessarily complex path."
+          ],
+          "optionalImprovements": [
+            "Briefly explain 'POSIX user enforcement' in the subdirectory mounts section — e.g., 'Each mount gets its own EFS access point, which restricts file access to a specific user ID' — to keep the page accessible to the target audience.",
+            "The VPC endpoint claim in the Lambda warning, if verified, should specify which services get endpoints. If unverifiable, remove it and keep the warning simpler: 'joinDefaultVpc places the function inside the VPC, which restricts outbound network access.'",
+            "Consider adding a brief note about the 'arn' referenceable parameter (the only one per source: EfsFilesystemReferencableParam = 'arn') in prose before the <ReferenceableParams /> component, so readers know what to expect.",
+            "The 'Backups' section could note that backupEnabled defaults to false (or is omitted by default), since the source type shows it as optional with no documented default — making the reader aware they must opt in.",
+            "The throughput table's 'Extra cost' column for 'elastic' says 'Per-read/write charges' — consider adding a brief note that elastic is still the cheapest option for most workloads because it avoids paying for unused provisioned capacity."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "claude-verifier",
+          "modelProvider": "claude",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "Unlike `/tmp` (capped at 512 MB and cleared between cold starts), EFS data persists indefinitely and can be shared across multiple functions.",
+              "reason": "The draft says Lambda /tmp is \"capped at 512 MB\". The source type definition shows the `storage` property accepts 512–10,240 MB, meaning /tmp can be configured up to 10 GB. The default is 512 MB, but it is not a hard cap. The phrase \"capped at 512 MB\" is factually incorrect.",
+              "suggestedFix": "Change to: \"Unlike `/tmp` (512 MB by default, up to 10 GB, and cleared between cold starts), EFS data persists indefinitely and can be shared across multiple functions.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\functions.d.ts",
+                  "quote": "#### Size of the `/tmp` directory in MB (512 - 10,240). Ephemeral per invocation."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "Your workload processes files that don't fit in `/tmp` (Lambda's 512 MB limit)",
+              "reason": "Same issue as above — Lambda /tmp is configurable from 512 MB to 10,240 MB. Calling it a \"512 MB limit\" is incorrect.",
+              "suggestedFix": "Change to: \"Your workload processes files that don't fit in `/tmp` (512 MB by default, configurable up to 10 GB)\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\functions.d.ts",
+                  "quote": "#### Size of the `/tmp` directory in MB (512 - 10,240). Ephemeral per invocation."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "`joinDefaultVpc: true` is required for Lambda functions that mount EFS. This places the function inside the VPC, which means it loses direct internet access. It can still reach S3 and DynamoDB (Stacktape auto-creates VPC endpoints), but calls to external APIs (Stripe, OpenAI, etc.) will not work. If you need both EFS and internet access, use a container-based compute resource instead.",
+              "reason": "The warning's recommendation to 'use a container-based compute resource instead' omits that container services in VPC also lose internet access unless they use NAT Gateways (via `usePrivateSubnetsWithNAT`). The source type JSDoc for `joinDefaultVpc` says 'If you need both VPC access and internet, use a `web-service` or `worker-service` instead' — which is consistent with the draft, but the draft doesn't explain *why* containers solve this (they can use NAT). A reader might think containers magically have internet in VPC. The NAT mechanism and its ~$32/month cost should be mentioned.",
+              "suggestedFix": "Amend the warning to explain the mechanism: 'If you need both EFS and internet access, use a container-based compute resource (web-service, worker-service) with `usePrivateSubnetsWithNAT: true`, which routes outbound traffic through a NAT Gateway (~$32/month per AZ).'",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\functions.d.ts",
+                  "quote": "**Tradeoff:** The function loses direct internet access. It can still reach S3 and DynamoDB\n * (Stacktape auto-creates VPC endpoints), but calls to external APIs (Stripe, OpenAI, etc.) will fail.\n * If you need both VPC access and internet, use a `web-service` or `worker-service` instead."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Deploy in private subnets with a static outbound IP via NAT Gateway.\n   *\n   * ---\n   *\n   * The container won't have a public IP. All outbound traffic routes through a NAT Gateway,\n   * giving you a static IP you can whitelist in external services (APIs, payment gateways, etc.).\n   *\n   * Configure the number of NAT Gateways in `stackConfig.vpc.nat`.\n   *\n   * **Adds cost:** NAT Gateway ~$32/month + data processing fees."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "EFS costs more per GB than S3 (~$0.30/GB vs ~$0.023/GB)",
+              "reason": "The EFS price of ~$0.30/GB/month is sourced from the type JSDoc, but the S3 price of ~$0.023/GB is not present in any provided source file. Per the pricing rules, prices not in source must not be invented.",
+              "suggestedFix": "Remove the S3 price comparison, or rephrase to: 'EFS costs more per GB than S3 but provides POSIX filesystem semantics (directory listing, random reads, file locks) that S3 does not.'",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\efs-filesystem.d.ts",
+                  "quote": "Pay only for storage used (~$0.30/GB/month for standard access)."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "Backup costs are usage-based (~$0.05/GB/month for storage).",
+              "reason": "The backup cost of ~$0.05/GB/month is not present in any provided source file. The type JSDoc only says 'Enable daily automatic backups with 35-day retention. Incremental (only changes are copied).' — no pricing information.",
+              "suggestedFix": "Remove the specific backup cost number. Change to: 'For production data that can't be regenerated, enable backups. Backup costs are usage-based.'",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\efs-filesystem.d.ts",
+                  "quote": "#### Enable daily automatic backups with 35-day retention. Incremental (only changes are copied)."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "Elastic throughput mode adds per-read/write charges.",
+              "reason": "The source JSDoc for elastic mode says 'Auto-scales throughput. Best for spiky workloads (web apps, CI/CD)' with no mention of per-read/write charges. The pricing claim is not in the provided source.",
+              "suggestedFix": "Remove the pricing detail from the top paragraph. In the throughput table, change the 'Extra cost' column for elastic to 'Pay-per-use beyond base storage' or simply omit the cost column if pricing details are not sourced.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\efs-filesystem.d.ts",
+                  "quote": "- **`elastic`** (recommended): Auto-scales throughput. Best for spiky workloads (web apps, CI/CD)."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "Provisioned throughput has a flat fee based on the MiB/s you reserve.",
+              "reason": "The source says 'Additional fees apply based on the provisioned amount' which supports the idea of extra cost but doesn't specifically say 'flat fee'. The wording 'flat fee' implies a specific billing model not confirmed by the source.",
+              "suggestedFix": "Change to: 'Provisioned throughput has additional fees based on the MiB/s you reserve.'",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\efs-filesystem.d.ts",
+                  "quote": "E.g., `100` = 100 MiB/s. Additional fees apply based on the provisioned amount. Can be changed anytime."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "Data in transit between containers/functions and the filesystem is also encrypted.",
+              "reason": "For containers (ECS), transit encryption is explicitly set to 'ENABLED' in the CloudFormation template. For Lambda functions, the transit encryption is NOT explicitly configured — Lambda's FileSystemConfig does not support a TransitEncryption parameter. The blanket claim covers both but the Lambda behavior depends on AWS defaults, not explicit Stacktape configuration.",
+              "suggestedFix": "Narrow the claim: 'Data in transit between containers and the filesystem is encrypted (Stacktape enables transit encryption on all ECS volume mounts). Lambda EFS mounts use AWS-managed encryption.'",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "Performance mode is fixed to `generalPurpose`, which is optimal for latency-sensitive workloads (web serving, content management, development environments).",
+              "reason": "The performance mode IS hardcoded to 'generalPurpose' in the source code (verified). The claim that it's 'optimal for latency-sensitive workloads' is editorial guidance not present in the source. AWS also offers 'maxIO' mode for throughput-heavy workloads. The claim is accurate about the hardcoding but the 'optimal for' editorial adds unsourced characterization.",
+              "suggestedFix": "Simplify to: 'Performance mode is fixed to `generalPurpose`.' Drop the editorial about what it's optimal for, or add a brief caveat that maxIO mode is not supported if users need it.",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "All Stacktape config examples correctly use `<CodeBlock intellisense>` with TypeScript and `defineConfig` — no forbidden YAML or plain-object patterns.",
+            "The `throughputMode` default of `elastic` is correctly documented, matching the source `@default elastic`.",
+            "The `backupEnabled` property description ('daily automatic backups with 35-day retention, incremental') matches the source JSDoc verbatim.",
+            "The `provisionedThroughputInMibps` property is correctly described as required when `throughputMode` is `provisioned`, matching the source.",
+            "The `rootDirectory` default of `\"/\"` is correctly stated, confirmed in both `functions.d.ts` and `multi-container-workloads.d.ts`.",
+            "The Lambda mount path constraint (must start with `/mnt/`) is correctly documented, matching `functions.d.ts` line 379.",
+            "The `joinDefaultVpc: true` requirement for Lambda EFS mounts is correctly documented, confirmed by the source JSDoc and validation code.",
+            "The throughput table's three modes (`elastic`, `provisioned`, `bursting`) match the source union type exactly.",
+            "The 'How it works' section claims about two mount targets, security group with NFS port 2049, and access points per volume mount were all verified against the domain implementation source code.",
+            "The `<ApiReference definitionName=\"EfsFilesystemProps\" />` and `<ReferenceableParams resource=\"efs-filesystem\" />` components use valid definition names matching the source types.",
+            "The bursting throughput rate of '50 KiB/s per GiB stored' matches the source JSDoc."
+          ],
+          "summary": "The draft is well-structured and mostly accurate. Two medium-severity factual errors exist: Lambda /tmp is described as 'capped at 512 MB' in two places, but the source shows it is configurable from 512 MB to 10,240 MB. Two pricing claims (S3 at ~$0.023/GB, backup at ~$0.05/GB/month) are not present in any provided source file and should be removed per the pricing rules. The VPC warning about Lambda internet access is directionally correct but should explain WHY container services solve the problem (NAT Gateways) rather than leaving the reader to guess. The infrastructure implementation claims (encryption, mount targets, security groups, access points) were verified against the actual domain source code and are accurate."
+        },
+        {
+          "verifierId": "codex-verifier",
+          "modelProvider": "codex",
+          "summary": "The draft has multiple unsupported or overstated claims, mostly around Lambda mounting, automatic networking resources, encryption details, default behavior, and pricing beyond the provided source. The core EFS resource shape, throughput modes, backup retention, and referenceable ARN are mostly aligned with the provided types.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“multiple containers and Lambda functions can read and write simultaneously” and later “Lambda functions can also mount EFS volumes.”",
+              "reason": "The provided EFS source describes shared file storage for containers and access from containers via `volumeMounts`. The provided source set does not show Lambda `volumeMounts` support, Lambda `/mnt` requirements, or `joinDefaultVpc` requirements.",
+              "suggestedFix": "Limit the page to container mounting unless Lambda source files are added. For example: “multiple containers can read and write simultaneously.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\efs-filesystem.d.ts",
+                  "quote": "Shared file storage that multiple containers can read/write simultaneously."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\efs-filesystem.d.ts",
+                  "quote": "accessible from any container in your stack\n * via `volumeMounts`."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Persistent EFS volumes shared across containers and restarts."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“encrypts everything at rest and in transit” and “The filesystem is always encrypted at rest. Data in transit between containers/functions and the filesystem is also encrypted.”",
+              "reason": "The provided source supports encryption in transit for container EFS volumes, but does not support EFS encryption at rest or Lambda-to-EFS transit encryption. It also does not show an encryption configuration property or CloudFormation behavior for the EFS filesystem itself.",
+              "suggestedFix": "Keep only the sourced claim: “Container EFS volume data is encrypted in transit.” Remove or qualify encryption-at-rest and Lambda wording unless implementation source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Multiple containers can mount the same volume. All data is encrypted in transit."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Elastic throughput mode adds per-read/write charges. Provisioned throughput has a flat fee based on the MiB/s you reserve.”",
+              "reason": "The source provides only standard storage pricing and says additional fees apply for provisioned throughput. It does not state elastic throughput per-read/write charges or a flat fee model for provisioned throughput.",
+              "suggestedFix": "Use only the sourced pricing context: “Pay only for storage used, approximately $0.30/GB/month for standard access. Additional fees apply when using provisioned throughput.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\efs-filesystem.d.ts",
+                  "quote": "Pay only for storage used (~$0.30/GB/month for standard access)."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\efs-filesystem.d.ts",
+                  "quote": "Additional fees apply based on the provisioned amount."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Lambda's 512 MB limit” and “Unlike `/tmp` (capped at 512 MB and cleared between cold starts)”",
+              "reason": "No provided source states Lambda `/tmp` size or lifecycle behavior. The draft introduces AWS Lambda details that are not grounded in the source files.",
+              "suggestedFix": "Remove the numeric `/tmp` comparison or add authoritative Lambda source files to the verification set.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\efs-filesystem.d.ts",
+                  "quote": "Use for shared uploads, CMS media, ML model files, or anything that needs to\n * survive container restarts."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape automatically creates the required security group rules (NFS port 2049) and mount targets so the container can reach the filesystem.”",
+              "reason": "The provided source does not mention NFS port 2049, security group rule generation, or mount target creation for EFS.",
+              "suggestedFix": "Remove this paragraph unless implementation source showing these generated resources is included.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Data stored in EFS volumes persists even when containers are replaced.\n   * Multiple containers can mount the same volume. All data is encrypted in transit."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Use `rootDirectory` to restrict a container's access to a specific subdirectory within the filesystem. Each mount gets its own EFS access point with POSIX user enforcement.”",
+              "reason": "The provided source list does not include the `ContainerEfsMount` type definition, so `rootDirectory`, access point creation, and POSIX user enforcement are not verified.",
+              "suggestedFix": "Remove the subdirectory section or add the workload volume mount type source that defines `rootDirectory` and its behavior.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "volumeMounts?: ContainerEfsMount[];"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The `rootDirectory` defaults to `\"/\"` (full filesystem access) when omitted. The subdirectory is created automatically if it doesn't exist.”",
+              "reason": "The provided source does not state a `rootDirectory` property, default value, or automatic directory creation behavior.",
+              "suggestedFix": "Delete the default and auto-create claims unless the relevant mount type or runtime implementation source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "volumeMounts?: ContainerEfsMount[];"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“If you need both EFS and internet access, use a container-based compute resource instead.”",
+              "reason": "The source supports `usePrivateSubnetsWithNAT` for containers and states containers can have static outbound IP via NAT, but it does not support the stronger recommendation that containers are the answer for EFS plus internet access, nor does it establish Lambda loses direct internet access because of EFS.",
+              "suggestedFix": "Remove the Lambda-specific warning. If discussing containers, say only that container resources have `usePrivateSubnetsWithNAT` for outbound traffic through NAT Gateway.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Deploy in private subnets with a static outbound IP via NAT Gateway."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "The container won't have a public IP. All outbound traffic routes through a NAT Gateway,"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "`<CodeBlock>` examples use `label: 'stacktape.ts'` for the visible tab.",
+              "reason": "The project style guide requires the visible Stacktape config tab label to be `TypeScript`, not `stacktape.ts`. This is a docs-style correctness issue under the provided hard requirements.",
+              "suggestedFix": "Change every Stacktape config CodeBlock tab label to `TypeScript`.",
+              "evidence": [
+                {
+                  "file": "Project style guide and glossary",
+                  "quote": "Use `label: 'TypeScript'` for the visible tab\nlabel."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "The rendered config examples include visible `import { ... } from 'stacktape'` lines inside the focus region or before it.",
+              "reason": "The style guide says imports must be present in the hidden source but hidden from the rendered snippet with focus markers. In the draft, imports appear before focus markers in several examples, so they may be visible depending on CodeBlock behavior, and the first example places focus after the import but does not hide it with an explicit hidden range.",
+              "suggestedFix": "Keep imports in the `code` string but place focus markers so only the relevant `defineConfig` body is rendered, following the style guide exactly.",
+              "evidence": [
+                {
+                  "file": "Project style guide and glossary",
+                  "quote": "The import must be present in the hidden source so the example type-checks and copy produces a working `stacktape.ts`,\nbut it should be hidden from the rendered snippet with focus markers."
+                },
+                {
+                  "file": "Project style guide and glossary",
+                  "quote": "A visible `import { ... } from 'stacktape'` line in a rendered config example. Keep it in the source, but hide it with\n  focus markers."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Backup costs are usage-based (~$0.05/GB/month for storage).”",
+              "reason": "The provided source supports backup behavior and retention but contains no backup price.",
+              "suggestedFix": "Remove the backup price. Keep: “Enable daily automatic backups with 35-day retention. Backups are incremental.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\efs-filesystem.d.ts",
+                  "quote": "Enable daily automatic backups with 35-day retention. Incremental (only changes are copied)."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape creates these AWS resources for each EFS filesystem: EFS filesystem, security group, two mount targets, access points.”",
+              "reason": "The provided sources do not enumerate generated CloudFormation resources for EFS, do not state two mount targets, and do not state access point creation.",
+              "suggestedFix": "Remove the generated-resource list unless implementation or generated template source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\efs-filesystem.d.ts",
+                  "quote": "interface EfsFilesystem {\n  type: 'efs-filesystem';\n  properties?: EfsFilesystemProps;\n  overrides?: ResourceOverrides;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“performance mode is fixed to `generalPurpose`, which is optimal for latency-sensitive workloads.”",
+              "reason": "The provided EFS props expose `backupEnabled`, `throughputMode`, and `provisionedThroughputInMibps`; no performance mode or fixed `generalPurpose` behavior is documented in the provided source.",
+              "suggestedFix": "Remove the performance mode sentence unless implementation source confirms it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\efs-filesystem.d.ts",
+                  "quote": "interface EfsFilesystemProps {\n  /**\n   * #### Enable daily automatic backups with 35-day retention. Incremental (only changes are copied).\n   */\n  backupEnabled?: boolean;\n\n  /**\n   * #### How throughput scales with your workload."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "`<ApiReference definitionName=\"EfsFilesystemProps\" />`",
+              "reason": "`EfsFilesystemProps` exists in the TypeScript source, but the generated config schema file was not included, so the verifier cannot confirm that this exact definition name exists in the schema consumed by `<ApiReference>`.",
+              "suggestedFix": "Confirm against `@generated/schemas/config-schema.json` before publishing.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "`<ReferenceableParams resource=\"efs-filesystem\" />`",
+              "reason": "The source defines `EfsFilesystemReferencableParam = 'arn'`, but `StacktapeResourceReferenceableParam` in `__helpers.d.ts` does not include `EfsFilesystemReferencableParam` in the provided union. This may be an omission in the provided slice, but it makes the component claim ambiguous from the supplied files.",
+              "suggestedFix": "Verify the generated referenceable params registry includes `efs-filesystem`; if it does, keep the component.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "“EFS costs more per GB than S3 (~$0.30/GB vs ~$0.023/GB)”",
+              "reason": "The EFS price is sourced, but the S3 price is not present in the provided files. The comparison may be true generally, but it is not grounded in the supplied source set.",
+              "suggestedFix": "Remove the S3 numeric price or include a source file that contains S3 pricing.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "“Object storage ... Bucket — cheaper at scale, S3 API, CDN-friendly.”",
+              "reason": "The provided source set includes no Bucket type or bucket pricing/behavior details. The recommendation may be reasonable, but the specific claims about cheaper scale, S3 API, and CDN fit are not grounded here.",
+              "suggestedFix": "Keep the alternative table but reduce claims to what is sourced, or add the Bucket source files.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape auto-creates VPC endpoints [for S3 and DynamoDB].”",
+              "reason": "No provided source mentions automatic VPC endpoint creation for S3 or DynamoDB.",
+              "suggestedFix": "Remove this claim unless VPC endpoint implementation source is provided.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“You can change the provisioned value at any time without recreating the filesystem.”",
+              "reason": "The EFS props source says the value “Can be changed anytime,” but it does not explicitly state the update avoids filesystem replacement. The draft’s “without recreating” wording is stronger than the source.",
+              "suggestedFix": "Use the source wording: “You can change the provisioned value later.”",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "“Storage costs ~$0.30/GB/month (standard access, pay only for what you store).”",
+              "reason": "The source says “Pay only for storage used (~$0.30/GB/month for standard access).” The draft wording is close, but “pay only for what you store” should stay tied to storage charges only because the draft also mentions throughput and backup charges.",
+              "suggestedFix": "Say: “Storage is approximately $0.30/GB/month for standard access; the source describes this as pay-only-for-storage-used.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The first paragraph is 56 words, self-contained, and broadly matches the resource purpose, aside from unsupported Lambda and encryption claims.",
+            "The page includes early “When to use it” and “Use something else when” guidance, satisfying the required decision framing.",
+            "The core EFS resource properties used in prose are present in `EfsFilesystemProps`: `backupEnabled`, `throughputMode`, and `provisionedThroughputInMibps`.",
+            "The throughput mode values `elastic`, `provisioned`, and `bursting`, the `elastic` default, the 50 KiB/s per GiB bursting note, and the provisioned-throughput requirement are grounded in `efs-filesystem.d.ts`.",
+            "The backup behavior “daily automatic backups with 35-day retention” and “incremental” is grounded in `efs-filesystem.d.ts`.",
+            "The page avoids hand-authored Stacktape YAML and uses `<CodeBlock intellisense ...>` for Stacktape config examples."
+          ]
+        },
+        {
+          "verifierId": "code-validator",
+          "modelProvider": "deterministic",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #2 (stacktape.ts): TypeScript config example is not Prettier-formatted.",
+              "reason": "Stacktape config examples must render cleanly and consistently. The pipeline uses Prettier as the formatting contract.",
+              "suggestedFix": "Format the full code string with Prettier using the TypeScript parser."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #3 (stacktape.ts): TypeScript config example is not Prettier-formatted.",
+              "reason": "Stacktape config examples must render cleanly and consistently. The pipeline uses Prettier as the formatting contract.",
+              "suggestedFix": "Format the full code string with Prettier using the TypeScript parser."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #4 (stacktape.ts): TypeScript config example is not Prettier-formatted.",
+              "reason": "Stacktape config examples must render cleanly and consistently. The pipeline uses Prettier as the formatting contract.",
+              "suggestedFix": "Format the full code string with Prettier using the TypeScript parser."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<ReferenceableParams resource=\"efs-filesystem\" /> references an unknown resource type.",
+              "reason": "efs-filesystem is not present in docs/.resources.json.",
+              "suggestedFix": "Use a resource type from docs/.resources.json or remove the component."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "seoReviewResult": {
+        "score": 8,
+        "suggestions": [
+          "Add an FAQ section with 3-5 questions that map to common search queries: 'Can Lambda functions mount EFS?', 'EFS vs S3: which should I use?', 'How much does AWS EFS cost per GB?', 'How do I share files between containers on AWS?', 'Does EFS persist data across deployments?'. These are natural extraction targets for AI answer engines and Google rich snippets.",
+          "The 'When to use it' H2 is decent but the comparison buried in the table ('EFS costs more per GB than S3...') is a strong standalone paragraph — consider promoting the EFS-vs-S3 comparison to its own H2 or H3 like 'EFS vs S3' since that exact phrase is a high-volume search query.",
+          "Add a few missing AWS-sourced limits to the throughput table or a dedicated 'Limits' subsection: max elastic throughput (up to 10 GiB/s reads, 3 GiB/s writes in us-east-1), max file size (no limit), max number of access points per filesystem (1,000), and max mount targets per AZ (1). These concrete numbers are exactly what AI engines prefer to cite.",
+          "The Lambda VPC warning is excellent content but lives inside a <Warning> component that search engines may not index well. Repeat the core constraint ('Lambda functions mounting EFS must join a VPC, which removes direct internet access') as plain text in the opening sentence of the Lambda section so it's crawlable even if the component isn't rendered in the HTML.",
+          "The 'How it works' heading is generic — rename to 'AWS resources created' or 'Infrastructure details' so it's more descriptive in search results and TOC navigation. The current heading could apply to any page on the site."
+        ]
+      },
+      "passed": false
+    },
+    {
+      "iteration": 2,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\resources__storage__efs-filesystem\\iteration-2.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "startup-cto",
+          "persona": "Small startup CTO with low to medium AWS experience. Cares most about time-to-production and shipping quickly without getting trapped in AWS complexity.",
+          "modelProvider": "claude",
+          "scores": {
+            "clarity": 7,
+            "scannability": 7,
+            "completeness": 5,
+            "practicalUsefulness": 5,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Opening paragraph is self-contained, concise (~50 words), and immediately answers what EFS is and why it matters.",
+            "Pricing line is grounded in source (~$0.30/GB/month) and appropriately uses '~' for regional variation.",
+            "\"When to use it\" section is strong — the decision table with concrete alternatives (bucket, relational database, Redis, local disk) helps the reader decide quickly.",
+            "Throughput table clearly explains the three modes with a concrete recommendation ('stick with elastic') and a helpful Tip about bursting pitfalls.",
+            "All CodeBlock examples correctly use <CodeBlock intellisense tabs={[...]} /> with focus markers hiding the import line. No YAML tabs, no forbidden patterns."
+          ],
+          "problems": [
+            "FAQ section is present despite explicit SEO rule: 'Do NOT add an FAQ section — only add one when SEO reviewer feedback explicitly requests it.' All four FAQ items restate content already on the page (pricing, persistence, sharing, EFS vs S3), making it a redundant padded section.",
+            "The 'Mounting into containers' section — the most important practical section on this page — has no code example. It tells the reader to mount via `volumeMounts` but doesn't show the config. The source defines `ContainerEfsMount` with `efsFilesystemName`, `mountPath`, and `rootDirectory`. A startup CTO needs to see a working EFS + compute resource config, not a pointer to another page.",
+            "Missing `<ReferenceableParams resource=\"efs-filesystem\" />` component after the API reference. The source defines `EfsFilesystemReferencableParam = 'arn'`, and the example page includes this component.",
+            "The page creates an EFS filesystem in isolation in the basic example but never shows a complete, end-to-end config that pairs it with a compute resource. The reader leaves the page unable to copy a working config that actually uses EFS."
+          ],
+          "mandatoryFixes": [
+            "Remove the FAQ section entirely. It violates the explicit SEO rule ('Do NOT add an FAQ section') and all four items restate content already present in the opening paragraph, pricing line, 'When to use it' section, and 'Mounting into containers' section.",
+            "Add a code example to the 'Mounting into containers' section showing a WebService (or similar) with `volumeMounts` configured to mount the EFS filesystem. Show both the EFS resource and the compute resource in the same `defineConfig` block so the reader can see the `efsFilesystemName`, `mountPath`, and optionally `rootDirectory` properties in context.",
+            "Add `<ReferenceableParams resource=\"efs-filesystem\" />` after the API reference section, matching the pattern from the example page.",
+            "Trim or remove the redundant FAQ section; do not pad backbones with restated content."
+          ],
+          "optionalImprovements": [
+            "Use `label: 'stacktape.ts'` instead of `label: 'TypeScript'` for CodeBlock tab labels, matching the pattern in the example page for consistency across the docs.",
+            "In the basic example, consider showing the EFS resource alongside a compute resource that mounts it, rather than showing an EFS-only config that the reader cannot deploy meaningfully on its own.",
+            "Add a brief note about EFS latency characteristics compared to local disk — this matters for latency-sensitive workloads like ML model loading and helps the reader set expectations.",
+            "Mention that the `overrides` escape hatch is available for advanced CloudFormation customization, with a link to the relevant docs, rather than omitting it entirely."
+          ]
+        },
+        {
+          "reviewerId": "smb-manager",
+          "persona": "SMB engineering manager with medium to high AWS knowledge. Cares about long-term maintainability, team clarity, operational fit, technically correct Stacktape class-based config examples, and valid MDX component usage.",
+          "modelProvider": "codex",
+          "scores": {
+            "clarity": 7,
+            "scannability": 7,
+            "completeness": 6,
+            "practicalUsefulness": 6,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "The page opens with a clear 40-60 word answer that explains EFS, container mounting, persistence, and common use cases.",
+            "The pricing line is present and matches the provided EFS type comment at a high level.",
+            "The Stacktape config examples use class-based `defineConfig` with `<CodeBlock intellisense tabs={[...]}/>`, and there is no hand-authored Stacktape YAML.",
+            "The throughput section is useful and mostly grounded in `EfsFilesystemProps`, including the default `elastic`, provisioned throughput requirement, and bursting rate."
+          ],
+          "problems": [
+            "Several technical claims are not grounded in the provided source files: POSIX filesystem semantics, directory listing, random reads, file locks, S3 being CDN-friendly, object storage behavior, structured-data alternatives, Redis session/cache use, and backup costs being usage-based.",
+            "The page includes an FAQ section even though the instructions explicitly say not to add an FAQ unless SEO reviewer feedback requests it.",
+            "The mounting section says EFS can be mounted by specific resource types, but the provided source only shows `volumeMounts` on `SimpleServiceContainer`; the exact resource list is not fully grounded by the supplied files.",
+            "The draft does not include `<ReferenceableParams resource=\"efs-filesystem\" />` even though the source exposes `EfsFilesystemReferencableParam = 'arn'`.",
+            "The page says files are encrypted in transit. This is grounded only through `SimpleServiceContainer.volumeMounts`, not the EFS resource itself, so the wording should keep that constraint scoped to EFS volume mounts.",
+            "The API reference likely uses the right definition name, but this should be verified against generated schema definitions, not only the `.d.ts` interface name."
+          ],
+          "mandatoryFixes": [
+            "Remove the FAQ section or convert any unique, source-grounded content into normal sections; do not include an FAQ on this page.",
+            "Remove or narrow unsupported POSIX/S3/database/Redis claims unless additional authoritative source files are provided for those statements.",
+            "Scope the supported mounting wording to what the provided source proves: EFS is accessible from containers via `volumeMounts`, and `SimpleServiceContainer` exposes `volumeMounts`; avoid listing resource types unless their type files are supplied.",
+            "Add `<ReferenceableParams resource=\"efs-filesystem\" />` after the API reference because the source exposes the `arn` referenceable parameter.",
+            "Verify `ApiReference definitionName=\"EfsFilesystemProps\"` against the generated config schema before publishing."
+          ],
+          "optionalImprovements": [
+            "Replace `label: 'TypeScript'` with `label: 'stacktape.ts'` to match the reviewed example page pattern.",
+            "Add one compact example that shows an EFS filesystem and a container resource mounting it, if the relevant container resource class and `volumeMounts` syntax are available from source files.",
+            "Tighten the alternatives table so each recommendation is clearly source-grounded or phrased as practical guidance rather than asserted feature documentation.",
+            "In the backup section, say only what the source says: daily automatic backups with 35-day retention, incremental changes copied. Avoid backup pricing unless sourced."
+          ]
+        },
+        {
+          "reviewerId": "developer-low-aws",
+          "persona": "Developer with little AWS or DevOps experience. Needs jargon kept under control and wants examples that are easy to follow.",
+          "modelProvider": "claude",
+          "scores": {
+            "clarity": 7,
+            "scannability": 7,
+            "completeness": 6,
+            "practicalUsefulness": 6,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Opening paragraph is well-scoped at ~50 words, self-contained, and accurately summarizes EFS through the Stacktape abstraction.",
+            "Pricing line is grounded in the source type JSDoc (~$0.30/GB/month) and placed prominently.",
+            "'When to use it' section is concrete and opinionated with a clear alternatives table — good decision-making aid for beginners.",
+            "Throughput section has a useful comparison table of the three modes and correctly identifies `elastic` as the default, matching the source type.",
+            "All three EfsFilesystemProps properties (backupEnabled, throughputMode, provisionedThroughputInMibps) are covered with correct defaults and constraints.",
+            "CodeBlock usage is correct throughout — all Stacktape config examples use <CodeBlock intellisense tabs={[...]} /> with no forbidden patterns."
+          ],
+          "problems": [
+            "FAQ section is present but the page instructions explicitly state 'Do NOT add an FAQ section — only add one when SEO reviewer feedback explicitly requests it.'",
+            "FAQ section restates information already on the page: persistence (covered in intro and Mounting section), pricing (covered in the pricing line), and sharing files (covered in Mounting section). This is a padded/redundant backbone section.",
+            "The page never shows a complete example of mounting EFS into a container — the single most important thing a reader needs to do with this resource. The 'Mounting into containers' section describes the concept but punts to other pages without a concrete code example.",
+            "Missing <ReferenceableParams resource=\"efs-filesystem\" /> component at the bottom, which the example page includes and the source confirms exists (EfsFilesystemReferencableParam = 'arn').",
+            "Tab label uses 'TypeScript' while the example page consistently uses 'stacktape.ts'. Minor inconsistency but affects cross-page consistency.",
+            "The 'EFS vs S3' comparison in the FAQ duplicates the alternatives table in the 'When to use it' section with only slightly different wording."
+          ],
+          "mandatoryFixes": [
+            "Remove the FAQ section entirely. The page instructions explicitly forbid FAQ sections unless SEO reviewer feedback requests one. Fold any unique content (the EFS vs S3 POSIX comparison) into the existing 'When to use it' section if not already covered.",
+            "Trim or remove the redundant FAQ section; do not pad backbones. The FAQ restates pricing, persistence, and mounting info already present in earlier sections.",
+            "Add a complete example in the 'Mounting into containers' section showing an EFS filesystem mounted into a web service (or similar container resource) using volumeMounts. This is the primary use case and the reader cannot act on the page without it. Follow the example page's pattern of showing connected resources (like the web-service page shows connectTo).",
+            "Add <ReferenceableParams resource=\"efs-filesystem\" /> after the API reference section, matching the pattern in the example page."
+          ],
+          "optionalImprovements": [
+            "Change CodeBlock tab labels from 'TypeScript' to 'stacktape.ts' for consistency with the example page.",
+            "Consider mentioning that EFS requires VPC networking and Stacktape handles this automatically — helpful context for the target audience who may not understand why shared storage 'just works' across containers.",
+            "The Tip about bursting mode could be promoted to a Warning since exhausting burst credits silently degrades performance — a gotcha the beginner audience would want to see more prominently.",
+            "Add a brief note about Infrequent Access storage class if the source supports it, or explicitly state that Stacktape uses the Standard storage class — readers comparing EFS pricing may encounter IA pricing elsewhere and wonder."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "claude-verifier",
+          "modelProvider": "claude",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "Container-based compute resources — web service, worker service, private service, and multi-container workload — can mount EFS filesystems using the `volumeMounts` property.",
+              "reason": "The draft lists only container-based resources that support `volumeMounts`, but Lambda functions also support EFS mounts via `volumeMounts?: LambdaEfsMount[]`. Omitting Lambda functions from this list is factually incomplete and will mislead readers who want to use EFS with Lambda.",
+              "suggestedFix": "Add Lambda functions to the list: 'Compute resources — Lambda function, web service, worker service, private service, and multi-container workload — can mount EFS filesystems using the `volumeMounts` property.' Note that Lambda mounts use `LambdaEfsMount` (which requires `joinDefaultVpc: true`) while container mounts use `ContainerEfsMount`.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\functions.d.ts",
+                  "quote": "volumeMounts?: LambdaEfsMount[];"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\functions.d.ts",
+                  "quote": "Persistent EFS storage shared across invocations and functions. Unlike `/tmp`, EFS data persists indefinitely and can be shared across multiple functions. Requires `joinDefaultVpc: true` (Stacktape will remind you if you forget)."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "The draft includes a full FAQ section with four subsections.",
+              "reason": "The page instructions explicitly state: 'Do NOT add an FAQ section — only add one when SEO reviewer feedback explicitly requests it.' No SEO reviewer feedback was provided requesting an FAQ. This violates an explicit hard rule for the page.",
+              "suggestedFix": "Remove the entire FAQ section. The information in it is already covered elsewhere on the page (mounting, persistence, pricing, EFS vs S3). If any unique content exists in the FAQ, integrate it into the relevant existing sections.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\efs-filesystem.d.ts",
+                  "quote": "Persistent, elastic (grows/shrinks automatically), and accessible from any container in your stack via `volumeMounts`."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "You pay only for storage used — there is no pre-provisioning.",
+              "reason": "The 'no pre-provisioning' claim applies to storage but is misleading in context because the page also documents provisioned throughput mode, which IS pre-provisioned. The source only says 'Pay only for storage used (~$0.30/GB/month for standard access)' — it does not make the broader 'no pre-provisioning' claim.",
+              "suggestedFix": "Rephrase to: 'You pay only for the storage you use — no need to pre-allocate capacity.' This scopes the claim to storage and avoids confusion with provisioned throughput.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\efs-filesystem.d.ts",
+                  "quote": "Pay only for storage used (~$0.30/GB/month for standard access)."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "missing-caveat",
+              "statement": "The draft omits the `<ReferenceableParams>` component despite the resource defining a referenceable param.",
+              "reason": "The source defines `type EfsFilesystemReferencableParam = 'arn'`, indicating the EFS filesystem exposes an `arn` param. The backbone instructs including `<ReferenceableParams resource=\"...\" />` if the resource exposes any. However, `EfsFilesystemReferencableParam` is notably absent from the `StacktapeResourceReferenceableParam` union type, creating ambiguity about whether it actually works at runtime.",
+              "suggestedFix": "Either add `<ReferenceableParams resource=\"efs-filesystem\" />` after the API reference section, or verify with the codebase whether EFS `arn` is actually referenceable via `$ResourceParam`. If the union type omission is a bug, include the component; if intentional, omit it and note that EFS does not expose referenceable parameters.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\efs-filesystem.d.ts",
+                  "quote": "type EfsFilesystemReferencableParam = 'arn';"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "Throughput modes (`elastic`, `provisioned`, `bursting`) and the `elastic` default are correctly documented, matching the `@default elastic` annotation in `EfsFilesystemProps.throughputMode`.",
+            "Pricing statement ('~$0.30/GB/month for standard access') matches the source JSDoc verbatim.",
+            "Backup description ('daily automatic backups with 35-day retention, incremental') matches the source JSDoc for `backupEnabled`.",
+            "All property names (`throughputMode`, `provisionedThroughputInMibps`, `backupEnabled`) match the `EfsFilesystemProps` interface exactly.",
+            "Code examples correctly use `<CodeBlock intellisense>` with TypeScript tab and hidden imports via focus markers — no forbidden YAML blocks or fenced TypeScript Stacktape config.",
+            "`<ApiReference definitionName=\"EfsFilesystemProps\" />` references a valid schema definition confirmed in `config-schema.json`.",
+            "The 'When not to use' comparison table provides concrete alternatives (Bucket, relational database, DynamoDB, Redis) that match actual Stacktape resource types.",
+            "The provisioned throughput example correctly pairs `throughputMode: 'provisioned'` with `provisionedThroughputInMibps`, matching the source constraint that the latter is 'Required when throughputMode is provisioned'.",
+            "No marketing language or forbidden phrasings detected."
+          ],
+          "summary": "The draft is largely accurate and well-grounded in source material. Two medium-severity issues: (1) Lambda functions are omitted from the list of resources that support EFS volume mounts — the source clearly shows `LambdaFunction` supports `volumeMounts?: LambdaEfsMount[]` with a distinct `joinDefaultVpc` requirement. (2) An FAQ section is present despite explicit instructions forbidding it unless requested by SEO reviewer feedback. Two low-severity issues: a slightly misleading 'no pre-provisioning' claim in the FAQ, and a missing `<ReferenceableParams>` component (though the latter is ambiguous due to the type not being in the main union). All property names, defaults, pricing, and configuration examples are correctly sourced."
+        },
+        {
+          "verifierId": "codex-verifier",
+          "modelProvider": "codex",
+          "summary": "The draft is broadly aligned with the EFS resource type, pricing line, throughput modes, provisioned throughput requirement, backup retention, and CodeBlock usage. The main problems are unsupported claims about POSIX semantics, encryption in transit, exact supported compute resources for mounts, deployment/scaling persistence wording, and an FAQ section that violates the page instructions.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Your workload requires POSIX filesystem semantics (directory listing, random reads, file locks) that object storage does not provide\" and the later repeated EFS-vs-S3 POSIX comparison.",
+              "reason": "The provided Stacktape sources describe EFS as shared file storage for containers, but they do not document POSIX semantics, directory listing behavior, random reads, file locks, or S3/object-storage semantic differences.",
+              "suggestedFix": "Narrow the comparison to sourced behavior: EFS is for mounted shared file storage across containers; buckets are a better fit when files should be accessed as objects through an API or CDN.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\efs-filesystem.d.ts",
+                  "quote": "Persistent, elastic (grows/shrinks automatically), and accessible from any container in your stack via `volumeMounts`. Use for shared uploads, CMS media, ML model files, or anything that needs to survive container restarts."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Files written to the mount path ... Are encrypted in transit between the container and the filesystem.\"",
+              "reason": "The source only says that data in EFS volumes persists and that multiple containers can mount the same volume. It does not document encryption in transit for EFS volume mounts.",
+              "suggestedFix": "Remove the encryption-in-transit bullet unless a runtime validator or compute-resource type source explicitly documents it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Persistent EFS volumes shared across containers and restarts. Data stored in EFS volumes persists even when containers are replaced. Multiple containers can mount the same volume. All data is encrypted in transit."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Container-based compute resources — web service, worker service, private service, and multi-container workload — can mount EFS filesystems using the `volumeMounts` property.\"",
+              "reason": "The provided sources show `volumeMounts` on `SimpleServiceContainer`, but they do not include the individual web-service, worker-service, private-service, or multi-container-workload type definitions proving that all listed resource pages expose that property.",
+              "suggestedFix": "Use the narrower sourced wording: \"Container workloads that expose `volumeMounts` can mount EFS filesystems.\" If the missing compute type files are added as sources, re-verify and name each resource explicitly.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "volumeMounts?: ContainerEfsMount[];"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Files written to the mount path persist across container restarts, deployments, and scaling events\" and \"data persists across container restarts, redeployments, and scaling events.\"",
+              "reason": "The sources support persistence across container restarts and replacement, and say multiple containers can mount the same volume. They do not explicitly mention deployments, redeployments, or scaling events.",
+              "suggestedFix": "Say \"persists across container restarts and replacement\". If you want to mention deployment/scaling, phrase it cautiously as an implication only after verifying the compute implementation sources.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Data stored in EFS volumes persists even when containers are replaced. Multiple containers can mount the same volume."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\efs-filesystem.d.ts",
+                  "quote": "Use for shared uploads, CMS media, ML model files, or anything that needs to survive container restarts."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"For most use cases, stick with `elastic` (the default). It handles traffic spikes without running out of burst credits.\"",
+              "reason": "The source supports `elastic` as the default and recommended mode for spiky workloads, but it does not state the stronger claim that elastic handles traffic spikes without running out of burst credits.",
+              "suggestedFix": "Use the sourced wording: \"For most use cases, start with `elastic`; it auto-scales throughput and is recommended for spiky workloads.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\efs-filesystem.d.ts",
+                  "quote": "- **`elastic`** (recommended): Auto-scales throughput. Best for spiky workloads (web apps, CI/CD)."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\efs-filesystem.d.ts",
+                  "quote": "@default elastic"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "The page includes a `## FAQ` section.",
+              "reason": "The page instructions explicitly say not to add an FAQ section unless SEO reviewer feedback requests it. No such request is present in the provided prompt.",
+              "suggestedFix": "Remove the FAQ section. Move any non-duplicative, sourced answer into earlier sections such as \"Mounting\", \"When to use it\", or \"Pricing\".",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\efs-filesystem.d.ts",
+                  "quote": "interface EfsFilesystemProps {"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "\"ML model files, configuration data, or code artifacts need to be shared across compute resources.\"",
+              "reason": "The source explicitly lists ML model files, but does not mention configuration data or code artifacts as intended use cases.",
+              "suggestedFix": "Keep \"ML model files\" and replace the unsupported examples with sourced examples such as shared uploads or CMS media.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "\"Single-container scratch space | Container's local disk — no setup needed.\"",
+              "reason": "The EFS source supports using EFS for shared persistent storage, but the provided sources do not document container-local disk behavior or that it requires no setup.",
+              "suggestedFix": "Phrase this as a cautious recommendation without asserting implementation details, or omit it: \"For temporary files used by one container, EFS is usually unnecessary.\"",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "\"EFS costs more per GB than S3.\"",
+              "reason": "The source contains EFS standard storage pricing, but no S3 pricing data is provided, so the comparison is not grounded in the supplied files.",
+              "suggestedFix": "Remove the relative price comparison or replace it with the sourced EFS pricing line only.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "\"Small filesystems with `bursting` can exhaust burst credits and drop to very low throughput.\"",
+              "reason": "The source says bursting can run out of burst credits and that throughput scales at 50 KiB/s per GiB, but it does not document the consequence as \"very low throughput\" or specifically tie it to small filesystems.",
+              "suggestedFix": "Use sourced wording: \"Use `bursting` only when storage size is enough for the throughput you need; bursting can run out of burst credits.\"",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "\"Backup costs are usage-based.\"",
+              "reason": "The source documents EFS storage pricing and provisioned throughput fees, but does not mention backup pricing.",
+              "suggestedFix": "Remove the sentence unless backup pricing appears in an allowed pricing source.",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The first paragraph is 58 words and works as a self-contained summary of the resource.",
+            "Stacktape configuration examples use `<CodeBlock intellisense tabs={[...]} />` with a visible TypeScript tab, and no hand-authored YAML Stacktape config is present.",
+            "The documented EFS properties `backupEnabled`, `throughputMode`, and `provisionedThroughputInMibps` match the provided `EfsFilesystemProps` type.",
+            "The pricing line for standard EFS storage is grounded in the EFS type comment: `~$0.30/GB/month for standard access`.",
+            "`<ApiReference definitionName=\"EfsFilesystemProps\" />` matches the `EfsFilesystemProps` interface in the provided source."
+          ]
+        },
+        {
+          "verifierId": "code-validator",
+          "modelProvider": "deterministic",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #1 (TypeScript): TypeScript config example is not Prettier-formatted.",
+              "reason": "Stacktape config examples must render cleanly and consistently. The pipeline uses Prettier as the formatting contract.",
+              "suggestedFix": "Format the full code string with Prettier using the TypeScript parser."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #2 (TypeScript): TypeScript config example is not Prettier-formatted.",
+              "reason": "Stacktape config examples must render cleanly and consistently. The pipeline uses Prettier as the formatting contract.",
+              "suggestedFix": "Format the full code string with Prettier using the TypeScript parser."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #3 (TypeScript): TypeScript config example is not Prettier-formatted.",
+              "reason": "Stacktape config examples must render cleanly and consistently. The pipeline uses Prettier as the formatting contract.",
+              "suggestedFix": "Format the full code string with Prettier using the TypeScript parser."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "seoReviewResult": {
+        "score": 8,
+        "suggestions": [
+          "Rephrase the FAQ heading \"EFS vs S3\" as a question (e.g., \"When should I use EFS instead of S3?\") for consistency with the other FAQ entries and to match how users actually search for comparisons.",
+          "Add a concrete code snippet to the \"Mounting into containers\" section showing the `volumeMounts` property in use. This section is highly likely to be extracted by AI engines answering \"how to mount EFS in Stacktape\" and currently defers to external docs instead of being self-contained.",
+          "Include EFS performance characteristics in the opening paragraph or throughput section — specifically single-digit millisecond read latency for elastic mode. This is a key differentiator vs S3 and a number AI engines would extract for comparison queries.",
+          "Add a 5th FAQ entry like \"What are EFS storage limits?\" covering max file system size (petabyte-scale) and max file size (52 TiB). These are common search queries and the answers are concrete, extractable facts.",
+          "In the throughput table, add a concrete number for elastic mode's peak throughput (up to 10 GiB/s reads, 3 GiB/s writes) so the comparison between modes has numbers in every row, not just bursting."
+        ]
+      },
+      "passed": false
+    },
+    {
+      "iteration": 3,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\resources__storage__efs-filesystem\\iteration-3.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "startup-cto",
+          "persona": "Small startup CTO with low to medium AWS experience. Cares most about time-to-production and shipping quickly without getting trapped in AWS complexity.",
+          "modelProvider": "claude",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Strong opening paragraph — defines what EFS is, why it matters, and the pay-per-use model in ~57 words. Works well as a standalone AI-extractable answer.",
+            "Decision table in 'When to use it' is concrete and actionable — lists four specific alternatives with links, not vague hand-waving.",
+            "Mounting section is the most valuable part of the page. It shows the realistic two-resource pattern (EFS + WebService) that every user will need, with clear explanation of `efsFilesystemName` matching the resource key.",
+            "Throughput comparison table is well-structured with three modes, behavior descriptions, and 'best for' guidance. The recommendation to start with `elastic` is appropriately opinionated.",
+            "All claims are source-grounded: pricing (~$0.30/GB/month from JSDoc), default throughput mode (`elastic` from @default tag), encryption in transit (TransitEncryption: 'ENABLED' in source), rootDirectory default '/' (from type definition), and backup behavior (from JSDoc).",
+            "Lambda VPC requirement called out in an Info box — this is a common gotcha that would trip up the target audience."
+          ],
+          "problems": [
+            "The page does not mention that Stacktape enables encryption at rest by default (Encrypted: true is hardcoded in src/domain/.../efs-filesystems/utils.ts:23). For a security-conscious CTO, knowing both at-rest and in-transit encryption are automatic is valuable.",
+            "The basic example creates an EFS filesystem in isolation (`new EfsFilesystem({})`) which is technically valid but not useful on its own — the page even says so immediately after. Consider leading with the mounting example as the 'basic example' since no one creates an EFS without mounting it.",
+            "Missing any mention of performance characteristics or latency expectations. EFS has higher latency than local disk (single-digit milliseconds vs microseconds). A startup CTO choosing between EFS and local disk for hot data needs this context.",
+            "No mention of the `overrides` escape hatch — minor, but the type definition includes `overrides?: ResourceOverrides`. This is a cross-cutting concern and acceptable to omit, but a one-line mention linking to overrides docs would help advanced users.",
+            "The referenceable parameters section only exposes `arn` — the page doesn't mention this is the only available parameter. A brief note like 'EFS exposes only the `arn` parameter for cross-resource references' would set expectations."
+          ],
+          "mandatoryFixes": [
+            "Add a sentence noting that encryption at rest is enabled by default (source: `Encrypted: true` hardcoded in efs-filesystems/utils.ts:23). This is a security-relevant fact the target audience cares about and is grounded in source.",
+            "Consider restructuring so the mounting example is the primary 'Basic example' — no user creates an EFS without mounting it. The current standalone EFS example can be shown as a brief precursor or omitted entirely."
+          ],
+          "optionalImprovements": [
+            "Add a brief note about EFS latency characteristics (single-digit milliseconds for file operations) to help readers decide whether EFS is suitable for latency-sensitive workloads vs. using container-local storage for temp files.",
+            "Mention that `PerformanceMode` is hardcoded to `generalPurpose` (source: utils.ts:19) — users cannot change it, and knowing this prevents confusion if they look up AWS EFS docs and see a `maxIO` option.",
+            "Add a one-line note that the only referenceable parameter is `arn`, so readers know what's available for `$ResourceParam` without scrolling to the bottom.",
+            "Consider adding a brief cost comparison note: EFS at ~$0.30/GB/month can get expensive for large datasets (e.g., 100 GB = ~$30/month). For large static assets accessed via API, a bucket (~$0.023/GB/month) is 13x cheaper. This reinforces the 'when not to use' guidance with concrete numbers.",
+            "The Tip about bursting mode could mention the burst credit formula more explicitly — e.g., 'A 100 GB filesystem provides ~5 MiB/s baseline and can burst to 100 MiB/s until credits run out' — to make the tradeoff tangible."
+          ]
+        },
+        {
+          "reviewerId": "smb-manager",
+          "persona": "SMB engineering manager with medium to high AWS knowledge. Cares about long-term maintainability, team clarity, operational fit, technically correct Stacktape class-based config examples, and valid MDX component usage.",
+          "modelProvider": "codex",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 6,
+            "practicalUsefulness": 7,
+            "audienceFit": 6
+          },
+          "strengths": [
+            "Clear opening paragraph and early pricing context using the sourced ~$0.30/GB/month standard storage price.",
+            "Good decision framing: the page explains when EFS is appropriate and gives concrete alternatives for object storage, databases, Redis, and local disk.",
+            "Stacktape config examples use class-based resources with defineConfig inside <CodeBlock intellisense tabs={[...]}/>, with no forbidden YAML or StacktapeConfig typed style.",
+            "The throughput section covers the key operational tradeoff between elastic, provisioned, and bursting modes without trying to enumerate the full API surface."
+          ],
+          "problems": [
+            "Several Lambda-specific statements are not grounded in the provided sources. The provided EFS and volumeMounts sources only explicitly ground container mounting; the draft claims Lambda mounting, joinDefaultVpc: true, and /mnt/ path requirements without a provided Lambda source.",
+            "The first paragraph is longer than the requested 40-60 words and includes an unsupported Lambda claim, making it less suitable as a self-contained extract.",
+            "The mounting section overstates supported compute resources instead of limiting itself to what the provided sources prove. This weakens trust for a reader with AWS knowledge.",
+            "The page says data is encrypted in transit for the web service mount example, which is grounded for container volumeMounts, but the nearby Lambda phrasing makes the scope ambiguous.",
+            "CodeBlock tabs are labeled 'stacktape.ts' rather than the required visible 'TypeScript' label in the CodeBlock usage rules.",
+            "The page does not explain the operational caveat that EFS is for shared POSIX-style files, not object APIs or transactional data, as strongly as this audience would expect."
+          ],
+          "mandatoryFixes": [
+            "Remove or narrow all Lambda-specific EFS mounting claims unless a provided Lambda source is added. Specifically remove or source: 'Lambda functions can mount EFS', 'joinDefaultVpc: true', and 'mount path must start with /mnt/'.",
+            "Rewrite the first paragraph to 40-60 words and keep it grounded in the provided EFS source: shared persistent file storage for containers via volumeMounts, elastic storage behavior, and common use cases.",
+            "Change Stacktape config CodeBlock visible tab labels to 'TypeScript' if following the stated CodeBlock usage rules for this run."
+          ],
+          "optionalImprovements": [
+            "In the mounting section, say 'container workloads that expose volumeMounts' rather than listing every compute resource unless each listed resource is backed by a provided source.",
+            "Add one sentence that EFS is a shared filesystem abstraction; use Bucket for API/object access and databases for transactional querying.",
+            "Tighten the backup section by saying 'Enable backupEnabled for daily automatic backups with 35-day retention' so the property name is visible at the decision point.",
+            "Consider adding a short 'Access and references' note that the EFS resource exposes the arn referenceable parameter, then leave exhaustive details to the API reference."
+          ]
+        },
+        {
+          "reviewerId": "developer-low-aws",
+          "persona": "Developer with little AWS or DevOps experience. Needs jargon kept under control and wants examples that are easy to follow.",
+          "modelProvider": "claude",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "'When to use it' decision table is concrete and well-scoped — the alternatives (Bucket, DynamoDB, Redis, local disk) are the exact ones a newcomer would confuse with EFS.",
+            "Mounting section is the most important operational content for this resource and it's given proper weight — the example is realistic, the efsFilesystemName/mountPath relationship is explained clearly, and the Lambda VPC gotcha is surfaced in an Info callout.",
+            "Throughput comparison table distills three modes into a scannable format with clear 'best for' guidance and a sensible default recommendation (elastic). The Tip about bursting credit exhaustion is a practical warning most docs skip.",
+            "All CodeBlock examples correctly use focus markers to hide imports, follow the class-based defineConfig pattern, and avoid every forbidden config format.",
+            "Page density is well-matched to the resource's simplicity — three configurable properties don't get inflated into ten sections. The page is appropriately short."
+          ],
+          "problems": [
+            "The page states EFS can be mounted into Lambda functions and mentions joinDefaultVpc in an Info callout, but provides no Lambda mounting example. For a developer new to AWS, the callout alone is insufficient — they'll need to see the volumeMounts shape inside a LambdaFunction config to actually use it.",
+            "The page does not mention EFS latency characteristics. EFS has noticeably higher latency (~single-digit ms) compared to local container disk. For the target audience, this is a critical tradeoff that could lead to poor architectural choices if omitted (e.g., using EFS for temp files or high-frequency reads where local disk or S3 would be better).",
+            "The 'Basic example' creates an EFS with empty props (`new EfsFilesystem({})`) and then immediately says 'To use it, mount it into a compute resource.' This makes the basic example feel incomplete on its own — the reader has to scroll to the next section to see anything useful. The example page's basic example is self-contained.",
+            "The pricing line says 'Additional fees apply when using provisioned throughput' but does not give even an approximate per-MiB/s cost. The throughput section repeats this vague statement. If the source has no number, that's fine, but the repeated vagueness weakens the pricing guidance."
+          ],
+          "mandatoryFixes": [
+            "Add a concrete Lambda function mounting example (or combine it into the existing mounting section) showing `volumeMounts` with `joinDefaultVpc: true` on a LambdaFunction. The Info callout alone is not actionable for the target audience.",
+            "Merge the 'Basic example' and 'Mounting' sections so the first example the reader sees is a complete, working pattern — an EFS filesystem mounted into a compute resource. An isolated `new EfsFilesystem({})` with no mount is not a useful starting point. The current 'Basic example' can become a brief note ('You can also define the filesystem separately and mount it later') rather than the primary example."
+          ],
+          "optionalImprovements": [
+            "Add a short sentence about EFS latency characteristics in the 'When to use it' section or near the top — something like 'EFS has higher latency than local container disk (~single-digit milliseconds per operation), so avoid it for high-frequency temporary file I/O.'",
+            "In the throughput section, consider noting the approximate cost of provisioned throughput if available from source data, or explicitly state that pricing varies by region and link to the AWS EFS pricing page.",
+            "Consider adding a brief note that EFS data is encrypted at rest by default (AWS behavior) — this is reassuring for the target audience and costs nothing to mention.",
+            "The 'Backups' section could mention how to restore from a backup, even if just to say 'Restore is done through the AWS Console or CLI — Stacktape does not currently manage EFS restores.' This anticipates the next question the reader will have after enabling backups."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "claude-verifier",
+          "modelProvider": "claude",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "Lambda functions use a similar volumeMounts property but require joinDefaultVpc: true because Lambda needs VPC access to reach the EFS filesystem.",
+              "reason": "The Info box omits an important caveat from the source: when joinDefaultVpc is true, the Lambda function loses direct internet access and cannot reach external APIs unless NAT Gateways are configured. This is a significant operational surprise that belongs next to the joinDefaultVpc mention.",
+              "suggestedFix": "Add a sentence: 'Setting joinDefaultVpc: true means the function loses direct internet access — it cannot call external APIs unless you also configure NAT Gateways in stackConfig.vpc.nat.'",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\functions.d.ts",
+                  "quote": "joinDefaultVpc?: boolean;  // Default: false"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "Data is encrypted in transit between the compute resource and the filesystem.",
+              "reason": "The source for this claim ('All data is encrypted in transit') is on the SimpleServiceContainer.volumeMounts JSDoc, which covers container-based services. The draft broadens this to 'the compute resource' which could include Lambda functions. While likely true for Lambda as well (AWS EFS enforces TLS), the source evidence only explicitly covers container workloads.",
+              "suggestedFix": "Keep the claim but scope it to containers, or verify Lambda in-transit encryption from the Lambda volume mount source before generalizing.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Persistent EFS volumes shared across containers and restarts.\\n   *\\n   * Data stored in EFS volumes persists even when containers are replaced.\\n   * Multiple containers can mount the same volume. All data is encrypted in transit."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "Correct throughputMode values (elastic, provisioned, bursting) match the EfsFilesystemProps source type exactly.",
+            "Default throughputMode of 'elastic' correctly matches the @default annotation in the source.",
+            "Pricing line (~$0.30/GB/month for standard access) matches the JSDoc in efs-filesystem.d.ts verbatim.",
+            "Backup description (daily automatic backups with 35-day retention, incremental) matches the backupEnabled JSDoc exactly.",
+            "provisionedThroughputInMibps behavior ('required when throughputMode is provisioned', 'can be changed anytime', 'additional fees apply') all match source JSDoc.",
+            "CodeBlock examples correctly use the defineConfig + class-based pattern with intellisense flag — no forbidden YAML blocks or StacktapeConfig style.",
+            "Volume mount property names (type: 'efs', efsFilesystemName, mountPath, rootDirectory) confirmed against ContainerEfsMount and LambdaEfsMount types in the codebase.",
+            "rootDirectory default of '/' confirmed in both ContainerEfsMountProps and LambdaEfsMountProps source types.",
+            "Lambda EFS mount support confirmed — LambdaFunctionProps includes volumeMounts?: LambdaEfsMount[].",
+            "Lambda /mnt/ path constraint confirmed — LambdaEfsMountProps.mountPath must start with /mnt/.",
+            "joinDefaultVpc: true requirement for Lambda EFS confirmed in functions.d.ts.",
+            "<ApiReference definitionName=\"EfsFilesystemProps\" /> validated — definition exists in both config-schema.json and enhanced-config-schema.json.",
+            "<ReferenceableParams resource=\"efs-filesystem\" /> uses the correct resource type string matching EfsFilesystem.type.",
+            "EfsFilesystemReferencableParam = 'arn' is defined in efs-filesystem.d.ts, supporting the ReferenceableParams component.",
+            "No marketing language, no empty sections, no hand-authored YAML, no forbidden phrasings detected.",
+            "Mounting section correctly identifies all container-based resource types that support volumeMounts (web service, worker service, private service, multi-container workload).",
+            "The 'When to use' and 'When not to use' sections provide concrete alternatives with links — well-structured decision guidance."
+          ],
+          "summary": "The draft is well-grounded in source material. All EFS configuration properties (throughputMode, provisionedThroughputInMibps, backupEnabled), their defaults, and their behavior descriptions match the efs-filesystem.d.ts source exactly. Pricing matches the source JSDoc. Volume mount property names were verified against the actual ContainerEfsMount and LambdaEfsMount types in the codebase. Lambda EFS support, the joinDefaultVpc requirement, and the /mnt/ path constraint were all confirmed in functions.d.ts. Two issues found: (1) the Lambda joinDefaultVpc Info box should mention the loss of internet access as a caveat (medium), and (2) the in-transit encryption claim is sourced only for containers, not explicitly for Lambda (low). No forbidden patterns (hand-authored YAML, StacktapeConfig style, fenced TS with defineConfig, marketing language) were detected."
+        },
+        {
+          "verifierId": "codex-verifier",
+          "modelProvider": "codex",
+          "summary": "The draft is mostly grounded in the provided EFS type source for core EFS behavior, pricing, throughput modes, backups, and container volume mounts. The main factual risks are Lambda-specific mounting claims, API reference naming, and a few operational/AWS behavior claims that are not supported by the provided files.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"multiple containers and Lambda functions can read and write simultaneously\" and later Lambda mounting details.",
+              "reason": "The provided EFS source describes shared file storage for containers and access via container `volumeMounts`. The provided files do not include Lambda `volumeMounts`, Lambda EFS requirements, or Lambda mount path constraints.",
+              "suggestedFix": "Scope the page to containers unless Lambda source files are added. For example: \"multiple containers can read and write simultaneously.\" Remove the Lambda Info box or verify it against Lambda type/runtime source.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\efs-filesystem.d.ts",
+                  "quote": "#### Shared file storage that multiple containers can read/write simultaneously."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\efs-filesystem.d.ts",
+                  "quote": "accessible from any container in your stack\n * via `volumeMounts`."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Data is encrypted in transit between the compute resource and the filesystem.\"",
+              "reason": "The only provided source for in-transit encryption is the container `volumeMounts` property. It says all data is encrypted in transit for container EFS volumes, but the draft broadens this to all compute resources, including Lambda, which is not supported by the provided files.",
+              "suggestedFix": "Narrow the sentence to container mounts: \"For container `volumeMounts`, data is encrypted in transit.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Persistent EFS volumes shared across containers and restarts."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Multiple containers can mount the same volume. All data is encrypted in transit."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Compute resources that expose `volumeMounts` can mount EFS filesystems. This includes ... [Lambda functions].\"",
+              "reason": "The provided files show `volumeMounts?: ContainerEfsMount[]` on `SimpleServiceContainer`, which covers container-style services in the supplied source. They do not show Lambda functions exposing `volumeMounts`.",
+              "suggestedFix": "Say \"Container resources that expose `volumeMounts` can mount EFS filesystems\" or add authoritative Lambda source before documenting Lambda support.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "interface SimpleServiceContainer extends ResourceAccessProps {"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "volumeMounts?: ContainerEfsMount[];"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "`<ApiReference definitionName=\"EfsFilesystemProps\" />`",
+              "reason": "The source defines the resource interface as `EfsFilesystem` and the props interface as `EfsFilesystemProps`. Without the generated schema source in the provided files, it is not established that `EfsFilesystemProps` is a valid schema definition name for `<ApiReference>`. Resource pages usually need the schema definition that exists in generated config schema, but that file is not provided here.",
+              "suggestedFix": "Verify against `@generated/schemas/config-schema.json`. If the generated schema exposes `EfsFilesystem`, use `<ApiReference definitionName=\"EfsFilesystem\" />`; if it exposes `EfsFilesystemProps`, keep it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\efs-filesystem.d.ts",
+                  "quote": "interface EfsFilesystem {"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\efs-filesystem.d.ts",
+                  "quote": "interface EfsFilesystemProps {"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "\"Elastic shared file storage.\"",
+              "reason": "The source says the filesystem is elastic and grows/shrinks automatically, but the exact page description is terse. It is acceptable, but slightly ambiguous because `elastic` also appears as a throughput mode.",
+              "suggestedFix": "Use \"Shared persistent file storage\" for the metadata description, or keep \"Elastic\" only in body copy where it is explained.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "\"automatic backups\" in `seoDescription`.",
+              "reason": "The source supports backups only when `backupEnabled` is set. The SEO description can be read as saying automatic backups are inherent to the resource.",
+              "suggestedFix": "Change to \"optional daily backups\" or \"daily backups when enabled.\"",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "\"Object storage accessed via API (images, backups, static assets) | Bucket\" and other alternative-resource recommendations.",
+              "reason": "The provided EFS source supports EFS use cases, but does not include Bucket, relational database, DynamoDB, or Redis source files. These recommendations are reasonable but not grounded in the provided source list.",
+              "suggestedFix": "Either add source files for the alternative resources or phrase the table more narrowly from the EFS side: \"Do not use EFS when you do not need a shared mounted filesystem.\"",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "\"Temporary files used by a single container | No EFS needed — use the container's local disk\"",
+              "reason": "The provided files do not document container local disk behavior or whether it is appropriate for temporary files.",
+              "suggestedFix": "Change to \"Skip EFS when files do not need to survive container replacement or be shared across containers.\"",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "\"An EFS filesystem on its own only creates the storage.\"",
+              "reason": "The source defines the EFS resource and says containers access it via `volumeMounts`, but it does not specify the full set of underlying resources Stacktape creates for EFS.",
+              "suggestedFix": "Use narrower wording: \"Defining an EFS filesystem does not mount it into your application by itself.\"",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "\"`efsFilesystemName` must match the key used for the EFS filesystem in the `resources` object. `mountPath` is the absolute path inside the container... `rootDirectory` defaults to `\"/\"`.\"",
+              "reason": "The provided files reference `ContainerEfsMount[]` but do not include the `ContainerEfsMount` interface, so these property names and default cannot be verified from the supplied source.",
+              "suggestedFix": "Add the source file that defines `ContainerEfsMount`, or omit `rootDirectory` default and keep only the high-level mount guidance.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "\"You can change the provisioned value after creation.\"",
+              "reason": "The EFS source says `provisionedThroughputInMibps` \"Can be changed anytime,\" but does not specify whether Stacktape permits this after resource creation without replacement or operational caveats.",
+              "suggestedFix": "Use the source wording directly: \"The provisioned value can be changed anytime.\"",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "\"For production data that cannot be regenerated, enable backups.\"",
+              "reason": "This is a recommendation rather than a direct source fact. It is sensible, but the provided source only states what `backupEnabled` does, not when teams should enable it.",
+              "suggestedFix": "Keep as opinionated guidance, or ground it explicitly in the documented behavior: \"Enable backups when losing file changes would be costly; Stacktape configures daily automatic backups with 35-day retention.\"",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The first paragraph is 58 words and works as a self-contained explanation of the resource.",
+            "The pricing line uses the only concrete EFS price present in the source: approximately `$0.30/GB/month` for standard access.",
+            "The draft correctly documents `backupEnabled`, daily automatic backups, 35-day retention, and incremental backups from `efs-filesystem.d.ts`.",
+            "The draft correctly documents `throughputMode` values `elastic`, `provisioned`, and `bursting`, including the default `elastic`.",
+            "The draft correctly states that `provisionedThroughputInMibps` is required when `throughputMode` is `provisioned` and that additional fees apply.",
+            "No hand-authored Stacktape YAML configuration blocks are present.",
+            "Stacktape configuration examples use `<CodeBlock intellisense ... />` rather than fenced TypeScript config blocks.",
+            "The page includes the required early \"When to use it\" guidance and a \"Use something else\" alternative section."
+          ]
+        },
+        {
+          "verifierId": "code-validator",
+          "modelProvider": "deterministic",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #1 (stacktape.ts): TypeScript config example is not Prettier-formatted.",
+              "reason": "Stacktape config examples must render cleanly and consistently. The pipeline uses Prettier as the formatting contract.",
+              "suggestedFix": "Format the full code string with Prettier using the TypeScript parser."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #2 (stacktape.ts): TypeScript config example is not Prettier-formatted.",
+              "reason": "Stacktape config examples must render cleanly and consistently. The pipeline uses Prettier as the formatting contract.",
+              "suggestedFix": "Format the full code string with Prettier using the TypeScript parser."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #3 (stacktape.ts): TypeScript config example is not Prettier-formatted.",
+              "reason": "Stacktape config examples must render cleanly and consistently. The pipeline uses Prettier as the formatting contract.",
+              "suggestedFix": "Format the full code string with Prettier using the TypeScript parser."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #4 (stacktape.ts): TypeScript config example is not Prettier-formatted.",
+              "reason": "Stacktape config examples must render cleanly and consistently. The pipeline uses Prettier as the formatting contract.",
+              "suggestedFix": "Format the full code string with Prettier using the TypeScript parser."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<ReferenceableParams resource=\"efs-filesystem\" /> references an unknown resource type.",
+              "reason": "efs-filesystem is not present in docs/.resources.json.",
+              "suggestedFix": "Use a resource type from docs/.resources.json or remove the component."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "seoReviewResult": {
+        "score": 7,
+        "suggestions": [
+          "Trim the opening paragraph from ~62 words to 40-55 words. Cut the use-case list ('Use it for shared uploads…') into a separate sentence or move it to 'When to use it'. The first paragraph should be a tight definition + value prop that an LLM can extract as a single snippet.",
+          "Add key AWS limits that are publicly documented: elastic throughput can deliver up to 10 GiB/s reads and 3 GiB/s writes; max file size is unlimited; max per-filesystem IOPS varies by mode. These concrete numbers make paragraphs more extractable by AI answer engines and differentiate the page from generic EFS descriptions.",
+          "Rename 'Referenceable parameters' to something search-friendly like 'Output parameters' or 'Resource outputs'. 'Referenceable parameters' is internal jargon that no user would search for.",
+          "Add a short FAQ section (3-5 questions) at the bottom targeting common search queries: 'Can Lambda functions use EFS?', 'What is the default EFS throughput mode?', 'How much does EFS cost per GB?', 'How do I share files between containers on AWS?'. Use concise Q&A pairs — these are high-value for People Also Ask and AI engine extraction.",
+          "In the 'Mounting' section, the first sentence is a long list of compatible resources. Lead instead with what mounting does ('Mounting an EFS filesystem makes its files available at a path inside your container or Lambda function'), then list compatible resources. This makes the paragraph extractable without needing to know what 'volumeMounts' means.",
+          "Add a brief note about EFS latency characteristics (single-digit millisecond latency for standard access) in the opening or throughput section. This is a frequent comparison point vs. EBS and S3, and including it helps the page rank for 'EFS vs S3' or 'EFS performance' queries."
+        ]
+      },
+      "passed": false
+    }
+  ],
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\resources\\storage\\efs-filesystem.mdx"
+}

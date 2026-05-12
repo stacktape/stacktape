@@ -1,0 +1,581 @@
+---
+title: 'Multi-Container Workload'
+order: 34
+seoTitle: 'Multi-Container Workload: Sidecars on AWS ECS | Stacktape Docs'
+seoDescription: 'Multi-container workload deploys multiple containers as a single AWS ECS Fargate task. Sidecars, init containers, per-container routing, and auto-scaling.'
+---
+
+# Multi-Container Workload
+
+A multi-container workload runs multiple containers as a single unit on AWS ECS Fargate (or EC2), sharing CPU, memory, and networking. Use it when you need peer containers with independent traffic routing, init containers, or co-located processes that scale together. Stacktape manages container orchestration, auto-scaling, and deployments.
+
+**Pricing**: A minimal Fargate task (0.25 vCPU, 512 MB) costs ~$9/month in us-east-1 for compute. ARM (Graviton) tasks cost ~20% less. Cost scales linearly with CPU, memory, and instance count. Fargate cannot scale to zero.
+
+## When to use
+
+**Use a multi-container workload when:**
+
+- You need multiple peer containers in a shared task — each with its own packaging, traffic routing, and lifecycle
+- Your workload requires init containers that must complete before the main containers start
+- You need per-container traffic routing from different sources (e.g., one container serves HTTP, another handles TCP)
+- You want explicit control over container startup ordering and dependencies
+
+**Use something else when:**
+
+| Situation | Better option |
+|-----------|---------------|
+| Single HTTP-facing service | [Web service](/resources/compute/web-service) — has built-in load balancing, CDN, CORS, custom domains |
+| Single internal service | [Private service](/resources/compute/private-service) — simpler config for internal traffic |
+| Background worker, no inbound traffic | [Worker service](/resources/compute/worker-service) |
+| Main container + helper sidecars | Web service, private service, or worker service with `sideContainers` |
+| Serverless, pay-per-request | [Lambda function](/resources/compute/lambda-function) — scales to zero |
+| One-off or scheduled batch processing | [Batch job](/resources/compute/batch-job) |
+
+<Tip>Web services, private services, and worker services all support `sideContainers` for init and always-running helper containers. Only use a multi-container workload when you need multiple peer containers with independent traffic routing — not just a main container with helpers.</Tip>
+
+## Basic example
+
+This deploys two containers as a single task: an API server that receives HTTP traffic through an [HTTP API Gateway](/resources/networking/http-api-gateway), and a background worker. Both containers share compute resources. The API container opens port 3000 for internal access so the worker can reach it via `localhost`.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'stacktape.ts',
+      lang: 'typescript',
+      code: `import { defineConfig, MultiContainerWorkload, HttpApiGateway, StacktapeImageBuildpackPackaging } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const gateway = new HttpApiGateway({});
+
+  const workload = new MultiContainerWorkload({
+    containers: [
+      {
+        name: 'api',
+        packaging: new StacktapeImageBuildpackPackaging({
+          entryfilePath: './src/api.ts'
+        }),
+        events: [
+          {
+            type: 'http-api-gateway',
+            properties: {
+              httpApiGatewayName: 'gateway',
+              containerPort: 3000,
+              method: '*',
+              path: '/{proxy+}'
+            }
+          },
+          {
+            type: 'workload-internal',
+            properties: {
+              containerPort: 3000
+            }
+          }
+        ]
+      },
+      {
+        name: 'worker',
+        packaging: new StacktapeImageBuildpackPackaging({
+          entryfilePath: './src/worker.ts'
+        })
+      }
+    ],
+    resources: {
+      cpu: 0.5,
+      memory: 1024
+    }
+  });
+
+  return {
+    resources: { gateway, workload }
+  };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+```typescript
+// src/api.ts
+import { serve } from '@hono/node-server';
+import { Hono } from 'hono';
+
+const app = new Hono();
+app.get('/', (c) => c.json({ status: 'ok' }));
+app.get('/health', (c) => c.text('healthy'));
+
+serve({ fetch: app.fetch, port: 3000 });
+```
+
+After deploying with `stacktape deploy`, the API container is reachable at the HTTP API Gateway URL. The `worker` container runs in the same task without external traffic — it can communicate with the API container via `localhost:3000` because the API has a `workload-internal` event opening that port.
+
+The path `/{proxy+}` is an API Gateway greedy path parameter that catches all incoming request paths and forwards them to the container.
+
+The Stacktape image buildpack builds container images from your source code automatically. For other packaging options (custom Dockerfile, prebuilt image, Nixpacks, external buildpack), see [container packaging](/packaging/containers/).
+
+Multi-container workloads support [dev mode](/local-development/dev-mode) (`stacktape dev`) for local iteration during development.
+
+## Containers
+
+The `containers` array defines every container in the workload. All containers share the task's CPU and memory pool but have independent packaging, environment variables, events, and health checks.
+
+### When to mark a container non-essential
+
+By default, every container is `essential: true` — if it fails, the entire task restarts. Set `essential: false` for containers that are meant to run once and exit, like database migrations or cache warming scripts. Without this, the task would restart every time the init container exits successfully.
+
+### How containers share resources
+
+All containers draw from the same CPU and memory pool set in the top-level `resources` property. There is no per-container resource allocation — if one container is CPU-intensive, it can starve others. Size the task for the combined peak usage of all containers.
+
+### Internal communication
+
+Containers within the same task communicate via `localhost`, but only on ports explicitly opened by `workload-internal` events. Add a `workload-internal` event with the target `containerPort` on any container you want other containers in the task to reach.
+
+### Startup ordering
+
+Use `dependsOn` to control container startup order. For example, an app container can wait for a migration container to finish (`SUCCESS` condition) or for a sidecar to pass its health check (`HEALTHY` condition). See [Container dependencies](#container-dependencies) for details.
+
+## Traffic routing
+
+Multi-container workloads route traffic independently per container using `events`. Each container can integrate with a different traffic source — HTTP API Gateway, Application Load Balancer, Network Load Balancer, service-connect, or workload-internal.
+
+Five event types are available:
+
+| Event type | Use case | External resource required |
+|---|---|---|
+| `http-api-gateway` | HTTP APIs, request routing | [HTTP API Gateway](/resources/networking/http-api-gateway) |
+| `application-load-balancer` | Advanced routing (path, headers, query params) | [Application Load Balancer](/resources/networking/application-load-balancer) |
+| `network-load-balancer` | TCP/TLS traffic (MQTT, game servers) | [Network Load Balancer](/resources/networking/network-load-balancer) |
+| `workload-internal` | Container-to-container within the same task | None |
+| `service-connect` | Service-to-service discovery across resources | None |
+
+Custom domains are configured on the gateway or load balancer resource, not on the workload itself. See [HTTP API Gateway](/resources/networking/http-api-gateway) or [Application Load Balancer](/resources/networking/application-load-balancer) docs for custom domain setup.
+
+### Service-connect
+
+Use `service-connect` to make a container reachable from other compute resources in the same stack via service discovery. Other resources connect using `protocol://alias:port`.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'stacktape.ts',
+      lang: 'typescript',
+      code: `import { defineConfig, MultiContainerWorkload, StacktapeImageBuildpackPackaging } from 'stacktape';
+
+export default defineConfig(() => {
+  const workload = new MultiContainerWorkload({
+    containers: [
+      {
+        name: 'api',
+        packaging: new StacktapeImageBuildpackPackaging({
+          entryfilePath: './src/api.ts'
+        }),
+        // [!code focus-start]
+        events: [
+          {
+            type: 'service-connect',
+            properties: {
+              containerPort: 3000,
+              alias: 'my-api',
+              protocol: 'http'
+            }
+          }
+        ]
+        // [!code focus-end]
+      }
+    ],
+    resources: {
+      cpu: 0.5,
+      memory: 1024
+    }
+  });
+
+  return {
+    resources: { workload }
+  };
+});`
+    }
+  ]}
+/>
+
+Other compute resources in the stack can reach this container at `http://my-api:3000`. If `alias` is omitted, it defaults to a name derived from the resource and container names (e.g., `workload-api`).
+
+### Application Load Balancer
+
+Use ALB events when you need routing by path, method, host, headers, query parameters, or source IP. Define an [Application Load Balancer](/resources/networking/application-load-balancer) resource and reference it by name.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'stacktape.ts',
+      lang: 'typescript',
+      code: `import { defineConfig, MultiContainerWorkload, ApplicationLoadBalancer, StacktapeImageBuildpackPackaging } from 'stacktape';
+
+export default defineConfig(() => {
+  const alb = new ApplicationLoadBalancer({});
+
+  const workload = new MultiContainerWorkload({
+    containers: [
+      {
+        name: 'api',
+        packaging: new StacktapeImageBuildpackPackaging({
+          entryfilePath: './src/api.ts'
+        }),
+        // [!code focus-start]
+        events: [
+          {
+            type: 'application-load-balancer',
+            properties: {
+              loadBalancerName: 'alb',
+              containerPort: 3000,
+              priority: 1,
+              paths: ['/*']
+            }
+          }
+        ],
+        loadBalancerHealthCheck: {
+          healthcheckPath: '/health',
+          healthcheckInterval: 10
+        }
+        // [!code focus-end]
+      }
+    ],
+    resources: {
+      cpu: 0.5,
+      memory: 1024
+    }
+  });
+
+  return {
+    resources: { alb, workload }
+  };
+});`
+    }
+  ]}
+/>
+
+Load balancer health check defaults: path `/`, interval `5` seconds, timeout `4` seconds. ALB defaults to `HTTP` health check protocol, NLB defaults to `TCP`.
+
+### Network Load Balancer
+
+Use NLB events for non-HTTP traffic (TCP/TLS) — MQTT brokers, game servers, custom binary protocols. Define a [Network Load Balancer](/resources/networking/network-load-balancer) resource and reference it by name. Configuration follows the same pattern as ALB events, with `loadBalancerName`, `containerPort`, and `listenerPort` properties.
+
+## CPU, memory, and compute engine
+
+The `resources` property sets CPU, memory, and the compute engine shared by all containers in the workload.
+
+Two compute modes are available:
+
+- **Fargate** — set `cpu` and `memory`. Serverless, no infrastructure to manage.
+- **EC2** — set `instanceTypes` for specific instance types, more control, or GPU access. Instances auto-scale and are refreshed weekly for patching.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'stacktape.ts',
+      lang: 'typescript',
+      code: `import { defineConfig, MultiContainerWorkload, StacktapeImageBuildpackPackaging } from 'stacktape';
+
+export default defineConfig(() => {
+  const workload = new MultiContainerWorkload({
+    containers: [
+      {
+        name: 'app',
+        packaging: new StacktapeImageBuildpackPackaging({
+          entryfilePath: './src/app.ts'
+        })
+      }
+    ],
+    // [!code focus-start]
+    resources: {
+      cpu: 1,
+      memory: 2048,
+      architecture: 'arm64'
+    }
+    // [!code focus-end]
+  });
+
+  return {
+    resources: { workload }
+  };
+});`
+    }
+  ]}
+/>
+
+Fargate CPU and memory must use valid combinations. Common sizes and approximate monthly costs (us-east-1, single task):
+
+| vCPU | Memory | ~Cost/month |
+|------|--------|-------------|
+| 0.25 | 512 MB | ~$9 |
+| 0.5 | 1024 MB | ~$18 |
+| 1 | 2048 MB | ~$36 |
+| 2 | 4096 MB | ~$71 |
+| 4 | 8192 MB | ~$142 |
+
+<Tip>Set `architecture: 'arm64'` to use ARM (Graviton) tasks for ~20% lower compute cost. The default is `x86_64`. Architecture is ignored when using EC2 `instanceTypes`.</Tip>
+
+For EC2, specify `instanceTypes` instead of `cpu`/`memory`. The first type in the list is preferred. Set `enableWarmPool: true` (single instance type only) to keep pre-initialized instances ready for faster scaling.
+
+## Scaling
+
+Auto-scaling adds or removes task instances based on CPU and memory utilization. All containers in a task scale together — you cannot scale individual containers independently.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'stacktape.ts',
+      lang: 'typescript',
+      code: `import { defineConfig, MultiContainerWorkload, StacktapeImageBuildpackPackaging } from 'stacktape';
+
+export default defineConfig(() => {
+  const workload = new MultiContainerWorkload({
+    containers: [
+      {
+        name: 'app',
+        packaging: new StacktapeImageBuildpackPackaging({
+          entryfilePath: './src/app.ts'
+        })
+      }
+    ],
+    resources: {
+      cpu: 0.5,
+      memory: 1024
+    },
+    // [!code focus-start]
+    scaling: {
+      minInstances: 2,
+      maxInstances: 10,
+      scalingPolicy: {
+        keepAvgCpuUtilizationUnder: 70
+      }
+    }
+    // [!code focus-end]
+  });
+
+  return {
+    resources: { workload }
+  };
+});`
+    }
+  ]}
+/>
+
+Without scaling configured, a single task runs (`minInstances` and `maxInstances` both default to `1`). Setting `minInstances` to 0 is not supported. For production workloads, set at least `minInstances: 2` so the workload stays available if one task fails.
+
+Default scaling target: 80% average CPU and 80% average memory utilization. Auto-scaling adjusts instance count in both directions to stay near the target.
+
+## Container dependencies
+
+Use `dependsOn` to control container startup order within a task. This is essential for init-container patterns where setup must complete before the main application starts.
+
+Available conditions:
+
+| Condition | Meaning |
+|-----------|---------|
+| `START` | The dependency container has started |
+| `HEALTHY` | The dependency has passed its first health check |
+| `SUCCESS` | The dependency has exited with code 0 |
+| `COMPLETE` | The dependency has finished executing (regardless of exit code) |
+
+### Init container pattern
+
+Run a database migration before starting the application:
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'stacktape.ts',
+      lang: 'typescript',
+      code: `import { defineConfig, MultiContainerWorkload, StacktapeImageBuildpackPackaging } from 'stacktape';
+
+export default defineConfig(() => {
+  const workload = new MultiContainerWorkload({
+    containers: [
+      // [!code focus-start]
+      {
+        name: 'migrate',
+        packaging: new StacktapeImageBuildpackPackaging({
+          entryfilePath: './src/migrate.ts'
+        }),
+        essential: false
+      },
+      {
+        name: 'app',
+        packaging: new StacktapeImageBuildpackPackaging({
+          entryfilePath: './src/app.ts'
+        }),
+        dependsOn: [{ containerName: 'migrate', condition: 'SUCCESS' }]
+      }
+      // [!code focus-end]
+    ],
+    resources: {
+      cpu: 0.5,
+      memory: 1024
+    },
+    connectTo: ['myDatabase']
+  });
+
+  return {
+    resources: { workload }
+  };
+});`
+    }
+  ]}
+/>
+
+The `migrate` container runs first and exits. Setting `essential: false` prevents the task from restarting when it exits — by default (`essential: true`), the entire workload restarts when any container fails. The `app` container starts only after `migrate` exits with code 0 (`SUCCESS` condition).
+
+Use the `HEALTHY` condition when the dependency is a long-running container that exposes a health check — the dependent container waits until the first health check passes.
+
+## Connecting to other resources
+
+Use `connectTo` to grant the workload access to databases, buckets, queues, and other resources in your stack. Stacktape automatically grants IAM permissions, opens network access for databases and Redis, and injects environment variables with connection details into all containers.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'stacktape.ts',
+      lang: 'typescript',
+      code: `import { defineConfig, MultiContainerWorkload, StacktapeImageBuildpackPackaging } from 'stacktape';
+
+export default defineConfig(() => {
+  const workload = new MultiContainerWorkload({
+    containers: [
+      {
+        name: 'app',
+        packaging: new StacktapeImageBuildpackPackaging({
+          entryfilePath: './src/app.ts'
+        })
+      }
+    ],
+    resources: {
+      cpu: 0.5,
+      memory: 1024
+    },
+    // [!code focus-start]
+    connectTo: ['myDatabase', 'myBucket']
+    // [!code focus-end]
+  });
+
+  return {
+    resources: { workload }
+  };
+});`
+    }
+  ]}
+/>
+
+Environment variables are injected in the format `STP_[RESOURCE_NAME]_[PARAM]`. For example, connecting to a relational database named `myDatabase` injects `STP_MY_DATABASE_CONNECTION_STRING`, `STP_MY_DATABASE_HOST`, `STP_MY_DATABASE_PORT`, and more.
+
+For the full list of injected variables per resource type, see [connecting resources](/configuration/connecting-resources).
+
+For permissions not covered by `connectTo` (e.g., AWS Rekognition, Bedrock, Textract), use `iamRoleStatements` to add raw IAM policy statements. Note that `connectTo` already covers SES email sending via `connectTo: ['aws:ses']`.
+
+## Gradual deployments
+
+Gradual deployments shift traffic incrementally from the old version to the new one during deployment. You can optionally run validation Lambda functions before (`beforeAllowTrafficFunction`) and after (`afterTrafficShiftFunction`) the traffic shift to perform smoke tests.
+
+Available strategies:
+
+- **Canary** — send 10% of traffic to the new version first, then shift all traffic after a validation window (`Canary10Percent5Minutes`, `Canary10Percent15Minutes`)
+- **Linear** — increase traffic to the new version by 10% at regular intervals (`Linear10PercentEvery1Minutes`, `Linear10PercentEvery3Minutes`)
+- **AllAtOnce** — instant switch
+
+<Warning>Gradual deployments require at least one container with an `application-load-balancer` event. They are not available with HTTP API Gateway or Network Load Balancer events.</Warning>
+
+## Static outbound IP
+
+To get a static outbound IP — for IP whitelisting with third-party APIs, payment gateways, or partner services — enable private subnets with NAT:
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'stacktape.ts',
+      lang: 'typescript',
+      code: `import { defineConfig, MultiContainerWorkload, StacktapeImageBuildpackPackaging } from 'stacktape';
+
+export default defineConfig(() => {
+  const workload = new MultiContainerWorkload({
+    containers: [
+      {
+        name: 'app',
+        packaging: new StacktapeImageBuildpackPackaging({
+          entryfilePath: './src/app.ts'
+        })
+      }
+    ],
+    resources: {
+      cpu: 0.5,
+      memory: 1024
+    },
+    // [!code focus-start]
+    usePrivateSubnetsWithNAT: true
+    // [!code focus-end]
+  });
+
+  return {
+    resources: { workload },
+    stackConfig: {
+      vpc: {
+        nat: { availabilityZones: 2 }
+      }
+    }
+  };
+});`
+    }
+  ]}
+/>
+
+All outbound traffic routes through NAT Gateways, each with a static Elastic IP that persists across deployments. Configure the number of NAT Gateways (1–3) in `stackConfig.vpc.nat`. More gateways mean higher availability but higher cost.
+
+<Warning>Each NAT Gateway costs ~$32/month plus data processing fees. Only enable this when you need a static outbound IP.</Warning>
+
+## Health checks
+
+Two types of health checks protect your workload:
+
+- **Load balancer health check** — configured per-container via `loadBalancerHealthCheck` (only for containers with ALB or NLB events). The load balancer pings a path on the container and stops routing traffic to unhealthy instances. Defaults: path `/`, interval `5s`, timeout `4s`.
+- **Internal health check** — configured per-container via `internalHealthCheck`. Runs a command inside the container (e.g., `["CMD-SHELL", "curl -f http://localhost/ || exit 1"]`). If a container marked as `essential` fails, the task is replaced. Defaults: interval `30s`, timeout `5s`, `3` retries before marking unhealthy.
+
+## Logging
+
+Container output (`stdout`/`stderr`) is automatically sent to CloudWatch Logs and retained for 90 days by default. Each container has its own logging configuration. View logs with `stacktape logs`. Adjust retention per-container with the `logging.retentionDays` property.
+
+## Remote debugging
+
+Enable `enableRemoteSessions: true` to allow interactive shell access to running containers via `stacktape container:session`. Useful for debugging issues that only reproduce in the deployed environment.
+
+## FAQ
+
+### Can containers in the same task communicate via localhost?
+
+Yes, but only on ports explicitly opened by `workload-internal` events. Add a `workload-internal` event to the target container with the desired `containerPort`, then other containers in the same task can reach it at `localhost:<port>`.
+
+### What is the difference between a multi-container workload and a web service with sidecars?
+
+A web service with `sideContainers` has one main container plus helper containers (init or always-running). A multi-container workload treats all containers as peers — each can have its own events, traffic routing, and lifecycle. Use a multi-container workload when multiple containers need independent external traffic sources.
+
+### Can a multi-container workload scale to zero?
+
+No. The minimum `minInstances` is 1. Fargate tasks cannot scale to zero — at least one task is always running and billing. For pay-per-request compute that scales to zero, use a [Lambda function](/resources/compute/lambda-function).
+
+### How much does a Fargate multi-container task cost?
+
+Cost depends on the CPU and memory you allocate to the task (shared across all containers). A 0.25 vCPU / 512 MB task costs ~$9/month in us-east-1. ARM (`arm64`) tasks cost ~20% less. See the [pricing table](#cpu-memory-and-compute-engine) for common sizes.
+
+## API reference
+
+<ApiReference definitionName="ContainerWorkloadProps" />
+
+## Referenceable parameters
+
+<ReferenceableParams resource="multi-container-workload" />

@@ -45,6 +45,10 @@ const nextConfig: NextConfig = {
     }
   }),
   turbopack: {
+    // Pin the workspace root explicitly to the parent stacktape repo so Turbopack stops printing
+    // "multiple lockfiles detected" on every dev start. Must be the parent (not docs/) because
+    // several MDX components import from ../@generated/* which sits one level above docs/.
+    root: stacktapeRepoRoot,
     rules: {
       '*.yaml': {
         loaders: [{ loader: 'yaml-loader' }],

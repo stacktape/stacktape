@@ -1,0 +1,1545 @@
+{
+  "pageId": "resources__compute__worker-service",
+  "pageRoute": "resources/compute/worker-service",
+  "startedAt": "2026-05-07T09:38:42.540Z",
+  "updatedAt": "2026-05-07T10:27:35.037Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\resources__compute__worker-service\\iteration-1.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "startup-cto",
+          "persona": "Small startup CTO with low to medium AWS experience. Cares most about time-to-production and shipping quickly without getting trapped in AWS complexity.",
+          "modelProvider": "claude",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Strong opening paragraph — self-contained, defines what the resource is, why it matters, and what it's built on, all within the target word count. Works well as an AI-extractable answer.",
+            "The 'When should I use a worker service?' and alternatives table are concrete and opinionated. Each row names a specific situation and links to the better option, helping the reader make a fast decision.",
+            "The basic example pairs Stacktape config with a realistic SQS-polling application code snippet — this is exactly what a startup CTO needs to see to understand the pattern end-to-end.",
+            "Appropriately omits sections that don't apply to worker services (load balancing, CDN, CORS, custom domains, gradual deployments, firewall) while keeping the structure parallel to the web service page for navigational consistency.",
+            "The health checks section includes the <Info> callout explaining why worker services only have internal health checks (no load balancer). This cross-resource comparison helps readers who are also looking at web-service docs.",
+            "Pricing context is grounded in source data and correctly noted upfront. The cost table for Fargate sizes is practical and matches the pricing source file.",
+            "The Connecting to other resources example realistically pairs a WorkerService with an SqsQueue resource, which is the most common worker pattern — good signal-to-noise."
+          ],
+          "problems": [
+            "The connectTo example references 'myDatabase' in the connectTo array but never defines it in the config. This will confuse readers who expect a complete, copyable example. Either define a database resource or remove the reference.",
+            "No mention of `stopTimeout` anywhere in the page. For worker services doing background processing, graceful shutdown is critical — the default of 2 seconds is very short and likely insufficient for most queue consumers. The reader needs to know this exists and that they probably need to increase it.",
+            "The Persistent Storage section is thin compared to other sections — it shows how to mount EFS but doesn't explain when you'd want persistent storage on a worker (e.g., local file processing, ML model caching) or the cost/performance tradeoffs of EFS."
+          ],
+          "mandatoryFixes": [
+            "Add a mention of `stopTimeout` (default: 2 seconds, range: 2–120) either in its own short subsection or as a Tip/Warning near the health checks or basic example section. For background workers processing jobs, 2 seconds is almost always too short — the reader needs to know to increase this to avoid dropped work during deployments.",
+            "Fix the connectTo example: either add a relational database resource definition alongside the SqsQueue, or remove 'myDatabase' from the connectTo array so the example is self-contained and copyable."
+          ],
+          "optionalImprovements": [
+            "Consider adding a short 'Graceful shutdown' subsection or paragraph explaining the SIGTERM → SIGKILL lifecycle, the stopTimeout property, and the pattern for draining in-flight work before shutdown. This is the #1 operational concern for queue-consuming workers.",
+            "The Persistent Storage section would benefit from a one-line 'when to use' framing (e.g., 'Use EFS when your worker needs to read/write files that persist across container restarts or are shared between instances') and a cost note (~$0.30/GB-month for standard EFS).",
+            "The Scaling section could mention that for SQS-based workers, scaling on CPU alone may not be ideal — a worker polling an empty queue has low CPU. Consider noting that custom CloudWatch metrics or queue depth-based scaling may be more appropriate for queue consumers, or link to a relevant page if one exists.",
+            "In the basic example's application code, the SQS polling loop has no error handling or graceful shutdown hook. Adding a brief comment like '// In production, handle SIGTERM to finish in-flight messages' would reinforce the stopTimeout guidance without bloating the example.",
+            "Consider using question-format headings for a few key sections (e.g., 'How do I scale a worker service?' instead of 'Scaling') to improve SEO discoverability, matching the style guide's preference for question-form H2/H3 headings 'where natural'."
+          ]
+        },
+        {
+          "reviewerId": "smb-manager",
+          "persona": "SMB engineering manager with medium to high AWS knowledge. Cares about long-term maintainability, team clarity, operational fit, technically correct Stacktape class-based config examples, and valid MDX component usage.",
+          "modelProvider": "codex",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 6,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Strong opening structure with a clear definition, pricing context, and early use/not-use guidance.",
+            "Uses TypeScript class-based Stacktape config examples inside <CodeBlock intellisense tabs={[...]}/> and avoids forbidden YAML config patterns.",
+            "Covers the main operational levers this audience needs: compute sizing, scaling, connectTo, NAT for static outbound IP, health checks, logging, remote sessions, and EFS mounts.",
+            "The comparison table in the decision section is practical and helps distinguish worker services from web services, private services, Lambda functions, and batch jobs."
+          ],
+          "problems": [
+            "Several technical claims are not grounded in the provided source files: worker-service zero-downtime deployments, Lambda 15-minute timeout, EC2 weekly refresh for patching, Fargate valid CPU/memory combinations, health check defaults, and CloudWatch retention details beyond what is shown in SimpleServiceContainer.",
+            "The basic example application reads STP_JOBS_URL but the paired Stacktape config does not define an SQS queue or connect the worker to it, so the example is not copyable as written.",
+            "The first CodeBlock examples use label: 'stacktape.ts' instead of the required visible TypeScript tab label from the supplied docs rules.",
+            "The page repeats several claims from the web-service example without re-grounding them for worker-service, especially around compute, scaling defaults, logging, and remote debugging.",
+            "The worker-service page does not clearly explain the important operational tradeoff for queue consumers: Stacktape does not attach event triggers to a worker service; the application process must poll or otherwise run its own loop.",
+            "Some claims are broader than the source supports, such as 'Stacktape manages scaling, health checks, and zero-downtime deployments' in the intro. The source supports scaling and internal health checks, but not the deployment behavior stated here."
+          ],
+          "mandatoryFixes": [
+            "Remove or narrow unsupported claims unless they can be grounded in authoritative source files: zero-downtime deployments, Lambda timeout, EC2 weekly refresh, Fargate CPU/memory valid combinations, health check defaults, and log retention wording.",
+            "Make the basic example internally consistent: either define and connect an SQS queue in the config or change the application code so it does not depend on STP_JOBS_URL.",
+            "Change Stacktape config CodeBlock tab labels to the required visible TypeScript label, or align with the project’s validated component convention if the repository explicitly standardizes on stacktape.ts."
+          ],
+          "optionalImprovements": [
+            "Add a short section explaining how worker services receive work: they are always-running containers with no public endpoint, so queue polling, stream clients, cron-like loops, or external clients must be implemented in the container code.",
+            "Add one sentence near scaling that CPU/memory-based scaling may not track queue backlog directly, if supported by source or validated elsewhere. That would help managers reason about operational fit.",
+            "Consider moving persistent storage earlier or adding a brief 'skip EFS unless you need shared durable files' tradeoff, since EFS changes cost and operational behavior.",
+            "Link CLI command mentions such as stacktape logs and stacktape container:session to their CLI reference pages if routes exist in the docs source."
+          ]
+        },
+        {
+          "reviewerId": "developer-low-aws",
+          "persona": "Developer with little AWS or DevOps experience. Needs jargon kept under control and wants examples that are easy to follow.",
+          "modelProvider": "claude",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Excellent 'When should I use a worker service?' section with a clear decision table covering five alternatives — matches the example page pattern and gives the reader a fast answer.",
+            "The 'Connecting to other resources' example is notably stronger than a bare connectTo list: it defines the SqsQueue alongside the worker in the same config, showing the full pattern a real team would use.",
+            "Health checks section adds a well-placed <Info> callout that explicitly contrasts with web service (no load balancer health check), helping readers who are comparing the two resource types.",
+            "Persistent storage section is a smart addition that the example web-service page doesn't have — EFS mounts are more relevant for workers (shared state across instances, surviving restarts) and the example is realistic and copyable.",
+            "Pricing context is accurate, sourced from the distilled pricing file, and includes the critical caveat that idle tasks still bill — important for a resource that cannot scale to zero.",
+            "All Stacktape config examples correctly use <CodeBlock intellisense tabs={[...]} /> with TypeScript class-based resources; no style violations detected."
+          ],
+          "problems": [
+            "The basic example has a critical disconnect: the app code references `process.env.STP_JOBS_URL` (which requires `connectTo: ['jobs']` and a defined SqsQueue resource), but the config only defines the worker with packaging and resources — no queue, no connectTo. A beginner copying this example verbatim gets an undefined env var. The web-service example page avoids this by using a fully self-contained HTTP server.",
+            "The basic example's worker code uses a bare `while (true)` polling loop with no error handling or backoff. A beginner deploying this will get a container that crashes on the first SQS error and restarts in a loop. A minimal try/catch or a note about production error handling would prevent a common foot-gun.",
+            "The `stopTimeout` property (default 2 seconds, range 2–120) from `SimpleServiceContainer` is not mentioned anywhere. For a worker service processing long-running jobs, graceful shutdown is critical — a 2-second default may silently drop in-progress work. This deserves at least a one-line mention.",
+            "The first paragraph says 'built on AWS ECS Fargate' without a brief gloss. The target audience (little AWS/DevOps experience) may not know what Fargate is. The pricing line partially addresses this ('Fargate task'), but a parenthetical like 'a serverless container platform' on first mention would help."
+          ],
+          "mandatoryFixes": [
+            "Fix the basic example so the config and app code are consistent. Either: (a) make the basic config self-contained by adding an SqsQueue and `connectTo: ['jobs']` (similar to the later 'Connecting to other resources' example), or (b) change the basic worker code to a simpler self-contained pattern (e.g., a periodic polling loop that doesn't depend on external resources) and keep the SQS pattern for the connectTo section.",
+            "Add a brief mention of `stopTimeout` (default 2 seconds) near the health checks or scaling section. For workers processing long jobs, the default 2-second shutdown window is a significant gotcha. Example: 'Set `stopTimeout` (default: 2 seconds, max: 120) to give your worker time to finish in-progress work before the container is replaced.'"
+          ],
+          "optionalImprovements": [
+            "Add a brief parenthetical on first mention of ECS Fargate for the target audience, e.g., 'built on AWS ECS Fargate (a serverless container platform)' — one clause, no extra section needed.",
+            "Add minimal error handling to the basic example's polling loop (a try/catch around processMessage with a short backoff on error) so beginners don't deploy a crash-loop. Even a comment like `// Add error handling for production` would help.",
+            "Consider adding a one-liner about verifying the worker is running after deploy, e.g., 'After deploying, run `stacktape logs --resourceName worker` to confirm your worker started and is processing messages.' This bridges the gap between 'deploy' and 'verify it works'.",
+            "The 'Scaling' section could briefly mention that for queue-based workers, CPU/memory-based scaling may not be the best signal — a queue depth alarm or custom metric might be more appropriate. Even a short note with a link to alarms would help.",
+            "Use a question-format heading for 'How do I connect to other resources?' and 'How do I configure health checks?' to improve SEO discoverability, matching the style guide's preference for question-form H2/H3 headings."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "claude-verifier",
+          "modelProvider": "claude",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "For permissions not covered by `connectTo` (e.g., AWS Rekognition, Bedrock, SES), use `iamRoleStatements`",
+              "reason": "SES is covered by `connectTo` via the `aws:ses` macro. The `iamRoleStatements` JSDoc lists Rekognition, Textract, and Bedrock as examples — not SES. Listing SES here will mislead readers into writing IAM statements when `connectTo: ['aws:ses']` already handles it.",
+              "suggestedFix": "Change to: \"For permissions not covered by `connectTo` (e.g., AWS Rekognition, Textract, Bedrock), use `iamRoleStatements` to add raw IAM policy statements.\"",
+              "evidence": [
+                {
+                  "file": "types/stacktape-config/__helpers.d.ts",
+                  "quote": "**`aws:ses`** — full SES email sending permissions"
+                },
+                {
+                  "file": "types/stacktape-config/__helpers.d.ts",
+                  "quote": "Added as a separate policy alongside auto-generated permissions. Use this for\n   * accessing AWS services directly (e.g., Rekognition, Textract, Bedrock)."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "A worker service is an always-on container with no public endpoint, built on AWS ECS Fargate.",
+              "reason": "The opening paragraph states the worker service is 'built on AWS ECS Fargate', but it can also run on EC2 instance types. The `resources` property JSDoc explicitly lists two compute engines: Fargate (default) and EC2. The later 'Resources and compute' section correctly describes both, but the opening paragraph will be extracted by AI engines as the canonical description and currently omits the EC2 option.",
+              "suggestedFix": "Change to: 'A worker service is an always-on container with no public endpoint, running on AWS ECS (Fargate by default, EC2 optional).' or 'built on AWS ECS Fargate (with an EC2 option for cost optimization).'",
+              "evidence": [
+                {
+                  "file": "types/stacktape-config/__helpers.d.ts",
+                  "quote": "Two compute engines:\n   * - **Fargate** (default): Serverless — just specify `cpu` and `memory`.\n   * - **EC2**: Specify `instanceTypes` for more control and potentially lower cost."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "The `architecture` option is only available with Fargate, not EC2.",
+              "reason": "The source says the architecture property is 'Ignored when using `instanceTypes`', not 'only available with Fargate'. EC2 instance architecture is determined by the instance type itself (e.g., c6g.large is ARM). Saying it's 'not available' on EC2 is misleading — it's simply unnecessary since instance types inherently define the architecture.",
+              "suggestedFix": "Change to: 'The `architecture` property applies to Fargate only. When using EC2 `instanceTypes`, the architecture is determined by the instance type itself (e.g., `c6g.large` for ARM).'",
+              "evidence": [
+                {
+                  "file": "types/stacktape-config/multi-container-workloads.d.ts",
+                  "quote": "#### CPU architecture for Fargate. `arm64` is ~20% cheaper. Ignored when using `instanceTypes`.\n   * @default 'x86_64'"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "missing-caveat",
+              "statement": "Without scaling configured, a single container handles all work (`minInstances` and `maxInstances` both default to `1`).",
+              "reason": "The source confirms both default to 1, and also states 'Set to 0 is not supported — minimum is 1'. The draft's recommendation of 'at least minInstances: 2' for production is good advice, but it would be helpful to mention that Fargate cannot scale to zero (matching the pricing caveat). This is a minor omission, not an error.",
+              "suggestedFix": "Consider adding a brief note that minInstances cannot be set to 0 — Fargate always runs at least one task.",
+              "evidence": [
+                {
+                  "file": "types/stacktape-config/multi-container-workloads.d.ts",
+                  "quote": "#### Minimum running instances. Set to 0 is not supported — minimum is 1.\n   * @default 1"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "Instances auto-scale and are refreshed weekly for patching.",
+              "reason": "The 'refreshed weekly for patching' claim does appear in the EC2 instanceTypes JSDoc, so it is technically sourced. However, this detail is buried and readers may misunderstand what 'refreshed' means operationally. Low severity since the source does contain this statement.",
+              "suggestedFix": "No change needed — the claim is sourced.",
+              "evidence": [
+                {
+                  "file": "types/stacktape-config/multi-container-workloads.d.ts",
+                  "quote": "Instances auto-scale and are refreshed weekly for patching."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "Pricing table is accurately derived from source data: all five rows match the distilled pricing (vCPU rate + memory rate). For example, 0.25 vCPU ($7.29) + 512 MB ($1.60) = $8.89 ≈ ~$9.",
+            "Scaling defaults (minInstances: 1, maxInstances: 1, CPU threshold: 80%, memory threshold: 80%) all match the source type definitions exactly.",
+            "Health check defaults (interval 30s, timeout 5s, 3 retries) are accurately stated and match the ContainerHealthCheck type @default annotations.",
+            "The `logging.retentionDays` property name is correct per ContainerWorkloadContainerLogging, and the 90-day default matches the source.",
+            "connectTo environment variable naming convention (STP_[RESOURCE_NAME]_[PARAM]) and the specific variables for SQS (ARN, NAME, URL) and relational databases (CONNECTION_STRING, HOST, PORT) all match the ResourceAccessProps JSDoc.",
+            "NAT Gateway cost (~$32/month), availability zone range (1-3), and default (2) all match the NatSettings type definition.",
+            "Side container types ('run-on-init' and 'always-running') and their behavioral descriptions match the ServiceHelperContainer type and JSDoc.",
+            "All CodeBlock examples use the correct <CodeBlock intellisense tabs={[...]} /> format for Stacktape config, with no hand-authored YAML tabs or fenced TypeScript blocks for config.",
+            "The opening paragraph is well-crafted for SEO/AEO: self-contained, under 60 words, defines what the resource is and its primary use cases.",
+            "The 'when to use / when not to use' comparison table correctly maps alternatives to relevant resource pages.",
+            "The stopTimeout property constraint (2-120 seconds, default 2) in the source is not misrepresented in the draft — it's correctly left to the API reference component.",
+            "The usePrivateSubnetsWithNAT property and its behavior description match the SimpleServiceContainer source accurately."
+          ],
+          "summary": "The draft is well-grounded overall. Three medium-severity issues: (1) SES is incorrectly listed as needing `iamRoleStatements` when it is already covered by the `connectTo` macro `aws:ses`; (2) the opening paragraph claims the worker service is 'built on AWS ECS Fargate' without mentioning the EC2 compute option, which the resource explicitly supports; (3) the `architecture` property is described as 'only available with Fargate, not EC2' when the source says it is 'ignored when using instanceTypes' — a meaningful distinction since EC2 architecture is determined by instance type. All pricing data, scaling defaults, health check defaults, logging retention, connectTo variable names, NAT configuration, and side container behavior are accurately sourced. CodeBlock format follows the style guide correctly throughout."
+        },
+        {
+          "verifierId": "codex-verifier",
+          "modelProvider": "codex",
+          "summary": "The draft is mostly aligned with the provided worker-service and shared container workload types, but it overstates several behaviors that are not grounded in the provided source and includes a few likely-invalid or unsupported example details. The largest problems are around deployment behavior, scaling defaults, health-check defaults, EC2 maintenance behavior, static outbound IP wording, EFS encryption wording, and unsupported links/CLI claims.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape manages scaling, health checks, and zero-downtime deployments.”",
+              "reason": "The provided source supports configurable scaling and internal health checks, but it does not state zero-downtime deployments for worker services.",
+              "suggestedFix": "Remove “zero-downtime deployments” or narrow to sourced behavior: “Stacktape can configure scaling and internal health checks for the container.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Auto-scaling: add/remove container instances based on demand."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Health check that auto-replaces unhealthy containers."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“EC2 — specify instanceTypes for more control and potentially lower cost on steady workloads. Instances auto-scale and are refreshed weekly for patching.”",
+              "reason": "The provided source supports EC2 as an engine and `instanceTypes`, but it does not support the weekly refresh/patching claim.",
+              "suggestedFix": "Keep the EC2 comparison to sourced wording: “EC2: Specify `instanceTypes` for more control and potentially lower cost.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Two compute engines:\n   * - **Fargate** (default): Serverless — just specify `cpu` and `memory`.\n   * - **EC2**: Specify `instanceTypes` for more control and potentially lower cost."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Without scaling configured, a single container handles all work (`minInstances` and `maxInstances` both default to `1`).”",
+              "reason": "The source shown only says `scaling` is optional and describes what it does. It does not provide default values for `minInstances` or `maxInstances`. Numeric defaults must be sourced.",
+              "suggestedFix": "Remove the exact default values unless they are verified in the missing container workload scaling type/runtime validator. Use: “If you need more than one running container, configure `scaling` explicitly.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "scaling?: ContainerWorkloadScaling;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Scaling policy defaults: scale out when average CPU or memory exceeds 80%, scale in when utilization drops below the target.”",
+              "reason": "The provided files do not define these scaling-policy defaults. Numeric defaults must be sourced from the relevant type or runtime validator.",
+              "suggestedFix": "Remove the default thresholds, or cite only the configurable example without claiming defaults.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Auto-scaling: add/remove container instances based on demand."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“`maxInstances` must be greater than or equal to `minInstances`.”",
+              "reason": "This constraint is plausible, but it is not present in the provided source files. Constraints must come from types or validators.",
+              "suggestedFix": "Omit the constraint unless verified in the runtime validators or the `ContainerWorkloadScaling` type definition.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "scaling?: ContainerWorkloadScaling;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“By default, your container's outbound IP address changes with each deployment.”",
+              "reason": "The source supports using private subnets with NAT for static outbound IPs, but it does not state that the default outbound IP changes with each deployment.",
+              "suggestedFix": "Rewrite to the sourced behavior: “Enable private subnets with NAT when you need a static outbound IP for external allowlists.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Deploy in private subnets with a static outbound IP via NAT Gateway."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "The container won't have a public IP. All outbound traffic routes through a NAT Gateway,\n   * giving you a static IP you can whitelist in external services"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“All outbound traffic routes through NAT Gateways, each with a static Elastic IP that persists across deployments.”",
+              "reason": "The source supports NAT Gateway routing and says each NAT Gateway gets a static Elastic IP that persists across deployments, but the page says “all outbound traffic” without scoping it to workloads using `usePrivateSubnetsWithNAT: true`.",
+              "suggestedFix": "Scope the statement: “For workloads with `usePrivateSubnetsWithNAT: true`, outbound traffic routes through NAT Gateway. Each NAT Gateway gets a static Elastic IP that persists across deployments.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Only applies when you have workloads using `usePrivateSubnetsWithNAT: true`."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Each NAT Gateway gets a static Elastic IP that persists across deployments"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Defaults: interval `30s`, timeout `5s`, `3` retries before marking unhealthy.”",
+              "reason": "The provided source does not include default values for `ContainerHealthCheck`. Numeric defaults must be sourced.",
+              "suggestedFix": "Remove the defaults unless verified in the `ContainerHealthCheck` type or runtime validator. Keep the example values as explicit configuration only.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "internalHealthCheck?: ContainerHealthCheck;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Unlike a web service, a worker service has no load balancer health check since there is no public endpoint. The internal health check is the only mechanism for auto-replacing unhealthy containers.”",
+              "reason": "The source supports that worker services have no public URL and have `internalHealthCheck`, but it does not state that internal health checks are the only replacement mechanism or compare against web-service load balancer checks.",
+              "suggestedFix": "Narrow to: “A worker service has no public URL, so configure `internalHealthCheck` when you want Stacktape to replace containers that fail a command-based health check.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\worker-services.d.ts",
+                  "quote": "Always-on container with no public URL."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "If a container fails the health check, it's terminated and replaced automatically."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Data stored in EFS volumes survives container replacements and is encrypted in transit.”",
+              "reason": "The source supports persistence across container replacement and shared mounts, but the provided source only says all data is encrypted in transit in the property description. If the page implies this applies to all EFS data/storage without qualification, it should be tied to `volumeMounts` behavior. The stronger wording “survives container replacements” is supported; the issue is the broad “Data stored in EFS volumes ... is encrypted in transit” phrasing, because encryption in transit applies to transfer, not stored data.",
+              "suggestedFix": "Use the source wording more exactly: “EFS volume mounts persist when containers are replaced, can be mounted by multiple containers, and use encryption in transit.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Data stored in EFS volumes persists even when containers are replaced.\n   * Multiple containers can mount the same volume. All data is encrypted in transit."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "The basic example application code reads `process.env.STP_JOBS_URL`, but the Stacktape config in that example does not define or connect an SQS queue named `jobs`.",
+              "reason": "The source says `connectTo` injects variables for listed resources. The basic example’s worker code depends on an injected queue URL, but the preceding Stacktape config only defines `worker`, so the example is not copyable as written.",
+              "suggestedFix": "Either add an `SqsQueue` resource and `connectTo: ['jobs']` to the basic example, or remove SQS-specific code from the basic example.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "A list of resources the script needs to interact with. Stacktape automatically injects environment variables with connection details for each specified resource."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "**`SqsQueue`** — send/receive/delete → `ARN`, `NAME`, `URL`"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "The connecting-resources example uses `connectTo: ['jobs', 'myDatabase']` but only defines `jobs` and `worker` in `resources`.",
+              "reason": "`connectTo` is described as listing resources the workload needs to communicate with. Referencing `myDatabase` without defining it makes the example incomplete and likely invalid as a copyable config.",
+              "suggestedFix": "Either define a relational database named `myDatabase`, remove it from `connectTo`, or say it represents another resource you must add to the stack.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "List the names of resources this workload needs to communicate with."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The Stacktape image buildpack builds a container image from your source code automatically. For other packaging options (custom Dockerfile, prebuilt image, Nixpacks), see container packaging.”",
+              "reason": "The source supports Stacktape image buildpack, custom Dockerfile, prebuilt image, external buildpack, and Nixpacks packaging. It does not support the linked path `/packaging/containers/` from the provided files.",
+              "suggestedFix": "Keep the supported packaging options, but avoid asserting the exact link target unless verified from docs routing sources.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts",
+                  "quote": "type: 'stacktape-image-buildpack';"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts",
+                  "quote": "type: 'custom-dockerfile';"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts",
+                  "quote": "type: 'prebuilt-image';"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts",
+                  "quote": "type: 'nixpacks';"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“built on AWS ECS Fargate” in the opening paragraph.",
+              "reason": "The pricing source says Fargate is used by worker-service, and the shared type says Fargate is the default compute engine. However, the same source also says EC2 is available, so the opening may over-imply that worker services are always Fargate-backed.",
+              "suggestedFix": "Use: “A worker service is an always-on container with no public endpoint. It uses Fargate by default, or EC2 when you configure the EC2 compute engine.”",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“Stacktape manages scaling” in the first paragraph.",
+              "reason": "Scaling is optional (`scaling?: ...`). The source supports configurable auto-scaling, but the current wording can read as if every worker service is automatically scaled without configuration.",
+              "suggestedFix": "Use: “Stacktape can configure auto-scaling...” or “You can configure scaling...”",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“Processing takes more than 15 minutes per item (the Lambda timeout limit).”",
+              "reason": "The 15-minute Lambda timeout limit is not present in the provided source files. It is a well-known AWS limit, but this verifier must ground technical statements in the provided sources.",
+              "suggestedFix": "Remove the number or verify it from an allowed Lambda source file before including it.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "“Private service” is the better option for “Internal HTTP communication between services.”",
+              "reason": "The provided source only says `PrivateService` exposes an `ADDRESS` referenceable parameter. It does not provide enough information to verify this recommendation or the target route.",
+              "suggestedFix": "Keep the comparison only if verified from private-service source files; otherwise soften to “consider private service if your worker needs to expose an internal service endpoint.”",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "“Batch job” is the better option for a finite task that starts, runs, and terminates.",
+              "reason": "The provided source list includes `BatchJob` as a resource type and referenceable parameters, but does not describe its lifecycle. This recommendation is likely correct but not grounded in the provided files.",
+              "suggestedFix": "Verify against batch-job types/docs or phrase more cautiously.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“Next.js, Remix, Astro, or similar SSR framework | Dedicated framework resource.”",
+              "reason": "The source lists framework resources, but it does not support the route `/resources/frontend/` or explain that these are the right choice for SSR frameworks on this page’s source set.",
+              "suggestedFix": "Verify the frontend framework resource pages/routes or remove the row from this resource page.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "“For production workloads, configure at least `minInstances: 2` so your worker stays available if one container fails.”",
+              "reason": "This is a recommendation rather than a source fact, but it relies on availability behavior not explicitly described in the provided files. The source says scaling can add/remove instances and health checks can replace unhealthy containers, but not the availability implications of `minInstances: 2`.",
+              "suggestedFix": "Soften to: “For workloads where interruption matters, consider more than one instance.”",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "“Traffic is automatically distributed across all running containers” as applied to worker-service scaling.",
+              "reason": "This phrase exists in the shared `scaling` docstring, but worker services have no public endpoint and usually pull work themselves. The page should avoid applying “traffic distribution” wording to worker services unless the source explains how it applies to background workers.",
+              "suggestedFix": "Describe worker scaling as running more container instances to process more background work, without saying traffic is distributed.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "“For the full list of injected variables per resource type, see connecting resources” with link `/configuration/connecting-resources`.",
+              "reason": "The provided source includes injected variable lists, but does not verify that this docs route exists.",
+              "suggestedFix": "Verify the route from docs source or omit the exact link target.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "“Each side container has its own packaging, environment variables, and resource allocation.”",
+              "reason": "`ServiceHelperContainer` extends `ContainerWorkloadContainerBase`, but the provided source list does not show `ContainerWorkloadContainerBase`, so this exact set of side-container fields is not verifiable here.",
+              "suggestedFix": "Either verify `ContainerWorkloadContainerBase` or say only what is sourced: side containers run as `run-on-init` or `always-running` helper containers alongside the main container.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "“Configure the number of NAT Gateways (1–3) in `stackConfig.vpc.nat`.”",
+              "reason": "The source supports `availabilityZones?: 1 | 2 | 3`, but the draft wording says “number of NAT Gateways” while the actual property is the number of availability zones that get a NAT Gateway.",
+              "suggestedFix": "Use the source wording: “Configure how many availability zones get a NAT Gateway with `stackConfig.vpc.nat.availabilityZones`.”",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "“The health check runs a command inside the container — if it fails, ECS terminates and replaces the container.”",
+              "reason": "The source supports “If a container fails the health check, it's terminated and replaced automatically,” but does not name ECS as the actor for this behavior in the health-check section.",
+              "suggestedFix": "Use Stacktape-oriented wording: “If the container fails the health check, it is terminated and replaced automatically.”",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "“Use `startPeriodSeconds` to give the container a grace period during startup before health check failures count.”",
+              "reason": "The provided source does not show the `ContainerHealthCheck` type, so `startPeriodSeconds` behavior is not verifiable from the supplied files.",
+              "suggestedFix": "Keep the property in the example only if it is verified in `ContainerHealthCheck`; otherwise remove the explanatory sentence.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "“View logs with `stacktape logs` or in the Stacktape Console.”",
+              "reason": "The shared type docstring supports this statement, but the verifier instructions require CLI behavior and Console capabilities to be checked against CLI and console-app sources. Those sources were not provided.",
+              "suggestedFix": "Either include the relevant CLI/Console source files for verification or keep the logging paragraph to CloudWatch/retention only.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "“Adjust retention with the `logging.retentionDays` property.”",
+              "reason": "The source says `logging?: ContainerWorkloadContainerLogging`, but does not show that `retentionDays` is a valid property of that type.",
+              "suggestedFix": "Verify `ContainerWorkloadContainerLogging` before naming `logging.retentionDays`, or omit the property path.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "“Enable `enableRemoteSessions: true` to allow SSH-like access to running containers via `stacktape container:session`.”",
+              "reason": "The type docstring supports the property and command name, but the verifier instructions require CLI command claims to match CLI source, which was not provided.",
+              "suggestedFix": "Either verify against CLI command sources or say “enables interactive shell access to running containers” without the exact command.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "The examples use `resources.cpu: 0.25`, `0.5`, `1`, `2`, and `4` and memory values such as `512`, `1024`, `2048`, `4096`, `8192`.",
+              "reason": "The pricing source mentions the range for Fargate billing, but the provided config types do not show the allowed `cpu`/`memory` values or valid Fargate CPU-memory combinations.",
+              "suggestedFix": "Verify against `ContainerWorkloadResourcesConfig` or runtime validators before presenting these as valid combinations.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“Fargate CPU and memory must use valid combinations.”",
+              "reason": "This is likely true for AWS Fargate, but the provided source files do not include the Stacktape validation rules or the `ContainerWorkloadResourcesConfig` type definition.",
+              "suggestedFix": "Retain only if verified from runtime validators or the missing resources config type.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "The `sideContainers` section says an `always-running` side container is “reachable from the main container via `localhost`.”",
+              "reason": "The source says `always-running` can reach the main container via `localhost`, not explicitly that the main container can reach the side container via `localhost`. The direction matters for sidecar communication.",
+              "suggestedFix": "Use the exact sourced direction or verify bidirectional localhost behavior elsewhere: “An `always-running` helper container runs for the task lifecycle and can reach the main container via `localhost`.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The page correctly identifies worker service as an always-on container with no public URL for background workers, queue processors, and internal tasks.",
+            "The pricing context is largely grounded in the provided pricing summary: Fargate idle tasks bill, ARM is approximately 20% cheaper, and the minimal 0.25 vCPU/512 MB estimate is consistent with the distilled pricing components.",
+            "The page uses `<CodeBlock intellisense tabs={[...]} />` for Stacktape configuration examples and does not include hand-authored YAML Stacktape config.",
+            "The page includes the required early “When should I use this?” section and a clear “Use something else when” alternative table.",
+            "The `connectTo`, `iamRoleStatements`, `usePrivateSubnetsWithNAT`, `enableRemoteSessions`, `volumeMounts`, `sideContainers`, `internalHealthCheck`, `logging`, `resources`, and `scaling` property names are present in the provided worker/shared container source.",
+            "`<ApiReference definitionName=\"WorkerServiceProps\" />` matches an interface present in `worker-services.d.ts`, and `<ReferenceableParams resource=\"worker-service\" />` matches the documented resource type."
+          ]
+        },
+        {
+          "verifierId": "code-validator",
+          "modelProvider": "deterministic",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #7 (stacktape.ts): TypeScript config example is not Prettier-formatted.",
+              "reason": "Stacktape config examples must render cleanly and consistently. The pipeline uses Prettier as the formatting contract.",
+              "suggestedFix": "Format the full code string with Prettier using the TypeScript parser."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "seoReviewResult": {
+        "score": 7,
+        "suggestions": [
+          "Rewrite generic noun-phrase headings into question format to match real search queries: 'Resources and compute' → 'How do I configure CPU and memory?', 'Scaling' → 'How does auto-scaling work?', 'Health checks' → 'How do I detect and replace unhealthy containers?', 'Logging' → 'Where are worker service logs stored?', 'Persistent storage' → 'How do I persist data across container restarts?'",
+          "Add an FAQ section at the bottom (before API reference) with 3-5 questions distilled from the page content: 'What is the difference between a worker service and a Lambda function?', 'How much does a Fargate worker service cost?', 'Can a worker service scale to zero?', 'How do I connect a worker to an SQS queue?', 'How do I get a static outbound IP for my worker?' — each with a 2-3 sentence self-contained answer.",
+          "The 'Logging' and 'Remote debugging' sections are too thin for AI extraction. Expand each to at least 2-3 sentences: for Logging, mention the CloudWatch log group naming convention and how to query logs; for Remote debugging, briefly explain what 'stacktape container:session' gives you (shell access) and when it is preferable to log-based debugging.",
+          "The 'Side containers' section lists the two types but lacks a concrete config example, unlike every other section. Add a short code block showing a run-on-init migration sidecar — this would also make the section extractable for queries like 'how to run database migrations before ECS container starts'.",
+          "Add a brief 'Fargate cannot scale to zero' callout near the Scaling section (not just in the pricing note at the top) to directly answer the common search query 'can ECS Fargate scale to zero'. A single sentence like 'Fargate does not support scaling to zero — at least one container is always running and billed. For scale-to-zero workloads, use a Lambda function instead.' would be highly extractable by AI engines.",
+          "In the opening answer block, consider adding 'AWS ECS' or 'Amazon ECS' as a parenthetical after 'ECS Fargate' to capture searches that use the full service name (e.g., 'Amazon ECS background worker'). The current text says 'AWS ECS Fargate' which is good but the long-tail 'Amazon Elastic Container Service' variant is also commonly searched."
+        ]
+      },
+      "passed": false
+    },
+    {
+      "iteration": 2,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\resources__compute__worker-service\\iteration-2.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "startup-cto",
+          "persona": "Small startup CTO with low to medium AWS experience. Cares most about time-to-production and shipping quickly without getting trapped in AWS complexity.",
+          "modelProvider": "claude",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "The SQS queue consumer example in the 'Connecting to other resources' section is realistic and end-to-end — it shows config, application code, and injected env var names. A startup CTO can copy this and have a working worker within minutes.",
+            "The graceful shutdown section with a prominent warning about the 2-second default stopTimeout is excellent. This is a real-world gotcha that would bite most users on their first deployment; surfacing it prominently is the right call.",
+            "The 'When should I use a worker service?' table is concise and decision-oriented. Each row gives a concrete alternative with a link — exactly what a CTO scanning options needs.",
+            "Question-format H2 headings ('How do I configure CPU and memory?', 'How does auto-scaling work?') match real search queries and make the page easy to scan.",
+            "The health check section includes a practical heartbeat-file pattern that gives users a working mental model for container health monitoring in a worker context (no HTTP endpoint to probe).",
+            "Pricing context is present at the top and grounded in the distilled pricing source (~$9/month for 0.25 vCPU/512 MB, ARM ~20% less). Cost table in the resources section reinforces this."
+          ],
+          "problems": [
+            "FAQ section violates the explicit rule: 'Do NOT add an FAQ section — only add one when SEO reviewer feedback explicitly requests it.' Additionally, 4 of 5 FAQ items restate content already covered in the main sections (cost from the pricing line and table, scale-to-zero from the scaling section, SQS connection from the connectTo section, static outbound IP from its own section). This is a padded backbone section.",
+            "The CPU values list ('Available CPU values: 0.25, 0.5, 1, 2, 4, 8, 16') is not present in the provided source files. The example web-service page does not list these values either. This is an ungrounded claim — if wrong, it misleads users into invalid configs.",
+            "The Tip in the resources section makes an unverified claim: 'The architecture property applies to Fargate only — when using EC2 instanceTypes, the architecture is determined by the instance type itself (e.g., c6g.large for ARM).' The provided source files do not confirm this distinction. The example page keeps the tip simpler without this extra sentence.",
+            "The logging section claims 'available values range from 1 day to 10 years' for retentionDays, but the provided source files do not specify this range. The example page omits the range. This risks being inaccurate if the actual allowed values differ.",
+            "The page does not mention the `environment` property for passing custom environment variables — a common need for workers that read API keys, feature flags, or secrets. The source shows `environment?: EnvironmentVar[]` on SimpleServiceContainer. The example web-service page also omits this, but for a worker (no HTTP layer to handle config), environment variables are arguably more central to the user's workflow."
+          ],
+          "mandatoryFixes": [
+            "Remove the FAQ section entirely. It violates the 'Do NOT add an FAQ section' rule, and its content is already covered in the main sections. If any FAQ answer contains unique information not present elsewhere on the page, fold that information into the relevant main section before deleting.",
+            "Remove or soften the ungrounded CPU values list ('Available CPU values: 0.25, 0.5, 1, 2, 4, 8, 16'). Either verify against the actual ContainerWorkloadResourcesConfig source type, or remove the enumeration and say 'Fargate CPU and memory must use valid combinations' (matching the example page's approach) with a link to the API reference for the full list.",
+            "Trim the Tip about architecture to match what the source supports: remove the sentence about EC2 instanceTypes determining architecture, which is not confirmed by the provided source files. Keep only 'Set architecture: arm64 to use ARM (Graviton) tasks for ~20% lower compute cost. The default is x86_64.'"
+          ],
+          "optionalImprovements": [
+            "Add a brief mention of the `environment` property near the connectTo section or in a short 'Environment variables' paragraph. Workers commonly need custom env vars for API keys, feature flags, or configuration that isn't covered by connectTo. A one-line mention with a small example would serve the audience well.",
+            "Remove the unverified retention range claim ('from 1 day to 10 years') from the logging section. Simpler phrasing like 'Adjust retention with the logging.retentionDays property' (matching the example page) is safer.",
+            "In the volume mounts section, add a one-line cost note for EFS (e.g., ~$0.30/GB/month for standard storage) if this data is available in the pricing source files. Storage costs can surprise startup CTOs.",
+            "Consider adding a one-sentence note in the basic example section about how to view worker logs after deployment ('Use stacktape logs --resourceName worker to tail output'). Workers produce no visible URL, so a new user's first question after deploying will be 'how do I know it's working?'",
+            "The side containers example only shows run-on-init. Consider adding an always-running example (e.g., a Datadog or Fluent Bit sidecar) since that's a common production pattern for workers that complements the run-on-init migration pattern."
+          ]
+        },
+        {
+          "reviewerId": "smb-manager",
+          "persona": "SMB engineering manager with medium to high AWS knowledge. Cares about long-term maintainability, team clarity, operational fit, technically correct Stacktape class-based config examples, and valid MDX component usage.",
+          "modelProvider": "codex",
+          "scores": {
+            "clarity": 7,
+            "scannability": 7,
+            "completeness": 6,
+            "practicalUsefulness": 7,
+            "audienceFit": 6
+          },
+          "strengths": [
+            "Strong early decision framing: the page quickly distinguishes worker services from web services, private services, Lambda functions, and batch jobs.",
+            "All Stacktape configuration examples use class-based resources inside `<CodeBlock intellisense tabs={[...]}/>` rather than fenced YAML or plain-object `StacktapeConfig`.",
+            "The page covers the main 80% concerns for an always-on background container: compute sizing, scaling, shutdown, resource access, health checks, logs, debugging, storage, and static outbound IP.",
+            "The graceful shutdown warning is useful and grounded in the `stopTimeout` source default/range."
+          ],
+          "problems": [
+            "The page includes an FAQ section even though the SEO/AEO instructions explicitly say not to add FAQ sections unless reviewer feedback requests one.",
+            "Every Stacktape config `<CodeBlock>` uses `label: 'stacktape.ts'`, but the hard CodeBlock rules require a visible `TypeScript` tab.",
+            "Several claims are not grounded in the provided source files or are broader than the source supports: Lambda timeout, batch-job suitability, ML inference examples, queue/stream processors, scheduled pollers, and Lambda event triggers are not established by the provided worker-service sources.",
+            "The statement `minInstances cannot be set to 0` is not supported by the provided source. The source documents scaling but does not show the `ContainerWorkloadScaling` type or its constraints.",
+            "The statement that `stopTimeout` applies during scaling events and health check failures is plausible but not directly supported by the provided source. The source only says the container receives SIGTERM then SIGKILL after the timeout.",
+            "The health check heartbeat-file recommendation is problematic: the example only checks whether `/tmp/healthy` exists, not whether it is fresh, so it would not detect a hung worker after the file is created once.",
+            "The EFS section says EFS is useful to share state between container instances. That is technically true for a shared filesystem, but it may encourage stateful worker coordination without warning about concurrency and locking concerns.",
+            "The page omits a clear monitoring/alarms discussion despite the source including SQS queue alarms. For a background worker page aimed at an engineering manager, queue backlog visibility is an important operational concern.",
+            "The page states `stacktape logs` and `stacktape container:session` links as plain text without linking the first mention of CLI commands, which conflicts with cross-page consistency guidance.",
+            "The FAQ repeats content already covered earlier, especially worker-vs-Lambda, pricing, scale-to-zero, SQS connection, and static outbound IP, making the page longer without adding much new value."
+          ],
+          "mandatoryFixes": [
+            "Remove the FAQ section. Fold any genuinely new, source-grounded content into the relevant earlier sections instead.",
+            "Change Stacktape config CodeBlock tab labels from `stacktape.ts` to `TypeScript`, or otherwise align with the required visible TypeScript tab rule.",
+            "Remove or narrow unsupported claims: Lambda timeout, Lambda triggers, batch-job alternatives, ML inference examples, scheduled pollers, queue/stream processor wording, and `minInstances` zero constraint unless source files for those facts are added.",
+            "Rewrite the health check heartbeat guidance so the command checks freshness, not just file existence, or remove the heartbeat pattern.",
+            "Link first mentions of CLI commands such as `stacktape deploy`, `stacktape logs`, and `stacktape container:session` to their CLI reference pages if those routes exist in the docs set."
+          ],
+          "optionalImprovements": [
+            "Add a short operational monitoring section focused on worker-relevant signals, especially SQS queue backlog, if the alarm source is in scope for this page.",
+            "Add one sentence in the EFS section warning that shared filesystem state requires application-level locking or idempotency when multiple worker instances write to the same paths.",
+            "Clarify that worker services do not expose inbound HTTP traffic; they can still initiate outbound requests and connect to resources granted through `connectTo`.",
+            "Make the Basic example slightly more realistic by showing SIGTERM handling in the worker code, since graceful shutdown is one of the most important worker-service concerns.",
+            "Replace broad phrasing like `any language or framework` with wording grounded in the packaging source, such as the languages supported by `StacktapeImageBuildpackPackaging` and the option to use custom Dockerfile or prebuilt-image packaging for other runtimes."
+          ]
+        },
+        {
+          "reviewerId": "developer-low-aws",
+          "persona": "Developer with little AWS or DevOps experience. Needs jargon kept under control and wants examples that are easy to follow.",
+          "modelProvider": "claude",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "The SQS queue consumer example in 'Connecting to other resources' is one of the strongest practical examples I've seen — it shows the full loop of defining the queue resource, wiring it with connectTo, and writing the polling code with injected env vars. A developer can copy this and have a working queue processor.",
+            "The graceful shutdown section with the SIGTERM/SIGKILL warning is excellent. The Warning callout about the 2-second default being too short for background workers is exactly the kind of opinionated, high-signal guidance this audience needs. This will prevent real production incidents.",
+            "The health check heartbeat pattern (write a file on each successful iteration, check for it in the health command) is a concrete, actionable technique that goes beyond just documenting config options. This is the kind of practical guidance that makes docs genuinely useful.",
+            "The 'When should I use a worker service?' section with the comparison table is clear and decisive. It covers the four main alternatives without hedging, making it easy for a developer to confirm they're on the right page.",
+            "Every CodeBlock example is correctly formatted with intellisense, focus markers, and realistic resource names. Application code is properly in fenced blocks. The import-hiding pattern with focus markers is consistently applied."
+          ],
+          "problems": [
+            "FAQ section is present but was not requested by SEO reviewer feedback. The hard requirement states: 'Do NOT add an FAQ section — only add one when SEO reviewer feedback explicitly requests it.' Additionally, every FAQ answer restates content already covered in detail on the page (pricing from the top + table, scale-to-zero from scaling section, SQS from connecting-to-resources, static IP from its own section). This constitutes a padded backbone section with restated content.",
+            "The CPU/memory section states 'Available CPU values: 0.25, 0.5, 1, 2, 4, 8, 16' but the provided source files do not include the ContainerWorkloadResourcesConfig type definition to verify this list. Values 8 and 16 are not grounded in any provided source. The hard requirements say: 'Ground every technical statement in the provided source files.'",
+            "The volume mounts section claims EFS volumes 'use encryption in transit' but the provided source (SimpleServiceContainer.volumeMounts typed as ContainerEfsMount[]) does not include details about encryption. This should be stated more cautiously or omitted.",
+            "The statement 'minInstances cannot be set to 0' in the scaling section is not verifiable from the provided source files — the ContainerWorkloadScaling type definition was not included. The claim that Fargate cannot scale to zero is supported by the pricing source, but the specific minInstances constraint is not grounded."
+          ],
+          "mandatoryFixes": [
+            "Remove the FAQ section entirely. It was not requested by SEO reviewer feedback (violates 'Do NOT add an FAQ section' rule) and every answer restates content already covered earlier on the page. This is a padded backbone section.",
+            "Remove or soften the claim 'Available CPU values: 0.25, 0.5, 1, 2, 4, 8, 16' — the ContainerWorkloadResourcesConfig type was not provided in source files. Either source this from the actual type definition or remove the enumerated list and keep only the cost table (which uses values consistent with the pricing source).",
+            "Remove 'use encryption in transit' from the volume mounts section or add a qualifier like 'EFS supports encryption in transit' — the specific claim is not grounded in the provided ContainerEfsMount type."
+          ],
+          "optionalImprovements": [
+            "The 'How do I persist data across container restarts?' section could briefly mention the cost model of EFS (pay per GB stored, no provisioned capacity needed) since the audience cares about cost and the rest of the page includes pricing context for other features.",
+            "The basic example worker code uses a simple setTimeout loop. Consider adding a one-line comment noting that in production you would typically poll a queue or stream rather than use a timer — this would better connect the basic example to the more realistic SQS example further down the page.",
+            "The side containers section could include a brief note about resource allocation — side containers share the task's total CPU and memory, so the reader should account for sidecar overhead when sizing the resources property.",
+            "Consider adding a brief 'Logging' subsection with a minimal example showing logging.retentionDays configuration, similar to how the example page handles it. The current one-sentence treatment under 'Where are worker service logs stored?' is thin compared to other sections.",
+            "The 'Connecting to other resources' section mentions iamRoleStatements for services like Rekognition, Textract, Bedrock — consider linking to a dedicated page for custom IAM statements if one exists, since this audience may not know how to write IAM policy statements."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "claude-verifier",
+          "modelProvider": "claude",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "The page includes a ## FAQ section with five questions.",
+              "reason": "The generation instructions explicitly state: 'Do NOT add an FAQ section — only add one when SEO reviewer feedback explicitly requests it.' This is listed under 'SEO and AI discoverability rules' as a hard constraint. No SEO reviewer feedback was provided requesting a FAQ section.",
+              "suggestedFix": "Remove the entire ## FAQ section. The questions it answers are already addressed in the main body of the page (pricing in the pricing line and cost table, scale-to-zero in the scaling section, SQS connection in the connectTo section, static IP in the NAT section). If any unique information exists only in the FAQ, move it into the relevant body section.",
+              "evidence": [
+                {
+                  "file": "@generated/aws-price/distilled/worker-service.md",
+                  "quote": "Idle tasks still bill — Fargate cannot scale to zero."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "Set `architecture: 'arm64'` to use ARM (Graviton) tasks for ~20% lower compute cost.",
+              "reason": "The property `architecture` lives inside `resources` (i.e., `resources.architecture`), not at the top level of the worker service config. The Tip reads as if `architecture` is a standalone property. While the surrounding context (a section about `resources`) implies the correct path, a reader copying this advice might look for a top-level `architecture` key.",
+              "suggestedFix": "Clarify to `resources.architecture: 'arm64'` or show it in a code example within the resources block.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\multi-container-workloads.d.ts",
+                  "quote": "architecture?: 'x86_64' | 'arm64';"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "Adjust retention with the `logging.retentionDays` property — available values range from 1 day to 10 years.",
+              "reason": "The property name `retentionDays` and the range are correct (1 to 3653 days ≈ 10 years), but the allowed values are a discrete set (1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, 3653), not a continuous range. Saying 'range from 1 day to 10 years' may mislead readers into thinking any number of days is accepted.",
+              "suggestedFix": "Say 'available retention periods include 1, 3, 5, 7, 14, 30, 60, 90 days and up to 10 years' or 'select from predefined retention periods between 1 day and 10 years'.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\multi-container-workloads.d.ts",
+                  "quote": "retentionDays?: 1 | 3 | 5 | 7 | 14 | 30 | 60 | 90 | 120 | 150 | 180 | 365 | 400 | 545 | 731 | 1827 | 3653;"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "missing-caveat",
+              "statement": "Scaling policy defaults: scale out when average CPU or memory exceeds 80%, scale in when utilization drops below the target.",
+              "reason": "The 80% default is correct per source, but the draft implies both CPU and memory are evaluated by default. In reality, both `keepAvgCpuUtilizationUnder` and `keepAvgMemoryUtilizationUnder` are optional. If only one is set (as in the example which only sets `keepAvgCpuUtilizationUnder: 70`), only that metric triggers scaling. The draft's earlier example only sets CPU, but this sentence implies both are active by default.",
+              "suggestedFix": "Clarify that CPU and memory scaling targets are independent — each only activates when explicitly set in `scalingPolicy`, or both default to 80% when `scalingPolicy` is configured without specifying either.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\multi-container-workloads.d.ts",
+                  "quote": "keepAvgCpuUtilizationUnder?: number;\n  /**\n   * #### Scale out when avg memory exceeds this %, scale in when it drops below.\n   * @default 80\n   */\n  keepAvgMemoryUtilizationUnder?: number;"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "`maxInstances` must be greater than or equal to `minInstances`.",
+              "reason": "This constraint is logical and almost certainly enforced at runtime, but the source type definition (`ContainerWorkloadScaling`) does not document this constraint. It only says both default to 1. The claim is likely correct but not grounded in the provided source.",
+              "suggestedFix": "Keep the statement (it's a sensible constraint) but no change needed — just noting it's not sourced from the type definition.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\multi-container-workloads.d.ts",
+                  "quote": "minInstances?: number;\n  /**\n   * #### Maximum running instances. Traffic is distributed across all instances.\n   * @default 1\n   */\n  maxInstances?: number;"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "Pricing figures are accurately computed from the distilled pricing source: 0.25 vCPU ($7.29) + 512 MB ($1.60) = $8.89 ≈ $9/month. All five rows in the cost table verify correctly.",
+            "ARM/Graviton ~20% cost reduction is directly sourced from both the pricing file and the `architecture` property JSDoc.",
+            "The `stopTimeout` default of 2 seconds and range of 2-120 are exactly confirmed by the `SimpleServiceContainer` JSDoc (@default 2, 'Must be 2-120').",
+            "Health check defaults (interval 30s, timeout 5s, 3 retries) all match @default annotations in `ContainerHealthCheck` type definition.",
+            "The `minInstances` cannot-be-zero constraint is explicitly documented in the source: 'Set to 0 is not supported — minimum is 1.'",
+            "Scaling policy 80% default is confirmed by @default annotations on both `keepAvgCpuUtilizationUnder` and `keepAvgMemoryUtilizationUnder`.",
+            "CPU values (0.25, 0.5, 1, 2, 4, 8, 16) exactly match the union type `cpu?: 0.25 | 0.5 | 1 | 2 | 4 | 8 | 16` in `ContainerWorkloadResourcesConfig`.",
+            "Side container types (`run-on-init`, `always-running`) and their behaviors are precisely sourced from `ServiceHelperContainer` JSDoc, including 'must exit with code 0' and 'if it crashes, the whole task fails'.",
+            "NAT Gateway default of 2 availability zones and ~$32/month cost match the `NatSettings` type definition (@default 2, '~$32/month each').",
+            "The `connectTo` environment variable pattern and SQS-specific variables (ARN, NAME, URL) match the `ResourceAccessProps.connectTo` JSDoc exactly.",
+            "EFS volume mount claims (persistence across restarts, multi-container mounting, encryption in transit) all match `SimpleServiceContainer.volumeMounts` JSDoc.",
+            "All Stacktape config examples correctly use `<CodeBlock intellisense tabs={[...]} />` with TypeScript tab. No hand-authored YAML. Application code uses fenced blocks.",
+            "The `<ApiReference definitionName=\"WorkerServiceProps\" />` component references a valid schema definition confirmed present in config-schema.json.",
+            "Logging retention default of 90 days matches `@default 90` in `ContainerWorkloadContainerLogging`.",
+            "The `architecture` default of 'x86_64' matches `@default 'x86_64'` in `ContainerWorkloadResourcesConfig`."
+          ],
+          "summary": "The draft is well-sourced overall. Pricing computations, resource defaults, type properties, and behavioral claims are almost entirely grounded in the source type definitions and pricing data. The most notable issue is the inclusion of a FAQ section despite explicit instructions prohibiting it — the FAQ content is redundant with the main body. Minor issues include slightly imprecise wording around logging retention (discrete allowed values presented as a continuous range), the `architecture` property path not being fully qualified, and a subtle implication that both CPU and memory scaling targets are active by default. All core factual claims — pricing, defaults for stopTimeout/scaling/health checks, CPU values, side container behavior, NAT Gateway costs, and connectTo patterns — verified correctly against the TypeScript type definitions."
+        },
+        {
+          "verifierId": "codex-verifier",
+          "modelProvider": "codex",
+          "summary": "The draft is mostly grounded in the provided worker-service and shared container source, but it contains several unsupported or over-broad claims around scaling behavior, health-check behavior, EFS encryption, CLI command names, and MDX/style requirements. The biggest factual risks are claims that exceed the WorkerService/SimpleServiceContainer type comments and pricing sources.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "The Stacktape config examples use `<CodeBlock intellisense ...>` with `label: 'stacktape.ts'`.",
+              "reason": "The page-specific CodeBlock rule requires a visible `TypeScript` tab label for Stacktape configuration examples. This is an MDX/style sanity issue under the supplied requirements, even though the examples correctly use CodeBlock with intellisense.",
+              "suggestedFix": "Change every Stacktape config CodeBlock tab label from `stacktape.ts` to `TypeScript`.",
+              "evidence": [
+                {
+                  "file": "Project style guide and glossary",
+                  "quote": "Use `label: 'TypeScript'` for the visible tab label."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Auto-scaling adds or removes container instances based on CPU and memory utilization.”",
+              "reason": "The provided source only says auto-scaling adds/removes instances based on demand. The only concrete scaling metric shown in the source comments is not CPU and memory; CPU/memory targets appear in the draft example and prose but are not present in the supplied type excerpts.",
+              "suggestedFix": "Write more narrowly: “The `scaling` property controls how many container instances Stacktape may run. Configure the policy using the options in the API reference.” Avoid naming CPU or memory as supported scaling signals unless sourced from `ContainerWorkloadScaling`.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "#### Auto-scaling: add/remove container instances based on demand."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Traffic is automatically distributed across all running containers."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Without scaling configured, a single container handles all work (`minInstances` and `maxInstances` both default to `1`). `minInstances` cannot be set to `0`.”",
+              "reason": "The provided source excerpt does not include the `ContainerWorkloadScaling` definition, so the defaults for `minInstances`/`maxInstances` and the minimum value for `minInstances` are not grounded in the supplied files. The pricing source supports that Fargate cannot scale to zero, but not these Stacktape property defaults or validation constraints.",
+              "suggestedFix": "Keep the Fargate billing caveat, but remove the exact Stacktape scaling defaults and `minInstances` validation claim unless the `ContainerWorkloadScaling` type or validator is added as source.",
+              "evidence": [
+                {
+                  "file": "@generated/aws-price/distilled/worker-service.md",
+                  "quote": "Idle tasks still bill — Fargate cannot scale to zero."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "scaling?: ContainerWorkloadScaling;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Scaling policy defaults: scale out when average CPU or memory exceeds 80%, scale in when utilization drops below the target.”",
+              "reason": "No supplied source states the default scaling-policy target, CPU/memory thresholds, or scale-in behavior. This is a numeric default and behavior claim without source backing.",
+              "suggestedFix": "Remove the default threshold sentence, or replace it with a cautious link to the API reference if the actual `ContainerWorkloadScaling` definition is not available.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "#### Auto-scaling: add/remove container instances based on demand."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "scaling?: ContainerWorkloadScaling;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“For workloads where interruption matters, configure at least `minInstances: 2` so your worker stays available if one container fails.”",
+              "reason": "The recommendation relies on availability semantics not present in the source. The source says scaling can add/remove instances and traffic is distributed across running containers, but it does not state replacement timing or availability guarantees for worker services with two instances.",
+              "suggestedFix": "Rephrase as an operational recommendation without an availability guarantee: “For workers where interruptions are costly, consider running more than one instance and make job processing idempotent.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "#### Auto-scaling: add/remove container instances based on demand."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Traffic is automatically distributed across all running containers."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“When a container is replaced (during deployments, scaling events, or health check failures), it receives `SIGTERM` followed by `SIGKILL` after the `stopTimeout` expires.”",
+              "reason": "The supplied source supports SIGTERM/SIGKILL behavior after the timeout, but it does not list deployments, scaling events, or health-check failures as replacement scenarios where this sequence applies.",
+              "suggestedFix": "Limit the statement to the property behavior: “`stopTimeout` controls how long Stacktape waits for graceful shutdown before force-killing the container. The container receives `SIGTERM` first, then `SIGKILL` after this timeout.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "#### Seconds to wait for graceful shutdown before force-killing the container."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "The container receives `SIGTERM` first, then `SIGKILL` after this timeout. Must be 2-120."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“If your worker processes jobs that take more than 2 seconds, increase `stopTimeout` to avoid silently dropping in-progress work during deployments and scaling events.”",
+              "reason": "The source supports the default and range for `stopTimeout`, but it does not state that in-progress work will be silently dropped, nor does it specifically tie this behavior to deployments and scaling events.",
+              "suggestedFix": "Use a narrower warning: “The default `stopTimeout` is short for many background workers. Increase it when your process needs time to handle `SIGTERM` before exit.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "The container receives `SIGTERM` first, then `SIGKILL` after this timeout. Must be 2-120."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "@default 2"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Set `stopTimeout` to at least the maximum time your worker needs to finish in-progress work.”",
+              "reason": "The source states that `stopTimeout` must be 2-120 seconds. The draft recommendation could imply values above 120 are valid if a job takes longer than 120 seconds.",
+              "suggestedFix": "Add the constraint: “Set `stopTimeout` as high as your shutdown path needs, up to the 120-second maximum.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "The container receives `SIGTERM` first, then `SIGKILL` after this timeout. Must be 2-120."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“A worker service has no public endpoint, so configure `internalHealthCheck` when you want unhealthy containers to be replaced automatically. The health check runs a command inside the container — if it fails, the container is terminated and replaced.”",
+              "reason": "The source supports that `internalHealthCheck` auto-replaces unhealthy containers, but the provided `ContainerHealthCheck` definition is not included, so the draft's claim that the health check runs a command inside the container is not grounded in the supplied files.",
+              "suggestedFix": "Keep the replacement behavior, but avoid describing command execution unless `ContainerHealthCheck` is included as source: “Use `internalHealthCheck` to have Stacktape replace containers that fail the configured health check.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "#### Health check that auto-replaces unhealthy containers."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "If a container fails the health check, it's terminated and replaced automatically."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Defaults: interval `30s`, timeout `5s`, `3` retries before marking unhealthy. Use `startPeriodSeconds` to give the container a grace period during startup before health check failures count.”",
+              "reason": "The supplied files do not include the `ContainerHealthCheck` type or validator. These numeric defaults and `startPeriodSeconds` semantics are not grounded in the provided source.",
+              "suggestedFix": "Remove the defaults and describe only that `internalHealthCheck` exists, or add the `ContainerHealthCheck` source to verify these fields and defaults.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "internalHealthCheck?: ContainerHealthCheck;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“A common pattern for worker health checks: have your processing loop write a heartbeat file ... If the worker hangs or crashes, the file stops updating and the container is replaced.”",
+              "reason": "This operational pattern is not described in the supplied source. It may be reasonable advice, but the verifier requirements require technical statements to be grounded in source files.",
+              "suggestedFix": "Remove the pattern or mark it as application-level guidance only after grounding the command-based health check behavior in the `ContainerHealthCheck` type.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "If a container fails the health check, it's terminated and replaced automatically."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“EFS volume mounts persist when containers are replaced, can be mounted by multiple containers, and use encryption in transit.”",
+              "reason": "The source supports persistence across replacements, multiple mounts, and encryption in transit, but the draft also says “share files between container instances” elsewhere in the same paragraph. The source only says multiple containers can mount the same volume; it does not specifically say multiple worker service instances can share files through the mount.",
+              "suggestedFix": "Use the exact sourced scope: “Persistent EFS volumes keep data when containers are replaced. Multiple containers can mount the same volume, and data is encrypted in transit.” Avoid “between container instances” unless supported by EFS or runtime source.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Data stored in EFS volumes persists even when containers are replaced."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Multiple containers can mount the same volume. All data is encrypted in transit."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Use persistent storage when your worker needs to cache large files (ML models, media assets), share state between container instances, or maintain data that survives container replacements.”",
+              "reason": "Caching large files and sharing state between worker instances are application recommendations not present in the provided source. The source only describes persistent EFS volumes shared across containers and restarts, with data persisting when containers are replaced.",
+              "suggestedFix": "Keep the grounded use case: “Use `volumeMounts` when data must survive container replacement or be available to multiple mounted containers.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "#### Persistent EFS volumes shared across containers and restarts."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Data stored in EFS volumes persists even when containers are replaced."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Adjust retention with the `logging.retentionDays` property — available values range from 1 day to 10 years.”",
+              "reason": "The provided source supports that logging exists, that stdout/stderr goes to CloudWatch, and that logs are retained for 90 days, but it does not include the `ContainerWorkloadContainerLogging` definition, the `retentionDays` property, or the allowed retention values.",
+              "suggestedFix": "Say “Configure log retention with `logging`; see the API reference for supported retention values,” or add the logging type source and verify the exact property and enum.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Container output (`stdout`/`stderr`) is automatically sent to CloudWatch and retained for 90 days."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "logging?: ContainerWorkloadContainerLogging;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Enable `enableRemoteSessions: true` to open interactive shell access to running containers using `stacktape container:session`.”",
+              "reason": "The property and behavior are sourced, but the exact CLI command name is not verified by the supplied CLI command source. The verifier instructions require CLI command names to match CLI source; no CLI source is provided here.",
+              "suggestedFix": "Keep the property behavior but avoid the exact command unless CLI source is provided: “Enable `enableRemoteSessions: true` to allow SSH-like interactive shell access to running containers.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "#### Allow SSH-like access to running containers for debugging."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Enables `stacktape container:session` to open an interactive shell inside the container."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“This installs a small SSM agent that uses minimal CPU/memory.”",
+              "reason": "The supplied type comment says enabling remote sessions adds a small SSM agent that uses minimal CPU/memory, but it does not say it is installed. “Installs” adds implementation detail beyond the source.",
+              "suggestedFix": "Use the source wording: “This adds a small SSM agent that uses minimal CPU/memory.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Adds a small SSM agent that uses minimal CPU/memory."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The page includes an `## FAQ` section.",
+              "reason": "The supplied SEO/AEO convention explicitly says not to add an FAQ section unless SEO reviewer feedback requests it. No such feedback is provided.",
+              "suggestedFix": "Remove the FAQ section and fold any non-duplicative content into the earlier decision and configuration sections.",
+              "evidence": [
+                {
+                  "file": "Project style guide and glossary",
+                  "quote": "No FAQ section unless the SEO reviewer explicitly requests one."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“Processing runs longer than Lambda's timeout allows.”",
+              "reason": "This is likely useful guidance, but no Lambda timeout source is included in the provided source list. Under the verifier rules, this should not be stated as a sourced constraint unless the Lambda source is available.",
+              "suggestedFix": "Rephrase without the Lambda timeout constraint, or add a sourced Lambda page/type reference for the timeout limit.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“Stacktape does not attach event triggers to a worker service. For event-driven invocations, use a Lambda function with a trigger instead.”",
+              "reason": "WorkerServiceProps extends SimpleServiceContainer, which does not show a trigger/integration property in the provided excerpt, so the first sentence is consistent with the source. The recommendation to use Lambda triggers depends on Lambda trigger support outside the supplied source.",
+              "suggestedFix": "Keep the worker-service statement, but make the Lambda sentence a cross-link rather than a detailed claim unless Lambda trigger sources are included.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“For other packaging options (custom Dockerfile, prebuilt image, Nixpacks), see container packaging.”",
+              "reason": "The supplied deployment artifact types show custom Dockerfile, prebuilt image, external buildpack, and Nixpacks packaging types for container workloads. The specific target URL `/packaging/containers/` is not verified by the supplied source files.",
+              "suggestedFix": "Verify the route exists in docs source, or link with the canonical route used by the docs site.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“Use for log forwarders, monitoring agents, or sidecar proxies.”",
+              "reason": "The source gives examples of log forwarders and monitoring agents for `always-running` side containers, but not sidecar proxies.",
+              "suggestedFix": "Remove “sidecar proxies” or add a source that supports it as an intended use case.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“The Stacktape image buildpack builds a container image from your source code automatically.”",
+              "reason": "The source supports that `stacktape-image-buildpack` creates a container image from source and uploads it to ECR. The word “automatically” is broadly consistent but slightly hand-wavy; not a factual failure.",
+              "suggestedFix": "Optional: use the source wording: “The Stacktape image buildpack creates a container image from your source code and uploads it to a managed ECR repository.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The opening paragraph matches the sourced definition: worker services are always-on containers with no public URL, run inside a VPC, and are intended for background workers, queue processors, and internal tasks.",
+            "The pricing context is grounded in the supplied pricing source: Fargate bills continuously, a 0.25 vCPU/512 MB task is approximately $9/month from the provided component prices, and ARM tasks are approximately 20% less than x86.",
+            "The draft correctly avoids hand-authored Stacktape YAML examples and uses `<CodeBlock intellisense ...>` for Stacktape config examples.",
+            "The `connectTo` section is well grounded: IAM permissions, security-group access for databases/Redis, injected `STP_[RESOURCE_NAME]_[PARAM]` environment variables, and SQS `ARN`/`NAME`/`URL` are all present in the supplied types.",
+            "The NAT section is broadly supported: `usePrivateSubnetsWithNAT`, static outbound IP via NAT Gateway, `stackConfig.vpc.nat.availabilityZones` with 1/2/3 and default 2, and approximately $32/month per NAT Gateway are sourced.",
+            "The API reference component uses `WorkerServiceProps`, which is the actual interface name in the supplied worker-service type file, and `ReferenceableParams resource=\"worker-service\"` matches the resource type."
+          ]
+        },
+        {
+          "verifierId": "code-validator",
+          "modelProvider": "deterministic",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #1 (stacktape.ts): TypeScript config example is not Prettier-formatted.",
+              "reason": "Stacktape config examples must render cleanly and consistently. The pipeline uses Prettier as the formatting contract.",
+              "suggestedFix": "Format the full code string with Prettier using the TypeScript parser."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #2 (stacktape.ts): TypeScript config example is not Prettier-formatted.",
+              "reason": "Stacktape config examples must render cleanly and consistently. The pipeline uses Prettier as the formatting contract.",
+              "suggestedFix": "Format the full code string with Prettier using the TypeScript parser."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #3 (stacktape.ts): TypeScript config example is not Prettier-formatted.",
+              "reason": "Stacktape config examples must render cleanly and consistently. The pipeline uses Prettier as the formatting contract.",
+              "suggestedFix": "Format the full code string with Prettier using the TypeScript parser."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #4 (stacktape.ts): TypeScript config example is not Prettier-formatted.",
+              "reason": "Stacktape config examples must render cleanly and consistently. The pipeline uses Prettier as the formatting contract.",
+              "suggestedFix": "Format the full code string with Prettier using the TypeScript parser."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #5 (stacktape.ts): TypeScript config example is not Prettier-formatted.",
+              "reason": "Stacktape config examples must render cleanly and consistently. The pipeline uses Prettier as the formatting contract.",
+              "suggestedFix": "Format the full code string with Prettier using the TypeScript parser."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #6 (stacktape.ts): TypeScript config example is not Prettier-formatted.",
+              "reason": "Stacktape config examples must render cleanly and consistently. The pipeline uses Prettier as the formatting contract.",
+              "suggestedFix": "Format the full code string with Prettier using the TypeScript parser."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #7 (stacktape.ts): TypeScript config example is not Prettier-formatted.",
+              "reason": "Stacktape config examples must render cleanly and consistently. The pipeline uses Prettier as the formatting contract.",
+              "suggestedFix": "Format the full code string with Prettier using the TypeScript parser."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #8 (stacktape.ts): TypeScript config example is not Prettier-formatted.",
+              "reason": "Stacktape config examples must render cleanly and consistently. The pipeline uses Prettier as the formatting contract.",
+              "suggestedFix": "Format the full code string with Prettier using the TypeScript parser."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #9 (stacktape.ts): TypeScript config example is not Prettier-formatted.",
+              "reason": "Stacktape config examples must render cleanly and consistently. The pipeline uses Prettier as the formatting contract.",
+              "suggestedFix": "Format the full code string with Prettier using the TypeScript parser."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "seoReviewResult": {
+        "score": 8,
+        "suggestions": [
+          "Rename noun-phrase headings to question format for consistency and search alignment: 'Basic example' → 'How do I deploy a basic worker service?', 'Graceful shutdown' → 'How does graceful shutdown work?', 'Connecting to other resources' → 'How do I connect a worker to databases and queues?', 'Side containers' → 'How do I run side containers alongside my worker?'",
+          "Mention 'Stacktape' in the opening answer paragraph so LLM extractions carry brand context. E.g., 'A Stacktape worker service is an always-on container…' — without this, an extracted snippet loses attribution.",
+          "The 'Where are worker service logs stored?' section is thin (two sentences). Expand it into a self-contained paragraph that mentions CloudWatch log group naming, how to query logs via CLI ('stacktape logs --resourceName worker'), and the available retentionDays values — this is a common search query that deserves a snippet-worthy answer.",
+          "Add a 'How do I run a worker service on EC2 instead of Fargate?' subsection or FAQ entry. The page mentions EC2 as an option in the opening paragraph and the resources section but never shows how to configure it — this is a likely search query users would have.",
+          "The 'How do I debug a running container?' section is a single short paragraph. Consider adding a brief code example showing the CLI command ('stacktape container:session --resourceName worker --stage prod') and mentioning what tools are available inside the session — this would make the section extractable as a standalone answer."
+        ]
+      },
+      "passed": false
+    },
+    {
+      "iteration": 3,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\resources__compute__worker-service\\iteration-3.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "startup-cto",
+          "persona": "Small startup CTO with low to medium AWS experience. Cares most about time-to-production and shipping quickly without getting trapped in AWS complexity.",
+          "modelProvider": "claude",
+          "scores": {
+            "clarity": 9,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "The SQS queue consumer example in the 'connecting to databases and queues' section is excellent — it gives a realistic, end-to-end pattern (config + application code) that a startup CTO could copy and adapt immediately.",
+            "The graceful shutdown section with the explicit warning about the 2-second default is high-value practical guidance that prevents a common production foot-gun. Most docs skip this.",
+            "Strong 'when to use / when not to use' section with a clear comparison table. The alternatives are correctly scoped — batch-job for finite tasks, Lambda for sporadic work, private-service for internal HTTP.",
+            "Pricing is surfaced immediately in the first paragraph, including the ARM discount and the critical caveat that Fargate cannot scale to zero. This helps the CTO make a cost-informed decision before reading further.",
+            "Question-format H2 headings ('How do I configure CPU and memory?', 'How does graceful shutdown work?') match what users actually search for and make scanning fast.",
+            "The EFS volume mounts section is a good inclusion — it answers the natural 'how do I persist data?' question that background workers frequently need, and the example is practical."
+          ],
+          "problems": [
+            "The basic example's application code is a generic while-loop with setTimeout. For a worker service page, the first example the reader sees should demonstrate the most common pattern — polling a queue or processing a stream — rather than a placeholder loop. The SQS example later is excellent but appears too far down the page.",
+            "The scaling section states 'Setting minInstances to 0 is not supported' which is correct for Fargate, but could be more precise: it is an ECS/Fargate constraint, not a Stacktape limitation. A reader might wonder if Stacktape is artificially limiting them.",
+            "The environment variables section is thin — it shows static string values but doesn't mention secrets integration ($Secret directive) or dynamic values, which are common needs for background workers connecting to external services."
+          ],
+          "mandatoryFixes": [
+            "In the scaling section, clarify that the min-1 constraint comes from Fargate, not Stacktape: e.g., 'Fargate requires at least one running container — setting minInstances to 0 is not supported.' This prevents the reader from thinking Stacktape is the bottleneck."
+          ],
+          "optionalImprovements": [
+            "Consider moving the SQS queue consumer example higher — either make it the basic example, or add a brief note after the basic example saying 'For a realistic queue-processing pattern, see Connecting to databases and queues below.' The SQS pattern is the most common worker use case and should be prominent.",
+            "In the environment variables section, add a one-line mention of the $Secret directive for injecting secrets (API keys, tokens) — this is a very common need for background workers calling external APIs and the reader shouldn't have to hunt for it.",
+            "The scaling section could benefit from a brief note on how to right-size scaling policies for workers vs. web services: worker CPU often stays low while memory grows (queue backlog), so keepAvgMemoryUtilizationUnder may be more useful than CPU-based scaling for queue consumers.",
+            "Add a brief mention of dev mode behavior for worker services — whether `stacktape dev` runs the worker locally or connects to the deployed version, since the target audience will want to develop locally.",
+            "The Fargate cost table is identical to the web-service page. Consider adding a brief note about EC2 cost comparison for long-running workers — e.g., 'For workers that run 24/7, EC2 instances can be 40-60% cheaper than Fargate at the cost of more operational complexity.' This helps the startup CTO make a cost-informed compute engine choice."
+          ]
+        },
+        {
+          "reviewerId": "smb-manager",
+          "persona": "SMB engineering manager with medium to high AWS knowledge. Cares about long-term maintainability, team clarity, operational fit, technically correct Stacktape class-based config examples, and valid MDX component usage.",
+          "modelProvider": "codex",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Strong early decision framing: the page quickly distinguishes worker services from web services, private services, Lambda functions, and batch jobs.",
+            "Stacktape configuration examples use class-based `defineConfig` inside `<CodeBlock intellisense tabs={[...]}/>` and avoid the forbidden YAML/plain-object patterns.",
+            "The page covers the important 80% for this resource: packaging, compute sizing, scaling, shutdown, resource access, health checks, logs, remote sessions, NAT, side containers, and EFS volumes.",
+            "The SQS consumer example is practical and connects directly to a common worker-service use case."
+          ],
+          "problems": [
+            "The opening sentence says worker service is \"built on AWS ECS Fargate\", but the source says `resources` supports Fargate by default and EC2 as another compute engine. This overstates Fargate as the only underpinning.",
+            "Several claims are broader than the provided worker-service source supports, including `stacktape deploy` behavior, managed ECR repository upload behavior for this resource page, and detailed alternative-resource descriptions such as batch jobs being finite tasks.",
+            "The auto-scaling section says `minInstances: 0` is not supported and that Fargate always runs at least one container. The source states Fargate cannot scale to zero and idle tasks bill, but does not directly document the `minInstances` constraint in the provided files.",
+            "The graceful shutdown section gives a `stopTimeout` range of 2-120 and default 2, which is grounded, but the statement about `SIGTERM` then `SIGKILL` should be phrased as Stacktape/container behavior from the source rather than expanded into application guidance without a small handler example.",
+            "The page may be too long for the audience relative to the API reference. Some sections, especially environment variables, side containers, EFS, logging, and remote debugging, are useful but could be tighter or linked out when they repeat common container workload concepts."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Change the first paragraph to say the worker runs as an always-on container workload, with Fargate as the default compute engine, rather than saying it is built on Fargate unconditionally.",
+            "Narrow unsupported statements or remove them unless additional source files are provided, especially the `stacktape deploy` result, managed ECR upload wording, and batch-job alternative description.",
+            "For scaling, keep the sourced point that Fargate cannot scale to zero and idle tasks bill; avoid asserting an explicit `minInstances: 0` validation rule unless the schema or validator source confirms it.",
+            "Add a short `SIGTERM` handler application-code snippet or reduce the graceful-shutdown prose to the sourced `stopTimeout` behavior.",
+            "Consider trimming lower-priority sections and relying on `<ApiReference definitionName=\"WorkerServiceProps\" />` for exhaustive option coverage."
+          ]
+        },
+        {
+          "reviewerId": "developer-low-aws",
+          "persona": "Developer with little AWS or DevOps experience. Needs jargon kept under control and wants examples that are easy to follow.",
+          "modelProvider": "claude",
+          "scores": {
+            "clarity": 9,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Strong opening paragraph that works as a self-contained answer: defines what a worker service is, names the underlying AWS service, lists use cases, and states the key constraint (no public endpoint) — all in ~50 words.",
+            "Excellent 'When should I use a worker service?' section with a clear comparison table that points directly to better alternatives for each mismatched scenario. This is exactly what a developer with little AWS experience needs to make a decision.",
+            "The graceful shutdown section with the Warning about the 2-second default is high-signal practical guidance that prevents a common production mistake. The SIGTERM handling advice is actionable.",
+            "The SQS consumer example in 'How do I connect to databases and queues?' is realistic and copyable — it shows both the Stacktape config and the full application code, including long-polling and message deletion. A reader can go from zero to working queue consumer with this.",
+            "Question-format H2 headings ('How does auto-scaling work?', 'How do I get a static outbound IP?') match what developers actually search for, improving both scannability and SEO/AEO discoverability.",
+            "Good coverage of EFS volume mounts — a practical need for workers that process files or maintain state across container replacements, and not something obvious from the example web-service page.",
+            "Correctly omits sections that don't apply (load balancing, CDN, CORS, custom domains, gradual deployments, firewall) rather than padding with 'not applicable' boilerplate."
+          ],
+          "problems": [
+            "The CodeBlock tab label uses 'TypeScript' while the human-reviewed example page consistently uses 'stacktape.ts'. The style guide text says 'TypeScript' but the example page — which was reviewed and accepted — uses 'stacktape.ts'. This creates a section-level inconsistency if both pages ship together.",
+            "The logging section lists specific CloudWatch retention values (1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 3653) that are not present in the provided source files. The source only says 'retained for 90 days' in the JSDoc. While these are real CloudWatch values, the page should not assert specifics not grounded in the provided source.",
+            "The CPU/memory section states 'Available CPU values: 0.25, 0.5, 1, 2, 4, 8, 16' but the provided source files do not list these values. The example page omits such a list. Including unsourced specifics risks being wrong if Stacktape constrains the set differently.",
+            "The 'Environment variables' section is thin — it only shows static string values. It doesn't mention that values can be directive references ($Secret, $ResourceParam) as documented in the EnvironmentVar type's JSDoc. For a developer who needs to pass secrets, this omission could send them down the wrong path."
+          ],
+          "mandatoryFixes": [
+            "Align CodeBlock tab labels with the example page: change all `label: 'TypeScript'` to `label: 'stacktape.ts'` for section-level consistency with the human-reviewed web-service page.",
+            "Remove the enumerated retention values list ('1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, and up to 3653 days') from the logging section. Replace with wording grounded in source: 'retained for 90 days by default. Adjust retention with the logging.retentionDays property.' This matches the example page's treatment and avoids asserting unsourced specifics."
+          ],
+          "optionalImprovements": [
+            "Remove the 'Available CPU values: 0.25, 0.5, 1, 2, 4, 8, 16' sentence from the CPU/memory section. The cost table already covers the common sizes, and the full set belongs in the API reference. If kept, verify the list against source.",
+            "In the 'Environment variables' section, add a brief note that values can reference secrets or other resource parameters using directives — e.g., 'Values can also reference secrets ($Secret) or other resource parameters ($ResourceParam). See [directives](/configuration/directives/) for details.' This helps the target audience discover a critical capability.",
+            "In the graceful shutdown section, add a one-line concrete example of SIGTERM handling (e.g., `process.on('SIGTERM', () => { ... })`) since the target audience has little DevOps experience and may not know how to listen for signals in Node.js.",
+            "Consider adding a brief note in the scaling section that scaling policy targets default to 80 when `scalingPolicy` is configured but not explicitly set — the example page includes this detail and it helps users understand implicit behavior.",
+            "In the 'How do I detect and replace unhealthy containers?' section, briefly explain what 'CMD-SHELL' means in the health check command array, since this Docker concept may be unfamiliar to the target audience."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "claude-verifier",
+          "modelProvider": "claude",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "A Stacktape worker service is an always-on container with no public endpoint, built on AWS ECS Fargate.",
+              "reason": "The opening sentence states the worker service is 'built on AWS ECS Fargate', but it also supports EC2 as a compute engine. The draft corrects this later in the CPU/memory section, but the opening paragraph — which AI engines extract verbatim — presents Fargate as the only option. This matters for SEO/AEO since the opening is supposed to be a self-contained answer.",
+              "suggestedFix": "Change to: 'A Stacktape worker service is an always-on container with no public endpoint, running on AWS ECS (Fargate by default, or EC2).' or 'built on AWS ECS Fargate (default) or EC2.'",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Two compute engines:\n   * - **Fargate** (default): Serverless — just specify `cpu` and `memory`.\n   * - **EC2**: Specify `instanceTypes` for more control and potentially lower cost."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\multi-container-workloads.d.ts",
+                  "quote": "instanceTypes?: string[];"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "Adjust retention with the logging.retentionDays property — supported values include 1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, and up to 3653 days (~10 years).",
+              "reason": "The draft lists supported retention values but omits 400, 545, 731, and 1827 from the actual union type. It also says 'up to 3653 days' implying a continuous range, when the actual type is a discrete union. The incomplete list could mislead users who want one of the omitted values.",
+              "suggestedFix": "List the complete set from the type: 1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, or 3653 days.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\multi-container-workloads.d.ts",
+                  "quote": "retentionDays?: 1 | 3 | 5 | 7 | 14 | 30 | 60 | 90 | 120 | 150 | 180 | 365 | 400 | 545 | 731 | 1827 | 3653;"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "Fargate does not support scaling to zero — at least one container is always running and billed.",
+              "reason": "The sentence attributes the constraint to Fargate ('Fargate does not support scaling to zero'), but AWS Fargate itself does support scaling ECS services to zero desired tasks. The constraint is at the Stacktape level (minInstances minimum is 1). The pricing source does say 'Fargate cannot scale to zero' but this is Stacktape-contextual. Attributing it to Fargate itself is technically inaccurate and could confuse users with Fargate experience.",
+              "suggestedFix": "Change to: 'Stacktape does not support setting minInstances to 0 — at least one container is always running and billed.' or 'Worker services cannot scale to zero — at least one container is always running and billed.'",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\multi-container-workloads.d.ts",
+                  "quote": "Minimum running instances. Set to 0 is not supported — minimum is 1."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "Use startPeriodSeconds to give the container a grace period (0–300 seconds) during startup before health check failures count.",
+              "reason": "The source type defines startPeriodSeconds as optional with the JSDoc 'Grace period (seconds) before counting failures. Gives the container time to start (0-300).' but does not specify a default value. The draft's 'Defaults: interval 30s, timeout 5s, 3 retries before marking unhealthy' section omits mentioning the startPeriodSeconds default, which is fine, but a reader might assume it defaults to 0. The source is silent on the default.",
+              "suggestedFix": "Explicitly note that startPeriodSeconds has no default (or defaults to 0 if that can be verified), so the grace period must be set explicitly if needed.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\multi-container-workloads.d.ts",
+                  "quote": "Grace period (seconds) before counting failures. Gives the container time to start (0-300)."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "Only set targets activate scaling — if you only set CPU, memory utilization is not monitored.",
+              "reason": "The source shows both keepAvgCpuUtilizationUnder and keepAvgMemoryUtilizationUnder default to 80 when scalingPolicy is configured. The draft claims 'Only set targets activate scaling', implying unset targets are inactive. However, the @default 80 annotation means both targets technically have defaults. The behavior depends on whether an omitted property with a @default still activates — the types don't clarify this runtime behavior.",
+              "suggestedFix": "Verify runtime behavior: does omitting keepAvgMemoryUtilizationUnder when scalingPolicy is set still use the default of 80? If yes, clarify that both targets are active by default. If no, clarify that only explicitly set targets are active despite having type-level defaults.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\multi-container-workloads.d.ts",
+                  "quote": "Scale out when avg memory exceeds this %, scale in when it drops below.\n   * @default 80"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "Pricing calculations are accurate: all five cost table rows match the distilled pricing source (vCPU rate + memory rate per task).",
+            "stopTimeout default of 2 and range 2-120 exactly match the source type JSDoc (@default 2, 'Must be 2-120').",
+            "Side container behavior descriptions ('run-on-init must exit with code 0', 'always-running crashes fail the whole task') match source JSDoc verbatim.",
+            "NAT Gateway configuration — availability zones 1-3, default 2, ~$32/month cost — all match the NatSettings type definition.",
+            "connectTo SQS queue environment variables (STP_JOBS_ARN, STP_JOBS_NAME, STP_JOBS_URL) match the ScriptEnvProps connectTo JSDoc.",
+            "All Stacktape config examples correctly use <CodeBlock intellisense tabs={[...]} /> with TypeScript label. No forbidden YAML, fenced-TS, or StacktapeConfig patterns.",
+            "ApiReference definitionName='WorkerServiceProps' is a valid definition in the generated config schema.",
+            "ReferenceableParams resource='worker-service' matches the WorkerService type's type field.",
+            "Health check property names (healthCheckCommand, intervalSeconds, timeoutSeconds, retries, startPeriodSeconds) and defaults (30, 5, 3) all match the ContainerHealthCheck type definition.",
+            "Scaling property names (minInstances, maxInstances, keepAvgCpuUtilizationUnder) and defaults (1, 1, 80) match the ContainerWorkloadScaling type.",
+            "The 'refreshed weekly for patching' claim for EC2 instances is actually grounded in the instanceTypes JSDoc: 'Instances auto-scale and are refreshed weekly for patching.'",
+            "CPU valid values (0.25, 0.5, 1, 2, 4, 8, 16) and architecture default ('x86_64') match the ContainerWorkloadResourcesConfig type.",
+            "The 'when to use / when not to use' section provides clear, opinionated guidance with actionable alternatives.",
+            "Application code examples (worker.ts, SQS consumer) are in ordinary fenced code blocks, correctly separated from config examples."
+          ],
+          "summary": "The draft is well-grounded overall. Most factual claims — pricing, property names, defaults, type shapes, and behavioral descriptions — match the source files. Two medium issues: (1) the opening paragraph says 'built on AWS ECS Fargate' but EC2 is also a supported compute engine, and (2) the logging retention values list is incomplete (missing 400, 545, 731, 1827 from the actual union type). Three low issues relate to ambiguous attribution of the scale-to-zero constraint (Stacktape limitation, not Fargate), unclear startPeriodSeconds default, and uncertain runtime behavior of scaling policy defaults. No forbidden MDX patterns, no hand-authored YAML, and all component references are valid."
+        },
+        {
+          "verifierId": "codex-verifier",
+          "modelProvider": "codex",
+          "summary": "The draft is broadly consistent with the WorkerService type surface and avoids the major forbidden config-example patterns. The main factual problems are over-narrowing worker services to Fargate, missing pricing caveats, one unsupported outbound-IP default claim, and an overconfident scaling-policy default interpretation.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "“A Stacktape worker service is an always-on container with no public endpoint, built on AWS ECS Fargate.”",
+              "reason": "Worker services inherit the simple service container resource model, where Fargate is the default compute engine but EC2 is also supported through `instanceTypes`. The first paragraph is designed for extraction, so saying it is built on Fargate overstates the default as the whole feature.",
+              "suggestedFix": "Change to: “A Stacktape worker service is an always-on container with no public endpoint. By default it runs on Fargate, and it can use EC2 when you configure instance types.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Two compute engines:\n   * - **Fargate** (default): Serverless — just specify `cpu` and `memory`.\n   * - **EC2**: Specify `instanceTypes` for more control and potentially lower cost."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "“A minimal Fargate task (0.25 vCPU, 512 MB) costs ~$9/month” and the monthly cost table.",
+              "reason": "The pricing source requires these figures to be treated as us-east-1 ballpark list prices and says they exclude storage, I/O, and data transfer. The draft mentions us-east-1 in the table but not the exclusion caveat near the pricing context line.",
+              "suggestedFix": "Add a short caveat near the top pricing line: “These are us-east-1 ballpark list prices for one on-demand task and exclude storage, I/O, and data transfer.”",
+              "evidence": [
+                {
+                  "file": "@generated/aws-price/distilled/worker-service.md",
+                  "quote": "All prices are us-east-1 list price for an on-demand single instance/task and exclude storage, I/O, and data transfer. Use these as ballpark figures — quote them with \"~\" or \"approximately\" in docs."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "“Only set targets activate scaling — if you only set CPU, memory utilization is not monitored.”",
+              "reason": "The type source documents both CPU and memory scaling targets as optional fields with `@default 80`. The draft states a specific omitted-target behavior that is not clearly supported by the type comments and may conflict with the documented defaults.",
+              "suggestedFix": "Write more narrowly unless runtime validators confirm the behavior: “`scalingPolicy` supports CPU and memory utilization targets. The source documents a default target of `80` for each target; set the targets explicitly when you want predictable scaling behavior.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\multi-container-workloads.d.ts",
+                  "quote": "interface ContainerWorkloadScalingPolicy {\n  /**\n   * #### Scale out when avg CPU exceeds this %, scale in when it drops below.\n   * @default 80\n   */\n  keepAvgCpuUtilizationUnder?: number;\n  /**\n   * #### Scale out when avg memory exceeds this %, scale in when it drops below.\n   * @default 80\n   */\n  keepAvgMemoryUtilizationUnder?: number;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“By default, your container's outbound IP address changes with each deployment.”",
+              "reason": "The source supports the positive claim that `usePrivateSubnetsWithNAT` provides a static outbound IP via NAT Gateway, but it does not document the default outbound IP behavior or say it changes on each deployment.",
+              "suggestedFix": "Remove the default-behavior claim. Use: “If third-party allowlists require a stable outbound IP, enable private subnets with NAT.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "#### Deploy in private subnets with a static outbound IP via NAT Gateway.\n   *\n   * ---\n   *\n   * The container won't have a public IP. All outbound traffic routes through a NAT Gateway,\n   * giving you a static IP you can whitelist in external services (APIs, payment gateways, etc.)."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "“Lambda function — scales to zero, pay per request.”",
+              "reason": "This may be true generally, but the provided source set for this verification does not include Lambda pricing or Lambda scaling behavior. The draft should not make the pay-per-request claim unless the page source bundle includes backing evidence.",
+              "suggestedFix": "Keep the sourced comparison narrower: “Lambda function with a trigger for event-driven, sporadic work.” Add scale-to-zero and pay-per-request only when Lambda pricing/scaling source is provided.",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft uses `<CodeBlock intellisense tabs={[...]} />` for Stacktape configuration examples and does not hand-author YAML Stacktape config.",
+            "The worker-service core description is grounded in the source: always-on, no public URL, runs inside a VPC, and can connect to other resources.",
+            "The `connectTo` section is well supported, including IAM permissions, network access for databases/Redis, injected environment-variable format, and SQS `ARN`, `NAME`, and `URL` parameters.",
+            "The `stopTimeout`, internal health check defaults/ranges, side container behavior, EFS persistence, CloudWatch log retention, NAT Gateway cost, and remote session claims are supported by the provided type comments or pricing source."
+          ]
+        },
+        {
+          "verifierId": "code-validator",
+          "modelProvider": "deterministic",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #8 (TypeScript): TypeScript config example is not Prettier-formatted.",
+              "reason": "Stacktape config examples must render cleanly and consistently. The pipeline uses Prettier as the formatting contract.",
+              "suggestedFix": "Format the full code string with Prettier using the TypeScript parser."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #10 (TypeScript): TypeScript config example is not Prettier-formatted.",
+              "reason": "Stacktape config examples must render cleanly and consistently. The pipeline uses Prettier as the formatting contract.",
+              "suggestedFix": "Format the full code string with Prettier using the TypeScript parser."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "seoReviewResult": {
+        "score": 8,
+        "suggestions": [
+          "Rename 'Basic example' to a question-format heading like 'How do I deploy a worker service?' to match the pattern used by the other headings and align with how users actually search.",
+          "Rename 'Environment variables' to 'How do I set environment variables?' and 'Side containers' to 'How do I run side containers?' for consistency and better search query alignment.",
+          "Add a brief FAQ section at the bottom (before API reference) that consolidates 3-5 key questions with concise 1-2 sentence answers — e.g., 'Can a worker service scale to zero?' (No, Fargate always runs at least one container; use Lambda for scale-to-zero), 'How much does a worker service cost?' (From ~$9/month for 0.25 vCPU / 512 MB; ~20% less with ARM), 'Does a worker service have a public URL?' (No, use a web service for public endpoints). These are high-value Featured Snippet targets.",
+          "The logging section ('Where are worker service logs stored?') is a single dense paragraph mixing retention values, CLI commands, and the disable flag. Break it into a short intro paragraph plus a small code example showing `logging: { retentionDays: 30 }` — this makes the retention config extractable by AI engines and scannable by readers.",
+          "In the opening answer block, consider adding 'no public URL' alongside 'no public endpoint' since users search for both phrasings. Minor wording tweak: 'A Stacktape worker service is an always-on container with no public URL or endpoint...' captures both search variants.",
+          "The 'How do I debug a running container?' section is only two sentences. Expand slightly with a 2-3 line code example (`stacktape container:session --resourceName worker`) so the section is substantive enough for AI engines to extract as a standalone answer."
+        ]
+      },
+      "passed": false
+    }
+  ],
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\resources\\compute\\worker-service.mdx"
+}

@@ -1,0 +1,430 @@
+{
+  "pageId": "resources__compute__private-service",
+  "pageRoute": "resources/compute/private-service",
+  "startedAt": "2026-05-07T09:27:15.326Z",
+  "updatedAt": "2026-05-07T09:38:35.132Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\resources__compute__private-service\\iteration-1.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "startup-cto",
+          "persona": "Small startup CTO with low to medium AWS experience. Cares most about time-to-production and shipping quickly without getting trapped in AWS complexity.",
+          "modelProvider": "claude",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "The load balancing comparison table (Service Connect vs ALB) is the most important decision for this resource, and it's front and center with clear pricing, reachability constraints, and a best-for row — exactly what a startup CTO needs to make the right call quickly.",
+            "The 'How do other resources reach this service?' section is excellent — it explains the service discovery address convention, shows both connectTo and hardcoded approaches, and includes the critical Info callout about Lambda limitations. This answers the #1 question users will have.",
+            "Pricing is concrete and upfront: Fargate cost table, Service Connect ~$0.50/mo vs ALB ~$18/mo, NAT ~$32/mo. A cost-conscious reader can estimate their monthly bill from the page alone.",
+            "The basic example is realistic and minimal — a Hono internal API with health and process endpoints, which is genuinely useful as a starting point. The naming convention (internalApi → http://internalapi:3000) is demonstrated by example, not just described.",
+            "Structure closely follows the proven web-service example page, omitting irrelevant sections (CDN, CORS, custom domains, gradual deployments) rather than padding them — good editorial judgment."
+          ],
+          "problems": [
+            "The 'When not to use' table's last row ('Lambda functions need to call this service → Private service with application-load-balancer') is confusing because it recommends a private service under a heading that implies using something else. This will trip up a reader scanning the table.",
+            "The `protocol` property ('http' | 'http2' | 'grpc') is not mentioned anywhere in the page body, only implicitly in the API reference. For a microservices page where gRPC is a primary use case mentioned in the intro, this is a notable gap — users need to know they should set protocol to get HTTP 5xx or gRPC error metrics.",
+            "The Health checks section is thin — just three sentences and no configuration example. The web-service example page explains both load balancer and internal health checks with defaults. This page should at least show an internalHealthCheck code example since it's the primary health check mechanism for service-connect private services.",
+            "The page mentions `volumeMounts` and `stopTimeout` only via side containers and the API reference, never in dedicated prose. EFS mounts are relevant for internal services doing file processing, and stopTimeout matters for graceful shutdown of gRPC connections — both deserve a brief mention.",
+            "The ALB load balancing example doesn't show health check configuration, even though the web-service example page demonstrates this. When users switch to ALB, configuring the health check path is one of the first things they'll need to do."
+          ],
+          "mandatoryFixes": [
+            "Fix the 'When not to use' table: the last row recommends using a private service (with ALB) under a heading implying alternatives. Either move this guidance into the Load Balancing section as a tip (e.g., 'If Lambda functions need to reach this service, use application-load-balancer load balancing') or rephrase the table row to clearly indicate it's a configuration choice, not an alternative resource.",
+            "Add a brief mention of the `protocol` property, either in the Load Balancing section or as a standalone subsection. State that setting `protocol` to 'http', 'http2', or 'grpc' enables protocol-specific metrics (e.g., HTTP 5xx error tracking) and is recommended for observability. This is especially important given that gRPC is mentioned in the intro as a primary use case.",
+            "Expand the Health checks section with at least one code example showing `internalHealthCheck` configuration (command, interval, retries). This is the primary health check mechanism for service-connect private services and a reader shouldn't have to guess at the syntax."
+          ],
+          "optionalImprovements": [
+            "Add the ALB health check path to the ALB load balancing code example (e.g., `properties: { healthcheckPath: '/health' }`) to match the pattern shown in the web-service example page and give users a complete starting point when switching to ALB.",
+            "Add a brief 'Persistent storage' or 'Volume mounts' paragraph mentioning EFS support via `volumeMounts` for private services that need shared or persistent file storage across container restarts. One sentence plus a link to the EFS docs page would suffice.",
+            "Mention `stopTimeout` (default 2 seconds, max 120) briefly in the Health checks or Side containers section — gRPC services and services with long-running requests may need a longer graceful shutdown window.",
+            "In the FeatureComparisonTable, add a 'gRPC support' row. Both Service Connect and ALB support gRPC, but this is a key protocol for private internal services and worth surfacing in the comparison.",
+            "Consider adding a two-service example (e.g., a web-service calling a private-service) to make the service discovery pattern concrete and end-to-end copyable. This would be especially valuable for the startup CTO audience who may be setting up their first microservice."
+          ]
+        },
+        {
+          "reviewerId": "smb-manager",
+          "persona": "SMB engineering manager with medium to high AWS knowledge. Cares about long-term maintainability, team clarity, operational fit, technically correct Stacktape class-based config examples, and valid MDX component usage.",
+          "modelProvider": "codex",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Strong resource-page structure: concise definition, early pricing context, clear when-to-use guidance, basic example, decision table, and API reference at the end.",
+            "Stacktape config examples use class-based `defineConfig` inside `<CodeBlock intellisense tabs={[...]}/>` and avoid forbidden YAML or `StacktapeConfig` style.",
+            "The load balancing comparison is practical and mostly matches the authoritative `PrivateServiceProps.loadBalancing` source: `service-connect` default vs `application-load-balancer` for VPC reachability.",
+            "The page keeps exhaustive property coverage out of prose and relies on `<ApiReference definitionName=\"PrivateServiceProps\" />`, which is appropriate for this resource page."
+          ],
+          "problems": [
+            "Several technical claims are broader than the source supports. The draft says the service is reachable inside the stack or VPC in the opening paragraph, but the source only says private services are reachable from other resources in the stack by default; VPC-wide reachability is specifically tied to `loadBalancing.type: 'application-load-balancer'`.",
+            "The opening says private services are built on AWS ECS Fargate, but the source says Fargate is the default compute engine and EC2 is also available through `resources`. This overstates the implementation.",
+            "The draft states `HOST=0.0.0.0` is injected automatically. The provided source only documents `port` as injected through the `PORT` environment variable and does not document `HOST` injection.",
+            "The draft says the Service Connect alias is always the lowercased resource name. `private-services.d.ts` has a commented-out alias note saying the default alias is lowercased resource name, while `events.d.ts` says service-connect alias defaults from resource and container names. Because the source is ambiguous, this should be narrowed or removed.",
+            "The draft says the default `PORT` environment variable is `3000`. The source supports `port` defaulting to `3000` and being injected as `PORT`, but the wording should avoid implying an env var default independent of the `port` property.",
+            "The ALB section says non-container resources like Lambda functions can reach the service. The source supports ALB reachability from any VPC resource, but does not establish Lambda VPC attachment behavior on this page. This should be phrased as VPC-reachable rather than a blanket Lambda guarantee.",
+            "The resources section repeats the web-service page cost table even though the provided pricing source only gives Fargate component billing and examples indirectly. The numbers are derivable, but the page should say they are approximate us-east-1 single-task examples and not present them as authoritative fixed monthly prices.",
+            "Some operational claims are copied from the example page but not fully grounded in the private-service source set, including weekly EC2 refresh behavior, load-balanced traffic distribution for Service Connect, and `stacktape logs` CLI behavior. Keep only what is in the provided files or cite a CLI/source file that supports it."
+          ],
+          "mandatoryFixes": [
+            "Narrow the reachability wording throughout: describe `service-connect` as reachable from container-based resources in the same stack, and describe VPC-wide reachability only for `loadBalancing.type: 'application-load-balancer'`.",
+            "Remove or qualify the unsupported `HOST=0.0.0.0` injection claim; the provided source only documents `PORT` injection from the `port` property.",
+            "Fix the ambiguous alias wording. Do not say the alias is always the lowercased resource name unless runtime/schema source confirms it; use cautious wording such as \"the documented examples use the resource-name-based address\" or rely on `connectTo` and `STP_*_ADDRESS`.",
+            "Change \"Built on AWS ECS Fargate\" to reflect that Fargate is the default compute engine and EC2 is also supported through `resources`.",
+            "Revise the Lambda guidance to avoid implying all Lambda functions can call the private service automatically; anchor the recommendation to the sourced statement that an internal Application Load Balancer is reachable from VPC resources."
+          ],
+          "optionalImprovements": [
+            "Make `connectTo` the primary recommended way to consume the service address and put hardcoded service names clearly behind a caveat, since `PrivateService` exposes the `address` referenceable parameter.",
+            "Add a small config example showing `port` and `protocol: 'grpc'` or `protocol: 'http'`, because those are private-service-specific levers and are directly supported by the source.",
+            "Clarify that `protocol` is for protocol-specific metrics collection, not necessarily for enforcing transport behavior.",
+            "Reduce repeated generic container sections such as logging, remote debugging, and side containers unless each is tied to a private-service use case. The API reference can carry the rest.",
+            "In the pricing line, explicitly say prices are approximate us-east-1 list-price context and that idle Fargate tasks bill continuously, matching the pricing source."
+          ]
+        },
+        {
+          "reviewerId": "developer-low-aws",
+          "persona": "Developer with little AWS or DevOps experience. Needs jargon kept under control and wants examples that are easy to follow.",
+          "modelProvider": "claude",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "The 'How do other resources reach this service?' section is an excellent addition that directly addresses the most common question a private-service user will have — it explains both the connectTo approach and hardcoding, clearly recommends connectTo, and shows the env var naming convention.",
+            "The FeatureComparisonTable for service-connect vs ALB is well-structured with the right dimensions (reachable from containers, Lambda, any VPC resource) that map to real decision criteria. The 'Reachable from Lambda functions' row in particular prevents a very common mistake.",
+            "The Info box about service-connect being container-only is well-placed immediately after explaining service discovery — this is the single most important gotcha for this resource and catching it early saves readers hours of debugging.",
+            "The 'When not to use' table is precise and links to concrete alternatives rather than vague suggestions. The recommendations are genuinely opinionated and useful.",
+            "Pricing context is grounded in the source data and includes both networking options (service-connect ~$0.50/mo vs ALB ~$18/mo), giving readers the cost picture they need to choose."
+          ],
+          "problems": [
+            "The 'When not to use' table includes 'Lambda functions need to call this service' with the 'better option' being 'Private service with application-load-balancer load balancing' — this is not actually a different resource, it's a configuration variant of the same resource. Placing it in a 'use something else' table is misleading and may confuse the reader.",
+            "The basic example section claims 'HOST=0.0.0.0' is injected automatically, but the provided source types only show PORT being injected (port @default 3000, 'Injected as the PORT env var'). HOST injection is not documented in the provided source files — this is an ungrounded claim.",
+            "The Health checks section is thin compared to the web service example page. It doesn't show a configuration example for internalHealthCheck, and doesn't explain how to configure the ALB health check when using application-load-balancer load balancing. For a reader using ALB, this leaves a gap.",
+            "The ALB example under Load balancing shows only `type: 'application-load-balancer'` with no properties — the web service example shows healthcheckPath, interval, and timeout. A reader switching to ALB won't know how to configure health checks for it.",
+            "Volume mounts (EFS) are available via the SimpleServiceContainer base type but are not mentioned anywhere in the prose. For a microservices audience that may need shared state or persistent storage, this is a relevant omission."
+          ],
+          "mandatoryFixes": [
+            "Move the 'Lambda functions need to call this service' row out of the 'use something else' table. Instead, add a short callout or sentence in the Load balancing section (or immediately after the 'when to use' block) stating: 'If Lambda functions or other non-container resources need to reach this service, set loadBalancing type to application-load-balancer.' This keeps the table clean for actual resource alternatives.",
+            "Remove the 'HOST=0.0.0.0' claim from the basic example section unless it can be verified in source. The provided types only document PORT injection. Write: 'The PORT environment variable defaults to 3000.' and omit HOST.",
+            "Add a health check configuration example to the ALB subsection under Load balancing, showing at least healthcheckPath. The current ALB example has no properties object at all, which doesn't help a reader who chose ALB and now needs to configure it."
+          ],
+          "optionalImprovements": [
+            "Add a brief mention of volume mounts (EFS) in its own short section or as a sentence in the side containers section, since persistent shared storage is a common need in microservice architectures. A one-sentence mention with a link to a dedicated page would suffice.",
+            "Consider adding a small end-to-end example showing a web service calling a private service via connectTo — this is the most common real-world pattern and would make the service discovery explanation concrete. Even a 3-line snippet showing how the web service reads STP_INTERNAL_API_ADDRESS and makes a fetch() call would be valuable.",
+            "The protocol property ('http' | 'http2' | 'grpc') is not mentioned in prose anywhere. For the gRPC use case mentioned in the opening paragraph, a one-sentence note about setting protocol to 'grpc' to enable protocol-specific metrics would be helpful.",
+            "The Scaling section could mention that scaling policies also support keepAvgMemoryUtilizationUnder for memory-bound services, since internal processing services are more likely to be memory-bound than CPU-bound compared to web-facing services.",
+            "The stopTimeout property (default 2 seconds, range 2-120) is worth a one-line mention for readers running services with graceful shutdown logic — 2 seconds is short for draining connections in a microservices setup."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "claude-verifier",
+          "modelProvider": "claude",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "A private service is an always-on container with no public endpoint, reachable only from other resources in your stack or VPC.",
+              "reason": "The opening paragraph says 'reachable only from other resources in your stack or VPC', but the source type definition says 'reachable only from other resources in your stack.' The 'or VPC' part is only true when using application-load-balancer load balancing — with the default service-connect, the service is reachable only from container-based resources in the same stack, not from arbitrary VPC resources. The opening phrasing overstates reachability for the default configuration.",
+              "suggestedFix": "Change to: 'reachable only from other resources in your stack' (matching the source), or qualify: 'reachable only from other resources in your stack (or any VPC resource when using an Application Load Balancer).'",
+              "evidence": [
+                {
+                  "file": "types/stacktape-config/private-services.d.ts",
+                  "quote": "Always-on container with a private endpoint, reachable only from other resources in your stack."
+                },
+                {
+                  "file": "types/stacktape-config/private-services.d.ts",
+                  "quote": "- **`service-connect`** (default, ~$0.50/mo): Direct container-to-container. Cheapest option.\n  Only reachable from other container-based resources in the stack."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "Reachable from Lambda functions: Application Load Balancer = true (in comparison table and 'When NOT to use' table)",
+              "reason": "The draft's comparison table and the 'When NOT to use' table both state that Lambda functions can reach an ALB-backed private service. This is true only if the Lambda function has VPC access (e.g., `joinDefaultVpc: true`), because the ALB is internal (not publicly accessible). The source says ALB makes the service 'Reachable from any VPC resource', which implies the caller must be in the VPC. Without this caveat, a reader might expect Lambda functions to reach the private service ALB without any additional configuration.",
+              "suggestedFix": "Add a note to the ALB section or comparison table: 'Lambda functions must have VPC access (e.g., joinDefaultVpc: true) to reach the internal ALB.' Alternatively, add this as a footnote on the table row.",
+              "evidence": [
+                {
+                  "file": "types/stacktape-config/private-services.d.ts",
+                  "quote": "- **`application-load-balancer`** (~$18/mo): HTTP load balancer. Reachable from any VPC resource."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "Scaling policy defaults: scale out when average CPU or memory exceeds 80%, scale in when utilization drops below the target.",
+              "reason": "The first part is correct — keepAvgCpuUtilizationUnder and keepAvgMemoryUtilizationUnder both default to 80. However, the phrase 'scale in when utilization drops below the target' is slightly misleading. The source says 'Scale out when avg CPU exceeds this %, scale in when it drops below.' The scaling policy only activates if you explicitly set the scalingPolicy property. If no scalingPolicy is configured (the whole `scaling` block is omitted), there is no auto-scaling at all — minInstances and maxInstances are both 1.",
+              "suggestedFix": "Clarify that these defaults only apply when a scaling policy is explicitly configured, e.g.: 'When you configure scaling, the default thresholds for keepAvgCpuUtilizationUnder and keepAvgMemoryUtilizationUnder are 80%.'",
+              "evidence": [
+                {
+                  "file": "types/stacktape-config/multi-container-workloads.d.ts",
+                  "quote": "Scale out when avg CPU exceeds this %, scale in when it drops below.\n   * @default 80"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "Pricing figures are well-sourced: 0.25 vCPU + 512 MB = ~$7.29 + ~$1.60 = ~$8.89 ≈ ~$9/month, and all other cost table rows are arithmetically correct against the pricing source.",
+            "PORT default of 3000 is correct per source (`@default 3000` in PrivateServiceProps.port).",
+            "HOST=0.0.0.0 injection is confirmed in source code (src/domain/config-manager/index.ts line 2530, inside the `privateServices` getter).",
+            "Load balancing types (`service-connect` default, `application-load-balancer` alternative) and their pricing (~$0.50/mo vs ~$18/mo) are accurately sourced.",
+            "Side container types (`run-on-init` with exit code 0 requirement, `always-running` with crash-fails-task behavior) match the source type definitions exactly.",
+            "Health check defaults (interval 30s, timeout 5s, 3 retries) are correct per ContainerHealthCheck type definition.",
+            "Scaling defaults (minInstances: 1, maxInstances: 1, keepAvgCpuUtilizationUnder: 80, keepAvgMemoryUtilizationUnder: 80) are all verified against ContainerWorkloadScaling and ContainerWorkloadScalingPolicy types.",
+            "Architecture property (`architecture: 'arm64' | 'x86_64'`, default `'x86_64'`, ~20% cheaper for ARM) is verified against ContainerWorkloadResourcesConfig type.",
+            "Logging retentionDays property and 90-day default are verified against ContainerWorkloadContainerLogging type.",
+            "usePrivateSubnetsWithNAT property and NAT Gateway pricing (~$32/month) match the source JSDoc.",
+            "enableRemoteSessions property and `stacktape container:session` command are correctly described per source.",
+            "stopTimeout default of 2 seconds is correct per source (`@default 2`).",
+            "All code examples use the correct `defineConfig` + class-based pattern with `<CodeBlock intellisense>` — no forbidden YAML config, no StacktapeConfig type, no fenced TypeScript for Stacktape config.",
+            "connectTo array-of-strings syntax and the STP_[RESOURCE_NAME]_[PARAM] environment variable pattern are correct per ResourceAccessProps type.",
+            "The ApiReference component uses `definitionName='PrivateServiceProps'` which matches the actual interface name, and ReferenceableParams uses `resource='private-service'` which matches the resource type."
+          ],
+          "summary": "The draft is well-grounded overall. Pricing, defaults, property names, and type constraints are accurate against source. Three issues found: (1) the opening paragraph broadens reachability to 'stack or VPC' when the source only says 'stack' and the default service-connect is even narrower (container-only); (2) the Lambda→ALB reachability claim in the comparison table omits the VPC access requirement for Lambda; (3) the scaling defaults phrasing slightly conflates 'defaults when policy is configured' with 'defaults when scaling is omitted'. All code examples follow the correct defineConfig pattern and avoid all forbidden patterns. The HOST=0.0.0.0 injection claim was verified in runtime source code."
+        },
+        {
+          "verifierId": "codex-verifier",
+          "modelProvider": "codex",
+          "summary": "The draft is directionally aligned with the provided private-service type source on the core concept, pricing context, Service Connect vs Application Load Balancer, connectTo, NAT, logging, and remote sessions. The main factual problems are unsupported defaults and operational details, over-broad Fargate wording, an incorrect SES permissions recommendation, and several config-example/style issues that are not grounded in the provided source files.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“Built on AWS ECS Fargate” / “container-to-container communication on AWS ECS Fargate.”",
+              "reason": "The provided source says private services support two compute engines: Fargate by default and EC2 as an option. Stating that the resource is built on ECS Fargate overstates Fargate as the only underpinning.",
+              "suggestedFix": "Say “Private services run as Stacktape container workloads. Fargate is the default compute engine; EC2 is available when you configure EC2 resources.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Two compute engines:\n   * - **Fargate** (default): Serverless — just specify `cpu` and `memory`.\n   * - **EC2**: Specify `instanceTypes` for more control and potentially lower cost."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The `PORT` environment variable (default `3000`) and `HOST=0.0.0.0` are injected automatically.”",
+              "reason": "The source supports `PORT` injection and the default port, but it does not mention automatic `HOST=0.0.0.0` injection.",
+              "suggestedFix": "Remove the `HOST=0.0.0.0` claim unless another source file explicitly documents it. Keep: “The service port is injected as `PORT`; the default is `3000`.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\private-services.d.ts",
+                  "quote": "Port this service listens on. Injected as the `PORT` env var.\n   * @default 3000"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Without scaling configured, a single container handles all traffic (`minInstances` and `maxInstances` both default to `1`).” and “Scaling policy defaults: scale out when average CPU or memory exceeds 80%, scale in when utilization drops below the target.”",
+              "reason": "The provided source only documents that `scaling` exists and that auto-scaling adds or removes instances based on demand. It does not provide `minInstances`, `maxInstances`, or 80% CPU/memory defaults.",
+              "suggestedFix": "Remove the numeric defaults and policy-default paragraph, or replace it with cautious wording: “Use `scaling` to configure how many container instances can run and when Stacktape should add or remove them.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Auto-scaling: add/remove container instances based on demand."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“For permissions not covered by `connectTo` (e.g., AWS Rekognition, Bedrock, SES), use `iamRoleStatements` to add raw IAM policy statements.”",
+              "reason": "The source explicitly lists `aws:ses` as covered by `connectTo`, so SES is not a valid example of a permission not covered by `connectTo`.",
+              "suggestedFix": "Remove SES from the examples. Use only examples supported by the source, such as Rekognition, Textract, or Bedrock.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "**`aws:ses`** — full SES email sending permissions"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Use this for\n   * accessing AWS services directly (e.g., Rekognition, Textract, Bedrock)."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“By default, your container's outbound IP address changes with each deployment.”",
+              "reason": "The source supports that enabling `usePrivateSubnetsWithNAT` gives a static IP, but it does not state that the default outbound IP changes on each deployment.",
+              "suggestedFix": "Use narrower wording: “Use `usePrivateSubnetsWithNAT` when external systems need a stable IP to whitelist.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Deploy in private subnets with a static outbound IP via NAT Gateway."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Each NAT Gateway gets a static Elastic IP that persists across deployments"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Defaults: interval `30s`, timeout `5s`, `3` retries before marking unhealthy.”",
+              "reason": "The provided source documents that `internalHealthCheck` exists and that unhealthy containers are replaced. It does not provide interval, timeout, or retry defaults.",
+              "suggestedFix": "Remove the health-check defaults unless the `ContainerHealthCheck` type or runtime validator source is provided and confirms them.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Health check that auto-replaces unhealthy containers."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "If a container fails the health check, it's terminated and replaced automatically."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The `internalHealthCheck` property runs a command inside the container to verify it's healthy.”",
+              "reason": "The provided source does not define the shape of `ContainerHealthCheck`, so the draft cannot claim it is command-based from these files alone.",
+              "suggestedFix": "Say “`internalHealthCheck` configures a container health check” unless the `ContainerHealthCheck` definition confirms command-based checks.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "internalHealthCheck?: ContainerHealthCheck;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Set `architecture: 'arm64'` to use ARM (Graviton) tasks for ~20% lower compute cost. The default is `x86_64`.”",
+              "reason": "The pricing source supports the ARM discount, but the provided type sources do not show an `architecture` property or an `x86_64` default for private services.",
+              "suggestedFix": "Keep the pricing context only if you can cite the config property from the resource types. Otherwise remove the config instruction and default claim.",
+              "evidence": [
+                {
+                  "file": "@generated/aws-price/distilled/private-service.md",
+                  "quote": "Prices are us-east-1 list price; ARM (Graviton) tasks bill ~20% less than x86."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "CPU, memory, and compute engine for the container."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Fargate CPU and memory must use valid combinations.”",
+              "reason": "The provided source files do not document valid CPU/memory combinations or validation constraints for `resources`.",
+              "suggestedFix": "Remove this sentence unless a `ContainerWorkloadResourcesConfig` type or validator source is added that documents the allowed combinations.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Fargate** (default): Serverless — just specify `cpu` and `memory`."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“If you use `application-load-balancer` load balancing, the ALB also performs its own health checks.”",
+              "reason": "The provided private-service and load-balancer integration sources do not document ALB health-check behavior for private services.",
+              "suggestedFix": "Remove this sentence unless the Application Load Balancer or ECS target group source is provided and confirms the behavior.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\private-services.d.ts",
+                  "quote": "**`application-load-balancer`** (~$18/mo): HTTP load balancer. Reachable from any VPC resource."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“The alias is always the lowercased resource name.”",
+              "reason": "The provided active private-service source says other containers can reach the service “by name,” while the generic Service Connect source says the alias is derived from resource and container names. The lowercased-resource-name wording appears only in a commented-out block in the private-service file, so “always” is too strong from the provided sources.",
+              "suggestedFix": "Prefer `connectTo` and the injected `STP_<RESOURCE>_ADDRESS` in the docs. If showing a manual URL, say it follows the service address/alias documented for the resource, without promising the exact lowercasing rule unless verified in runtime source.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\private-services.d.ts",
+                  "quote": "Other containers in the same stack can reach it by name (e.g., `http://myService:3000`)."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "By default, the alias is derived from the resource and container names (e.g., `my-resource-my-container`)."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "“Adjust retention with the `logging.retentionDays` property.”",
+              "reason": "The provided source confirms `logging` exists and that logs are retained for 90 days, but it does not show a `retentionDays` subproperty.",
+              "suggestedFix": "Either remove the `logging.retentionDays` sentence or verify it against the `ContainerWorkloadContainerLogging` type source.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "logging?: ContainerWorkloadContainerLogging;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Container output (`stdout`/`stderr`) is automatically sent to CloudWatch and retained for 90 days."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "incorrect-claim",
+              "statement": "All Stacktape config examples use `label: 'stacktape.ts'` instead of the required visible `TypeScript` tab label.",
+              "reason": "The page-level rules require Stacktape config examples to use `<CodeBlock intellisense tabs={[...]} />` with a visible `TypeScript` tab. The examples use the required component, but the tab label is wrong.",
+              "suggestedFix": "Change every Stacktape config CodeBlock tab label from `stacktape.ts` to `TypeScript`.",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The page avoids hand-authored YAML Stacktape configuration and does not use the plain-object `StacktapeConfig` style.",
+            "The core private-service definition is supported: an always-on private container for internal APIs, microservices, and gRPC servers that are not publicly accessible.",
+            "The one-line pricing context is mostly grounded in the provided pricing and type sources: minimal Fargate cost, Service Connect cost, ALB cost, ARM discount, and Fargate not scaling to zero are all source-backed.",
+            "The Service Connect vs Application Load Balancer comparison is broadly supported: Service Connect is the default, is cheaper, and is container-to-container within the stack; Application Load Balancer is an HTTP load balancer reachable from any VPC resource.",
+            "The `connectTo` section is mostly grounded: the source documents IAM permissions, security-group access for databases and Redis, and injected `STP_[RESOURCE_NAME]_[PARAM]` variables, including `PrivateService` -> `ADDRESS`.",
+            "The NAT section is mostly grounded: `usePrivateSubnetsWithNAT`, `stackConfig.vpc.nat.availabilityZones`, 1–3 availability zones, static Elastic IPs, and approximately $32/month per NAT Gateway are supported.",
+            "The logging and remote-session basics are supported: stdout/stderr go to CloudWatch with 90-day retention, logs are available through `stacktape logs` or Stacktape Console, and `enableRemoteSessions` enables `stacktape container:session` with an SSM agent."
+          ]
+        }
+      ],
+      "seoReviewResult": {
+        "score": 8,
+        "suggestions": [
+          "Rename generic noun-phrase headings to question format where natural: 'Scaling' → 'How does auto-scaling work?', 'Logging' → 'How are logs collected?', 'Side containers' → 'How do I run sidecar containers?', 'Static outbound IP' → 'How do I get a static outbound IP?', 'Health checks' → 'How do health checks work?'. These match real developer search queries and improve H2/H3 snippet eligibility.",
+          "Rename 'Basic example' to something search-friendly like 'How do I deploy a private service?' — 'Basic example' is a generic label that no one searches for and wastes a prominent H2 slot.",
+          "Add a short FAQ section (3-5 items) near the bottom with questions like: 'Can Lambda functions call a private service?', 'How much does a Fargate private service cost?', 'What is the difference between Service Connect and Application Load Balancer?', 'Does a private service get a public URL?'. These are high-likelihood queries that the page already answers but are buried in prose — surfacing them as an explicit FAQ improves featured-snippet and People Also Ask eligibility.",
+          "The 'Logging' and 'Remote debugging' sections are very thin (1-2 sentences each). Either expand them with a self-contained opening sentence that an AI engine could extract (e.g., 'Private service containers automatically ship stdout/stderr to CloudWatch Logs with 90-day default retention') or merge them into a single 'Observability' section so the content is denser and more extractable.",
+          "The 'Resources and compute' heading is vague — consider 'How do I configure CPU and memory?' to match the actual developer question. The current heading reads like an internal category label rather than something a user would search for.",
+          "In the load balancing comparison table, add a row for 'Protocol support' (Service Connect: HTTP/HTTP2/gRPC; ALB: HTTP/HTTPS/gRPC) — this is a common decision factor developers search for and would make the table more complete as a standalone snippet."
+        ]
+      },
+      "passed": true
+    }
+  ],
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\resources\\compute\\private-service.mdx",
+  "completedAt": "2026-05-07T09:38:35.132Z",
+  "inputHashes": {
+    "C:\\Projects\\stacktape\\types\\stacktape-config\\private-services.d.ts": "4aaaa491319c08da977f71f050e2cd3a0fbf8fa2",
+    "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts": "2ec8ea0abd8d43494ed20e0ee271e9e996120adf",
+    "C:\\Projects\\stacktape\\types\\stacktape-config\\_root.d.ts": "01d97ccda166b4f2d956b9805e9c470dcf8c3a29",
+    "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts": "1b2078c225925bda3c26c9be70a426637c1d3128",
+    "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts": "0f821061326ee7bb81f3cc25652a1269d87c18fc",
+    "C:\\Projects\\stacktape\\types\\stacktape-config\\alarms.d.ts": "060ce0874ea744f7a4bc0ccd8e5f173c30ef7810",
+    "C:\\Projects\\stacktape\\@generated\\ai-docs\\config-ref\\private-service.md": "22ee70c5e4c98a6df1e1f94d0af11ae540668387",
+    "@generated/aws-price/distilled/private-service.md": "1730e932f916ead58fc04fce60a1a4aec9c40140"
+  },
+  "styleGuideHash": "08027be162b624c1753208b3c561e55b2ea9df43"
+}

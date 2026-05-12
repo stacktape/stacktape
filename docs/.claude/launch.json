@@ -2,23 +2,10 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "docs-old",
+      "name": "docs",
       "runtimeExecutable": "bun",
       "runtimeArgs": ["run", "dev"],
       "port": 9001
-    },
-    {
-      "name": "docs-new",
-      "runtimeExecutable": "bun",
-      "runtimeArgs": ["run", "dev:new-docs"],
-      "port": 9002
-    },
-    {
-      "name": "console-app",
-      "runtimeExecutable": "bun",
-      "runtimeArgs": ["run", "dev"],
-      "port": 5173,
-      "cwd": "../../console-app"
     }
   ]
 }

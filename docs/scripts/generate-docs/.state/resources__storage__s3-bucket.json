@@ -1,0 +1,921 @@
+{
+  "pageId": "resources__storage__s3-bucket",
+  "pageRoute": "resources/storage/s3-bucket",
+  "startedAt": "2026-05-07T15:55:06.274Z",
+  "updatedAt": "2026-05-07T16:19:06.771Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\resources__storage__s3-bucket\\iteration-1.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "startup-cto",
+          "persona": "Small startup CTO with low to medium AWS experience. Cares most about time-to-production and shipping quickly without getting trapped in AWS complexity.",
+          "modelProvider": "claude",
+          "scores": {
+            "clarity": 9,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 9,
+            "audienceFit": 9
+          },
+          "strengths": [
+            "Opening paragraph is a strong self-contained answer: defines what S3 buckets are, mentions durability, pay-per-use pricing, and what Stacktape manages — all in ~50 words.",
+            "The 'When to use / When not to use' section is concrete and opinionated, with a clear table routing readers to hosting-bucket, DynamoDB, EFS, and Redis when appropriate.",
+            "Lifecycle rules section is well-structured with a rule-types table, storage classes table, and a realistic multi-rule example that shows three different rule types together — practical and copyable.",
+            "Good use of warnings at high-signal moments: directory upload replacing contents, and the Tip recommending hosting-bucket for SPAs instead of manually configuring a bucket + CDN.",
+            "All CodeBlock examples use the correct `<CodeBlock intellisense tabs={[...]} />` pattern with focus markers highlighting the relevant configuration while keeping the surrounding boilerplate visible.",
+            "Section ordering follows the reader's likely priority: basic setup → directory upload → access control → CDN → CORS → lifecycle → events → connecting — a natural progression from simple to advanced.",
+            "The 'Connecting to other resources' section correctly shows the pattern from the compute resource side and includes the injected environment variable naming convention with a concrete example (STP_FILES_NAME)."
+          ],
+          "problems": [
+            "The 'Accessibility' heading is ambiguous — it could be confused with web accessibility (a11y). While the context makes it clear, a more precise heading like 'Access control' would eliminate ambiguity for someone scanning headings.",
+            "The headers presets table omits `gatsby-static-website` which is present in the source type `SupportedHeaderPreset`. While Gatsby is less popular, the table presents itself as a complete list without qualifying that it's a subset.",
+            "The pricing context line is vague ('per GB/month', 'per 1,000') compared to the example page's web-service pricing which gives concrete approximate dollar amounts. No concrete S3 pricing data appears in the provided source files, so this is handled correctly per the rules, but the line could be tightened.",
+            "The CDN section's closing paragraph ('The CDN also supports custom domains, edge functions, route rewrites...') reads as a feature list dump rather than actionable guidance — it would be stronger with a link to a dedicated CDN configuration page or a brief note on which of these are most commonly used."
+          ],
+          "mandatoryFixes": [],
+          "optionalImprovements": [
+            "Rename the 'Accessibility' H2 to 'Access control' to avoid confusion with web accessibility and better match the reader's mental model when scanning.",
+            "Add `gatsby-static-website` to the headers presets table, or add a qualifier like 'Common presets include:' to signal the list may not be exhaustive. The source type includes it.",
+            "In the CDN closing paragraph, replace the feature list with a sentence linking to a CDN configuration page (if one exists) — e.g., 'For custom domains, edge functions, and other CDN options, see [CDN configuration](/configuration/cdn/).' This keeps the S3 page focused.",
+            "Consider adding a brief 'Common patterns' or 'Usage with presigned URLs' subsection — presigned URLs for client-side uploads are one of the most common S3 patterns for startups, and the CORS section already hints at this use case without showing how to tie it together.",
+            "The basic example's closing text says 'your application code reads and writes objects using the AWS SDK with the bucket name from the STP_UPLOADS_NAME environment variable (injected by connectTo)' — but the basic example doesn't show connectTo. Consider adding a one-line note like 'See Connecting to other resources below for how to grant your compute resources access.'"
+          ]
+        },
+        {
+          "reviewerId": "smb-manager",
+          "persona": "SMB engineering manager with medium to high AWS knowledge. Cares about long-term maintainability, team clarity, operational fit, technically correct Stacktape class-based config examples, and valid MDX component usage.",
+          "modelProvider": "codex",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Strong page shape: first paragraph, pricing line, when-to-use guidance, basic example, focused configuration sections, API reference, and referenceable parameters are all present.",
+            "Stacktape config examples use class-based `defineConfig` inside `<CodeBlock intellisense tabs={[...]} />`; no forbidden YAML or plain-object `StacktapeConfig` style appears.",
+            "The page gives practical warnings for destructive directory sync, public bucket access, lifecycle cleanup, and using hosting bucket for static sites."
+          ],
+          "problems": [
+            "Several claims are not grounded in the provided sources, including CDN monthly pricing details, CDN custom domains/edge functions/route rewrites/caching/price class/firewall support, and direct Lambda S3 trigger wording beyond the `S3Integration` type.",
+            "The lifecycle example likely uses unsupported constructor shorthand. The provided source defines lifecycle rule interfaces as `{ type, properties }`; it does not show `new Expiration({ ... })`, `new ClassTransition({ ... })`, or `new AbortIncompleteMultipartUpload({ ... })` classes.",
+            "The headers preset table omits `gatsby-static-website`, which is listed in `SupportedHeaderPreset`.",
+            "The access guidance says “only compute resources in your stack that use `connectTo` can access it,” but the source also allows entities with sufficient IAM permissions and custom bucket policy statements.",
+            "The page says Stacktape “manages access policies” in the intro. The source supports predefined accessibility modes and custom bucket policy statements, but the wording is broad enough to imply more policy management than shown.",
+            "The S3 trigger statement should be narrowed. The source supports an `S3Integration` trigger with `bucketArn`, event type, and optional prefix/suffix filter, but does not show the exact `s3` trigger placement on `LambdaFunction` in the provided files."
+          ],
+          "mandatoryFixes": [
+            "Ground or remove unsupported CDN details. Only keep `cdn.enabled`, `rewriteRoutesForSinglePageApp`, `disableUrlNormalization`, and the source-backed CloudFront purpose unless additional CDN source files are provided.",
+            "Replace the lifecycle example with the source-backed rule shape, or provide source evidence for the exported lifecycle helper classes and their constructor signatures.",
+            "Add `gatsby-static-website` to the headers preset list or avoid enumerating every preset.",
+            "Narrow the private access wording to include compute resources granted permissions through `connectTo` and other entities with sufficient IAM permissions."
+          ],
+          "optionalImprovements": [
+            "Add a short “When not to use public buckets” note near Accessibility; this audience will care about long-term security posture.",
+            "Make the pricing line slightly more source-faithful: “pay for storage and transfer” is directly sourced; request and data-transfer-out detail needs pricing source support.",
+            "Consider splitting “Versioning and encryption” into two short subsections if this page is used by teams with compliance reviewers.",
+            "For Event notifications, show EventBridge as the primary source-backed path and link direct S3 triggers as a related option only if the Lambda trigger docs/source is available."
+          ]
+        },
+        {
+          "reviewerId": "developer-low-aws",
+          "persona": "Developer with little AWS or DevOps experience. Needs jargon kept under control and wants examples that are easy to follow.",
+          "modelProvider": "claude",
+          "scores": {
+            "clarity": 8,
+            "scannability": 9,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Excellent 'When to use' / 'When not to use' section with a concrete alternatives table — helps the reader make the right choice before diving into config.",
+            "Strong lifecycle rules coverage: the rule types table, storage classes table, and realistic multi-rule example give the reader everything needed to set up cost-controlling policies.",
+            "Directory upload section includes a clear warning about destructive sync behavior, headers presets table, and Transfer Acceleration note — covers the most common gotcha and the most common configuration.",
+            "All CodeBlock examples follow the correct pattern: class-based imports, defineConfig, focus markers hiding the import line, intellisense flag present. No forbidden config patterns.",
+            "Tables are used effectively throughout (accessibility modes, header presets, lifecycle rule types, storage classes, injected env vars) — each one replaces prose that would be harder to scan.",
+            "The CDN section includes SPA routing as a sub-section, which is a very common use case for S3 + CloudFront, and correctly links to hosting bucket as the preferred alternative."
+          ],
+          "problems": [
+            "The headers presets table omits `gatsby-static-website`, which is present in the source type `SupportedHeaderPreset`. Either include it or explicitly note it as legacy/deprecated if that is the case.",
+            "The CDN section mentions 'caching configuration' and 'price class selection' as additional CDN options, but the actual property names are `cachingOptions` and `cloudfrontPriceClass` — the vague wording is fine for prose, but the reader has no way to discover these without the API reference. A brief inline mention of the property names would help.",
+            "The 'Versioning and encryption' section is thin — it doesn't mention that versioning increases storage costs (every overwritten object is retained), which is the key tradeoff a cost-conscious reader needs. It also doesn't mention that S3 now encrypts all objects by default (SSE-S3), which makes the `encryption` flag's purpose ambiguous without clarification on what additional encryption it enables.",
+            "The 'Event notifications' section is brief enough to feel like it exists only to fill a slot. It doesn't show how the events connect to a consumer (e.g., a Lambda trigger referencing the bucket ARN), which is the actionable pattern a reader would need."
+          ],
+          "mandatoryFixes": [
+            "Add the `gatsby-static-website` preset to the headers presets table, or add a note explaining its omission (e.g., 'Gatsby preset is also available but Gatsby is in maintenance mode'). Omitting a source-supported value without explanation creates a silent doc/source mismatch.",
+            "Expand the 'Versioning and encryption' section to mention the storage cost implication of versioning (old versions are retained and billed) and recommend pairing with `NonCurrentVersionExpiration` to control costs. The current text says 'Combine with NonCurrentVersionExpiration' but doesn't explain why this matters financially.",
+            "In the 'Event notifications' section, add a brief example or cross-link showing a Lambda function with an `s3` trigger that references the bucket. The current section tells the reader what to enable but not how to wire it to a consumer, leaving the pattern incomplete."
+          ],
+          "optionalImprovements": [
+            "Consider adding a short 'Using the bucket in application code' snippet (fenced TypeScript, not CodeBlock) showing a 3-line AWS SDK v3 example for uploading an object using the `STP_UPLOADS_NAME` env var. This bridges the gap between config and runtime for readers unfamiliar with the AWS SDK.",
+            "The 'Accessibility' section could note that `public-read-write` is almost never appropriate for production — a brief 'use with caution' note would help beginners avoid a common security mistake.",
+            "The 'Connecting to other resources' env var table only lists `NAME` and `ARN`. If CDN is enabled, CDN-related referenceable params also become available. A brief note like 'When CDN is enabled, additional CDN-related parameters are also injected' would prevent confusion.",
+            "In the 'Directory upload' section, mention `fileOptions` with a one-line example of setting a custom `Cache-Control` header on `*.html` files — this is the most common override pattern and would make the section more actionable.",
+            "The pricing line could include approximate per-GB storage cost (~$0.023/GB/month for S3 Standard in us-east-1) if that number is available in source files, since storage cost is the primary concern for bucket users."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "claude-verifier",
+          "modelProvider": "claude",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "The headers presets table lists 5 presets (single-page-app, static-website, astro-static-website, sveltekit-static-website, nuxt-static-website) but omits `gatsby-static-website`.",
+              "reason": "The source type `SupportedHeaderPreset` includes `gatsby-static-website` as a valid preset, but it is not listed in the draft's headers presets table. A Gatsby user reading this page would not know the preset exists.",
+              "suggestedFix": "Add a row for `gatsby-static-website` to the headers presets table with appropriate description (e.g., 'Hashed build assets cached forever, HTML always fresh. For Gatsby static sites.').",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\buckets.d.ts",
+                  "quote": "type SupportedHeaderPreset =\n  | 'gatsby-static-website'\n  | 'static-website'\n  | 'single-page-app'\n  | 'astro-static-website'\n  | 'sveltekit-static-website'\n  | 'nuxt-static-website';"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "CDN section states 'No monthly base cost — you pay per request and per GB transferred.'",
+              "reason": "While the CDN source confirms no monthly base cost, the draft omits the approximate pricing that IS present in the source JSDoc: '~$0.01/10k' per request. Since the source explicitly provides this pricing context and the page instructions require including pricing when present in source files, this should be included for completeness.",
+              "suggestedFix": "Update the CDN pricing line to include the source-backed figure: 'No monthly base cost — you pay per request (~$0.01/10k) and per GB transferred.'",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\cdn.d.ts",
+                  "quote": "The CDN itself has no monthly fee — you pay per request (~$0.01/10k) and per GB transferred."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "missing-caveat",
+              "statement": "The 'Referenceable parameters' section at the bottom uses `<ReferenceableParams resource=\"bucket\" />` but the draft does not mention CDN-related referenceable params in the prose (cdnDomain, cdnUrl, etc.).",
+              "reason": "The source type `BucketReferencableParam = 'name' | 'arn' | CdnReferenceableParam` includes CDN referenceable params (cdnDomain, cdnCustomDomains, cdnUrl, cdnCustomDomainUrls, cdnCanonicalDomain, cdnCanonicalUrl) when CDN is enabled. The environment variables table only mentions NAME and ARN, which is correct for `connectTo`, but the reader might not realize additional params are available via `$ResourceParam` when CDN is attached. The component will render them, but a brief mention in the CDN section would help.",
+              "suggestedFix": "Add a note in the CDN section that when CDN is enabled, additional referenceable parameters (cdnUrl, cdnDomain, etc.) become available via `$ResourceParam`.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\buckets.d.ts",
+                  "quote": "type BucketReferencableParam = 'name' | 'arn' | CdnReferenceableParam;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\cdn.d.ts",
+                  "quote": "type CdnReferenceableParam =\n  | 'cdnDomain'\n  | 'cdnCustomDomains'\n  | 'cdnUrl'\n  | 'cdnCustomDomainUrls'\n  | 'cdnCanonicalDomain'\n  | 'cdnCanonicalUrl';"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "missing-caveat",
+              "statement": "CDN section says 'The CDN also supports custom domains, edge functions, route rewrites, caching configuration, price class selection' but does not mention the default price class.",
+              "reason": "The source specifies a default price class of `PriceClass_All` which means all global edge locations. Since this affects cost (some regions cost more per request), mentioning the default would be useful.",
+              "suggestedFix": "Add that the default price class is `PriceClass_All` (all regions worldwide), and that narrowing to `PriceClass_100` (US/EU only) reduces cost if your users are concentrated in those regions.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\cdn.d.ts",
+                  "quote": "- **`PriceClass_All`** (default): All regions worldwide, including South America and Oceania.\n   *\n   * The CDN itself has no monthly base cost - you only pay per request and per GB transferred.\n   * The price class controls which edge locations are used, and some regions cost more per request.\n   *\n   * @default PriceClass_All"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "Durability claim (99.999999999%) is directly confirmed by the source JSDoc on the Bucket interface.",
+            "Default accessibility mode (`private`) is correctly stated and matches the `@default private` annotation in source.",
+            "Directory upload mirroring behavior ('existing files not in the source directory are deleted') is a verbatim match with the source JSDoc.",
+            "CORS default behavior ('permissive defaults when enabled with no rules') and 'first matching rule wins' both match source JSDoc exactly.",
+            "All five lifecycle rule types (Expiration, ClassTransition, NonCurrentVersionExpiration, NonCurrentVersionClassTransition, AbortIncompleteMultipartUpload) and their property names match the source interfaces precisely.",
+            "All five storage class values (STANDARD_IA, ONEZONE_IA, INTELLIGENT_TIERING, GLACIER, DEEP_ARCHIVE) match the union type in ClassTransitionProps.",
+            "S3 Transfer Acceleration enabled by default is confirmed by `disableS3TransferAcceleration` having `@default false`.",
+            "The `enableEventBusNotifications` property and its default (`false`) match the source.",
+            "The `connectTo` environment variables for buckets (NAME, ARN) match the ResourceAccessProps JSDoc.",
+            "The CDN `enabled: true` pattern is confirmed correct — CdnConfiguration has `enabled: boolean` with `@default false`.",
+            "SPA routing behavior (extension check → file; no extension → index.html) matches the BucketCdnConfiguration JSDoc verbatim.",
+            "URL normalization enabled by default is confirmed by `disableUrlNormalization` with `@default false`.",
+            "Encryption is correctly described as AES-256, matching the source JSDoc 'Encrypt stored objects at rest (AES-256)'.",
+            "CDN capabilities (custom domains, edge functions, route rewrites, caching, price class, useFirewall) are all confirmed by CdnConfiguration properties in cdn.d.ts.",
+            "CodeBlock usage follows all required conventions: TypeScript with intellisense for Stacktape config, no hand-authored YAML, no fenced TypeScript blocks for config.",
+            "ApiReference definitionName='BucketProps' and ReferenceableParams resource='bucket' both reference valid source definitions."
+          ],
+          "summary": "The S3 Bucket draft is well-grounded and accurate overall. All code examples use correct property names verified against source types. The CDN `enabled: true` pattern, lifecycle rule types, CORS behavior, accessibility modes, and environment variable names are all confirmed. Four issues found: (1) the `gatsby-static-website` header preset is missing from the presets table despite being in the source type union; (2) the CDN section omits the ~$0.01/10k per-request pricing figure that IS present in the source JSDoc; (3) CDN referenceable parameters (cdnUrl, cdnDomain, etc.) are not mentioned in prose; (4) the default CDN price class (PriceClass_All) is not mentioned despite having cost implications. No forbidden patterns detected — all Stacktape config examples use CodeBlock with intellisense, no hand-authored YAML, no StacktapeConfig typed style."
+        },
+        {
+          "verifierId": "codex-verifier",
+          "modelProvider": "codex",
+          "summary": "The draft is broadly aligned with the Bucket type surface, but it contains several unsupported AWS-service behavior and pricing claims, a likely invalid API reference definition, and one config-example label/style violation. The biggest factual risks are claims that go beyond the provided Bucket source: multi-AZ replication mechanics, no base monthly costs, CDN pricing/cost behavior, CloudFront edge behavior, and EventBridge routing targets.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Objects are replicated across multiple availability zones for 99.999999999% durability.”",
+              "reason": "The provided Bucket source supports the durability figure but does not state the replication mechanism or that objects are replicated across multiple availability zones. The draft adds AWS implementation detail not present in the source.",
+              "suggestedFix": "Say: “S3 buckets are described by Stacktape as highly durable (99.999999999%).” Omit the multi-AZ replication claim unless a source file explicitly documents it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\buckets.d.ts",
+                  "quote": "Pay only for what you store and transfer. Highly durable (99.999999999%)."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“You pay only for what you store and transfer — there is no base monthly cost.” and “Empty or unused buckets cost nothing.”",
+              "reason": "The source supports “Pay only for what you store and transfer,” but it does not explicitly support “no base monthly cost” or that empty/unused buckets cost nothing. Those are pricing assertions beyond the provided pricing source.",
+              "suggestedFix": "Keep the sourced wording: “Pricing: Pay only for what you store and transfer.” Avoid stronger claims about base monthly cost or empty buckets unless sourced.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\buckets.d.ts",
+                  "quote": "Pay only for what you store and transfer. Highly durable (99.999999999%)."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Pricing: Pay-per-use. You pay for storage (per GB/month), requests (per 1,000), and data transfer out.”",
+              "reason": "The source only says users pay for what they store and transfer. It does not mention request pricing, per-1,000 request units, per-GB/month units, or data transfer out specifically.",
+              "suggestedFix": "Use only the sourced pricing context: “Pricing: Pay only for what you store and transfer.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\buckets.d.ts",
+                  "quote": "Pay only for what you store and transfer. Highly durable (99.999999999%)."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "All Stacktape config examples use `label: 'stacktape.ts'` instead of a visible `TypeScript` tab.",
+              "reason": "The hard requirements say Stacktape configuration examples must use `<CodeBlock intellisense tabs={[...]} />` with a visible `TypeScript` tab. The examples use the correct component and intellisense flag, but the visible tab label does not match the required label.",
+              "suggestedFix": "Change every Stacktape config example tab label from `stacktape.ts` to `TypeScript`.",
+              "evidence": [
+                {
+                  "file": "Prompt hard requirements",
+                  "quote": "Stacktape configuration examples MUST use <CodeBlock intellisense tabs={[...]} /> with a visible TypeScript tab."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The bucket is private by default — only compute resources in your stack that use `connectTo` can access it.”",
+              "reason": "The source supports that `private` is the default and that compute resources/entities with sufficient IAM permissions can access the bucket. It does not support the narrower claim that only compute resources in the same stack using `connectTo` can access it.",
+              "suggestedFix": "Say: “The bucket is private by default. Compute resources and entities with sufficient IAM permissions can read from or write to it; Stacktape workloads can receive those permissions through `connectTo`.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\buckets.d.ts",
+                  "quote": "`private` (default): Only compute resources and entities with sufficient IAM permissions can read from or write to the bucket."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\buckets.d.ts",
+                  "quote": "For functions, batch jobs, and container workloads, you can grant the required IAM permissions using the `allowsAccessTo` or `iamRoleStatements` properties in their respective configurations."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“After deploying, your application code reads and writes objects using the AWS SDK with the bucket name from the `STP_UPLOADS_NAME` environment variable (injected by `connectTo`).”",
+              "reason": "The source states the env var format is `STP_[RESOURCE_NAME]_[PARAM]`. For a resource named `uploads`, that implies `STP_UPLOADS_NAME`, but only when a script or workload uses `connectTo`. The preceding basic example creates only a bucket and does not include a connected compute resource, so the statement reads as if the variable is injected after deploying the bucket alone.",
+              "suggestedFix": "Clarify scope: “When a workload or script connects to this bucket with `connectTo: ['uploads']`, Stacktape injects `STP_UPLOADS_NAME` and `STP_UPLOADS_ARN` into that workload or script.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "A list of resources the script needs to interact with. Stacktape automatically injects environment variables with connection details for each specified resource."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Environment variable names are in the format `STP_[RESOURCE_NAME]_[VARIABLE_NAME]` (e.g., `STP_MY_DATABASE_CONNECTION_STRING`)."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“For React/Vue/Angular SPAs.”",
+              "reason": "The source documents `single-page-app` as “For React/Vue/Angular SPAs,” so the claim is supported. However, the draft omits the supported `gatsby-static-website` preset that appears in the type union. Because the section presents the available presets, the list is incomplete.",
+              "suggestedFix": "Add `gatsby-static-website` to the headers preset table, or avoid saying the table lists all presets.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\buckets.d.ts",
+                  "quote": "type SupportedHeaderPreset =\n  | 'gatsby-static-website'\n  | 'static-website'\n  | 'single-page-app'\n  | 'astro-static-website'\n  | 'sveltekit-static-website'\n  | 'nuxt-static-website';"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Add a CDN (CloudFront) in front of the bucket for faster downloads and lower bandwidth costs. The CDN caches objects at edge locations worldwide, reducing latency for end users. No monthly base cost — you pay per request and per GB transferred.”",
+              "reason": "The Bucket source supports “CloudFront” and “faster downloads and lower bandwidth costs.” It does not support edge-location/worldwide caching details or the CDN pricing assertions. The pricing units and no-base-cost claim are not present in the source.",
+              "suggestedFix": "Use the sourced wording: “Add a CDN (CloudFront) in front of the bucket for faster downloads and lower bandwidth costs.” Remove the edge-location and pricing-unit claims unless sourced.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\buckets.d.ts",
+                  "quote": "Put a CDN (CloudFront) in front of this bucket for faster downloads and lower bandwidth costs."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The CDN also supports custom domains, edge functions, route rewrites, caching configuration, price class selection, and attaching a web application firewall via `useFirewall`.”",
+              "reason": "The provided Bucket source shows `BucketCdnConfiguration extends CdnConfiguration`, but the supplied files do not define `CdnConfiguration` or its properties. The claim may be true elsewhere, but it is not grounded in the provided source files.",
+              "suggestedFix": "Either remove the enumerated CDN feature list or narrow it to properties shown in the provided Bucket source: `enabled`, `rewriteRoutesForSinglePageApp`, and `disableUrlNormalization`, plus CloudFront attachment wording.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\buckets.d.ts",
+                  "quote": "interface BucketCdnConfiguration extends CdnConfiguration {"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Use lifecycle rules to control storage costs without manual cleanup.”",
+              "reason": "The source supports lifecycle rules for controlling storage costs by expiring, archiving, or cleaning up objects. This statement is supported. No issue with the core claim; however, the example uses class constructors (`new Expiration`, `new ClassTransition`, `new AbortIncompleteMultipartUpload`) that are not shown in the provided type source, where lifecycle rules are discriminated interfaces with `type` and `properties`. If class constructors are part of the documented class-based API, they need a source file not included here.",
+              "suggestedFix": "Verify against the class-based Stacktape API source. If no class exports exist for these lifecycle rule helpers, rewrite the example to use the supported documented class-based shape for Bucket lifecycle rules.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\buckets.d.ts",
+                  "quote": "lifecycleRules?: (\n    | Expiration\n    | NonCurrentVersionExpiration\n    | ClassTransition\n    | NonCurrentVersionClassTransition\n    | AbortIncompleteMultipartUpload\n  )[];"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\buckets.d.ts",
+                  "quote": "interface Expiration {\n  type: 'expiration';\n  properties: ExpirationProps;\n}"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Enable `enableEventBusNotifications` to send S3 events (object created, deleted, etc.) to Amazon EventBridge. From there, you can route events to Lambda functions, Step Functions, or other targets using an event bus.”",
+              "reason": "The Bucket source supports sending object-created/deleted events to EventBridge for event-driven workflows. The provided EventBus integration source only documents triggering batch jobs from an event bus in this source set; it does not support routing bucket events to Lambda functions, Step Functions, or other targets from an event bus page context.",
+              "suggestedFix": "Say: “Enable `enableEventBusNotifications` to send S3 events, such as object-created and object-deleted events, to EventBridge for event-driven workflows.” Avoid listing targets unless supported by provided EventBus or target source files.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\buckets.d.ts",
+                  "quote": "Send events (object created, deleted, etc.) to EventBridge for event-driven workflows."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "Triggers a batch job when an event matching a specified pattern is received by an event bus."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Use `connectTo` on your compute resources (Lambda functions, web services, worker services, etc.) to grant them access to the bucket.”",
+              "reason": "The source supports `connectTo` on resources that extend `ResourceAccessProps`, and explicitly lists functions, batch jobs, and container workloads in the bucket accessibility docs. The draft’s “etc.” is broad and could imply all compute-like resources. The provided `ResourceAccessProps` source lists supported injected variables and includes more resource categories, but it does not define every compute resource’s config in the provided files.",
+              "suggestedFix": "Use the sourced narrower wording: “For functions, batch jobs, and container workloads, use `connectTo` to grant bucket access and inject bucket parameters.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\buckets.d.ts",
+                  "quote": "For functions, batch jobs, and container workloads, you can grant the required IAM permissions using the `allowsAccessTo` or `iamRoleStatements` properties in their respective configurations."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "List the names of resources this workload needs to communicate with. Stacktape automatically:\n   * - **Grants IAM permissions** (e.g., S3 read/write, SQS send/receive)"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“For fine-grained access control beyond these modes, use `accessPolicyStatements` to add custom IAM policy statements to the bucket policy.”",
+              "reason": "The property exists, but it is nested under `accessibility`. The statement may be read as a top-level Bucket property. This is especially risky because the requirements warn not to flatten nested-property constraints.",
+              "suggestedFix": "Say: “Inside `accessibility`, use `accessPolicyStatements` for advanced IAM policy statements.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\buckets.d.ts",
+                  "quote": "accessibility?: BucketAccessibility;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\buckets.d.ts",
+                  "quote": "accessPolicyStatements?: BucketPolicyIamRoleStatement[];"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "`<ApiReference definitionName=\"BucketProps\" />`",
+              "reason": "The MDX sanity rules require `definitionName` to be a definition in the generated config schema. The provided TypeScript source defines `BucketProps`, but no generated schema file is included in the provided source list to verify that `BucketProps` is a schema definition. This is a required sanity check and cannot be confirmed from the available source files.",
+              "suggestedFix": "Verify against `@generated/schemas/config-schema.json`. If `BucketProps` is not a schema definition, use the actual schema definition name for bucket properties.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\buckets.d.ts",
+                  "quote": "interface BucketProps {"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape manages bucket creation, access policies, CDN attachment, and lifecycle rules.”",
+              "reason": "The source supports bucket resource configuration, accessibility/access policy properties, CDN configuration, and lifecycle rules. It does not explicitly say Stacktape “manages bucket creation,” although that is implied by `resources` and the Bucket resource type. This is low risk but slightly broader than the direct source text.",
+              "suggestedFix": "Narrow to: “Stacktape configures the bucket, predefined access modes, optional CDN attachment, and lifecycle rules.”",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "“Use an S3 bucket when your application generates files that need persistent storage (reports, exports, logs).”",
+              "reason": "The source describes S3 bucket use for files, images, backups, and binary data. It does not specifically mention reports, exports, or logs, though these are reasonable examples of files/binary data.",
+              "suggestedFix": "Keep examples clearly illustrative: “for example, reports, exports, or logs.”",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "“Hosting a static site or SPA: Hosting bucket — pre-configured for web hosting with routing and caching.”",
+              "reason": "The provided source set includes `HostingBucket` only as a referenced type, with no properties or behavior. The claim about hosting bucket routing and caching is not grounded in the provided files.",
+              "suggestedFix": "If no hosting-bucket source is provided, reduce to: “For static sites and SPAs, prefer the dedicated hosting bucket resource.”",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "“Shared filesystem mounted by containers: EFS filesystem — POSIX filesystem accessible from multiple containers.”",
+              "reason": "The provided source set references `EfsFilesystem`, but does not include its type definition or behavior. The POSIX and multi-container access claims are not grounded here.",
+              "suggestedFix": "Remove the EFS behavior details unless the EFS source file is included, or say only: “Use an EFS filesystem when you need a filesystem resource.”",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "“The first matching rule wins for each preflight request.”",
+              "reason": "This is directly supported by the source. No issue with the claim. However, the draft also says CORS allows browser access “for example, client-side uploads via presigned URLs,” and presigned URLs are not mentioned in the provided source.",
+              "suggestedFix": "Keep the CORS mechanics and remove the presigned URL example unless another source supports it.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "“`INTELLIGENT_TIERING` is a good default when access patterns are unpredictable.”",
+              "reason": "The source states that `INTELLIGENT_TIERING` auto-moves between tiers based on access patterns. It does not make a recommendation that it is a good default for unpredictable access patterns. The recommendation is plausible, but not source-grounded.",
+              "suggestedFix": "Say: “Use `INTELLIGENT_TIERING` when you want AWS to move objects between tiers based on access patterns.”",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "“Cheaper classes have lower storage costs but higher retrieval costs and latency.”",
+              "reason": "The source says cheaper classes have higher retrieval costs/latency, but it does not explicitly state lower storage costs. It is implied by “cheaper storage class,” but the full cost tradeoff is not directly sourced.",
+              "suggestedFix": "Use the sourced wording: “Cheaper classes have higher retrieval costs and latency.”",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "“This protects against accidental deletions and overwrites.”",
+              "reason": "The source says versioning keeps previous versions and helps recover from mistakes. The protection phrasing is stronger than the source because versioning helps recovery rather than preventing deletion or overwrite.",
+              "suggestedFix": "Say: “This helps recover from accidental deletions and overwrites.”",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "“You can also trigger Lambda functions directly from S3 events using the `s3` trigger type … without going through EventBridge.”",
+              "reason": "The `S3Integration` source supports triggering a function when S3 events happen. The source requires `bucketArn` and `s3EventType`; it does not state the configuration is “directly” from S3 or “without going through EventBridge.”",
+              "suggestedFix": "Say: “Lambda functions can use the `s3` trigger type for S3 events. The trigger configuration requires a bucket ARN and S3 event type.”",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "No hand-authored Stacktape YAML examples appear in the draft.",
+            "No fenced TypeScript block contains `defineConfig` or Stacktape resource class instantiation; Stacktape config examples use `<CodeBlock intellisense ... />`.",
+            "The Bucket properties `directoryUpload`, `accessibility`, `cors`, `versioning`, `encryption`, `lifecycleRules`, `enableEventBusNotifications`, and `cdn` are all present in the provided Bucket type source.",
+            "The directory upload warning is accurately grounded in the source: directory sync mirrors the local directory and deletes bucket contents not present locally.",
+            "The CORS defaults claim is supported by the Bucket CORS source: enabling CORS with no rules uses permissive defaults.",
+            "The lifecycle rule types and storage class values listed in the draft match the provided Bucket lifecycle type source.",
+            "The bucket referenceable parameters `name` and `arn` are supported by `BucketReferencableParam`, and the `connectTo` injected variables for Bucket are supported as `NAME` and `ARN`."
+          ]
+        },
+        {
+          "verifierId": "code-validator",
+          "modelProvider": "deterministic",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #6 (stacktape.ts): TypeScript config example is not Prettier-formatted.",
+              "reason": "Stacktape config examples must render cleanly and consistently. The pipeline uses Prettier as the formatting contract.",
+              "suggestedFix": "Format the full code string with Prettier using the TypeScript parser."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #7 (stacktape.ts): TypeScript config example is not Prettier-formatted.",
+              "reason": "Stacktape config examples must render cleanly and consistently. The pipeline uses Prettier as the formatting contract.",
+              "suggestedFix": "Format the full code string with Prettier using the TypeScript parser."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #7 (stacktape.ts): cannot generate YAML tab from TypeScript source.",
+              "reason": "Every Stacktape config example must use the supported class-based defineConfig shape so CodeBlock can derive a YAML tab automatically.",
+              "suggestedFix": "Rewrite the example as `export default defineConfig(() => { const resource = new ResourceClass({...}); return { resources: { resource } }; });` without unsupported TypeScript expressions in resource properties."
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #7 (stacktape.ts): `new Expiration(...)` references an unknown class.",
+              "reason": "`Expiration` is not exported by the `stacktape` package.",
+              "suggestedFix": "Use one of the documented Stacktape resource classes (e.g. LambdaFunction, WebService, RelationalDatabase). If `Expiration` is meant to be a custom class, define it in the example or remove the example."
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #7 (stacktape.ts): `new ClassTransition(...)` references an unknown class.",
+              "reason": "`ClassTransition` is not exported by the `stacktape` package.",
+              "suggestedFix": "Use one of the documented Stacktape resource classes (e.g. LambdaFunction, WebService, RelationalDatabase). If `ClassTransition` is meant to be a custom class, define it in the example or remove the example."
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #7 (stacktape.ts): `new AbortIncompleteMultipartUpload(...)` references an unknown class.",
+              "reason": "`AbortIncompleteMultipartUpload` is not exported by the `stacktape` package.",
+              "suggestedFix": "Use one of the documented Stacktape resource classes (e.g. LambdaFunction, WebService, RelationalDatabase). If `AbortIncompleteMultipartUpload` is meant to be a custom class, define it in the example or remove the example."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "seoReviewResult": {
+        "score": 7,
+        "suggestions": [
+          "Rename the 'Accessibility' H2 to 'Access control' or 'Access modes' — 'Accessibility' reads as web accessibility (a11y) to both humans and search engines, diluting relevance and potentially attracting wrong traffic.",
+          "Add a brief FAQ section (3-5 items) at the bottom before API reference. Natural questions: 'How do I make an S3 bucket public in Stacktape?', 'How do I auto-delete old S3 objects?', 'How do I trigger a Lambda from S3 uploads?', 'What environment variables does connectTo inject for a bucket?'. These map directly to content already on the page and would surface as rich results.",
+          "The pricing callout is good but vague — add at least one concrete anchor number: 'S3 Standard starts at ~$0.023/GB/month for the first 50 TB' (source: AWS pricing page). AI engines strongly prefer pages that commit to a specific number over pages that say 'per GB/month'.",
+          "The paragraph starting 'The CDN also supports custom domains, edge functions, route rewrites...' is a loose feature list tacked onto the CDN section. Break it into its own H3 ('CDN options') or a compact table so each capability is independently extractable — right now an AI engine would skip this sentence because it can't attribute any single fact to it.",
+          "In the 'Basic example' section, the sentence 'your application code reads and writes objects using the AWS SDK with the bucket name from the STP_UPLOADS_NAME environment variable' is a high-value answer to 'how do I use an S3 bucket from my Lambda in Stacktape'. Move the injected-variable table (currently buried under 'Connecting to other resources') closer to the first code example, or at minimum add a one-line note like 'Stacktape injects STP_[NAME]_NAME and STP_[NAME]_ARN — see Connecting to other resources below.' This makes the basic example section self-contained for the most common query.",
+          "Shorten 'Connecting to other resources' H2 to 'Connect to compute resources' — it's more specific, shorter, and matches the actual search intent (connecting Lambda/containers to S3)."
+        ]
+      },
+      "passed": false
+    },
+    {
+      "iteration": 2,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\resources__storage__s3-bucket\\iteration-2.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "startup-cto",
+          "persona": "Small startup CTO with low to medium AWS experience. Cares most about time-to-production and shipping quickly without getting trapped in AWS complexity.",
+          "modelProvider": "claude",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Well-structured sections that match the resource's actual configuration shape (directory upload, access control, CDN, CORS, lifecycle rules, versioning/encryption, event notifications) rather than a generic backbone",
+            "Strong 'When to use' / 'When not to use' section with concrete alternatives table that helps a startup CTO make quick decisions",
+            "Comprehensive lifecycle rules section with both rule types and storage classes tables — covers the most common cost-control patterns without over-explaining",
+            "Practical connecting-to-compute example showing a Lambda + bucket pattern with environment variable table — the reader can copy and ship immediately",
+            "Good use of Warning and Tip components (directory upload replacing contents, hosting bucket recommendation for SPAs) that prevent real mistakes"
+          ],
+          "problems": [
+            "FAQ section is present despite explicit instructions: 'Do NOT add an FAQ section — only add one when SEO reviewer feedback explicitly requests it.' The FAQ content is useful but should be redistributed into the relevant sections or removed.",
+            "Pricing line ('Pay only for what you store and transfer.') is a word-for-word repeat of the opening paragraph's final sentence. No concrete numbers are added. Since the source files contain no specific S3 pricing data, this line adds zero information and should be removed.",
+            "Minor redundancy: the storage classes table already shows retrieval time, yet the sentence before it restates 'Cheaper classes have higher retrieval costs and latency.' This is borderline but adds slight clutter."
+          ],
+          "mandatoryFixes": [
+            "Remove the FAQ section entirely. The instructions explicitly forbid adding an FAQ unless SEO reviewer feedback requests one. Redistribute any high-value content: the 'How do I make a bucket public?' answer is already covered in the Access control section; the 'How do I auto-delete old objects?' answer is already covered in Lifecycle rules; the Lambda trigger question is already covered in Event notifications; the connectTo variables answer is already covered in Connecting to compute resources.",
+            "Remove or substantially rewrite the pricing line. Currently it reads 'Pay only for what you store and transfer' which is identical to the opening paragraph. Since no concrete pricing data ($/GB, $/request) is present in the provided source files, either remove the pricing line entirely or replace it with a brief qualitative note like: '**Pricing**: S3 storage is billed per GB stored and per request, with no upfront cost. A free tier covers 5 GB for the first 12 months.'— but only if you can ground that in source. If not, omit the line."
+          ],
+          "optionalImprovements": [
+            "Consider using 'stacktape.ts' as the CodeBlock tab label instead of 'TypeScript' to match the example page's convention — this signals to the reader that the file is their actual config file.",
+            "The 'Event notifications' section and 'Connecting to compute resources' section are related (both involve wiring a bucket to Lambda). Consider placing them adjacent or adding a brief cross-reference sentence in Event notifications pointing down to the connectTo example.",
+            "The basic example paragraph below the CodeBlock is dense — it explains private-by-default, connectTo, environment variables, and links to another section all in one block. Consider splitting into two short paragraphs: one about the default access mode and one about connecting to compute.",
+            "In the CDN section, the list of CDN referenceable parameters (cdnUrl, cdnDomain, cdnCanonicalUrl, etc.) is inline prose. A small two-column table (Parameter / Description) would be more scannable for a startup CTO looking for the right variable name.",
+            "The 'Versioning and encryption' section groups two independent features. Since both are single-property toggles, this is fine for brevity, but consider adding one sentence about what AES-256 server-side encryption means in practice (encrypted at rest by AWS, no key management needed) to help readers with limited AWS experience."
+          ]
+        },
+        {
+          "reviewerId": "smb-manager",
+          "persona": "SMB engineering manager with medium to high AWS knowledge. Cares about long-term maintainability, team clarity, operational fit, technically correct Stacktape class-based config examples, and valid MDX component usage.",
+          "modelProvider": "codex",
+          "scores": {
+            "clarity": 7,
+            "scannability": 7,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Strong opening and early decision guidance; the page quickly distinguishes S3 buckets from hosting buckets, databases, EFS, and Redis.",
+            "Stacktape config examples use class-based resources with defineConfig inside <CodeBlock intellisense tabs={[...]}/>, with no forbidden YAML or StacktapeConfig typed examples.",
+            "The page covers the main 80% concerns for this resource: private storage, directory upload, access modes, CDN, CORS, lifecycle rules, versioning, events, and connectTo.",
+            "Warnings around directoryUpload replacing bucket contents and versioning cost are practical and useful for teams operating long-lived buckets."
+          ],
+          "problems": [
+            "Several technical claims are not grounded in the provided source files: CDN no monthly base cost and ~$0.01/10k pricing, CDN edge-location behavior, the full list of CDN referenceable parameters, custom domains/edge functions/route rewrites/caching configuration, PriceClass_All default, PriceClass_100 geography, and URL normalization details beyond the existence of disableUrlNormalization.",
+            "The page includes an FAQ section even though the instructions explicitly say not to add FAQ sections unless SEO reviewer feedback requests one.",
+            "The Event notifications section says S3 events include object-created and object-deleted events to EventBridge. The source only says object created, deleted, etc. for EventBridge and gives the detailed event enum only for direct S3 Lambda triggers; the wording should stay narrower or cite direct trigger types separately.",
+            "The Headers presets table over-specifies behavior for Gatsby and possibly framework-specific presets beyond what the source says. The source only explicitly describes single-page-app, static-website, and groups Astro/SvelteKit/Nuxt as framework-specific caching; Gatsby is listed as a supported preset but not described in detail.",
+            "The Basic example says entities with sufficient IAM permissions can read/write the private bucket. This is broadly consistent with the access-mode comment, but the phrase is vague for an engineering manager; clarify that Stacktape workloads get access through connectTo and other access requires IAM/bucket policy configuration.",
+            "The page is somewhat long for a resource page because it combines prose plus FAQ plus several detailed tables that overlap with the API reference."
+          ],
+          "mandatoryFixes": [
+            "Remove the FAQ section; no SEO reviewer feedback requested an FAQ.",
+            "Remove or narrow unsupported CDN pricing and CDN option claims. Only state CDN behavior supported by the provided BucketCdnConfiguration and BucketProps source unless additional CDN source files are provided.",
+            "Remove the unsupported CDN referenceable parameter list or replace it with a cautious statement that CDN parameters are included through CdnReferenceableParam, then rely on <ReferenceableParams resource=\"bucket\" /> for the exact list.",
+            "Revise the headersPreset table so it only claims behavior explicitly present in DirectoryUpload.headersPreset comments; do not invent behavior for Gatsby or unsupported framework presets."
+          ],
+          "optionalImprovements": [
+            "Change CodeBlock labels from 'TypeScript' to 'stacktape.ts' if this docs section prefers file-oriented labels like the reviewed example, while keeping the TypeScript tab visible and intellisense enabled.",
+            "Add one short sentence near Access control discouraging public-read-write for most teams because the source explicitly defines it as everyone can read and write.",
+            "Consider moving the direct S3 Lambda trigger details into a shorter cross-link to triggers, keeping this page focused on bucket configuration.",
+            "Tighten the CDN section into two subsections: 'CDN' and 'SPA routing', then leave the exhaustive CDN property coverage to ApiReference."
+          ]
+        },
+        {
+          "reviewerId": "developer-low-aws",
+          "persona": "Developer with little AWS or DevOps experience. Needs jargon kept under control and wants examples that are easy to follow.",
+          "modelProvider": "claude",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Excellent page structure mirrors the example page rhythm: concise opener, when-to-use decision table, basic example, then focused configuration sections.",
+            "Realistic, copyable examples with meaningful resource names (uploads, assets, media, logs, documents) that help the reader see themselves in the config.",
+            "Good use of Warning callouts for destructive behavior (directory upload replacing all bucket contents) — this prevents a common mistake for newcomers.",
+            "Lifecycle rules section is well-structured with a rule-type table and a storage-class table, making an otherwise confusing AWS concept scannable.",
+            "ConnectTo section shows a practical multi-resource config (Lambda + Bucket) with a clear env-var table, which is exactly what a developer with limited AWS experience needs to get started.",
+            "All Stacktape config examples correctly use <CodeBlock intellisense tabs={[...]} /> with TypeScript class-based resources — no forbidden patterns present."
+          ],
+          "problems": [
+            "FAQ section is present despite explicit instructions: 'Do NOT add an FAQ section — only add one when SEO reviewer feedback explicitly requests it.' All four FAQ answers restate content already in the page body (access control, lifecycle rules, triggers, connectTo env vars), adding no new information.",
+            "Pricing context line ('Pay only for what you store and transfer.') is a verbatim repetition of the opening paragraph. The example page's pricing line includes concrete numbers and comparisons (~$9/month, ~$1/million requests). This line adds zero new signal — either add concrete S3 pricing or remove it.",
+            "EventBridge is mentioned in the Event notifications section without explanation. The target audience (developers with little AWS experience) may not know what EventBridge is or why they should care. A one-sentence gloss would help.",
+            "CDN pricing figures (~$0.01/10k requests, per GB transferred) are not grounded in any provided source file. The source types have no pricing data for CDN or S3. These numbers may be accurate but they cannot be verified from the provided source."
+          ],
+          "mandatoryFixes": [
+            "Remove the FAQ section entirely. The instructions explicitly prohibit FAQ sections unless SEO reviewer feedback requests one. All four questions are already answered in the main body — 'Access control', 'Lifecycle rules', 'Event notifications', and 'Connecting to compute resources' sections cover them.",
+            "Fix the pricing context line. Either remove it (since no concrete S3 pricing data is in the provided source files) or replace it with a grounded statement. The current line ('Pay only for what you store and transfer.') is redundant with the opening paragraph and violates the pricing rule: 'Never invent or estimate AWS list prices that are not present in the provided source.'"
+          ],
+          "optionalImprovements": [
+            "Add a one-sentence explanation of EventBridge when first mentioned in the Event notifications section — e.g., 'EventBridge is an AWS event router that can fan out S3 events to multiple targets (Lambda functions, SQS queues, Step Functions).' This helps the target audience understand the value without leaving the page.",
+            "Remove or flag the CDN pricing figures (~$0.01/10k) that are not grounded in the provided source. If these numbers are available elsewhere in the codebase, cite the source; otherwise, soften to qualitative language ('low per-request cost').",
+            "Consider adding a brief mention of presigned URLs as the most common pattern for user uploads to/downloads from private buckets. This is the first thing most developers building a file-upload feature will search for, and a one-line pointer would improve practical usefulness.",
+            "The basic example's prose mentions STP_UPLOADS_NAME and STP_UPLOADS_ARN, which is great, but this information also appears later in the connectTo section's env-var table. Consider trimming the basic example prose to just 'Use connectTo to grant access — see Connecting to compute resources below' to reduce duplication and keep the basic example focused.",
+            "In the Storage classes table, briefly clarify what INTELLIGENT_TIERING does for a reader unfamiliar with AWS — e.g., 'AWS monitors access patterns and automatically moves objects between frequent and infrequent tiers' — rather than relying on 'auto-moves between tiers'."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "claude-verifier",
+          "modelProvider": "claude",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "No monthly base cost — you pay per request (~$0.01/10k) and per GB transferred.",
+              "reason": "The specific pricing figure '~$0.01/10k' is not present in any provided source file. The CdnConfiguration interface and BucketCdnConfiguration type contain no pricing data. Per the pricing rules: 'Never invent or estimate AWS list prices that are not present in the provided source.'",
+              "suggestedFix": "Remove the specific pricing number. Rephrase to: 'No monthly base cost — you pay per request and per GB transferred.' Or remove the pricing line entirely from the CDN section since pricing was already covered generically at the top.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\buckets.d.ts",
+                  "quote": "cdn?: BucketCdnConfiguration;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "The FAQ section at the bottom of the page.",
+              "reason": "The page instructions explicitly state: 'Do NOT add an FAQ section — only add one when SEO reviewer feedback explicitly requests it.' This FAQ section was not requested by an SEO reviewer and should be removed.",
+              "suggestedFix": "Remove the entire FAQ section. The questions it answers are already covered in the body of the page (access control, lifecycle rules, triggers, connectTo variables).",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\buckets.d.ts",
+                  "quote": "type BucketReferencableParam = 'name' | 'arn' | CdnReferenceableParam;"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "missing-caveat",
+              "statement": "Narrow to `PriceClass_100` (North America + Europe) to reduce per-request cost if your users are concentrated in those regions.",
+              "reason": "The source defines three price classes: PriceClass_100, PriceClass_200, and PriceClass_All. The draft only mentions PriceClass_100 and PriceClass_All, omitting PriceClass_200 (which adds Asia, Middle East, Africa). Users in those regions would benefit from knowing about PriceClass_200 as a middle option.",
+              "suggestedFix": "Mention all three price classes: PriceClass_100 (North America + Europe), PriceClass_200 (adds Asia, Middle East, Africa), and PriceClass_All (all regions, the default).",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\buckets.d.ts",
+                  "quote": "cdn?: BucketCdnConfiguration;"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "Access control modes (private, public-read, public-read-write) and the private default are correctly stated, matching the BucketAccessibility interface and its @default private annotation.",
+            "All six header presets match the SupportedHeaderPreset union type exactly: gatsby-static-website, static-website, single-page-app, astro-static-website, sveltekit-static-website, nuxt-static-website.",
+            "All five lifecycle rule types match the source union type: expiration, class-transition, non-current-version-expiration, non-current-version-class-transition, abort-incomplete-multipart-upload.",
+            "All five storage classes match the source exactly: DEEP_ARCHIVE, GLACIER, INTELLIGENT_TIERING, ONEZONE_IA, STANDARD_IA.",
+            "CORS behavior description ('permissive defaults when enabled with no rules') matches the BucketCorsConfig JSDoc verbatim.",
+            "rewriteRoutesForSinglePageApp routing logic (extension-based vs. index.html fallback) matches the BucketCdnConfiguration JSDoc precisely.",
+            "connectTo injected environment variables (STP_[NAME]_NAME and STP_[NAME]_ARN for buckets) match the ScriptEnvProps.connectTo documentation in __helpers.d.ts.",
+            "enableEventBusNotifications default of false is correctly stated, matching the @default false annotation.",
+            "disableS3TransferAcceleration default of false (enabled by default) is correctly reflected in the directory upload section.",
+            "S3 trigger description (bucket ARN, event type, prefix/suffix filter) accurately reflects the S3Integration and S3IntegrationProps interfaces in events.d.ts.",
+            "CDN referenceable parameters (cdnUrl, cdnDomain, cdnCanonicalUrl, cdnCanonicalDomain, cdnCustomDomains, cdnCustomDomainUrls) exactly match the CdnReferenceableParam type in cdn.d.ts.",
+            "URL normalization default (enabled by default, disable with disableUrlNormalization) matches the @default false annotation on disableUrlNormalization.",
+            "ApiReference definitionName='BucketProps' is valid — confirmed present in the generated config schema.",
+            "ReferenceableParams resource='bucket' is valid — matches the Bucket type value 'bucket'.",
+            "All CodeBlock examples correctly use the intellisense flag, TypeScript tab, focus markers to hide imports, and no hand-authored YAML tabs.",
+            "Encryption description ('AES-256 server-side encryption') matches the source JSDoc: 'Encrypt stored objects at rest (AES-256).'",
+            "The versioning property and its description correctly reflect the source boolean property."
+          ],
+          "summary": "The draft is well-grounded overall. The bucket properties, defaults, lifecycle rules, storage classes, CORS behavior, CDN referenceable parameters, access control modes, and connectTo variables all match the source types precisely. All CodeBlock examples follow the required format with intellisense and focus markers. Three issues found: (1) an invented CDN pricing figure (~$0.01/10k requests) not present in any source file, violating the pricing rules; (2) an FAQ section present despite the explicit instruction 'Do NOT add an FAQ section'; and (3) PriceClass_200 omitted from the CDN price class discussion (source defines three classes but draft only mentions two)."
+        },
+        {
+          "verifierId": "codex-verifier",
+          "modelProvider": "codex",
+          "summary": "The draft is mostly grounded in the provided Bucket type definitions, but it includes several unsupported or incorrect claims around CDN pricing/defaults, IAM connection wording, lifecycle requirements, S3 triggers, and a forbidden FAQ section. No hand-authored Stacktape YAML or plain-object StacktapeConfig examples were found.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "No monthly base cost — you pay per request (~$0.01/10k) and per GB transferred.",
+              "reason": "The provided sources support that the bucket CDN uses CloudFront and is for faster downloads/lower bandwidth costs, but they do not provide the quoted CloudFront pricing, the no-base-cost claim, or the $0.01/10k figure. The pricing rules forbid inventing prices not present in source.",
+              "suggestedFix": "Remove the concrete CDN pricing sentence, or replace it with a cautious non-priced statement such as: \"CDN usage is billed through AWS CloudFront request and data-transfer charges.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\buckets.d.ts",
+                  "quote": "Put a CDN (CloudFront) in front of this bucket for faster downloads and lower bandwidth costs."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The default price class is `PriceClass_All` (all regions worldwide). Narrow to `PriceClass_100` (North America + Europe) to reduce per-request cost if your users are concentrated in those regions.",
+              "reason": "The provided Bucket source only shows that `BucketCdnConfiguration` extends `CdnConfiguration`; it does not define CDN price class values or a default. No provided source supports `PriceClass_All`, `PriceClass_100`, their region coverage, or the cost recommendation.",
+              "suggestedFix": "Remove the default-price-class claim. If CDN price class is documented elsewhere, include only after adding the authoritative CDN type/source file to the source set.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\buckets.d.ts",
+                  "quote": "interface BucketCdnConfiguration extends CdnConfiguration {"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "For functions, batch jobs, and container workloads, grant IAM permissions using `connectTo` or `iamRoleStatements` in their configuration.",
+              "reason": "The provided BucketAccessibility comment names `allowsAccessTo` or `iamRoleStatements`, not `connectTo`. Other source later documents `connectTo` for workloads, so `connectTo` may be valid elsewhere, but this specific statement rewrites the source wording for bucket accessibility and omits `allowsAccessTo`.",
+              "suggestedFix": "Use the source wording narrowly: \"For functions, batch jobs, and container workloads, grant access with their resource access settings, such as `connectTo` where supported, or raw `iamRoleStatements` for custom IAM permissions.\" Avoid claiming this BucketAccessibility note says `connectTo`.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\buckets.d.ts",
+                  "quote": "For functions, batch jobs, and container workloads, you can grant the required IAM permissions using the `allowsAccessTo` or `iamRoleStatements` properties in their respective configurations."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "missing-caveat",
+              "statement": "`non-current-version-class-transition` | Move old versions to cheaper storage (requires `versioning: true`)",
+              "reason": "The provided source explicitly says `non-current-version-expiration` requires `versioning: true`, but the corresponding `NonCurrentVersionClassTransitionProps` comment does not state that requirement. The requirement may be true in AWS conceptually, but it is not grounded in the provided source for this property.",
+              "suggestedFix": "Remove the parenthetical from `non-current-version-class-transition`, or phrase cautiously: \"Use with versioned buckets when managing old object versions.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\buckets.d.ts",
+                  "quote": "Delete old versions this many days after they become non-current. Requires `versioning: true`."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\buckets.d.ts",
+                  "quote": "Move old versions to a cheaper storage class this many days after becoming non-current."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "Lambda functions can also use the `s3` trigger type to react to S3 events directly. The trigger requires a bucket ARN and S3 event type (e.g., `s3:ObjectCreated:*`), with an optional prefix/suffix filter.",
+              "reason": "The S3 trigger is defined as an integration that triggers a function, but the provided event source does not limit it to Lambda functions in the S3Integration definition. Also, S3Integration's description includes files created, deleted, or restored; the draft’s earlier wording says created or deleted only in places where it describes S3 events broadly.",
+              "suggestedFix": "Write this against the source shape: \"Functions can use the `s3` trigger type to react when files are created, deleted, or restored in a bucket. The integration requires `bucketArn` and `s3EventType`; `filterRule` can include a prefix or suffix.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "Triggers a function when files are created, deleted, or restored in an S3 bucket."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "bucketArn: string;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "filterRule?: S3FilterRule;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "The page includes a `## FAQ` section.",
+              "reason": "The SEO/AEO rules explicitly say not to add an FAQ section unless SEO reviewer feedback requests one. The provided task does not include such feedback, so this violates the page requirements even though the FAQ answers are mostly restatements of supported content.",
+              "suggestedFix": "Remove the FAQ section and fold any useful answers into existing sections such as Access control, Lifecycle rules, Event notifications, and Connecting to compute resources.",
+              "evidence": [
+                {
+                  "file": "User requirements",
+                  "quote": "Do NOT add an FAQ section — only add one when SEO reviewer feedback explicitly requests it."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "Hosting a static site or SPA | Hosting bucket — configured for web hosting",
+              "reason": "The provided sources only show that `HostingBucket` is a resource type. They do not include the hosting bucket type definition or behavior, so the claim that it is configured for web hosting is not grounded in the provided source set.",
+              "suggestedFix": "Either remove the explanatory clause or add the authoritative hosting bucket source file before making this comparison.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "Shared filesystem for containers | EFS filesystem",
+              "reason": "The provided sources show `EfsFilesystem` as a resource type and mention EFS volumes shared across containers in container volume mounts, but they do not provide the EFS filesystem resource definition or a direct comparison statement supporting this alternative.",
+              "suggestedFix": "Keep the recommendation only if the EFS resource source is included; otherwise say more narrowly: \"For POSIX-style mounted storage, see EFS filesystem.\"",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "Key-value cache or sessions | Redis cluster",
+              "reason": "The provided sources list `RedisCluster` as a resource type and connection target, but do not define it as a key-value cache/session store in the supplied files.",
+              "suggestedFix": "Remove the row or include the Redis cluster source file before making this comparison.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "Use `INTELLIGENT_TIERING` when you want AWS to move objects between tiers based on access patterns.",
+              "reason": "The source supports that `INTELLIGENT_TIERING` auto-moves between tiers based on access patterns, but it does not provide the recommendation or tradeoff for when to choose it. This is a reasonable inference, but it should be framed as such or kept descriptive.",
+              "suggestedFix": "Change to: \"`INTELLIGENT_TIERING` is for objects where AWS should auto-move between tiers based on access patterns.\"",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "No monthly base cost for CDN.",
+              "reason": "This is not present in the source files. The concrete price claim is already a medium issue; this narrower base-cost claim is also unsupported by the source set.",
+              "suggestedFix": "Remove the base-cost claim unless a pricing source is provided.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "Stacktape automatically grants IAM read/write/delete permissions and injects environment variables.",
+              "reason": "The provided ResourceAccessProps source explicitly says Bucket connectTo grants read/write/delete objects and injects NAME and ARN. The statement is broadly correct for buckets, but because it appears under \"functions, batch jobs, and container workloads\" it could be read as applying identically to every workload/resource combination. Keep the scope tied to bucket connections.",
+              "suggestedFix": "Change to: \"When a workload connects to a bucket, Stacktape grants read/write/delete object permissions for that bucket and injects the bucket `NAME` and `ARN`.\"",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The first paragraph is within the requested 40-60 word range and is largely grounded in the Bucket interface comments.",
+            "All Stacktape configuration examples use `<CodeBlock intellisense tabs={[...]}>` with a visible TypeScript tab; no hand-authored Stacktape YAML examples were found.",
+            "The draft avoids the forbidden plain-object `StacktapeConfig` style and uses `defineConfig` with class-based resources.",
+            "The Bucket API reference name `BucketProps` matches the provided type definition, and `ReferenceableParams resource=\"bucket\"` matches a valid resource type in the provided helper types.",
+            "Most bucket property names in examples are present in `types/stacktape-config/buckets.d.ts`, including `directoryUpload`, `accessibility`, `cdn`, `cors`, `lifecycleRules`, `versioning`, `encryption`, and `enableEventBusNotifications`."
+          ]
+        }
+      ],
+      "seoReviewResult": {
+        "score": 8,
+        "suggestions": [
+          "Remove the redundant standalone '**Pricing**: Pay only for what you store and transfer.' line after the opening paragraph — it repeats the last sentence of the intro verbatim and adds no new information. If you want to keep a pricing callout, add concrete numbers instead (e.g., 'S3 Standard costs $0.023/GB-month for the first 50 TB').",
+          "Fix the heading 'Headers presets' → 'Header presets' (grammatical error that also hurts search matching — users search for 'S3 header preset' not 'headers preset').",
+          "Add at least one FAQ entry about CDN setup (e.g., 'How do I serve S3 files through a CDN with Stacktape?') — this is a high-volume search intent that the page already answers in the CDN section but isn't surfaced in the FAQ for snippet extraction.",
+          "In the 'Storage classes' table, add approximate per-GB-month pricing for each tier (e.g., STANDARD_IA ~$0.0125/GB, GLACIER ~$0.004/GB, DEEP_ARCHIVE ~$0.00099/GB). These are the most commonly searched S3 numbers and would make the table far more useful for AI extraction.",
+          "The 'CDN options' section is a thin paragraph that mostly lists features without explaining them. Either expand it with a brief table (custom domains, edge functions, WAF, price classes with their region coverage) or merge it into the parent CDN heading to avoid a shallow H3 that dilutes the heading structure.",
+          "In the opening paragraph, consider adding 'Amazon S3' or 'Amazon Simple Storage Service' parenthetically on first mention — many search queries use the full AWS product name, and LLMs map these synonyms better when the page explicitly connects them."
+        ]
+      },
+      "passed": true
+    }
+  ],
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\resources\\storage\\s3-bucket.mdx",
+  "completedAt": "2026-05-07T16:19:06.771Z",
+  "inputHashes": {
+    "C:\\Projects\\stacktape\\types\\stacktape-config\\buckets.d.ts": "ff03f5195a08cb7d1051321647993ed3ed08801f",
+    "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts": "2ec8ea0abd8d43494ed20e0ee271e9e996120adf",
+    "C:\\Projects\\stacktape\\types\\stacktape-config\\_root.d.ts": "01d97ccda166b4f2d956b9805e9c470dcf8c3a29",
+    "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts": "1b2078c225925bda3c26c9be70a426637c1d3128",
+    "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts": "0f821061326ee7bb81f3cc25652a1269d87c18fc",
+    "C:\\Projects\\stacktape\\types\\stacktape-config\\alarms.d.ts": "060ce0874ea744f7a4bc0ccd8e5f173c30ef7810"
+  },
+  "styleGuideHash": "23ab17ba4b188d8b94ed14a1ebe2e0dcb6a6fd7a"
+}

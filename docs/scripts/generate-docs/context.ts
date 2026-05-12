@@ -1,10 +1,55 @@
-import { readFile } from 'fs-extra';
+import { pathExists, readFile } from 'fs-extra';
 import { glob } from 'glob';
+import { createRequire } from 'node:module';
 import { join } from 'node:path';
+import { parse as parseYaml } from 'yaml';
+import { marked } from '../utils/marked-mdx-parser';
 import { getBackboneSections } from './backbones';
-import type { ContextPack, PageDefinition } from './types';
+import { getPricingSummary } from './pricing-summary';
+import type {
+  CliCommandReferenceArg,
+  ContextPack,
+  PageDefinition,
+  ResolvedSectionInstruction,
+  SectionInstructionsConfig
+} from './types';
+
+type CommandInfo = {
+  args: Record<
+    string,
+    {
+      description?: string;
+      required: boolean;
+      alias?: string;
+      allowedTypes: string[];
+      allowedValues?: string[];
+    }
+  >;
+};
+
+const require = createRequire(import.meta.url);
+const { getCommandInfo } = require('../../../src/config/cli/utils.ts') as {
+  getCommandInfo: (command: string) => CommandInfo;
+};
 
 const docsRoot = join(import.meta.dir, '..', '..');
+const stacktapeRoot = join(docsRoot, '..');
+const aiDocsRoot = join(stacktapeRoot, '@generated', 'ai-docs');
+const sectionInstructionsPath = join(import.meta.dir, 'section-instructions.yml');
+const styleGuidePath = join(import.meta.dir, 'style-guide.md');
+
+// Hard per-source-file character budget so a single big file (e.g. a 300 KB JSON schema)
+// cannot dominate the prompt. Larger files get truncated with a marker.
+const MAX_SOURCE_CHARS = 80_000;
+
+const truncateIfNeeded = (content: string, filePath: string) => {
+  if (content.length <= MAX_SOURCE_CHARS) {
+    return content;
+  }
+  const head = content.slice(0, MAX_SOURCE_CHARS);
+  const droppedChars = content.length - MAX_SOURCE_CHARS;
+  return `${head}\n\n... [TRUNCATED: ${droppedChars} chars dropped from ${filePath} to fit prompt budget. Open the file directly if you need the full content.]`;
+};
 
 const safeReadFile = async (filePath: string) => {
   try {
@@ -16,29 +61,252 @@ const safeReadFile = async (filePath: string) => {
 
 const unique = <T,>(items: T[]) => [...new Set(items)];
 
-export const buildContextPack = async ({ page }: { page: PageDefinition }): Promise<ContextPack> => {
+const loadSectionInstructionsConfig = async (): Promise<SectionInstructionsConfig> => {
+  const raw = await safeReadFile(sectionInstructionsPath);
+  if (!raw) {
+    return {};
+  }
+  const parsed = parseYaml(raw);
+  if (!parsed || typeof parsed !== 'object') {
+    return {};
+  }
+  return parsed as SectionInstructionsConfig;
+};
+
+const getPageSection = (route: string) => route.split('/')[0] || 'index';
+
+const resolveSectionInstructions = ({
+  config,
+  page
+}: {
+  config: SectionInstructionsConfig;
+  page: PageDefinition;
+}): ResolvedSectionInstruction[] => {
+  const section = getPageSection(page.route);
+  const instructions = config.sections?.[section]?.filter((instruction): instruction is string => typeof instruction === 'string') || [];
+  return instructions.length > 0 ? [{ section, instructions }] : [];
+};
+
+const parseDescription = async (description = '') => {
+  const [shortDescription, longDescription] = description.split('---');
+  const [parsedShortDescription, parsedLongDescription] = await Promise.all([
+    marked(shortDescription.replace('####', '')),
+    longDescription ? marked(longDescription) : Promise.resolve('')
+  ]);
+  return {
+    shortDescription: parsedShortDescription,
+    longDescription: parsedLongDescription
+  };
+};
+
+// Map resource page slugs (in pages.ts) to the @generated/ai-docs/config-ref filename.
+// Only resources whose ai-docs file uses a different basename than the page slug need an entry.
+const aiDocsConfigRefAliases: Record<string, string> = {
+  'lambda-function': 'function',
+  'web-service': 'web-service',
+  'private-service': 'private-service',
+  'worker-service': 'worker-service',
+  'multi-container-workload': 'multi-container-workload',
+  'batch-job': 'batch-job',
+  'edge-function': 'edge-lambda-function',
+  'static-hosting': 'hosting-bucket',
+  nextjs: 'nextjs-web',
+  astro: 'astro-web',
+  nuxt: 'nuxt-web',
+  sveltekit: 'sveltekit-web',
+  solidstart: 'solidstart-web',
+  tanstack: 'tanstack-web',
+  remix: 'remix-web',
+  'relational-database': 'relational-database',
+  dynamodb: 'dynamo-db-table',
+  redis: 'redis-cluster',
+  mongodb: 'mongo-db-atlas-cluster',
+  upstash: 'upstash-redis',
+  opensearch: 'open-search',
+  bucket: 'bucket',
+  efs: 'efs-filesystem',
+  'http-api-gateway': 'http-api-gateway',
+  alb: 'application-load-balancer',
+  nlb: 'network-load-balancer',
+  cdn: 'cdn',
+  'event-bus': 'event-bus',
+  'sqs-queue': 'sqs-queue',
+  'sns-topic': 'sns-topic',
+  'kinesis-stream': 'kinesis-stream',
+  'state-machine': 'state-machine',
+  'user-auth-pool': 'user-auth-pool',
+  waf: 'web-app-firewall',
+  bastion: 'bastion',
+  'custom-resources': 'custom-resource',
+  'deployment-scripts': 'deployment-script',
+  'aws-cdk-constructs': 'aws-cdk-construct'
+};
+
+// Map configuration concept route → @generated/ai-docs/concept filename(s).
+// Some pages legitimately benefit from multiple ai-docs concept summaries.
+const aiDocsConceptByRoute: Record<string, string | string[]> = {
+  'configuration/configuration-files': ['yaml-config', 'typescript-config'],
+  'configuration/connecting-resources': 'connecting-resources',
+  'configuration/directives': 'directives',
+  'configuration/stages-and-environments': 'stages-and-environments',
+  'configuration/overrides-and-escape-hatches': ['overrides-and-transforms', 'extending-cloudformation']
+};
+
+// Map recipe route → @generated/ai-docs/recipe filename.
+const aiDocsRecipeByRoute: Record<string, string> = {
+  'recipes/rest-api-database': 'rest-api-with-database',
+  'recipes/graphql-api': 'graphql-api',
+  'recipes/nextjs-full-stack-app': 'nextjs-full-stack',
+  'recipes/background-job-processing': 'background-jobs',
+  'recipes/scheduled-tasks': 'scheduled-tasks',
+  'recipes/static-website': 'static-website',
+  'recipes/monorepo-setup': 'monorepo-setup',
+  'recipes/database-migrations': 'database-migrations'
+};
+
+const aiDocsTroubleshootingByRoute: Record<string, string> = {
+  'reference/troubleshooting/cloudformation-stack-states': 'cloudformation-stack-states'
+};
+
+// Page route prefix → resource slug (used when the route doesn't carry the slug as the last segment).
+const resolveResourceSlugFromRoute = (route: string): string | undefined => {
+  const segments = route.split('/');
+  if (segments[0] !== 'resources' || segments.length < 3) {
+    return undefined;
+  }
+  return segments[segments.length - 1];
+};
+
+const resolveAutoAugmentedSources = async ({ page }: { page: PageDefinition }): Promise<string[]> => {
+  const candidates: string[] = [];
+
+  if (page.kind === 'resource') {
+    const slug = resolveResourceSlugFromRoute(page.route);
+    const aiDocsBase = slug ? aiDocsConfigRefAliases[slug] : undefined;
+    if (aiDocsBase) {
+      candidates.push(join(aiDocsRoot, 'config-ref', `${aiDocsBase}.md`));
+    }
+    if (slug === 'relational-database') {
+      candidates.push(join(stacktapeRoot, '@generated', 'db-engine-versions', 'versions.json'));
+    }
+    // Note: pricing summary is added separately as a virtual source by buildContextPack so the writer
+    // gets a distilled, ~1 KB markdown summary instead of the 300+ KB raw prices.json.
+  }
+
+  if (page.kind === 'concept') {
+    const conceptBase = aiDocsConceptByRoute[page.route];
+    const conceptBases = Array.isArray(conceptBase) ? conceptBase : conceptBase ? [conceptBase] : [];
+    for (const base of conceptBases) {
+      candidates.push(join(aiDocsRoot, 'concept', `${base}.md`));
+    }
+  }
+
+  if (page.kind === 'recipe') {
+    const recipeBase = aiDocsRecipeByRoute[page.route];
+    if (recipeBase) {
+      candidates.push(join(aiDocsRoot, 'recipe', `${recipeBase}.md`));
+    }
+  }
+
+  if (page.kind === 'troubleshooting') {
+    const troubleshootingBase = aiDocsTroubleshootingByRoute[page.route];
+    if (troubleshootingBase) {
+      candidates.push(join(aiDocsRoot, 'troubleshooting', `${troubleshootingBase}.md`));
+    }
+  }
+
+  if (page.kind === 'cli' && page.cliCommand) {
+    candidates.push(join(aiDocsRoot, 'cli-ref', `${page.cliCommand.replaceAll(':', '-')}.md`));
+  }
+
+  // Filter to only those that exist on disk; missing ai-docs files are not an error.
+  const existing = await Promise.all(
+    candidates.map(async (filePath) => ((await pathExists(filePath)) ? filePath : null))
+  );
+  return existing.filter((value): value is string => value !== null);
+};
+
+const buildCliCommandReference = async (command: string) => {
+  const commandInfo = getCommandInfo(command);
+  const sortedArgs = await Promise.all(
+    Object.entries(commandInfo.args).map(async ([name, argInfo]): Promise<CliCommandReferenceArg> => {
+      const { shortDescription, longDescription } = await parseDescription(argInfo.description);
+      return {
+        name,
+        required: argInfo.required,
+        alias: argInfo.alias,
+        allowedTypes: argInfo.allowedTypes,
+        allowedValues: argInfo.allowedValues,
+        shortDescription,
+        longDescription
+      };
+    })
+  );
+  sortedArgs.sort((argA, argB) => {
+    if (argA.required !== argB.required) {
+      return argA.required ? -1 : 1;
+    }
+    return argA.name.localeCompare(argB.name);
+  });
+  return { command, sortedArgs };
+};
+
+export const buildContextPack = async ({ page, examplePath }: { page: PageDefinition; examplePath?: string }): Promise<ContextPack> => {
   const structurePlan = (await safeReadFile(join(docsRoot, 'DOCS_STRUCTURE_PLAN.md'))) || '';
   const pipelinePlan = (await safeReadFile(join(docsRoot, 'DOCS_PIPELINE_PLAN.md'))) || '';
+  const styleGuide = (await safeReadFile(styleGuidePath)) || '';
+  const sectionInstructionsConfig = await loadSectionInstructionsConfig();
 
   const globMatches = await Promise.all((page.sourceGlobs || []).map((pattern) => glob(pattern, { absolute: true })));
-  const sourceFiles = unique([...(page.sourceFiles || []), ...globMatches.flat()]);
-  const sourceDocuments = (
-    await Promise.all(
-      sourceFiles.map(async (filePath) => {
-        const content = await safeReadFile(filePath);
-        if (!content) {
-          return null;
-        }
-        return { filePath, content };
-      })
-    )
-  ).filter(Boolean) as ContextPack['sourceDocuments'];
+  const autoSources = await resolveAutoAugmentedSources({ page });
+  const sourceFiles = unique([...(page.sourceFiles || []), ...globMatches.flat(), ...autoSources]);
+  const sourceFileResults = await Promise.all(
+    sourceFiles.map(async (filePath) => {
+      if (!(await pathExists(filePath))) {
+        return { filePath, content: null };
+      }
+      return { filePath, content: await safeReadFile(filePath) };
+    })
+  );
+  const missingSourceFiles = sourceFileResults.filter((result) => result.content === null).map((result) => result.filePath);
+  if (missingSourceFiles.length > 0) {
+    console.warn(`  Missing ${missingSourceFiles.length} configured source file(s) for /${page.route}:`);
+    for (const filePath of missingSourceFiles) {
+      console.warn(`    - ${filePath}`);
+    }
+  }
+  const sourceDocuments = sourceFileResults
+    .filter((result): result is { filePath: string; content: string } => result.content !== null)
+    .map(({ filePath, content }) => ({ filePath, content: truncateIfNeeded(content, filePath) }));
+
+  // Virtual source: pricing summary distilled from @generated/aws-price/prices.json.
+  // Avoids inlining a 300+ KB JSON for a few pricing facts.
+  if (page.kind === 'resource') {
+    const slug = resolveResourceSlugFromRoute(page.route);
+    if (slug) {
+      const pricingMarkdown = await getPricingSummary(slug);
+      if (pricingMarkdown) {
+        sourceDocuments.push({
+          filePath: `@generated/aws-price/distilled/${slug}.md`,
+          content: pricingMarkdown
+        });
+      }
+    }
+  }
+
+  const cliCommandReference = page.cliCommand ? await buildCliCommandReference(page.cliCommand) : undefined;
+  const exampleContent = examplePath ? await safeReadFile(examplePath) : undefined;
 
   return {
     page,
     structurePlan,
     pipelinePlan,
+    styleGuide,
     backboneSections: getBackboneSections(page.template),
+    sectionInstructions: resolveSectionInstructions({ config: sectionInstructionsConfig, page }),
+    exampleDocument: examplePath && exampleContent ? { filePath: examplePath, content: exampleContent } : undefined,
+    missingSourceFiles,
+    cliCommandReference,
     sourceDocuments
   };
 };

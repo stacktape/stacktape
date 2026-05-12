@@ -1,0 +1,1771 @@
+{
+  "pageId": "resources__compute__batch-job",
+  "pageRoute": "resources/compute/batch-job",
+  "startedAt": "2026-05-07T12:51:54.997Z",
+  "updatedAt": "2026-05-07T13:42:40.837Z",
+  "iterations": [
+    {
+      "iteration": 1,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\resources__compute__batch-job\\iteration-1.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "startup-cto",
+          "persona": "Small startup CTO with low to medium AWS experience. Cares most about time-to-production and shipping quickly without getting trapped in AWS complexity.",
+          "modelProvider": "claude",
+          "scores": {
+            "clarity": 7,
+            "scannability": 9,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Strong 'When to use' / 'When not to use' section with a concrete comparison table — helps a startup CTO make a fast decision without reading the whole page.",
+            "CodeBlock usage is correct throughout — all Stacktape config examples use <CodeBlock intellisense tabs={[...]}/>, application code uses fenced blocks, no forbidden patterns.",
+            "Spot instances section is excellent: clear guidance on when to use vs. avoid, paired with the retry tip. This is exactly the practical tradeoff framing the audience needs.",
+            "GPU section is concise and grounded — confirmed by source code that Stacktape uses p4d and g5 instance types. Custom Dockerfile packaging recommendation is appropriate.",
+            "Triggers table is comprehensive and scannable — covers all 10 supported event types with one-line use case descriptions, matching the source types exactly.",
+            "STP_TRIGGER_EVENT_DATA, STP_CURRENT_ATTEMPT, and STP_MAXIMUM_ATTEMPTS environment variables are all verified in source code (utils.ts:324-337) — good grounded detail that helps the reader write checkpoint/resume logic."
+          ],
+          "problems": [
+            "Retry wait time example is factually incorrect. The page claims waits of '10s, 20s, 30s, 40s' for retryIntervalSeconds: 10 and retryIntervalMultiplier: 2. The actual source code formula (utils.ts:363) is `retryIntervalSeconds * attemptIndex * retryIntervalMultiplier`, producing waits of 20s, 40s, 60s, 80s. The stated formula in the prose is correct but the example numbers contradict it.",
+            "Pricing section claims 'You pay only for EC2 compute time while the job runs' without concrete pricing data. The provided pricing source file groups batch-job under Fargate pricing (which is incorrect per source code), so there is no grounded EC2 pricing to cite. The page should either omit specific pricing claims or note that costs depend on the instance type AWS provisions.",
+            "Missing coverage of container.environment — a core configuration property. The page shows connectTo for injected variables but never shows how to set custom environment variables (e.g., API keys, feature flags) via the container.environment property. This is a common first task for the audience.",
+            "Missing mention of dev mode support. The types (DevModeCapableResourceType) include batch-job, meaning batch jobs work with `stacktape dev`. For a startup CTO iterating quickly, this is a high-value feature omission.",
+            "Missing mention of log forwarding. BatchJobLogging extends LogForwardingBase, meaning logs can be forwarded to external destinations (Datadog, etc.). The Logging section only mentions CloudWatch and retentionDays."
+          ],
+          "mandatoryFixes": [
+            "Fix the retry wait time example: with retryIntervalSeconds: 10 and retryIntervalMultiplier: 2, the correct waits (per utils.ts:363) are 20s, 40s, 60s, 80s — not 10s, 20s, 30s, 40s. Either fix the numbers or change the example config values to produce the stated sequence (e.g., retryIntervalSeconds: 10, retryIntervalMultiplier: 1 → 10s, 20s, 30s, 40s).",
+            "Rework the pricing context line. The current claim ('You pay only for EC2 compute time') is directionally correct but has no grounded pricing data from the source files. Either remove specific cost claims (Spot 'up to 90%' is fine — it's from the JSDoc) or add a note that costs depend on instance type and duration. Do not cite Fargate pricing for batch jobs — the source code confirms EC2 compute environments.",
+            "Add a brief example or mention of container.environment for setting custom environment variables. This is a first-class property on BatchJobContainer and a common configuration need the audience will hit immediately."
+          ],
+          "optionalImprovements": [
+            "Add a one-line mention and link for dev mode support — batch jobs are listed as DevModeCapableResourceType, and rapid local iteration matters to the target audience.",
+            "Mention log forwarding briefly in the Logging section (BatchJobLogging extends LogForwardingBase) with a link to the log forwarding docs page, for teams using Datadog/Splunk/etc.",
+            "Consider adding a short note on the MinvCpus: 0 / MaxvCpus: 1000 behavior from the source — it's useful context that AWS Batch scales the compute environment to zero when no jobs are running, which reinforces the 'pay only when running' message.",
+            "The basic example handler uses top-level await (`const data = await fetchData(event)`) without mentioning that the script needs ESM or a wrapper. Consider wrapping in an async IIFE or adding a note about module format.",
+            "The 'Retries and timeout' section has an H3 for 'Timeout' that is only one sentence. Consider folding it into the parent section intro or the retries subsection to avoid a near-empty heading."
+          ]
+        },
+        {
+          "reviewerId": "smb-manager",
+          "persona": "SMB engineering manager with medium to high AWS knowledge. Cares about long-term maintainability, team clarity, operational fit, technically correct Stacktape class-based config examples, and valid MDX component usage.",
+          "modelProvider": "codex",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Strong page shape: the reader gets use cases, alternatives, a basic example, resources, retries, triggers, connections, logging, and API reference in a logical order.",
+            "Stacktape configuration examples use class-based resources inside `<CodeBlock intellisense tabs={[...]}/>` and avoid forbidden YAML/plain-object config patterns.",
+            "The Spot guidance is useful and mostly grounded in the source: restartable workloads, non-repeatable side effects, retries, SIGTERM, and 120-second shutdown window.",
+            "The resource sizing section includes a practical memory-sizing tip that is directly supported by the source comments."
+          ],
+          "problems": [
+            "Several technical statements are too broad or unsupported by the provided sources, especially around AWS Batch internals, EC2-only compute, GPU instance families, and Lambda limits.",
+            "The pricing context conflicts with the provided pricing source: the source says the distilled pricing is for Fargate used by `batch-job`, while the draft says EC2 compute time and names GPU instance families without sourced prices.",
+            "The “up to 10 GB” Lambda comparison is wrong or at least unsupported in this source set; it reads like memory, while Lambda’s commonly known 10 GB figure is ephemeral storage, not memory. The provided sources do not support this comparison.",
+            "The retry wait example is inconsistent with the source description. The source says `retryIntervalSeconds: 5` and multiplier `2` gives waits of `5s, 10s, 20s`; the draft says `10s, 20s, 30s, 40s` for interval `10` and multiplier `2`, which is not exponential backoff.",
+            "The basic handler assumes `STP_TRIGGER_EVENT_DATA` is always present and parseable. The source supports that event payloads are available when triggered, but the example may fail for invocation paths without event data unless guarded or scoped more narrowly.",
+            "The trigger table lists all supported event types, which is useful, but it is thin on decision guidance for an engineering manager deciding between schedule, queue, HTTP, and event bus triggers.",
+            "The first paragraph is 60+ words and slightly overloaded; it should stay within the 40-60 word SEO requirement and avoid ungrounded implementation claims."
+          ],
+          "mandatoryFixes": [
+            "Revise pricing to match the provided pricing source. Do not state EC2-only pricing or GPU rates unless the source supports it; use the available Fargate ballpark context and Spot interruption/savings wording from the type source.",
+            "Remove or narrow unsupported AWS Batch/EC2/GPU-instance claims. For example, avoid naming `p4d`/`g5` unless a source file explicitly supports those instance families.",
+            "Fix the retry backoff explanation so it matches the source: multiplier-based waits should be exponential, e.g. `5s, 10s, 20s` for `retryIntervalSeconds: 5` and `retryIntervalMultiplier: 2`.",
+            "Remove or reword the unsupported `up to 10 GB` Lambda comparison.",
+            "Shorten the opening paragraph to 40-60 words and keep it self-contained without unsourced implementation detail."
+          ],
+          "optionalImprovements": [
+            "Use `label: 'TypeScript'` for CodeBlock tabs if the current docs pipeline expects that exact visible tab label; the example page uses `stacktape.ts`, so verify the local convention before changing.",
+            "Add one compact paragraph under “Triggers” that recommends common trigger choices: schedule for periodic work, SQS for buffered async work, S3 for object processing, HTTP API for explicit on-demand starts, and event bus for routed domain events.",
+            "Mention that `container.environment` can use `$ResourceParam()` or `$Secret()` for runtime configuration, since that is directly supported by the source and useful for real jobs.",
+            "Clarify that `timeout` is in seconds and that timed-out jobs can be retried when `retryConfig` is set, which is source-backed and operationally important."
+          ]
+        },
+        {
+          "reviewerId": "developer-low-aws",
+          "persona": "Developer with little AWS or DevOps experience. Needs jargon kept under control and wants examples that are easy to follow.",
+          "modelProvider": "claude",
+          "scores": {
+            "clarity": 7,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Strong 'when to use' / 'when not to use' section with a clear alternatives table that helps the reader make a quick decision",
+            "Spot instances section is excellent — clear use/avoid guidance, paired with the tip about combining with retryConfig, and realistic example",
+            "Trigger table is comprehensive and scannable — lists all 10 supported trigger types with concise use-case descriptions",
+            "Good page structure that mirrors the reviewed example page: short headings, focused code examples with focus markers, and progressive disclosure from basic to advanced",
+            "Connecting-to-other-resources section follows the example page pattern well with a realistic database-migration example that shows both the resource definition and the connectTo reference"
+          ],
+          "problems": [
+            "Retry math is incorrect. The page claims waits are '10s, 20s, 30s, 40s' with retryIntervalSeconds: 10 and retryIntervalMultiplier: 2, and states the formula as 'retryIntervalSeconds × attempt index × retryIntervalMultiplier'. The source JSDoc describes exponential backoff: 'with retryIntervalSeconds: 5 and retryIntervalMultiplier: 2, waits are 5s, 10s, 20s, etc.' — so with base 10 and multiplier 2, waits should be 10, 20, 40, 80 (exponential), not 10, 20, 30, 40 (linear). The stated formula also does not produce the stated numbers.",
+            "EC2 vs Fargate pricing confusion. The intro says 'Built on AWS Batch, Stacktape provisions EC2 instances' and the pricing line says 'You pay only for EC2 compute time'. However, the pricing source file explicitly lists batch-job under AWS Fargate pricing. The page either misstates the compute engine or the pricing context is misleading.",
+            "GPU instance family names (p4d, g5) are stated as fact in both the GPU subsection and the pricing line, but the source types only say 'NVIDIA A100, A10G, etc.' without naming EC2 instance families. This adds ungrounded specifics.",
+            "Unverifiable runtime claims: STP_TRIGGER_EVENT_DATA, STP_CURRENT_ATTEMPT, and STP_MAXIMUM_ATTEMPTS environment variables are not present in the provided source types. These may be correct runtime behavior, but they cannot be verified from the provided sources and are presented as definitive.",
+            "The 'timeout' subsection is a single sentence with no information about default behavior (is there a default timeout? what happens if omitted?). The source type says 'Max run time in seconds. The job is killed if it exceeds this' but gives no default — the page should state that timeout is optional and what happens when omitted.",
+            "'Step Functions state machine under the hood' in the retries section introduces AWS jargon without explanation. The target audience has little AWS experience and may not know what Step Functions is."
+          ],
+          "mandatoryFixes": [
+            "Fix the retry math. The source describes exponential backoff (retryIntervalSeconds × retryIntervalMultiplier^attempt). With retryIntervalSeconds: 10 and retryIntervalMultiplier: 2, the correct sequence is 10s, 20s, 40s, 80s — not 10s, 20s, 30s, 40s. Remove or correct the inline formula ('retryIntervalSeconds × attempt index × retryIntervalMultiplier') to match the actual behavior described in the source JSDoc.",
+            "Resolve the EC2 vs Fargate confusion. The pricing source lists batch-job under Fargate. Either (a) confirm from the implementation that batch jobs use EC2 and note this as an exception, or (b) rewrite the intro and pricing line to reference Fargate pricing. Do not state EC2 compute as fact when the pricing source says Fargate.",
+            "Remove or soften the specific GPU instance family claims ('p4d', 'g5'). The source only says 'NVIDIA A100, A10G, etc.' — either use that exact phrasing or add a qualifier like 'such as' to avoid presenting ungrounded specifics as definitive.",
+            "Expand the timeout subsection. State explicitly that timeout is optional and describe the default behavior when omitted (no timeout limit, or whatever the source supports). A one-sentence subsection under an H3 heading reads as filler."
+          ],
+          "optionalImprovements": [
+            "Mention dev mode support. The source types list batch-job in DevModeCapableResourceType, meaning batch jobs can run locally during `stacktape dev`. This is a practical detail the target audience would benefit from.",
+            "Drop or explain 'Step Functions state machine under the hood' in the retries section. Either remove the implementation detail (the reader doesn't need to know the orchestration layer) or add a brief parenthetical explaining that Step Functions is an AWS workflow service that handles the retry logic.",
+            "Add a short example or note about container environment variables. The BatchJobContainer type has an environment property for injecting env vars, which is a common need (API keys, feature flags). Currently the page only mentions connectTo-injected variables.",
+            "Consider adding a brief note about log retention options in the Logging section. The source shows retentionDays supports values from 1 to 3653 days — mentioning a few common choices (7, 30, 90, 365) would help the reader make a quick decision.",
+            "The basic example's application code uses top-level await (`const data = await fetchData(event)`) without noting this requires ESM or a recent Node.js version. Either wrap in an async IIFE or add a brief note about module format."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "claude-verifier",
+          "modelProvider": "claude",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "With the config above, wait times between retries are: 10s, 20s, 30s, 40s (each wait = `retryIntervalSeconds` × attempt index × `retryIntervalMultiplier`).",
+              "reason": "The formula stated is correct (retryIntervalSeconds × i × retryIntervalMultiplier), and with retryIntervalSeconds: 10, retryIntervalMultiplier: 2, the actual results would be: 10×1×2=20s, 10×2×2=40s, 10×3×2=60s, 10×4×2=80s — not 10s, 20s, 30s, 40s as the draft claims. The example numbers do not match the formula or the implementation.",
+              "suggestedFix": "Fix the example numbers to match the formula. With retryIntervalSeconds: 10 and retryIntervalMultiplier: 2, the waits are 20s, 40s, 60s, 80s. Alternatively, use a simpler example like retryIntervalSeconds: 10, retryIntervalMultiplier: 1, which gives 10s, 20s, 30s, 40s.",
+              "evidence": [
+                {
+                  "file": "types/stacktape-config/batch-jobs.d.ts",
+                  "quote": "E.g., with `retryIntervalSeconds: 5` and `retryIntervalMultiplier: 2`, waits are 5s, 10s, 20s, etc."
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "Built on AWS Batch, Stacktape provisions EC2 instances matching your CPU, memory, and GPU requirements. You pay only for the time the job runs.",
+              "reason": "While the runtime code confirms batch-job uses EC2 compute environments (Type: 'EC2' or 'SPOT'), the pricing section then contradicts this by referencing Fargate pricing. The opening paragraph claim about EC2 is actually correct per the code, but the pricing file's categorization of batch-job under Fargate is misleading. The real issue is that the pricing section says 'You pay only for EC2 compute time' but the pricing source file groups batch-job under Fargate pricing — there is an inconsistency between the implementation and the pricing file that should be acknowledged.",
+              "suggestedFix": "The opening paragraph is correct that batch-job uses EC2 instances (confirmed by code). Remove the pricing section's reference to 'EC2 compute time' and instead describe pricing accurately: batch jobs run on EC2 instances provisioned by AWS Batch, and you pay standard EC2 on-demand (or Spot) rates for the compute time used. Do not use Fargate pricing numbers from the pricing file since the implementation actually uses EC2.",
+              "evidence": [
+                {
+                  "file": "@generated/aws-price/distilled/batch-job.md",
+                  "quote": "**AWS Fargate** (used by `web-service`, `private-service`, `worker-service`, `multi-container-workload`, `batch-job`)"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "Defaults: `attempts: 1`, `retryIntervalSeconds: 0`, `retryIntervalMultiplier: 1`.",
+              "reason": "The source JSDoc example says retryIntervalSeconds: 5 with retryIntervalMultiplier: 2 produces waits of '5s, 10s, 20s'. The actual code formula is retryIntervalSeconds × i × retryIntervalMultiplier, which with those values gives 10s, 20s, 30s. So even the source JSDoc example is internally inconsistent with the implementation. The defaults themselves are correct, but the draft inherits a misleading characterization of the backoff as 'exponential' — the actual behavior is linear (multiplied by attempt index), not exponential (multiplied by multiplier^attempt).",
+              "suggestedFix": "Do not describe the backoff as 'exponential backoff'. The formula is linear: each wait equals retryIntervalSeconds × attemptNumber × retryIntervalMultiplier. Describe it as 'configurable backoff' instead.",
+              "evidence": [
+                {
+                  "file": "types/stacktape-config/batch-jobs.d.ts",
+                  "quote": "Multiply wait time by this factor after each retry (exponential backoff)."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "**Pricing**: You pay only for EC2 compute time while the job runs — no charges between runs. Spot instances (`useSpotInstances`) can reduce costs by up to 90% for interruptible workloads. GPU jobs use `p4d` and `g5` instances at higher rates.",
+              "reason": "The pricing source file categorizes batch-job under Fargate with Fargate pricing (vCPU/month, memory/month), but the runtime code uses EC2 compute environments. The pricing paragraph references EC2 pricing while the generated pricing file references Fargate pricing. This creates confusion about actual costs. The Fargate pricing numbers from the pricing file should not be applied since the implementation uses EC2.",
+              "suggestedFix": "Since concrete EC2 pricing is not available in the provided pricing source file, remove specific pricing claims or add a caveat that costs depend on the EC2 instance type AWS Batch selects. The Fargate pricing data in the source is incorrect for this resource type.",
+              "evidence": [
+                {
+                  "file": "@generated/aws-price/distilled/batch-job.md",
+                  "quote": "vCPU billing: ~$7.29/month per 0.25 up to ~$466/month per 16."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "AWS Batch provisions `p4d` (NVIDIA A100) or `g5` (NVIDIA A10G) instances automatically.",
+              "reason": "While the GPU instance types p4d and g5 are confirmed in the source code, the draft presents this as if AWS Batch auto-selects between these. For CPU-only workloads, the code uses InstanceTypes: ['optimal']. The GPU description is factually correct but the claim 'AWS Batch provisions p4d or g5 instances automatically' in the Resources section header paragraph is misleading — it only applies when gpu > 0. The draft already qualifies this in the GPU subsection text but the framing could be clearer.",
+              "suggestedFix": "Minor: Clarify that p4d and g5 instance families are used only when the gpu property is set. For CPU-only workloads, AWS Batch selects the instance type automatically from a general pool.",
+              "evidence": [
+                {
+                  "file": "types/stacktape-config/batch-jobs.d.ts",
+                  "quote": "Number of GPUs. The job will run on a GPU instance (NVIDIA A100, A10G, etc.)."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "Your container code runs to completion and exits — a zero exit code means success, anything else means failure.",
+              "reason": "While this is standard container behavior and almost certainly correct, the specific exit code semantics are not documented in the provided source type definitions. This is general Docker/container knowledge applied to batch jobs.",
+              "suggestedFix": "No change needed — this is standard container behavior and safe to state.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "missing-caveat",
+              "statement": "The `resources` property sets CPU, memory, and optional GPU for the job. AWS Batch provisions an EC2 instance that matches your requirements — you don't choose instance types directly.",
+              "reason": "The BatchJobResources interface has a commented-out instanceTypes field, suggesting this feature was considered but is not currently exposed. The statement 'you don't choose instance types directly' is accurate for the current API, but does not acknowledge that the feature may be available in the future. This is a minor observation, not a factual error.",
+              "suggestedFix": "No change strictly needed. The statement is accurate for the current API.",
+              "evidence": [
+                {
+                  "file": "types/stacktape-config/batch-jobs.d.ts",
+                  "quote": "// instanceTypes?: string[];"
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "All 10 trigger types in the table correctly match the event union type in the source (HttpApiIntegration, S3Integration, ScheduleIntegration, SnsIntegration, SqsIntegration, KinesisIntegration, DynamoDbIntegration, CloudwatchLogIntegration, ApplicationLoadBalancerIntegration, EventBusIntegration).",
+            "Retry defaults (attempts: 1, retryIntervalSeconds: 0, retryIntervalMultiplier: 1) all match source @default annotations.",
+            "Logging defaults (retentionDays: 90, disabled: false) correctly match source @default annotations.",
+            "useSpotInstances default (false) and SIGTERM/120-second graceful shutdown behavior match source JSDoc exactly.",
+            "connectTo is correctly shown as a top-level BatchJobProps property (inherited from ResourceAccessProps).",
+            "STP_TRIGGER_EVENT_DATA, STP_CURRENT_ATTEMPT, and STP_MAXIMUM_ATTEMPTS environment variables are confirmed to exist in the Step Functions state machine definition in the codebase.",
+            "GPU instance types (p4d, g5) are confirmed in the batch-job implementation code.",
+            "All CodeBlock usage follows the required pattern: intellisense for Stacktape config, fenced blocks for application code. No forbidden patterns (no hand-authored YAML config, no StacktapeConfig type, no fenced TS with defineConfig).",
+            "ApiReference definitionName='BatchJobProps' and ReferenceableParams resource='batch-job' use correct identifiers matching the source types.",
+            "The 'When to use' and 'When not to use' sections provide concrete, decision-useful comparisons with appropriate resource links."
+          ],
+          "summary": "The draft is well-structured and covers the batch-job resource comprehensively. Most factual claims are grounded in source. Two high-severity issues found: (1) the retry backoff example numbers (10s, 20s, 30s, 40s) do not match the stated formula with retryIntervalSeconds: 10 and retryIntervalMultiplier: 2 — the correct values would be 20s, 40s, 60s, 80s; (2) there is an inconsistency between the pricing source file (which categorizes batch-job under Fargate) and the actual implementation (which uses EC2 compute environments) — the opening paragraph correctly says EC2 but the pricing file contradicts this, creating confusion. The GPU instance types (p4d, g5) and all three injected environment variables (STP_TRIGGER_EVENT_DATA, STP_CURRENT_ATTEMPT, STP_MAXIMUM_ATTEMPTS) were confirmed in the codebase. Trigger types, defaults, and logging configuration all match the source accurately."
+        },
+        {
+          "verifierId": "codex-verifier",
+          "modelProvider": "codex",
+          "summary": "The draft is generally aligned with the BatchJob type surface, but it contains several factual problems around compute underpinnings/pricing, retry timing, supported packaging class names, trigger behavior, Lambda comparisons, and unsupported runtime environment variables. The highest-risk issues are claims that batch jobs use EC2/AWS Batch instance provisioning while the provided pricing source says batch-job uses Fargate, and a retry-backoff formula that contradicts the type comments.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "\"Built on AWS Batch, Stacktape provisions EC2 instances matching your CPU, memory, and GPU requirements.\"",
+              "reason": "The provided pricing source says `batch-job` uses AWS Fargate, not EC2 instances. The BatchJob type only says AWS auto-provisions a matching instance and does not ground the stronger AWS Batch/EC2 implementation claim.",
+              "suggestedFix": "Say that a batch job runs a container to completion and Stacktape provisions compute based on CPU, memory, and optional GPU requirements. Avoid naming AWS Batch or EC2 unless source code explicitly supports it.",
+              "evidence": [
+                {
+                  "file": "@generated/aws-price/distilled/batch-job.md",
+                  "quote": "**AWS Fargate** (used by `web-service`, `private-service`, `worker-service`, `multi-container-workload`, `batch-job`):"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\batch-jobs.d.ts",
+                  "quote": "#### CPU, memory, and GPU requirements. AWS auto-provisions a matching instance."
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "\"You pay only for EC2 compute time while the job runs — no charges between runs.\"",
+              "reason": "The provided pricing source frames batch-job pricing as Fargate vCPU and memory billing, not EC2 compute time. \"No charges between runs\" is not stated in the pricing file and should be narrowed to the sourced \"Pay only for the compute time used\" wording.",
+              "suggestedFix": "Use: \"Pricing: Batch jobs use Fargate pricing: approximately ~$7.29/month per 0.25 vCPU and ~$1.60/month per 512 MB when running, prorated by task runtime. Pay only for compute time used.\"",
+              "evidence": [
+                {
+                  "file": "@generated/aws-price/distilled/batch-job.md",
+                  "quote": "**AWS Fargate** (used by `web-service`, `private-service`, `worker-service`, `multi-container-workload`, `batch-job`):"
+                },
+                {
+                  "file": "@generated/aws-price/distilled/batch-job.md",
+                  "quote": "vCPU billing: ~$7.29/month per 0.25 up to ~$466/month per 16."
+                },
+                {
+                  "file": "@generated/aws-price/distilled/batch-job.md",
+                  "quote": "Memory billing: ~$1.60/month per 512 MB up to ~$384/month per 122880 MB."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\batch-jobs.d.ts",
+                  "quote": "Pay only for the compute time used."
+                }
+              ]
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "\"GPU jobs use `p4d` and `g5` instances at higher rates.\"",
+              "reason": "The source only says GPU jobs run on GPU instances such as NVIDIA A100 or A10G. It does not specify p4d or g5 instance families, and the pricing source frames batch-job as Fargate.",
+              "suggestedFix": "Say: \"GPU jobs run on GPU-capable instances such as NVIDIA A100 or A10G; omit `gpu` for CPU-only workloads.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\batch-jobs.d.ts",
+                  "quote": "Number of GPUs. The job will run on a GPU instance (NVIDIA A100, A10G, etc.)."
+                },
+                {
+                  "file": "@generated/aws-price/distilled/batch-job.md",
+                  "quote": "**AWS Fargate** (used by `web-service`, `private-service`, `worker-service`, `multi-container-workload`, `batch-job`):"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "\"You need more memory or CPU than Lambda provides (up to 10 GB)\"",
+              "reason": "The draft implies BatchJob is capped at 10 GB, but the pricing source lists Fargate memory billing up to 122880 MB. If the intended number is Lambda's memory limit, the wording is ambiguous and misleading in a batch-job recommendation list.",
+              "suggestedFix": "Write: \"You need longer-running container compute, optional GPU, or CPU/memory sizing that fits a container workload better than a Lambda function.\" Avoid the 10 GB number unless sourced for Lambda on this page.",
+              "evidence": [
+                {
+                  "file": "@generated/aws-price/distilled/batch-job.md",
+                  "quote": "Memory billing: ~$1.60/month per 512 MB up to ~$384/month per 122880 MB."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Sub-second responses to HTTP requests | Lambda function — event-driven, sub-second cold starts\"",
+              "reason": "No provided source states Lambda cold starts are sub-second. The page can recommend Lambda for HTTP/event-driven work without making an unsupported latency claim.",
+              "suggestedFix": "Use: \"Request/response HTTP handlers | Lambda function — event-driven and pay-per-invocation.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\batch-jobs.d.ts",
+                  "quote": "Events that trigger this job (schedules, HTTP requests, S3 uploads, SQS messages, etc.)."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Quick tasks under 15 minutes | Lambda function — faster startup, simpler, pay-per-invocation\"",
+              "reason": "The provided sources do not document Lambda startup speed, simplicity, or pay-per-invocation pricing. The 15-minute Lambda timeout is also not present in the provided source files.",
+              "suggestedFix": "Either omit this row or keep only a cautious comparison grounded in the BatchJob timeout field, such as: \"Short event handlers that fit Lambda's documented limits | Lambda function.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\batch-jobs.d.ts",
+                  "quote": "Max run time in seconds. The job is killed if it exceeds this, then retried if `retryConfig` is set."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The config examples import and instantiate `BatchJob`, `StacktapeImageBuildpackPackaging`, `CustomDockerfilePackaging`, `RelationalDatabase`, and `HttpApiGateway` classes.",
+              "reason": "The provided type files define config interfaces and packaging type names such as `StpBuildpackBjImagePackaging` and `CustomDockerfileBjImagePackaging`, but they do not show exported TypeScript resource classes or the exact class names used in the examples. The style guide requires class-based examples, but this verifier cannot confirm these specific import names from the provided source files.",
+              "suggestedFix": "Verify class export names against the package source before publishing. If unsupported by source, use the documented class names from the actual Stacktape TypeScript API.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts",
+                  "quote": "interface StpBuildpackBjImagePackaging {"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts",
+                  "quote": "interface CustomDockerfileBjImagePackaging {"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\batch-jobs.d.ts",
+                  "quote": "interface BatchJob {"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"When a batch job is triggered, the trigger event payload is available in the `STP_TRIGGER_EVENT_DATA` environment variable.\"",
+              "reason": "The provided BatchJob and event type sources do not mention `STP_TRIGGER_EVENT_DATA`. This may be true in runtime code, but it is not grounded in the provided files.",
+              "suggestedFix": "Remove this claim unless runtime source confirms the environment variable. If kept, cite or verify against the job runner/trigger implementation source.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\batch-jobs.d.ts",
+                  "quote": "interface BatchJobContainer {"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\batch-jobs.d.ts",
+                  "quote": "environment?: EnvironmentVar[];"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "\"With the config above, wait times between retries are: 10s, 20s, 30s, 40s (each wait = `retryIntervalSeconds` × attempt index × `retryIntervalMultiplier`).\"",
+              "reason": "The source describes exponential backoff where `retryIntervalMultiplier` multiplies wait time after each retry. Its example says 5 and 2 produce 5s, 10s, 20s, etc. The draft's formula would produce linear values and incorrectly gives 30s as the third wait for multiplier 2.",
+              "suggestedFix": "Use: \"With `retryIntervalSeconds: 10` and `retryIntervalMultiplier: 2`, waits grow as 10s, 20s, 40s, 80s, subject to the number of attempts.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\batch-jobs.d.ts",
+                  "quote": "E.g., with `retryIntervalSeconds: 5` and `retryIntervalMultiplier: 2`, waits are 5s, 10s, 20s, etc."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Your container receives `STP_CURRENT_ATTEMPT` and `STP_MAXIMUM_ATTEMPTS` environment variables so you can implement checkpoint/resume logic.\"",
+              "reason": "The provided BatchJob source documents retryConfig fields but does not mention these runtime environment variables.",
+              "suggestedFix": "Remove the environment variable names unless runtime implementation source confirms them. You can still advise making retryable jobs idempotent/checkpointable without naming unsupported variables.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\batch-jobs.d.ts",
+                  "quote": "interface BatchJobRetryConfiguration {"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\batch-jobs.d.ts",
+                  "quote": "Auto-retry on failure, timeout, or Spot interruption."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"AWS Batch provisions an EC2 instance that matches your requirements — you don't choose instance types directly.\"",
+              "reason": "The first half conflicts with the provided Fargate pricing source, and the second half is too broad: the BatchJobResources source contains a commented-out `instanceTypes` property and says by default AWS selects an instance type, which does not support a categorical \"you don't choose\" claim in reader-facing docs.",
+              "suggestedFix": "Say: \"The `resources` property sets CPU, memory, and optional GPU. By default, Stacktape lets AWS select compute based on those requirements.\"",
+              "evidence": [
+                {
+                  "file": "@generated/aws-price/distilled/batch-job.md",
+                  "quote": "**AWS Fargate** (used by `web-service`, `private-service`, `worker-service`, `multi-container-workload`, `batch-job`):"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\batch-jobs.d.ts",
+                  "quote": "By default, Stacktape allows AWS to select an optimal instance type based on your resource requirements."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"AWS Batch provisions `p4d` (NVIDIA A100) or `g5` (NVIDIA A10G) instances automatically.\"",
+              "reason": "The source supports GPU instances with NVIDIA A100/A10G examples, but it does not specify p4d/g5 families or automatic selection of those exact EC2 instance families.",
+              "suggestedFix": "Use the narrower sourced wording: \"Set `gpu` to run on a GPU instance such as NVIDIA A100 or A10G.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\batch-jobs.d.ts",
+                  "quote": "Number of GPUs. The job will run on a GPU instance (NVIDIA A100, A10G, etc.)."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Configure `retryConfig` to automatically retry failed jobs. Stacktape uses a Step Functions state machine under the hood to orchestrate retry logic with configurable backoff.\"",
+              "reason": "The source supports retrying failure, timeout, or Spot interruption and exposes a `stateMachineArn` referenceable parameter, but it does not explicitly state that Step Functions orchestrates retry logic. The under-the-hood claim should be avoided or narrowed.",
+              "suggestedFix": "Say: \"Configure `retryConfig` to automatically retry jobs after failure, timeout, or Spot interruption.\" Mention the `stateMachineArn` only in API/reference context.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\batch-jobs.d.ts",
+                  "quote": "Auto-retry on failure, timeout, or Spot interruption."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\batch-jobs.d.ts",
+                  "quote": "type BatchJobReferencableParam = 'jobDefinitionArn' | 'stateMachineArn' | 'logGroupArn';"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "\"Supported trigger types\" table includes `application-load-balancer` with use case \"Route ALB requests to batch jobs\".",
+              "reason": "The BatchJob `events` union includes `ApplicationLoadBalancerIntegration`, but the source description for that integration says it triggers a function, not a batch job. Because BatchJob includes the type, this may be a reused doc comment, but the draft's ALB request routing claim is not safely grounded and may imply request/response behavior for a job that runs to completion.",
+              "suggestedFix": "Either omit the ALB row from the high-level table or write cautiously: \"`application-load-balancer` — advanced HTTP-triggered jobs through an Application Load Balancer integration.\" Avoid saying requests are routed to batch jobs unless runtime behavior confirms it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "#### Triggers a function when an Application Load Balancer receives a matching HTTP request."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\batch-jobs.d.ts",
+                  "quote": "| ApplicationLoadBalancerIntegration"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"Stacktape automatically grants IAM permissions and injects environment variables with connection details.\"",
+              "reason": "`ResourceAccessProps` says `connectTo` grants IAM permissions, opens network access, and injects environment variables, but it does not say it always injects connection details for every resource. Some resource types inject only ARNs or names.",
+              "suggestedFix": "Say: \"Stacktape grants the relevant IAM permissions, opens network access where applicable, and injects resource parameters as environment variables.\"",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Injects environment variables with connection details: `STP_[RESOURCE_NAME]_[PARAM]`"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "**`Bucket`** — read/write/delete objects → `NAME`, `ARN`"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "\"For permissions not covered by `connectTo` (e.g., AWS Rekognition, Bedrock, SES), use `iamRoleStatements` to add raw IAM policy statements.\"",
+              "reason": "The provided ResourceAccessProps source explicitly lists `aws:ses` as a `connectTo` macro providing full SES email sending permissions, so SES is a bad example of a service not covered by `connectTo`.",
+              "suggestedFix": "Remove SES from the examples. Use the source examples: Rekognition, Textract, and Bedrock.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "**`aws:ses`** — full SES email sending permissions"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Use this for\n * accessing AWS services directly (e.g., Rekognition, Textract, Bedrock)."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "\"View logs with `stacktape logs` or in the Stacktape Console.\"",
+              "reason": "The BatchJob logging source supports CloudWatch and `stacktape logs`, but does not mention Stacktape Console. Console behavior must be verified against console-app source, which is not provided here.",
+              "suggestedFix": "Use the sourced wording: \"Container output is sent to CloudWatch and viewable with `stacktape logs`.\" Add Console only if console-app source confirms it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\batch-jobs.d.ts",
+                  "quote": "Container logging (stdout/stderr). Sent to CloudWatch, viewable with `stacktape logs`."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "`<CodeBlock>` tabs use `label: 'stacktape.ts'` instead of the required visible `TypeScript` tab label.",
+              "reason": "The hard requirements and style guide require Stacktape config examples to use a visible `TypeScript` tab. This is an MDX/component sanity issue in every Stacktape config example in the draft.",
+              "suggestedFix": "Change every Stacktape config CodeBlock tab label to `label: 'TypeScript'`.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "\"The Stacktape image buildpack builds a container image from your source code automatically.\"",
+              "reason": "The source supports that `stacktape-image-buildpack` creates a container image from source, but the draft's class name `StacktapeImageBuildpackPackaging` is not confirmed by the provided files.",
+              "suggestedFix": "Keep the conceptual sentence, but verify the class/import name against the TypeScript API source before publishing.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "\"Application code example uses top-level `await` in `src/process.ts`.\"",
+              "reason": "The provided packaging source says JS/TS output defaults to CommonJS and ESM enables top-level await. The page does not configure `outputModuleFormat: 'esm'`, so this application example may not be valid depending on how the buildpack runs entry files. The provided files do not fully settle runtime behavior.",
+              "suggestedFix": "Use an `async function main() { ... } main().catch(...)` example, or configure/source ESM behavior explicitly if supported.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "`seoDescription` says \"triggers from schedules, S3, SQS, and HTTP.\"",
+              "reason": "The source supports those trigger types, but \"HTTP\" is broad. The actual event type shown is `http-api-gateway`, and ALB also appears in the union. This is probably acceptable for SEO, but more precise wording would avoid overgeneralization.",
+              "suggestedFix": "Use \"HTTP API Gateway\" instead of \"HTTP\" if space allows.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "`<ApiReference definitionName=\"BatchJobProps\" />`",
+              "reason": "`BatchJobProps` appears in the provided TypeScript source, but the generated config schema is not provided, so this verifier cannot confirm that `BatchJobProps` is a valid schema definition name for the ApiReference component.",
+              "suggestedFix": "Verify against `@generated/schemas/config-schema.json` before publishing.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "`<ReferenceableParams resource=\"batch-job\" />`",
+              "reason": "The source defines `BatchJobReferencableParam` and resource type `batch-job`, so this is likely correct, but the valid resource values for the component were not provided.",
+              "suggestedFix": "Verify against the ReferenceableParams component or generated metadata before publishing.",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The first paragraph is 51 words and works as a self-contained definition of the page topic.",
+            "The draft correctly includes early \"When to use\" and \"Use something else\" sections, including a clear \"when not to use\" treatment.",
+            "The `BatchJobProps` top-level properties used in prose mostly match the source: `container`, `resources`, `timeout`, `useSpotInstances`, `logging`, `retryConfig`, `events`, `connectTo`, and `iamRoleStatements`.",
+            "The draft correctly states sourced defaults for `useSpotInstances: false`, retry attempts/interval/multiplier defaults, and logging retention of 90 days.",
+            "The draft correctly scopes `cdn`/firewall-style nested constraints by not discussing unrelated web-service firewall behavior on this page.",
+            "The draft avoids hand-authored YAML Stacktape configuration blocks and does not use the forbidden `StacktapeConfig` typed plain-object style."
+          ]
+        },
+        {
+          "verifierId": "code-validator",
+          "modelProvider": "deterministic",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #6 (stacktape.ts): TypeScript config example is not Prettier-formatted.",
+              "reason": "Stacktape config examples must render cleanly and consistently. The pipeline uses Prettier as the formatting contract.",
+              "suggestedFix": "Format the full code string with Prettier using the TypeScript parser."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #7 (stacktape.ts): TypeScript config example is not Prettier-formatted.",
+              "reason": "Stacktape config examples must render cleanly and consistently. The pipeline uses Prettier as the formatting contract.",
+              "suggestedFix": "Format the full code string with Prettier using the TypeScript parser."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "seoReviewResult": {
+        "score": 7,
+        "suggestions": [
+          "**Expand the Timeout section.** It's currently a single sentence with no defaults, no max value, and no code example. Add the default timeout (if any), the maximum allowed value, and a short code snippet showing `timeout: 3600`. A stub section hurts AEO because an AI engine may extract it as the 'answer' for 'batch job timeout' queries and deliver almost nothing useful.",
+          "**Add an FAQ section** with 3-5 questions the page already answers but that would benefit from explicit Q&A markup: 'How do Spot instances work with batch jobs?', 'What triggers can start a batch job?', 'How do I connect a batch job to a database?', 'How do I retry a failed batch job?', 'What GPU instances does AWS Batch support?'. These map directly to long-tail queries and are extractable by AI answer engines.",
+          "**Shorten the heading 'Connecting to other resources'** to 'Resource connections' or 'Connect to databases and storage'. At 32 characters it's the longest H2 and reads more like a sentence than a label. Shorter headings improve scan-ability and match search query patterns better.",
+          "**Verify the retry math example.** The text says waits are '10s, 20s, 30s, 40s' using the formula `retryIntervalSeconds × attempt index × retryIntervalMultiplier`, but plugging in the values (10 × 1 × 2 = 20, 10 × 2 × 2 = 40, 10 × 3 × 2 = 60, 10 × 4 × 2 = 80) produces different numbers. Incorrect concrete specifics are worse than vague wording for AEO — AI engines will confidently repeat wrong numbers.",
+          "**Add a one-sentence architecture note to the opening section** explaining that Stacktape uses AWS Batch for compute provisioning and Step Functions for retry orchestration. This gives AI engines a concise 'how it works' extract without requiring readers to piece it together from the Retries section later in the page."
+        ]
+      },
+      "passed": false
+    },
+    {
+      "iteration": 2,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\resources__compute__batch-job\\iteration-2.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "startup-cto",
+          "persona": "Small startup CTO with low to medium AWS experience. Cares most about time-to-production and shipping quickly without getting trapped in AWS complexity.",
+          "modelProvider": "claude",
+          "scores": {
+            "clarity": 8,
+            "scannability": 7,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Strong opening paragraph — self-contained, defines what a batch job is and why you'd use it, works well for AI extraction.",
+            "Excellent 'When to use' / 'Use something else' section with a clear decision table — helps the startup CTO make the right resource choice quickly.",
+            "Spot instances section is particularly well done: concrete use/avoid guidance, pairs with retryConfig recommendation, and the Tip callout reinforces the pattern.",
+            "Retry formula and example are verified correct against the actual Step Functions state machine code (linear: interval × attempt × multiplier), with accurate wait-time examples.",
+            "Good variety of realistic examples: data processing, ML training with GPU, ETL with retries, scheduled report generation with HTTP trigger — covers the main use cases a reader would encounter.",
+            "Trigger table is comprehensive and scannable — all 10 supported trigger types listed with one-line use cases.",
+            "Resource connections example is realistic (batch job + relational database for migrations) and explains the env var naming convention clearly."
+          ],
+          "problems": [
+            "FAQ section violates the explicit rule 'Do NOT add an FAQ section — only add one when SEO reviewer feedback explicitly requests it.' All five FAQ entries restate content already covered in the main page sections (Spot, Triggers, Resource connections, Retries, GPU).",
+            "The FAQ is a padded backbone section — every answer is a condensed restatement of an earlier section with no new information, violating the 'backbone section padded with restated content' mandatory style rule.",
+            "Pricing line is vague ('Costs depend on CPU, memory, and GPU') when the source code confirms batch jobs use EC2 instances (not Fargate) with `Type: 'SPOT' | 'EC2'`. The pricing source file incorrectly lists Fargate for batch-job, but the runtime code shows EC2-based compute. The page should acknowledge that batch jobs run on EC2 instances provisioned by AWS Batch, not Fargate containers, and avoid citing Fargate pricing.",
+            "The JSDoc for retryIntervalMultiplier says 'exponential backoff' but the actual implementation (line 363 of utils.ts) is linear (interval × attempt × multiplier). The page correctly documents the linear behavior but doesn't flag the discrepancy — if a user reads the JSDoc in their IDE, they may be confused by the mismatch.",
+            "Dev mode section is a single sentence with a link. The example page (web-service) doesn't have a dev mode section at all. If included, it should say something grounded — e.g., that dev mode runs the container locally while cloud triggers submit to a local endpoint — or be omitted entirely."
+          ],
+          "mandatoryFixes": [
+            "Remove the FAQ section entirely. It violates the 'Do NOT add an FAQ section' SEO rule and is a padded backbone section that only restates content from Spot instances, Triggers, Resource connections, Retries, and GPU sections.",
+            "Either expand the Dev mode section with grounded, useful content (what dev mode actually does for batch jobs vs. other resource types) or omit it. A single sentence restating the heading is an empty backbone section."
+          ],
+          "optionalImprovements": [
+            "Add a brief note in the pricing line that batch jobs run on EC2 instances managed by AWS Batch (not Fargate), so pricing depends on the instance type AWS selects for your CPU/memory/GPU requirements. This helps the reader understand why there's no fixed per-vCPU rate like web services.",
+            "In the Retries section, note that the backoff is linear (not exponential) despite the JSDoc label — this prevents confusion for users who see 'exponential backoff' in IDE tooltips.",
+            "The Resources section could include a brief note on which GPU instance families are used (p4d for A100, g5 for A10G) based on the source code, helping readers estimate GPU costs.",
+            "Consider adding a one-line mention under Basic example that batch jobs run on EC2 instances (not always-on containers), so the reader understands the compute model differs from web/worker services.",
+            "The Environment variables section could mention that `STP_TRIGGER_EVENT_DATA`, `STP_CURRENT_ATTEMPT`, and `STP_MAXIMUM_ATTEMPTS` are automatically injected (confirmed in source code), consolidating this information rather than scattering it across Basic example and Retries sections."
+          ]
+        },
+        {
+          "reviewerId": "smb-manager",
+          "persona": "SMB engineering manager with medium to high AWS knowledge. Cares about long-term maintainability, team clarity, operational fit, technically correct Stacktape class-based config examples, and valid MDX component usage.",
+          "modelProvider": "codex",
+          "scores": {
+            "clarity": 7,
+            "scannability": 7,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "Strong opening: the first paragraph clearly explains what a batch job is and why a team would use it.",
+            "Uses the required class-based `defineConfig` examples inside `<CodeBlock intellisense tabs={[...]}/>` and avoids hand-authored Stacktape YAML.",
+            "Good practical coverage of the main levers: resources, GPU, environment variables, Spot, retries, timeout, triggers, connections, and logging.",
+            "Tradeoffs for Spot are useful and closely aligned with the source comments."
+          ],
+          "problems": [
+            "The page includes an FAQ section even though the instructions explicitly say not to add FAQ sections unless SEO reviewer feedback requests one.",
+            "Several technical statements are not clearly grounded in the provided source files: zero exit code versus non-zero exit code semantics, `STP_TRIGGER_EVENT_DATA`, `STP_CURRENT_ATTEMPT`, `STP_MAXIMUM_ATTEMPTS`, dev mode behavior, and GPU examples naming specific instance classes beyond the source’s broad A100/A10G mention.",
+            "The retry delay formula is likely wrong against the source example. The source says `retryIntervalSeconds: 5` and multiplier `2` gives waits of `5s, 10s, 20s`; the draft says wait = base × attempt number × multiplier and gives `20s, 40s, 60s, 80s` for base 10 and multiplier 2.",
+            "The triggers table lists supported triggers, but some descriptions broaden the source wording. For example, `application-load-balancer` says HTTP-triggered jobs via ALB, while the source only defines matching by method, path, headers, query parameters, and source IP for an ALB integration.",
+            "The pricing line says no charges between runs while the provided pricing source is Fargate-oriented and states idle tasks still bill. The batch-job type source says pay only for compute time used, so keep this cautious and avoid overexplaining billing mechanics beyond that.",
+            "Logging claims external destinations such as Datadog, Highlight.io, or any HTTP endpoint, but the provided `LogForwardingBase` details are not included in the sources shown. This should be removed or sourced.",
+            "The page spends too much space repeating the same facts in the FAQ instead of using that space for sharper operational guidance."
+          ],
+          "mandatoryFixes": [
+            "Remove the FAQ section entirely unless there is explicit SEO reviewer feedback requesting it.",
+            "Correct the retry backoff explanation to match the source example: with `retryIntervalSeconds: 5` and `retryIntervalMultiplier: 2`, waits are `5s, 10s, 20s`, etc.",
+            "Remove or source unsupported runtime environment variable claims: `STP_TRIGGER_EVENT_DATA`, `STP_CURRENT_ATTEMPT`, and `STP_MAXIMUM_ATTEMPTS`.",
+            "Remove or source the zero/non-zero exit code success/failure statement.",
+            "Remove or source the dev mode claim for batch jobs.",
+            "Remove or source the logging log-forwarding destination examples, or narrow the wording to what `BatchJobLogging extends LogForwardingBase` supports if the base type is available."
+          ],
+          "optionalImprovements": [
+            "Add a short “Operations” or “Failure handling” section instead of the FAQ, focused on idempotency, retries, timeout, and Spot interruption.",
+            "Make the pricing line mirror the source more tightly: pay for compute time used, with CPU, memory, GPU, and duration affecting cost; mention Fargate ballpark only if you can explain the unit without implying an always-on monthly bill for jobs.",
+            "Consider adding a small note that `resources.instanceTypes` appears commented out in the source, so users should rely on CPU, memory, and optional GPU unless the API reference shows otherwise.",
+            "Tighten the alternatives table by avoiding unsupported details about other resource behavior unless those pages or source files are available in the generation context."
+          ]
+        },
+        {
+          "reviewerId": "developer-low-aws",
+          "persona": "Developer with little AWS or DevOps experience. Needs jargon kept under control and wants examples that are easy to follow.",
+          "modelProvider": "claude",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Retry formula is verified against actual runtime source code (utils.ts:363-365), not just the misleading JSDoc — a strong editorial choice that follows the source priority rules correctly.",
+            "The 'When to use / When not to use' section is concrete and opinionated, with a clear comparison table pointing to specific alternatives.",
+            "Spot instances section includes practical advice on when to use and when to avoid, with the important SIGTERM/120s graceful shutdown detail and the tip to pair with retryConfig.",
+            "Code examples are well-focused using [!code focus-start/end] markers, realistic (database migration, ETL pipeline, report generator), and follow the defineConfig + class-based pattern correctly.",
+            "Memory sizing tip about using 7680 instead of 8192 is the kind of non-obvious practical guidance this audience needs.",
+            "Trigger table is comprehensive and matches the source union type exactly, giving readers a scannable overview of all 10 trigger types.",
+            "STP_CURRENT_ATTEMPT and STP_MAXIMUM_ATTEMPTS environment variables are called out in the retries section — essential for checkpoint/resume logic and verified in the source code."
+          ],
+          "problems": [
+            "FAQ section is present despite explicit instructions: 'Do NOT add an FAQ section — only add one when SEO reviewer feedback explicitly requests it.' All five FAQ answers restate content already covered in the main body (Spot, triggers, connectTo, retries, GPU).",
+            "The 'Dev mode' section is a single sentence that restates its heading with a link — it falls under 'empty backbone section followed by a single sentence that only restates the heading.'",
+            "The pricing line lacks concrete numbers despite the pricing source providing specific Fargate rates (~$7.29/month per 0.25 vCPU, ~$1.60/month per 512 MB). The example page (web-service) includes a full cost table; this page gives only a vague 'costs depend on...' statement.",
+            "The Triggers section example imports HttpApiGateway but never explains that the gateway resource must be defined separately and referenced by name in the event. A reader new to Stacktape might not understand the relationship between the gateway resource and the httpApiGatewayName string.",
+            "The 'Resource connections' section heading breaks the naming pattern established by the example page, which uses 'Connecting to other resources'. More importantly, the section duplicates near-identical prose from the example page. Minor inconsistency but worth noting for cross-page consistency."
+          ],
+          "mandatoryFixes": [
+            "Remove the FAQ section entirely. Every answer repeats content from the main body (Spot instances, triggers, connectTo, retries, GPU). The instructions explicitly forbid FAQ sections unless the SEO reviewer requests one.",
+            "Either expand the 'Dev mode' section with at least one grounded detail specific to batch jobs (e.g., how trigger events are simulated locally, or what 'dev mode' means for a run-to-completion workload), or remove it entirely. A single sentence restating the heading violates the empty-section rule.",
+            "Add concrete pricing context using the numbers from the pricing source. Replace the vague 'Costs depend on CPU, memory, and GPU' line with approximate monthly costs for common batch job sizes, similar to the web-service example page's cost table. The source gives: ~$7.29/month per 0.25 vCPU + ~$1.60/month per 512 MB (Fargate). Include a note that batch jobs only bill for actual run time, unlike always-on services."
+          ],
+          "optionalImprovements": [
+            "In the Triggers example, add a brief inline comment or sentence clarifying that httpApiGatewayName: 'gateway' must match the key used in the resources object. This is non-obvious for readers new to Stacktape's resource referencing model.",
+            "Consider adding a short 'Packaging' subsection (or expanding the brief mention in Basic example) that lists the five packaging types available for batch jobs (stacktape-image-buildpack, custom-dockerfile, prebuilt-image, external-buildpack, nixpacks) with a one-liner each, since batch jobs support all container packaging types and a reader may not realize this from the link alone.",
+            "The 'Timeout' section could note that without a timeout, a stuck job could run indefinitely and accumulate charges — reinforcing the 'safety net' framing with a cost-awareness angle that this audience cares about.",
+            "In the Environment variables section, mention that STP_TRIGGER_EVENT_DATA, STP_CURRENT_ATTEMPT, and STP_MAXIMUM_ATTEMPTS are auto-injected (covered in Retries and Triggers) so readers see the full picture of what environment variables are available, since this section focuses on custom env vars only."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "claude-verifier",
+          "modelProvider": "claude",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "The page includes an FAQ section with five question-answer pairs.",
+              "reason": "The SEO/style instructions explicitly state: 'Do NOT add an FAQ section — only add one when SEO reviewer feedback explicitly requests it.' There is no indication of such feedback for this page. The FAQ section should be removed.",
+              "suggestedFix": "Remove the entire '## FAQ' section. The content within it (Spot instances, triggers, connecting to databases, retries, GPU) is already thoroughly covered in the body sections above, so no information is lost.",
+              "evidence": []
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "CodeBlock tabs throughout the page use `label: 'stacktape.ts'` instead of `label: 'TypeScript'`.",
+              "reason": "The style guide specifies: 'Use `label: 'TypeScript'` for the visible tab label.' All six CodeBlock examples in the draft use `label: 'stacktape.ts'` which deviates from this rule.",
+              "suggestedFix": "Change all `label: 'stacktape.ts'` occurrences to `label: 'TypeScript'` in the CodeBlock tabs.",
+              "evidence": []
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "The retry backoff description says 'Each wait = retryIntervalSeconds × attempt number × retryIntervalMultiplier' but this contradicts the JSDoc description in the type definition which says 'exponential backoff' with example 'waits are 5s, 10s, 20s'.",
+              "reason": "The runtime code at batch-jobs/utils.ts:363 confirms the formula is `retryIntervalSeconds * i * retryIntervalMultiplier` (linear growth), which matches the draft's formula and example values (20s, 40s, 60s, 80s). However, the JSDoc in the type definition describes this as 'exponential backoff' with example values (5s, 10s, 20s) that don't match the code formula. The draft is correct per the runtime code (highest authority for behavior), but the mismatch with the JSDoc description could confuse readers who cross-reference the API types. The draft should acknowledge this is linear scaling, not exponential backoff.",
+              "suggestedFix": "The draft's formula and values are correct per runtime code. However, avoid implying this is exponential backoff — the growth is linear (proportional to attempt number). The current wording 'Wait times increase with each attempt' is appropriately neutral, which is good.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\src\\domain\\calculated-stack-overview-manager\\resource-resolvers\\batch-jobs\\utils.ts",
+                  "quote": "(workload.retryConfig?.retryIntervalSeconds || 0) *\n                i *\n                (workload.retryConfig?.retryIntervalMultiplier || 1),"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\batch-jobs.d.ts",
+                  "quote": "Multiply wait time by this factor after each retry (exponential backoff).\n   *\n   * ---\n   *\n   * E.g., with `retryIntervalSeconds: 5` and `retryIntervalMultiplier: 2`, waits are 5s, 10s, 20s, etc."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "missing-caveat",
+              "statement": "Pricing line says 'Costs depend on CPU, memory, and GPU requested and the duration of each run' without concrete Fargate pricing figures available in the source.",
+              "reason": "The pricing source provides specific Fargate rates: '~$7.29/month per 0.25 vCPU up to ~$466/month per 16' and '~$1.60/month per 512 MB up to ~$384/month per 122880 MB'. The instructions say 'When concrete pricing is present in the provided source files, include a one-line pricing context near the top.' The draft has a pricing line but omits these concrete figures.",
+              "suggestedFix": "Add a brief Fargate pricing context, e.g.: 'Fargate pricing applies: ~$7.29/month per 0.25 vCPU, ~$1.60/month per 512 MB memory (us-east-1 list price). You pay only for the duration each job runs.'",
+              "evidence": [
+                {
+                  "file": "@generated/aws-price/distilled/batch-job.md",
+                  "quote": "vCPU billing: ~$7.29/month per 0.25 up to ~$466/month per 16.\n- Memory billing: ~$1.60/month per 512 MB up to ~$384/month per 122880 MB."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "The 'Resources' section heading name ('## Resources') collides with the Stacktape config concept of 'resources' (the return value from defineConfig), which could confuse readers.",
+              "reason": "The page uses '## Resources' to describe CPU/memory/GPU configuration, but 'resources' is also a key Stacktape config concept (the `resources` property in `defineConfig` return value). In the same page, examples show `resources: { processor }` (Stacktape resources) and `resources: { cpu: 2, memory: 4096 }` (batch job compute resources). The dual meaning could confuse readers.",
+              "suggestedFix": "Rename the section to '## CPU, memory, and GPU' or '## Compute resources' to disambiguate from the Stacktape config `resources` property.",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "All six CodeBlock examples correctly use the `intellisense` attribute and `tabs` prop — no hand-authored YAML or fenced TypeScript blocks for Stacktape config.",
+            "Application code (src/process.ts handler) correctly uses a plain fenced code block without intellisense.",
+            "The `defineConfig` + class-based resource pattern is used consistently; no StacktapeConfig plain-object style anywhere.",
+            "All 10 trigger types in the table exactly match the union type in BatchJobProps.events (HttpApiIntegration, S3Integration, ScheduleIntegration, SnsIntegration, SqsIntegration, KinesisIntegration, DynamoDbIntegration, CloudwatchLogIntegration, ApplicationLoadBalancerIntegration, EventBusIntegration).",
+            "Retry config defaults (attempts: 1, retryIntervalSeconds: 0, retryIntervalMultiplier: 1) exactly match the @default annotations in the type definition.",
+            "Logging defaults (retentionDays: 90, disabled: false) exactly match the type definition @default annotations.",
+            "Runtime environment variables STP_TRIGGER_EVENT_DATA, STP_CURRENT_ATTEMPT, and STP_MAXIMUM_ATTEMPTS are confirmed present in the Step Functions state machine code at batch-jobs/utils.ts:323-340.",
+            "The `logging.logForwarding` property path and service names (Datadog, Highlight.io, HTTP endpoint) are confirmed by LogForwardingBase interface: `logForwarding?: HttpEndpointLogForwarding | HighlightLogForwarding | DatadogLogForwarding`.",
+            "Dev mode support for batch-job is confirmed by DevModeCapableResourceType including 'batch-job' in __helpers.d.ts.",
+            "The connectTo behavior description (IAM permissions, network access, injected environment variables in STP_[NAME]_[PARAM] format) accurately reflects the ResourceAccessProps.connectTo JSDoc.",
+            "useSpotInstances default (false) and SIGTERM + 120-second shutdown behavior match the type definition JSDoc exactly.",
+            "ApiReference definitionName='BatchJobProps' matches the interface name in the type definition. ReferenceableParams resource='batch-job' matches the resource type.",
+            "The retry formula and calculated values (20s, 40s, 60s, 80s for retryIntervalSeconds=10, retryIntervalMultiplier=2) exactly match the runtime code formula: retryIntervalSeconds * i * retryIntervalMultiplier.",
+            "No marketing language detected — the page uses concrete behavior descriptions throughout."
+          ],
+          "summary": "The draft is factually solid. All key technical claims — trigger types, retry defaults, environment variable injection, Spot behavior, logging configuration, and dev mode support — are verified against source code. The retry backoff formula and example values correctly match the runtime implementation (linear: base × attempt × multiplier), even though the JSDoc misleadingly describes it as 'exponential backoff'. The five issues found are: (1) an FAQ section that is explicitly forbidden by the style guide, (2) CodeBlock tab labels using 'stacktape.ts' instead of the required 'TypeScript', (3) a JSDoc/code discrepancy around the retry backoff description that could confuse readers, (4) missing concrete Fargate pricing figures that are available in the source, and (5) an ambiguous 'Resources' section heading that collides with the Stacktape config `resources` concept. No high-severity factual errors were found."
+        },
+        {
+          "verifierId": "codex-verifier",
+          "modelProvider": "codex",
+          "summary": "The draft is broadly aligned with the BatchJob type surface, but it contains several unsupported or incorrect operational claims, one invalid API/reference component concern, and multiple docs-style violations that would fail the stated rules. The largest factual risks are around pricing, retry backoff math, logging placement, dev mode behavior, and HTTP-trigger wording.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "`seoDescription`: “Spot savings up to 90%, triggers from schedules, S3, SQS, and HTTP API Gateway.”",
+              "reason": "The provided pricing source for batch jobs describes Fargate pricing and explicitly says idle tasks still bill and Fargate cannot scale to zero. The batch-job type source documents `useSpotInstances`, but the pricing source provided for this page does not support Spot pricing as the pricing context. The page also omits the concrete Fargate pricing data that is present in the source files.",
+              "suggestedFix": "Use the provided Fargate pricing context near the top: approximately vCPU + memory billing by runtime, with us-east-1 ballpark ranges. Mention Spot only in the Spot section, sourced from `useSpotInstances`, not as the primary pricing context.",
+              "evidence": [
+                {
+                  "file": "@generated/aws-price/distilled/batch-job.md",
+                  "quote": "**AWS Fargate** (used by `web-service`, `private-service`, `worker-service`, `multi-container-workload`, `batch-job`):"
+                },
+                {
+                  "file": "@generated/aws-price/distilled/batch-job.md",
+                  "quote": "vCPU billing: ~$7.29/month per 0.25 up to ~$466/month per 16."
+                },
+                {
+                  "file": "@generated/aws-price/distilled/batch-job.md",
+                  "quote": "Memory billing: ~$1.60/month per 512 MB up to ~$384/month per 122880 MB."
+                },
+                {
+                  "file": "@generated/aws-price/distilled/batch-job.md",
+                  "quote": "Idle tasks still bill — Fargate cannot scale to zero."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“You pay only for the time the job runs.” and “no charges between runs.”",
+              "reason": "The batch-job type summary says pay only for compute time used, but the provided pricing source also says the batch-job pricing summary is for Fargate and that idle Fargate tasks still bill. Without runtime implementation details clarifying how Stacktape provisions zero-running jobs between submissions, the stronger “no charges between runs” wording is not supported by the provided source set.",
+              "suggestedFix": "Write more narrowly: “Batch jobs are billed for the compute they use while running. In the provided Fargate pricing source, cost is based on vCPU, memory, task count, and hours.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\batch-jobs.d.ts",
+                  "quote": "Pay only for the compute time used."
+                },
+                {
+                  "file": "@generated/aws-price/distilled/batch-job.md",
+                  "quote": "Total monthly cost = (vCPU rate × tasks × hours) + (memory rate × tasks × hours). Idle tasks still bill — Fargate cannot scale to zero."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“Wait times increase with each attempt. Each wait = `retryIntervalSeconds` × attempt number × `retryIntervalMultiplier`. With the config above, waits between retries are 20s, 40s, 60s, 80s.”",
+              "reason": "The source describes `retryIntervalMultiplier` as exponential backoff and gives an example of 5s, 10s, 20s with multiplier 2. The draft’s formula is linear in attempt number and also applies the multiplier to the first wait, producing 20s for `10 × 1 × 2`; that contradicts the source example.",
+              "suggestedFix": "Use the source’s exponential wording and avoid inventing an exact formula unless runtime code confirms it. For the shown config, a cautious phrasing would be: “The multiplier increases the retry interval after each retry; for example, the source documents `5` and multiplier `2` as `5s`, `10s`, `20s`, etc.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\batch-jobs.d.ts",
+                  "quote": "Multiply wait time by this factor after each retry (exponential backoff)."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\batch-jobs.d.ts",
+                  "quote": "E.g., with `retryIntervalSeconds: 5` and `retryIntervalMultiplier: 2`, waits are 5s, 10s, 20s, etc."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“Adjust retention with the `logging.retentionDays` property, or disable logging entirely with `logging.disabled: true`.”",
+              "reason": "For `BatchJobProps`, `logging` is a top-level property on the batch job, not a property under `container`. The draft’s earlier examples place environment under `container`, but the logging wording is ambiguous enough to imply the property path is simply `logging.*`; it should be explicit as top-level `logging.retentionDays` on the batch job. If the intended path is top-level, the wording should say that clearly.",
+              "suggestedFix": "Write: “Set top-level `logging.retentionDays` on the batch job, or set top-level `logging.disabled: true`.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\batch-jobs.d.ts",
+                  "quote": "logging?: BatchJobLogging;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\batch-jobs.d.ts",
+                  "quote": "container: BatchJobContainer;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Batch job logging also supports forwarding logs to external destinations such as Datadog, Highlight.io, or any HTTP endpoint via the `logging.logForwarding` property.”",
+              "reason": "The provided batch-job source only shows `BatchJobLogging extends LogForwardingBase`; the actual `LogForwardingBase` shape and destination names are not included in the provided sources. The concrete destinations and property name `logging.logForwarding` are not verifiable from the source list.",
+              "suggestedFix": "Either omit the destination examples or write narrowly: “`BatchJobLogging` extends the shared log forwarding base; see the log forwarding docs for supported destinations.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\batch-jobs.d.ts",
+                  "quote": "interface BatchJobLogging extends LogForwardingBase {"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Batch jobs support dev mode (`stacktape dev`), letting you iterate on your job code locally without redeploying to AWS.”",
+              "reason": "The helper type lists `batch-job` as a dev-mode-capable resource type, but the provided source does not state the behavior “iterate on your job code locally without redeploying to AWS” for batch jobs. The only dev mode explanatory text shown is generic and says resources can run locally or connect to deployed AWS during dev mode.",
+              "suggestedFix": "Write cautiously: “Batch jobs are listed as dev-mode-capable resources. Use the dev mode page for the exact local behavior.”",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "type DevModeCapableResourceType = Subtype<StpResourceType, 'batch-job' | 'multi-container-workload' | 'function'>;"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Controls whether this resource runs locally or connects to the deployed AWS version during `stacktape dev`."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "“`application-load-balancer` | HTTP-triggered jobs via an Application Load Balancer”",
+              "reason": "The `ApplicationLoadBalancerIntegration` source says it triggers a function when an Application Load Balancer receives a matching HTTP request. It supports path, method, headers, query params, hosts, and source IP matching, but the wording in the source is specifically “function,” not “job.” Since batch jobs include this integration type, the draft can mention it, but should avoid implying ALB directly invokes a long-running HTTP job without clarifying it is an event integration.",
+              "suggestedFix": "Use narrower wording: “`application-load-balancer`: start the batch job from an Application Load Balancer integration rule.” Avoid calling it an HTTP request/response path for the job.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "Triggers a function when an Application Load Balancer receives a matching HTTP request."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\batch-jobs.d.ts",
+                  "quote": "| ApplicationLoadBalancerIntegration"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Your container receives `STP_CURRENT_ATTEMPT` and `STP_MAXIMUM_ATTEMPTS` environment variables so you can implement checkpoint/resume logic.”",
+              "reason": "No provided source file mentions these environment variables. The batch-job retry config only defines retry attempt properties; the environment variable list for resource connections does not include these runtime variables.",
+              "suggestedFix": "Remove the environment variable claim unless runtime source confirms it. Keep the idempotency recommendation as a general retry best practice if phrased as advice, not Stacktape behavior.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\batch-jobs.d.ts",
+                  "quote": "interface BatchJobRetryConfiguration {"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Environment variable names are in the format `STP_[RESOURCE_NAME]_[VARIABLE_NAME]`"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“When a batch job is triggered, the trigger event payload is available in the `STP_TRIGGER_EVENT_DATA` environment variable.”",
+              "reason": "No provided source file mentions `STP_TRIGGER_EVENT_DATA`. The batch-job type confirms that jobs can have event triggers, but it does not document the runtime environment variable used to pass event payloads.",
+              "suggestedFix": "Remove this claim or replace it with a cautious statement only if runtime implementation source is provided.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\batch-jobs.d.ts",
+                  "quote": "Events that trigger this job (schedules, HTTP requests, S3 uploads, SQS messages, etc.)."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\batch-jobs.d.ts",
+                  "quote": "events?: ("
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Your container code runs to completion and exits — a zero exit code means success, anything else means failure.”",
+              "reason": "The source describes batch jobs as containerized tasks that run to completion and says retryConfig retries on failure, but it does not define exit-code semantics. This is probably true for containers, but it is not grounded in the provided Stacktape source files.",
+              "suggestedFix": "Keep “runs to completion” and remove the exit-code sentence unless runtime implementation source confirms failure detection.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\batch-jobs.d.ts",
+                  "quote": "Run containerized tasks to completion — data processing, ML training, video encoding, etc."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\batch-jobs.d.ts",
+                  "quote": "Auto-retry on failure, timeout, or Spot interruption."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "The Stacktape config examples use `<CodeBlock intellisense ...>` but label the visible tab as `stacktape.ts` instead of `TypeScript`.",
+              "reason": "The page instructions require a visible `TypeScript` tab for Stacktape configuration examples. The draft repeatedly uses `label: 'stacktape.ts'`.",
+              "suggestedFix": "Change every Stacktape config CodeBlock tab label to `TypeScript`.",
+              "evidence": []
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "The draft includes an `## FAQ` section.",
+              "reason": "The SEO/AEO rules explicitly prohibit FAQ sections unless SEO reviewer feedback requests one. No such reviewer request is provided.",
+              "suggestedFix": "Remove the FAQ section and fold any non-duplicative content into the relevant sections above.",
+              "evidence": []
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Set `gpu` to run on a GPU-capable instance such as NVIDIA A100 or A10G.” and “GPU jobs typically use a custom Dockerfile with CUDA and ML framework dependencies pre-installed.”",
+              "reason": "The source supports the `gpu` property and examples of NVIDIA A100/A10G. It does not support the recommendation that GPU jobs typically use a custom Dockerfile with CUDA and ML framework dependencies pre-installed. That may be sensible advice, but it is not grounded in the provided files.",
+              "suggestedFix": "Keep the sourced GPU property explanation. Rephrase the Dockerfile sentence as a practical suggestion only if backed by packaging docs, or remove it.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\batch-jobs.d.ts",
+                  "quote": "Number of GPUs. The job will run on a GPU instance (NVIDIA A100, A10G, etc.)."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts",
+                  "quote": "With `custom-dockerfile`, you provide a path to your Dockerfile and build context."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“The Stacktape image buildpack builds a container image from your source code automatically. For other packaging options (custom Dockerfile, prebuilt image, Nixpacks, external buildpack), see container packaging.”",
+              "reason": "The source supports stacktape-image-buildpack, custom-dockerfile, prebuilt-image, Nixpacks, and external-buildpack packaging interfaces for batch jobs. However, the `StacktapeImageBuildpackPackaging` class name used in examples is not present in the provided `.d.ts` source; the source only defines interface/type names such as `StpBuildpackBjImagePackaging`. The class-based constructor may exist elsewhere, but it is not in the provided source files.",
+              "suggestedFix": "Verify class names against the SDK export source before publishing. If only these source files are available, avoid claiming exact constructor names beyond the documented config type names.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts",
+                  "quote": "interface StpBuildpackBjImagePackaging {"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts",
+                  "quote": "interface CustomDockerfileBjImagePackaging {"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts",
+                  "quote": "interface NixpacksBjImagePackaging {"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts",
+                  "quote": "interface ExternalBuildpackBjImagePackaging {"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "The examples import and instantiate `BatchJob`, `StacktapeImageBuildpackPackaging`, `CustomDockerfilePackaging`, `HttpApiGateway`, and `RelationalDatabase` classes.",
+              "reason": "The provided authoritative config type files define interfaces, resource shapes, and packaging interfaces, but they do not show class constructor names or constructor argument shapes. The page requirements prefer class-based examples, but the verifier cannot confirm these exact imports from the provided source files.",
+              "suggestedFix": "Verify class exports against the SDK source before publishing. If unavailable, mark examples for implementation review rather than treating them as source-grounded.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\batch-jobs.d.ts",
+                  "quote": "interface BatchJob {"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\deployment-artifacts.d.ts",
+                  "quote": "interface StpBuildpackBjImagePackaging {"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "The HTTP API Gateway trigger example defines `const gateway = new HttpApiGateway({});` and uses `httpApiGatewayName: 'gateway'`.",
+              "reason": "The source only states that `httpApiGatewayName` is the name of the HTTP API Gateway. It does not establish that a resource variable named `gateway` creates a resource named `gateway`, and the class constructor is not present in the provided source. This example may be correct in the SDK, but it is not verifiable from the supplied source files.",
+              "suggestedFix": "Verify against class-based resource naming behavior or use a documented pattern from existing class-based docs. The type-level fact to keep is that `httpApiGatewayName` must name an HTTP API Gateway resource.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "The name of the HTTP API Gateway."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "httpApiGatewayName: string;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "“Stacktape grants the relevant IAM permissions, opens network access where applicable, and injects resource parameters as environment variables.”",
+              "reason": "This is supported generally for `connectTo`, but the draft later gives a relational database variable list including “and more.” The provided `ResourceAccessProps` source for relational databases lists `CONNECTION_STRING`, `HOST`, `PORT`, and Aurora reader variants, while `ScriptEnvProps` also lists `JDBC_CONNECTION_STRING`. The exact set for batch-job workload connections is not fully resolved by the provided source because two helper comments differ.",
+              "suggestedFix": "Keep the general `connectTo` behavior, but avoid “and more” and avoid giving an exhaustive relational database variable list on this page. Link to the connecting resources page for exact per-resource parameters.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Stacktape automatically:"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "RelationalDatabase — network access + connection details → `CONNECTION_STRING`, `HOST`, `PORT`."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "RelationalDatabase: `CONNECTION_STRING`, `JDBC_CONNECTION_STRING`, `HOST`, `PORT`."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "“Your task runs longer than a Lambda function's timeout limit.”",
+              "reason": "The draft references a Lambda timeout limit, but no Lambda source file is included in the provided source list. The comparison may be true, but it is not grounded in the provided batch-job sources.",
+              "suggestedFix": "Either remove the timeout-limit comparison or phrase it without a numeric/behavioral Lambda claim: “Use a batch job for work that does not fit the Lambda execution model.”",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "“Lambda function — pay per invocation, scales to zero”",
+              "reason": "No Lambda pricing or scaling source is included. This is an alternative-comparison claim, but it is outside the provided batch-job source set.",
+              "suggestedFix": "Remove pricing/scaling details for Lambda from this page or verify against the Lambda source files.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "“Web service — persistent container with a public URL” and “Worker service — always-on container without a public URL.”",
+              "reason": "No web-service or worker-service source files are included. These comparisons may be accurate but are not grounded in the provided source set.",
+              "suggestedFix": "Keep the alternatives as links with shorter labels, or verify against the relevant resource type files before publishing.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“By default, Stacktape lets AWS select compute based on those requirements.”",
+              "reason": "The source says AWS auto-provisions a matching instance and a commented-out `instanceTypes` section says Stacktape allows AWS to select an optimal instance type by default. Since `instanceTypes` is commented out in the provided type, avoid implying users can configure instance selection on the current documented surface.",
+              "suggestedFix": "Use the exact supported wording: “Stacktape provisions compute based on the CPU, memory, and optional GPU requirements.”",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "“fetchData”, “processData”, and “saveResults” in the application code example.",
+              "reason": "The application code uses undefined helper functions. This is not a Stacktape factual issue, but it makes the example less copyable than requested.",
+              "suggestedFix": "Either mark the functions as placeholders or provide a minimal complete script that reads input and logs output.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "“Supported trigger types:” followed by a complete-looking trigger table.",
+              "reason": "The table matches the union in `BatchJobProps.events`, but it presents “Supported trigger types” as exhaustive without linking to the API reference for each trigger’s required properties. This is not false, but it can mislead readers into thinking the table is sufficient to configure them.",
+              "suggestedFix": "Introduce the table as “BatchJob event types include...” and point to the API reference for required properties.",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "The draft correctly uses `defineConfig`-style Stacktape config examples rather than plain-object `StacktapeConfig` examples.",
+            "No hand-authored Stacktape YAML config block appears in the draft.",
+            "The required `ApiReference definitionName=\"BatchJobProps\"` is consistent with the provided `BatchJobProps` interface.",
+            "`ReferenceableParams resource=\"batch-job\"` is consistent with the provided `type: 'batch-job'` resource and `BatchJobReferencableParam` type.",
+            "The main property surface is mostly aligned with `BatchJobProps`: `container`, `resources`, `timeout`, `useSpotInstances`, `logging`, `retryConfig`, `events`, `connectTo`, and `iamRoleStatements` are all present in the provided types.",
+            "The Spot interruption details, defaults for `useSpotInstances`, retry defaults, memory sizing tip, GPU examples, and logging retention default are grounded in the provided type comments."
+          ]
+        },
+        {
+          "verifierId": "code-validator",
+          "modelProvider": "deterministic",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #1 (stacktape.ts): TypeScript config example is not Prettier-formatted.",
+              "reason": "Stacktape config examples must render cleanly and consistently. The pipeline uses Prettier as the formatting contract.",
+              "suggestedFix": "Format the full code string with Prettier using the TypeScript parser."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #2 (stacktape.ts): TypeScript config example is not Prettier-formatted.",
+              "reason": "Stacktape config examples must render cleanly and consistently. The pipeline uses Prettier as the formatting contract.",
+              "suggestedFix": "Format the full code string with Prettier using the TypeScript parser."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #3 (stacktape.ts): TypeScript config example is not Prettier-formatted.",
+              "reason": "Stacktape config examples must render cleanly and consistently. The pipeline uses Prettier as the formatting contract.",
+              "suggestedFix": "Format the full code string with Prettier using the TypeScript parser."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #4 (stacktape.ts): TypeScript config example is not Prettier-formatted.",
+              "reason": "Stacktape config examples must render cleanly and consistently. The pipeline uses Prettier as the formatting contract.",
+              "suggestedFix": "Format the full code string with Prettier using the TypeScript parser."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #5 (stacktape.ts): TypeScript config example is not Prettier-formatted.",
+              "reason": "Stacktape config examples must render cleanly and consistently. The pipeline uses Prettier as the formatting contract.",
+              "suggestedFix": "Format the full code string with Prettier using the TypeScript parser."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #6 (stacktape.ts): TypeScript config example is not Prettier-formatted.",
+              "reason": "Stacktape config examples must render cleanly and consistently. The pipeline uses Prettier as the formatting contract.",
+              "suggestedFix": "Format the full code string with Prettier using the TypeScript parser."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #7 (stacktape.ts): TypeScript config example is not Prettier-formatted.",
+              "reason": "Stacktape config examples must render cleanly and consistently. The pipeline uses Prettier as the formatting contract.",
+              "suggestedFix": "Format the full code string with Prettier using the TypeScript parser."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #8 (stacktape.ts): TypeScript config example is not Prettier-formatted.",
+              "reason": "Stacktape config examples must render cleanly and consistently. The pipeline uses Prettier as the formatting contract.",
+              "suggestedFix": "Format the full code string with Prettier using the TypeScript parser."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #9 (stacktape.ts): TypeScript config example is not Prettier-formatted.",
+              "reason": "Stacktape config examples must render cleanly and consistently. The pipeline uses Prettier as the formatting contract.",
+              "suggestedFix": "Format the full code string with Prettier using the TypeScript parser."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "seoReviewResult": {
+        "score": 8,
+        "suggestions": [
+          "Answer block: Strong. The opening paragraph (45 words) defines what a batch job is, lists concrete use cases, and states the pay-per-run pricing model. It works well as a Featured Snippet extraction. Consider adding 'on AWS' to the first sentence for geographic/platform specificity: 'A batch job runs a container on AWS to completion and exits…'",
+          "Heading 'Resources' is too generic — rename to 'CPU, memory, and GPU' so the heading itself carries search signal for queries like 'batch job GPU configuration' or 'batch job memory settings'. The current H3 'GPU' would then become redundant as a standalone heading; fold it into the parent section or rename it to 'GPU configuration' for clarity.",
+          "The retry math explanation ('Each wait = retryIntervalSeconds × attempt number × retryIntervalMultiplier. With the config above, waits between retries are 20s, 40s, 60s, 80s.') is good but would be stronger as a small table or list so AI engines can extract the pattern cleanly. Consider: 'Attempt 1: 20s, Attempt 2: 40s, Attempt 3: 60s, Attempt 4: 80s' as a formatted list.",
+          "The Pricing callout after the opening paragraph is useful but vague on actual costs. If AWS Batch pricing numbers are stable enough to cite (e.g., Fargate per-vCPU-hour rate), add them. If not, the current framing is acceptable — just note that 'Costs depend on CPU, memory, and GPU requested' is less extractable than a concrete range.",
+          "Heading 'Resource connections' could be more search-aligned — rename to 'Connect to databases and other resources' or 'Database and resource access'. Queries like 'batch job connect to database' or 'batch job access S3 bucket' would benefit from a heading that matches those terms more directly.",
+          "The 'Logging' section is thin (one paragraph). Consider adding the default retention value more prominently ('90-day default retention') as a lead-in, and list the supported log forwarding destinations (Datadog, Highlight.io, HTTP endpoint) as a small bullet list so AI engines can extract supported integrations.",
+          "FAQ section is well-chosen and already present — good. Consider adding one more question: 'How much does a batch job cost?' pointing to Spot savings and the pay-per-run model. Cost questions are among the highest-intent queries for compute resources."
+        ]
+      },
+      "passed": false
+    },
+    {
+      "iteration": 3,
+      "draftPath": "C:\\Projects\\stacktape\\docs\\scripts\\generate-docs\\.state\\resources__compute__batch-job\\iteration-3.mdx",
+      "reviewerResults": [
+        {
+          "reviewerId": "startup-cto",
+          "persona": "Small startup CTO with low to medium AWS experience. Cares most about time-to-production and shipping quickly without getting trapped in AWS complexity.",
+          "modelProvider": "claude",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 8,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Excellent 'When to use' / 'Use something else' section with a concrete alternatives table — directly helps a startup CTO decide before committing to the resource.",
+            "Spot instances section is among the best guidance on the page: explicit when-to-use/when-to-avoid, pairs with retryConfig, and includes the SIGTERM/120s shutdown detail from the source.",
+            "Retry backoff formula and worked examples are accurate per runtime implementation (src/domain/.../batch-jobs/utils.ts:362-365), correctly identifying the behavior as linear rather than following the misleading 'exponential backoff' label in the JSDoc.",
+            "Comprehensive trigger table listing all 10 event types with concise use-case descriptions, plus a realistic multi-trigger code example showing both schedule and http-api-gateway.",
+            "Code examples properly use focus markers to highlight the relevant config section while keeping imports hidden — matches the intended CodeBlock pattern.",
+            "STP_TRIGGER_EVENT_DATA, STP_CURRENT_ATTEMPT, and STP_MAXIMUM_ATTEMPTS environment variables are documented and verified against the Step Functions state machine code — useful runtime detail that isn't obvious from the type definitions alone."
+          ],
+          "problems": [
+            "Pricing line is vague ('Billed per vCPU and memory for the duration') compared to the example page which gives specific dollar figures. The provided Fargate pricing source incorrectly lists batch-job (batch jobs use EC2 via AWS Batch, confirmed in source), so specific numbers are hard to quote — but the page should at least acknowledge that pricing depends on the instance type AWS Batch selects.",
+            "Tab labels use 'TypeScript' while the human-reviewed example page consistently uses 'stacktape.ts'. The style guide says 'TypeScript' but the example page was approved with 'stacktape.ts' — creates inconsistency across the section.",
+            "The retryIntervalMultiplier JSDoc says 'exponential backoff' but the runtime implementation is linear (retryIntervalSeconds × attempt × multiplier). The draft correctly follows the implementation, but doesn't call out this JSDoc discrepancy — a reader who checks the types will be confused by the 'exponential backoff' label.",
+            "No mention of how to trigger a batch job manually (e.g., via the stateMachineArn referenceable parameter or stacktape invoke). A startup CTO testing a batch job will want to run it on demand before setting up event triggers."
+          ],
+          "mandatoryFixes": [
+            "Add a sentence or short subsection explaining how to trigger a batch job on demand (e.g., reference the stateMachineArn or mention the CLI command), since a developer's first interaction with the resource will be manual testing, not waiting for a scheduled trigger."
+          ],
+          "optionalImprovements": [
+            "Align tab labels with the example page ('stacktape.ts' instead of 'TypeScript') for cross-section consistency, or confirm which convention the section should follow.",
+            "Expand the pricing line to mention that costs depend on the EC2 instance type AWS Batch selects based on your cpu/memory/gpu requirements, and that Spot can reduce this significantly — even without exact dollar figures, framing helps the CTO budget.",
+            "In the Retries section, add a brief note that the JSDoc describes this as 'exponential backoff' but the actual behavior is linear scaling with attempt number, to prevent confusion for readers who cross-reference the types.",
+            "Add a one-liner about what happens when all retry attempts are exhausted (the Step Functions state machine transitions to a 'fail' state) so the reader knows the terminal behavior.",
+            "Consider moving the Environment Variables section after Connecting to Other Resources (or merging the connectTo env var explanation into it) to group all environment-variable-related content together and reduce the repeated mention of STP_* variables."
+          ]
+        },
+        {
+          "reviewerId": "smb-manager",
+          "persona": "SMB engineering manager with medium to high AWS knowledge. Cares about long-term maintainability, team clarity, operational fit, technically correct Stacktape class-based config examples, and valid MDX component usage.",
+          "modelProvider": "codex",
+          "scores": {
+            "clarity": 6,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 7,
+            "audienceFit": 7
+          },
+          "strengths": [
+            "The page has a strong resource-page shape: self-contained intro, early pricing context, when-to-use guidance, realistic examples, focused configuration sections, API reference, and referenceable parameters.",
+            "Stacktape config examples use class-based resources with `defineConfig` inside `<CodeBlock intellisense tabs={[...]}/>` and avoid forbidden hand-authored YAML.",
+            "The page gives useful operational tradeoffs for Spot, retries, timeouts, triggers, logging, and choosing another compute resource."
+          ],
+          "problems": [
+            "Several technical claims are not grounded in the provided source files or go beyond them. The page says Stacktape provisions EC2 compute via AWS Batch, mentions Step Functions orchestration, and names GPU instance families (`p4d`, `g5`), but the supplied authoritative type files do not support those exact implementation details.",
+            "The retry backoff explanation contradicts the source. `BatchJobRetryConfiguration.retryIntervalMultiplier` is documented as exponential backoff with waits like `5s, 10s, 20s`; the draft describes a linear formula `retryIntervalSeconds × n × retryIntervalMultiplier`, which is incorrect.",
+            "The pricing line is partly under-specified against the provided pricing source. `@generated/aws-price/distilled/batch-job.md` includes approximate Fargate vCPU and memory monthly ranges and ARM savings; the draft only gives generic duration billing and Spot savings.",
+            "The `STP_TRIGGER_EVENT_DATA`, `STP_CURRENT_ATTEMPT`, and `STP_MAXIMUM_ATTEMPTS` environment variable claims are not present in the provided source files. They may be true elsewhere, but this review must be grounded in the supplied files.",
+            "The application-code example assumes a plain Node script works as the `stacktape-image-buildpack` entry point for a batch job. The provided packaging types support `entryfilePath`, but do not describe process invocation behavior for batch jobs, so the example should avoid implying unsupported runtime mechanics unless verified from source.",
+            "The triggers table is useful, but some phrasing implies all listed event types are equally validated for batch jobs. The source supports the union of event types, but detailed behavior belongs in the API reference; keep prose narrow."
+          ],
+          "mandatoryFixes": [
+            "Correct the retry section: replace the linear wait formula with exponential-backoff wording matching the source, e.g. with `retryIntervalSeconds: 5` and `retryIntervalMultiplier: 2`, waits are `5s`, `10s`, `20s`, etc.",
+            "Remove or narrow unsupported implementation claims: do not say Stacktape provisions EC2 compute via AWS Batch, do not mention Step Functions orchestration, and do not name `p4d`/`g5` GPU families unless those claims are grounded in source code provided for this page.",
+            "Remove unsupported runtime environment variable claims (`STP_TRIGGER_EVENT_DATA`, `STP_CURRENT_ATTEMPT`, `STP_MAXIMUM_ATTEMPTS`) or cite source-backed wording from authoritative files.",
+            "Revise the pricing context to use the provided pricing source: mention approximate Fargate vCPU and memory billing ranges if keeping concrete pricing, while preserving the source-backed `useSpotInstances` savings claim."
+          ],
+          "optionalImprovements": [
+            "Change CodeBlock tab labels from `TypeScript` to `stacktape.ts` for consistency with the reviewed example page, unless the section generator intentionally standardizes on `TypeScript`.",
+            "Add a short packaging subsection or one sentence that says batch jobs use `container.packaging`, then link to container packaging instead of listing every packaging option inline.",
+            "In the triggers section, add one clarifying sentence that event-specific payload shaping options such as `input`, `inputPath`, and `inputTransformer` are available only on trigger types that expose them in the API reference.",
+            "Keep the first paragraph closer to 40-60 words by trimming the long workload list or the implementation clause."
+          ]
+        },
+        {
+          "reviewerId": "developer-low-aws",
+          "persona": "Developer with little AWS or DevOps experience. Needs jargon kept under control and wants examples that are easy to follow.",
+          "modelProvider": "claude",
+          "scores": {
+            "clarity": 8,
+            "scannability": 8,
+            "completeness": 7,
+            "practicalUsefulness": 8,
+            "audienceFit": 8
+          },
+          "strengths": [
+            "Strong 'When to use' section with a clear comparison table that helps the reader pick the right compute resource quickly.",
+            "Retry backoff formula is grounded in actual implementation code (linear scaling at utils.ts:363), not the misleading 'exponential backoff' JSDoc — this is a genuine source-verification win.",
+            "Spot instances section provides excellent decision-making guidance with explicit 'use when / avoid when' framing and a concrete tip to pair with retryConfig.",
+            "Comprehensive trigger table covering all 10 event types from the BatchJobProps union type, with realistic use-case descriptions for each.",
+            "Code examples are realistic and well-focused — focus markers correctly hide imports and highlight only the relevant configuration property in each section.",
+            "GPU section is concise, actionable, and correctly cites the actual instance families (p4d, g5) from the implementation.",
+            "Environment variables section clearly explains both custom and auto-injected variables, including the STP_TRIGGER_EVENT_DATA / STP_CURRENT_ATTEMPT / STP_MAXIMUM_ATTEMPTS trio confirmed in the state machine code."
+          ],
+          "problems": [
+            "The retry formula description says 'The wait before attempt *n*' but attempt 1 is the initial run with no wait. The formula describes the wait before *retry* n. This will confuse readers trying to map the formula to actual behavior.",
+            "Tab label uses 'TypeScript' instead of 'stacktape.ts' — the human-reviewed example page consistently uses label: 'stacktape.ts' for Stacktape config examples, establishing the section pattern this page should follow.",
+            "No mention of dev mode support. The source types show batch-job is a DevModeCapableResourceType (in __helpers.d.ts), which is useful for this audience — they'd want to know they can test batch jobs locally during development.",
+            "The opening paragraph says 'You pay only for the duration each job runs' but doesn't clarify the billing model. Since batch jobs run on EC2 (confirmed in implementation), the cost depends on EC2 instance pricing per hour, not the Fargate per-vCPU/per-GB-memory model. For readers with little AWS experience, this distinction matters when estimating costs.",
+            "The page never explains the Step Functions architecture that orchestrates batch job runs (retries, timeouts, event routing). A brief 'How it works' mention would help readers understand what 'state machine' means when they see stateMachineArn in referenceable params or need to debug a failed job in the AWS console."
+          ],
+          "mandatoryFixes": [
+            "Fix retry formula wording: change 'The wait before attempt *n*' to 'The wait before retry *n*' (or 'after failed attempt *n*'). Attempt 1 is the initial execution with no preceding wait, so the current phrasing is off-by-one for the reader.",
+            "Change CodeBlock tab label from 'TypeScript' to 'stacktape.ts' in all Stacktape config examples to match the human-reviewed example page pattern."
+          ],
+          "optionalImprovements": [
+            "Add a short dev mode mention (1-2 sentences) noting that batch jobs support `stacktape dev` for local testing, with a link to the dev mode page. This audience cares about local development workflow.",
+            "Add a brief 'How it works' subsection (3-4 sentences) explaining that Stacktape uses a Step Functions state machine to orchestrate each job run — submitting the job to AWS Batch, waiting for completion, and handling retries. This helps readers understand the stateMachineArn referenceable param and where to look when debugging.",
+            "In the pricing line, clarify that compute is EC2-based (not Fargate) and billed per-instance per-hour while running. A sentence like 'AWS Batch provisions EC2 instances that shut down when the job completes, so you only pay for compute time used' would ground the cost model.",
+            "In the Retries section, add a note that the retryIntervalMultiplier produces linear backoff (not exponential), since the JSDoc misleadingly calls it 'exponential backoff' and readers who check the type hints will be confused.",
+            "Consider adding a brief mention of the 100 GB disk size allocated to batch job instances (confirmed at utils.ts:149), since ML training and video encoding workloads often care about available disk space."
+          ]
+        }
+      ],
+      "verifierResults": [
+        {
+          "verifierId": "claude-verifier",
+          "modelProvider": "claude",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "Pricing: Billed per vCPU and memory for the duration each job runs",
+              "reason": "The draft's pricing line implies Fargate-style vCPU/memory billing, but batch jobs use EC2 instances via AWS Batch, not Fargate. The authoritative pricing-info.ts file explicitly says pricing depends on 'the type of EC2 instances used by AWS' with an 'optimal' instance selection strategy. The pricing source file (@generated/aws-price/distilled/batch-job.md) incorrectly lists batch-job under Fargate — the runtime code at utils.ts:165 sets ComputeResources Type to 'EC2' or 'SPOT', never Fargate.",
+              "suggestedFix": "Rewrite the pricing line to reflect EC2 billing: 'Billed for EC2 instance time while your job runs. AWS Batch selects instance types to match your CPU, memory, and GPU requirements. Spot instances (`useSpotInstances`) can reduce costs by up to 90% for interruptible workloads.' Remove the 'per vCPU and memory' Fargate-style framing.",
+              "evidence": [
+                {
+                  "file": "shared/aws/pricing-info.ts",
+                  "quote": "The price of the batch-job depends on the length of the the job and on the type of EC2 instances used by AWS to execute your job (AWS uses \"optimal\" strategy to choose instance that match your job demands)"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "The `retryIntervalMultiplier` scales wait times linearly with the attempt number. The wait before attempt *n* is `retryIntervalSeconds × n × retryIntervalMultiplier`.",
+              "reason": "The formula in the draft is actually correct per the implementation (utils.ts:362-365), but the description 'scales wait times linearly with the attempt number' is misleading. The formula multiplies by the attempt number AND by the multiplier, which is not purely linear scaling — it's linear in attempt number but the multiplier acts as a constant factor. More importantly, the phrase 'before attempt *n*' is ambiguous: the computed examples use n=1,2,3,4 for the first 4 retries, but the config has `attempts: 5`, meaning there are 5 total attempts (1 initial + 4 retries). The draft says 'Before retry 1: 10 × 1 × 2 = 20s' through 'Before retry 4: 10 × 4 × 2 = 80s' which suggests 4 retries for 5 attempts — this is correct since the first attempt has no wait. However, calling it 'linear' when the type JSDoc says 'exponential backoff' may confuse users who read both.",
+              "suggestedFix": "Remove the word 'linearly' to avoid confusion with the JSDoc. Simply describe the formula: 'The wait before retry *n* is `retryIntervalSeconds × n × retryIntervalMultiplier`.' This accurately reflects the implementation without contradicting the JSDoc terminology.",
+              "evidence": [
+                {
+                  "file": "types/stacktape-config/batch-jobs.d.ts",
+                  "quote": "Multiply wait time by this factor after each retry (exponential backoff)."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "AWS Batch selects from GPU instance families (`p4d` for A100, `g5` for A10G) based on your requirements.",
+              "reason": "The specific GPU instance families (p4d, g5) and their GPU models (A100, A10G) are not mentioned anywhere in the provided source files. The type definition only says 'Number of GPUs. The job will run on a GPU instance (NVIDIA A100, A10G, etc.)' without specifying instance families. The mapping of p4d→A100 and g5→A10G is general AWS knowledge but not grounded in the Stacktape source. Additionally, AWS Batch uses an 'optimal' instance selection strategy (per pricing-info.ts), and the exact families chosen depend on availability and the compute environment configuration.",
+              "suggestedFix": "Simplify to: 'Set `gpu` to run on a GPU-capable instance. AWS Batch selects an appropriate GPU instance based on your requirements. Omit `gpu` for CPU-only workloads.' This matches what the source actually says.",
+              "evidence": [
+                {
+                  "file": "types/stacktape-config/batch-jobs.d.ts",
+                  "quote": "Number of GPUs. The job will run on a GPU instance (NVIDIA A100, A10G, etc.)."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "ambiguous-claim",
+              "statement": "Stacktape provisions EC2 compute via AWS Batch matching your CPU, memory, and GPU requirements.",
+              "reason": "While the implementation confirms EC2 compute (utils.ts:165 sets Type to 'EC2' or 'SPOT'), the sentence implies users directly provision EC2 instances. In reality, AWS Batch manages a compute environment with an 'optimal' instance selection strategy — users only specify cpu/memory/gpu requirements and AWS Batch handles instance provisioning. The phrasing could mislead users into thinking they're managing EC2 instances.",
+              "suggestedFix": "Rephrase to: 'Stacktape uses AWS Batch to automatically provision EC2 instances matching your CPU, memory, and GPU requirements.'",
+              "evidence": [
+                {
+                  "file": "shared/aws/pricing-info.ts",
+                  "quote": "AWS uses \"optimal\" strategy to choose instance that match your job demands"
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "ambiguous-claim",
+              "statement": "your container receives a `SIGTERM` signal and has 120 seconds to shut down gracefully before being terminated",
+              "reason": "The 120-second SIGTERM window comes from the type definition JSDoc for useSpotInstances. This is a general AWS Spot instance behavior (2-minute warning), not a Stacktape-configured value. The draft repeats this correctly in the Spot instances section, but it's worth noting this is an AWS-level guarantee, not a Stacktape configuration. The claim is accurate but readers might think this is configurable.",
+              "suggestedFix": "No change needed — the claim matches the source. Optionally clarify that this is an AWS Spot instance behavior.",
+              "evidence": [
+                {
+                  "file": "types/stacktape-config/batch-jobs.d.ts",
+                  "quote": "If interrupted, your container gets a `SIGTERM` and 120 seconds to shut down gracefully."
+                }
+              ]
+            }
+          ],
+          "positiveFindings": [
+            "All CodeBlock examples correctly use `<CodeBlock intellisense tabs={[...]} />` for Stacktape config, with no hand-authored YAML or fenced TypeScript config blocks.",
+            "Application code (the handler example) correctly uses a standard fenced code block without intellisense.",
+            "The `useSpotInstances` default of `false` and all `retryConfig` defaults (`attempts: 1`, `retryIntervalSeconds: 0`, `retryIntervalMultiplier: 1`) are correctly stated and match the source type definitions.",
+            "The trigger types table accurately lists all 10 supported event types from the `events` union type in batch-jobs.d.ts.",
+            "The logging defaults (`retentionDays: 90`, `disabled: false`) are correctly grounded in the BatchJobLogging interface.",
+            "The `connectTo` and `iamRoleStatements` descriptions accurately reflect the ResourceAccessProps interface that BatchJobProps extends.",
+            "The `<ApiReference definitionName=\"BatchJobProps\" />` component is valid — 'BatchJobProps' exists in the generated config schema.",
+            "The `<ReferenceableParams resource=\"batch-job\" />` component correctly references the 'batch-job' resource type.",
+            "The STP_TRIGGER_EVENT_DATA, STP_CURRENT_ATTEMPT, and STP_MAXIMUM_ATTEMPTS environment variables are verified in the implementation (utils.ts:322-341).",
+            "The log forwarding pricing (~$0.03/GB via Kinesis Data Firehose) and S3 backup claim are grounded in log-forwarding.d.ts line 7.",
+            "Focus markers correctly hide import statements in the basic example while keeping them in the source for type-checking.",
+            "The retry formula calculations in the draft (20s, 40s, 60s, 80s) are numerically correct given the linear formula from the implementation."
+          ],
+          "summary": "The draft is well-structured and mostly accurate, with strong grounding in source types. The most significant issue is the pricing line, which uses Fargate-style 'per vCPU and memory' framing when batch jobs actually use EC2 instances via AWS Batch (confirmed by both the implementation code and the authoritative pricing-info.ts). The retry backoff formula in the draft is actually correct per the implementation (linear: retryIntervalSeconds × n × retryIntervalMultiplier), though calling it 'linear' contradicts the JSDoc's 'exponential backoff' label — the JSDoc is what's inaccurate, but the draft should avoid the term to prevent confusion. The GPU instance family claims (p4d for A100, g5 for A10G) are not grounded in the source. All environment variables, trigger types, defaults, and component references are verified correct."
+        },
+        {
+          "verifierId": "codex-verifier",
+          "modelProvider": "codex",
+          "summary": "The draft is mostly aligned with the provided Batch Job type definitions, but it overstates several runtime behaviors and includes one clear retry-backoff error. The main factual risks are pricing/compute wording that conflicts with the provided pricing source, unsupported claims about Step Functions and injected runtime variables, and a trigger example that uses a resource name where the documented TypeScript example pattern suggests the rendered resource key is authoritative.",
+          "issues": [
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "The `retryIntervalMultiplier` scales wait times linearly with the attempt number. The wait before attempt n is `retryIntervalSeconds × n × retryIntervalMultiplier`.",
+              "reason": "The source describes `retryIntervalMultiplier` as exponential backoff and gives waits of 5s, 10s, 20s for interval 5 and multiplier 2. The draft's linear formula would produce 10s, 20s, 30s... for that example and contradicts the source.",
+              "suggestedFix": "Say that the multiplier applies exponentially after each retry. Avoid deriving an exact formula unless verified from runtime code; use the sourced example: `retryIntervalSeconds: 5` and `retryIntervalMultiplier: 2` waits 5s, 10s, 20s, etc.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\batch-jobs.d.ts",
+                  "quote": "#### Multiply wait time by this factor after each retry (exponential backoff)."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\batch-jobs.d.ts",
+                  "quote": "E.g., with `retryIntervalSeconds: 5` and `retryIntervalMultiplier: 2`, waits are 5s, 10s, 20s, etc."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "Pricing: Billed per vCPU and memory for the duration each job runs — no charges between runs.",
+              "reason": "The provided pricing source says batch-job uses AWS Fargate pricing and explicitly says idle tasks still bill and Fargate cannot scale to zero. The Batch Job type prose says pay only for compute time used, but the draft's 'no charges between runs' is stronger than the pricing source supports and could mislead readers about idle billing semantics.",
+              "suggestedFix": "Use a narrower line: `Pricing: Batch jobs are billed for compute used while jobs run. The provided pricing source lists Fargate-style vCPU and memory billing as ballpark us-east-1 pricing; storage, I/O, and data transfer are excluded.`",
+              "evidence": [
+                {
+                  "file": "@generated/aws-price/distilled/batch-job.md",
+                  "quote": "**AWS Fargate** (used by `web-service`, `private-service`, `worker-service`, `multi-container-workload`, `batch-job`):"
+                },
+                {
+                  "file": "@generated/aws-price/distilled/batch-job.md",
+                  "quote": "Idle tasks still bill — Fargate cannot scale to zero."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "Stacktape provisions EC2 compute via AWS Batch matching your CPU, memory, and GPU requirements.",
+              "reason": "The provided pricing source says `batch-job` uses AWS Fargate pricing. The type file says AWS auto-provisions a matching instance and mentions EC2 instance types in a commented-out property, but the draft's EC2-via-AWS-Batch phrasing conflicts with the pricing source's explicit Fargate association.",
+              "suggestedFix": "Phrase this from the authoritative type surface without naming unsupported infrastructure: `Stacktape uses your CPU, memory, and optional GPU requirements to provision matching AWS compute for the job.` If you keep AWS service details, verify them from runtime source first.",
+              "evidence": [
+                {
+                  "file": "@generated/aws-price/distilled/batch-job.md",
+                  "quote": "**AWS Fargate** (used by `web-service`, `private-service`, `worker-service`, `multi-container-workload`, `batch-job`):"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\batch-jobs.d.ts",
+                  "quote": "#### CPU, memory, and GPU requirements. AWS auto-provisions a matching instance."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "Stacktape also injects `STP_TRIGGER_EVENT_DATA`, `STP_CURRENT_ATTEMPT`, and `STP_MAXIMUM_ATTEMPTS` at runtime via the Step Functions state machine that orchestrates each job run.",
+              "reason": "The provided Batch Job type exposes `stateMachineArn` as a referenceable parameter, but no provided source states that a Step Functions state machine orchestrates each run or that these three environment variables are injected. The source only documents custom container environment variables and `connectTo` behavior.",
+              "suggestedFix": "Remove the orchestration mechanism and injected-variable claim unless verified from runtime source. A cautious alternative is: `Use `container.environment` for your own variables. Resource connection variables are injected when you use `connectTo`.`",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\batch-jobs.d.ts",
+                  "quote": "type BatchJobReferencableParam = 'jobDefinitionArn' | 'stateMachineArn' | 'logGroupArn';"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\batch-jobs.d.ts",
+                  "quote": "#### Environment variables injected into the container at runtime."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "Your container receives `STP_TRIGGER_EVENT_DATA` (the trigger event payload), `STP_CURRENT_ATTEMPT` (1-indexed attempt number), and `STP_MAXIMUM_ATTEMPTS` (total configured attempts) as environment variables.",
+              "reason": "None of the provided Batch Job, event, or helper type sources document these runtime environment variables. The only documented container environment behavior is the `environment` property, `$ResourceParam()`/`$Secret()`, and variables injected by `connectTo`.",
+              "suggestedFix": "Remove this paragraph unless runtime source is added as evidence. If needed, say only that `container.environment` defines variables and `connectTo` injects resource connection variables.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\batch-jobs.d.ts",
+                  "quote": "Use `$ResourceParam()` or `$Secret()` to inject database URLs, API keys, etc."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "Injects environment variables with connection details: `STP_[RESOURCE_NAME]_[PARAM]`"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "Variables from `connectTo` (e.g., `STP_MY_DATABASE_CONNECTION_STRING`) are added automatically alongside any custom variables you define here.",
+              "reason": "`connectTo` is documented as a top-level Batch Job property inherited from `ResourceAccessProps`; the draft places this claim under `container.environment`, which could imply `container.environment` itself supports `connectTo` behavior. The source supports automatic variables for `connectTo`, but not that they are part of `container.environment` or merged by that nested property.",
+              "suggestedFix": "Move this sentence to the `Connecting to other resources` section or reword: `When the batch job uses top-level `connectTo`, Stacktape injects connection variables in addition to the variables configured under `container.environment`.`",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\batch-jobs.d.ts",
+                  "quote": "interface BatchJobProps extends ResourceAccessProps {"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\__helpers.d.ts",
+                  "quote": "connectTo?: string[];"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\batch-jobs.d.ts",
+                  "quote": "interface BatchJobContainer {"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "incorrect-claim",
+              "statement": "The `httpApiGatewayName` must match the resource name — here, `'gateway'` matches the key in `resources: { gateway, report }`.",
+              "reason": "In the example, `gateway` is a local variable returned as shorthand in `resources: { gateway, report }`, so the rendered resource key is indeed `gateway`. However, the statement is easy to misuse because the source says the property is the name of the HTTP API Gateway, while the broader config source defines resources as named entries. It does not say the value must match the JavaScript variable identifier. A resource could be returned under a different key than the variable name.",
+              "suggestedFix": "Reword to focus on the resource key: `httpApiGatewayName` should reference the HTTP API Gateway resource name in the returned `resources` map. In this example, the key is `gateway`.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\events.d.ts",
+                  "quote": "#### The name of the HTTP API Gateway."
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\_root.d.ts",
+                  "quote": "Each entry is a named resource (e.g., `myApi`, `myDatabase`)."
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "Forwarding uses Kinesis Data Firehose (~$0.03/GB) with automatic S3 backup for failed deliveries.",
+              "reason": "The provided sources only show that `BatchJobLogging` extends `LogForwardingBase`; they do not include the definition of `LogForwardingBase` or any pricing/source backing for Kinesis Data Firehose, `$0.03/GB`, or automatic S3 backup behavior.",
+              "suggestedFix": "Remove the implementation and price details unless the log-forwarding source and pricing source are included. Keep only: `Batch job logging supports the shared log forwarding options exposed by `logging.logForwarding`; see log forwarding for details.`",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\batch-jobs.d.ts",
+                  "quote": "interface BatchJobLogging extends LogForwardingBase {"
+                },
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\batch-jobs.d.ts",
+                  "quote": "logging?: BatchJobLogging;"
+                }
+              ]
+            },
+            {
+              "severity": "medium",
+              "type": "unsupported-claim",
+              "statement": "View logs with `stacktape logs`.",
+              "reason": "The Batch Job type source says logs are viewable with `stacktape logs`, so the basic claim is supported. However, the page is documentation for a CLI command reference link style, and no CLI source was provided to verify that `stacktape logs` is the current command, arguments, or behavior. Because the verifier instructions specifically require CLI claims to match CLI source, this remains unsupported from the provided CLI source set.",
+              "suggestedFix": "Either provide `src/config/cli/commands.ts` and `src/commands/logs/index.ts` for verification, or avoid CLI specifics beyond the type comment. If retained, link it only if the command source is verified.",
+              "evidence": [
+                {
+                  "file": "C:\\Projects\\stacktape\\types\\stacktape-config\\batch-jobs.d.ts",
+                  "quote": "#### Container logging (stdout/stderr). Sent to CloudWatch, viewable with `stacktape logs`."
+                }
+              ]
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "Automatic retries, Spot savings, and triggers from schedules, S3, SQS, and API events.",
+              "reason": "Retries and Spot behavior are configurable, not automatic for every batch job. The body later clarifies `retryConfig` and `useSpotInstances`, but the SEO description can be read as unconditional.",
+              "suggestedFix": "Use `Configurable retries, optional Spot savings, and triggers from schedules, S3, SQS, and API events.`",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "You need GPU compute (ML training, inference, video encoding).",
+              "reason": "The source supports optional GPU and examples of ML training/video encoding, but it does not specifically mention inference as a use case. This is plausible, but not sourced.",
+              "suggestedFix": "Use sourced examples only: `You need GPU compute for ML training or video encoding.`",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "AWS Batch selects from GPU instance families (`p4d` for A100, `g5` for A10G) based on your requirements.",
+              "reason": "The source says a GPU job runs on a GPU instance and mentions NVIDIA A100 and A10G. It does not name AWS Batch, p4d, g5, or selection behavior by instance family.",
+              "suggestedFix": "Reword to: `Set `gpu` when the job needs a GPU instance, such as NVIDIA A100 or A10G. Omit `gpu` for CPU-only workloads.`",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "The Stacktape image buildpack builds a container image from your source code automatically.",
+              "reason": "The deployment artifact source supports that Stacktape image buildpack creates a container image from source code. The word `automatically` is acceptable but broader than necessary; the source says the interface configures an image to be built automatically and the prose says automatically bundles code into an optimized container image.",
+              "suggestedFix": "No required change, or use the exact sourced wording: `The Stacktape image buildpack creates a container image from your source code.`",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "For other packaging options (custom Dockerfile, prebuilt image, Nixpacks, external buildpack), see container packaging.",
+              "reason": "The provided deployment artifacts source defines custom Dockerfile, prebuilt image, Nixpacks, and external buildpack variants for batch jobs, so the list is supported. The destination page URL is not verifiable from the provided source files.",
+              "suggestedFix": "Keep the packaging list; verify the link target exists in the docs tree before publishing.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "The `resources` property sets CPU, memory, and optional GPU for the job.",
+              "reason": "The source supports this statement directly. No change needed; included only as a checked claim with no issue evidence required.",
+              "suggestedFix": "No change needed.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "If AWS reclaims the capacity, your container receives a `SIGTERM` signal and has 120 seconds to shut down gracefully before being terminated.",
+              "reason": "The source supports this statement directly. No change needed; included only to note it was verified.",
+              "suggestedFix": "No change needed.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "Always pair `useSpotInstances` with `retryConfig` so interrupted jobs are automatically resubmitted.",
+              "reason": "The source recommends combining Spot with `retryConfig` to auto-retry on interruption, but `Always` is an opinionated absolute. It is reasonable for most users, but stronger than the source wording.",
+              "suggestedFix": "Use `For most interruptible jobs, pair `useSpotInstances` with `retryConfig` so interrupted jobs can be retried automatically.`",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "If `retryConfig` is set, the job is retried automatically after a timeout.",
+              "reason": "The type source says timeout kills the job and then retries if `retryConfig` is set, and that retry config covers failure, timeout, or Spot interruption. This is supported. No change needed.",
+              "suggestedFix": "No change needed.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "When `timeout` is omitted, the job runs until it completes or fails on its own.",
+              "reason": "The source defines `timeout` as optional and says it is the max run time if set. It does not explicitly state unlimited/no timeout behavior when omitted, although that is a reasonable inference.",
+              "suggestedFix": "Narrow to: `Set `timeout` when you want Stacktape to enforce a maximum run time.`",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "Batch jobs are started by events.",
+              "reason": "The source says `events` are events that trigger the job. It does not say all batch jobs must be event-started; the resource also exposes `stateMachineArn`, suggesting other invocation paths might exist. The wording can be narrowed.",
+              "suggestedFix": "Use `Use `events` when you want Stacktape to start a batch job from schedules, HTTP requests, queues, streams, or other event sources.`",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "Environment variables are injected in the format `STP_[RESOURCE_NAME]_[PARAM]`. For example, connecting to a relational database named `db` injects `STP_DB_CONNECTION_STRING`, `STP_DB_HOST`, and `STP_DB_PORT`.",
+              "reason": "The format and relational database variables are supported by `ResourceAccessProps`. The example is a direct application of the naming rule. No change required.",
+              "suggestedFix": "No change needed.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "For permissions not covered by `connectTo` (e.g., AWS Rekognition, Textract, Bedrock), use `iamRoleStatements` to add raw IAM policy statements.",
+              "reason": "This is supported by `ResourceAccessProps`. No change required.",
+              "suggestedFix": "No change needed.",
+              "evidence": []
+            },
+            {
+              "severity": "low",
+              "type": "unsupported-claim",
+              "statement": "Container output (`stdout`/`stderr`) is automatically sent to CloudWatch Logs and retained for 90 days by default.",
+              "reason": "The Batch Job logging source supports stdout/stderr sent to CloudWatch and `retentionDays` default 90. It says CloudWatch, not explicitly `CloudWatch Logs`, but that is a reasonable AWS service naming clarification.",
+              "suggestedFix": "No change needed, or use `CloudWatch` to match the source exactly.",
+              "evidence": []
+            }
+          ],
+          "positiveFindings": [
+            "All Stacktape configuration examples use `<CodeBlock intellisense tabs={[{ label: 'TypeScript', ... }]} />`; there are no hand-authored YAML Stacktape config examples.",
+            "The page avoids the deprecated `StacktapeConfig` typed-object style and uses class-based `defineConfig` examples.",
+            "The API reference component uses `BatchJobProps`, which matches the Batch Job props interface in the provided type source.",
+            "`ReferenceableParams resource=\"batch-job\"` matches the `batch-job` resource type and the provided referenceable parameters.",
+            "The page includes the required early `When to use` / `Use something else` guidance and a pricing context near the top."
+          ]
+        },
+        {
+          "verifierId": "code-validator",
+          "modelProvider": "deterministic",
+          "summary": "Deterministic check of <CodeBlock intellisense> Stacktape config examples and generated MDX component usage.",
+          "issues": [
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #8 (TypeScript): TypeScript config example is not Prettier-formatted.",
+              "reason": "Stacktape config examples must render cleanly and consistently. The pipeline uses Prettier as the formatting contract.",
+              "suggestedFix": "Format the full code string with Prettier using the TypeScript parser."
+            },
+            {
+              "severity": "high",
+              "type": "incorrect-claim",
+              "statement": "<CodeBlock intellisense> #9 (TypeScript): TypeScript config example is not Prettier-formatted.",
+              "reason": "Stacktape config examples must render cleanly and consistently. The pipeline uses Prettier as the formatting contract.",
+              "suggestedFix": "Format the full code string with Prettier using the TypeScript parser."
+            }
+          ],
+          "positiveFindings": []
+        }
+      ],
+      "seoReviewResult": {
+        "score": 8,
+        "suggestions": [
+          "The opening paragraph is strong and extractable as a Featured Snippet. One improvement: move the **Pricing** line into the opening paragraph itself (or immediately after the H1 as part of the same block) so LLMs that extract only the first paragraph also capture pricing context. Currently it's a separate bold-label block that some extractors may skip.",
+          "Add a compact FAQ section (3-5 questions) before the API reference. Natural candidates: 'What triggers can start a batch job?', 'How do Spot instances reduce batch job costs?', 'How do I retry a failed batch job?', 'Can I use GPUs with batch jobs?', 'What environment variables does a batch job receive?'. These map directly to long-tail queries and are already answered in the page — an FAQ section gives them a second, more extractable surface.",
+          "Shorten 'Connecting to other resources' heading to 'Resource connections' or 'Connect to resources'. At 31 characters it's fine for humans but shorter headings perform better as search result sitelinks and in AI-extracted outlines.",
+          "The Spot instances section mentions 'up to 90% discount' and '120 seconds' graceful shutdown — both excellent concrete claims. Add one more: state the default Spot allocation strategy if Stacktape/AWS Batch uses one (e.g., SPOT_CAPACITY_OPTIMIZED), so the paragraph is fully self-contained for an AI engine answering 'how do AWS Batch Spot instances work with Stacktape'.",
+          "The retries section has excellent concrete math examples. Consider adding a brief note about the maximum allowed value for `attempts` if one exists, so the paragraph answers 'what is the maximum retry count for a Stacktape batch job' without requiring the user to check the API reference.",
+          "The Logging section is thin compared to other sections. Add the default `retentionDays` value inline (you mention 90 days, good) and state whether CloudWatch log group names follow a predictable pattern (e.g., `/stacktape/{projectName}/{stage}/{resourceName}`). This makes the paragraph self-contained for ops-focused queries like 'where are Stacktape batch job logs stored'."
+        ]
+      },
+      "passed": false
+    }
+  ],
+  "finalOutputPath": "C:\\Projects\\stacktape\\docs\\docs\\resources\\compute\\batch-job.mdx"
+}
