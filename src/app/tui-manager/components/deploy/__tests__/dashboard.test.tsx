@@ -5,7 +5,6 @@ import { PhaseList } from '../phase-list';
 import { StatusIcon, PhaseIcon } from '../../shared/status-icon';
 import { Spinner } from '../../shared/spinner';
 import { EventTree } from '../event-tree';
-import { LogPanel } from '../log-panel';
 import { Footer } from '../footer';
 import { DetailPanel } from '../detail-panel';
 import { DeployDashboard } from '../deploy-dashboard';
@@ -266,51 +265,6 @@ describe('EventTree', () => {
   });
 });
 
-// ─── LogPanel ────────────────────────────────────────────
-
-describe('LogPanel', () => {
-  test('renders empty log with title', async () => {
-    testSetup = await testRender(() => <LogPanel />, { width: 60, height: 10 });
-    await testSetup.renderOnce();
-    const frame = testSetup.captureCharFrame();
-    expect(frame).toContain('Log');
-    expect(frame).toContain('No log entries');
-  });
-
-  test('renders info messages', async () => {
-    tuiState.setCurrentPhase('INITIALIZE');
-    tuiState.addMessage('info', 'info', 'Test info message');
-    testSetup = await testRender(() => <LogPanel />, { width: 80, height: 15 });
-    await testSetup.renderOnce();
-    expect(testSetup.captureCharFrame()).toContain('Test info message');
-  });
-
-  test('renders warnings', async () => {
-    tuiState.addWarning('Something might be wrong');
-    testSetup = await testRender(() => <LogPanel />, { width: 80, height: 15 });
-    await testSetup.renderOnce();
-    expect(testSetup.captureCharFrame()).toContain('Something might be wrong');
-  });
-
-  test('has border', async () => {
-    testSetup = await testRender(() => <LogPanel />, { width: 60, height: 10 });
-    await testSetup.renderOnce();
-    const frame = testSetup.captureCharFrame();
-    expect(frame).toContain('┌');
-    expect(frame).toContain('└');
-  });
-
-  test('has left padding on content', async () => {
-    tuiState.addMessage('info', 'info', 'Padded message');
-    testSetup = await testRender(() => <LogPanel />, { width: 80, height: 15 });
-    await testSetup.renderOnce();
-    const frame = testSetup.captureCharFrame();
-    const lines = frame.split('\n');
-    const logTitleLine = lines.find((l) => l.includes('Log'));
-    expect(logTitleLine).toMatch(/│\s+Log/);
-  });
-});
-
 // ─── Footer ──────────────────────────────────────────────
 
 describe('Footer', () => {
@@ -414,7 +368,7 @@ describe('DetailPanel', () => {
 // ─── DeployDashboard (full layout) ──────────────────────
 
 describe('DeployDashboard', () => {
-  test('renders header, phases, detail, log, and footer', async () => {
+  test('renders header, phases, detail, and footer', async () => {
     tuiState.setHeader({ projectName: 'test-project', stageName: 'dev', region: 'eu-west-1', action: 'DEPLOYING' });
     tuiState.setCurrentPhase('INITIALIZE');
     const frame = await renderDashboard({ width: 120, height: 40 });
@@ -424,7 +378,6 @@ describe('DeployDashboard', () => {
     expect(frame).toContain('DEPLOYING');
     expect(frame).toContain('Phases');
     expect(frame).toContain('Initialize');
-    expect(frame).toContain('Log');
     expect(frame).toContain('ctrl+c');
     expect(frame).toContain('scroll');
   });
@@ -488,7 +441,6 @@ describe('DeployDashboard', () => {
     const frame = await renderDashboard({ width: 80, height: 24 });
     expect(frame).toContain('Phases');
     expect(frame).toContain('Initialize');
-    expect(frame).toContain('Log');
   });
 
   test('works at minimal height (20 rows)', async () => {
@@ -676,22 +628,6 @@ describe('State transitions', () => {
 
     expect(frame).toContain('✓');
     expect(frame).toContain('Build & Package');
-  });
-
-  test('log messages appear after being added', async () => {
-    tuiState.setHeader({ projectName: 'test', stageName: 'dev', region: 'eu-west-1', action: 'DEPLOYING' });
-    tuiState.setCurrentPhase('INITIALIZE');
-    await renderDashboard({ width: 120, height: 40 });
-
-    let frame = testSetup.captureCharFrame();
-    expect(frame).toContain('No log entries');
-
-    tuiState.addMessage('info', 'info', 'New log entry appeared');
-    await flushAndRender();
-    frame = testSetup.captureCharFrame();
-
-    expect(frame).toContain('New log entry appeared');
-    expect(frame).not.toContain('No log entries');
   });
 
   test('events appear in detail panel as they are added', async () => {

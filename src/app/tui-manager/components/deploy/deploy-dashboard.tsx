@@ -1,9 +1,9 @@
 import { createSignal, onCleanup, Show, ErrorBoundary } from 'solid-js';
-import { useKeyboard } from '@opentui/solid';
+import { useKeyboard, useTerminalDimensions } from '@opentui/solid';
+import { Toaster } from '@opentui-ui/toast/solid';
 import { createTuiSignal } from './use-deploy-state';
 import { PhaseList } from './phase-list';
 import { DetailPanel } from './detail-panel';
-import { LogPanel } from './log-panel';
 import { Footer } from './footer';
 import { PromptOverlay } from './prompt-overlay';
 import { formatDuration } from '../../utils';
@@ -138,12 +138,14 @@ const CancelConfirmOverlay = (props: { onConfirm: () => void; onDismiss: () => v
 };
 
 const DashboardInner = (props: Pick<DashboardProps, 'onQuit' | 'onCancel'>) => {
+  const terminalDimensions = useTerminalDimensions();
   const [showCancelConfirm, setShowCancelConfirm] = createSignal(false);
   const isComplete = createTuiSignal((s) => s.isComplete);
   const cancelDeployment = createTuiSignal((s) => s.cancelDeployment);
   const activePrompt = createTuiSignal((s) => s.activePrompt);
   const showPhases = createTuiSignal((s) => s.showPhaseHeaders !== false);
   const isCancelling = () => cancelDeployment()?.isCancelling;
+  const toastMaxWidth = () => Math.max(32, Math.min(96, terminalDimensions().width - 6));
 
   const handleCancelConfirm = () => {
     setShowCancelConfirm(false);
@@ -190,9 +192,30 @@ const DashboardInner = (props: Pick<DashboardProps, 'onQuit' | 'onCancel'>) => {
         </Show>
         <DetailPanel />
       </box>
-      <Show when={showPhases()}>
-        <LogPanel />
-      </Show>
+      <Toaster
+        position="bottom-right"
+        stackingMode="stack"
+        visibleToasts={3}
+        maxWidth={toastMaxWidth()}
+        offset={{ bottom: 2, right: 2 }}
+        toastOptions={{
+          duration: 6000,
+          style: {
+            maxWidth: toastMaxWidth(),
+            backgroundColor: COLORS.bg,
+            foregroundColor: COLORS.text,
+            mutedColor: COLORS.muted,
+            borderColor: COLORS.border,
+            borderStyle: 'single',
+            paddingX: 1,
+            paddingY: 0
+          },
+          success: { duration: 4000, style: { borderColor: COLORS.success } },
+          error: { duration: 10000, style: { borderColor: COLORS.error } },
+          warning: { duration: 10000, style: { borderColor: COLORS.warning } },
+          info: { duration: 6000, style: { borderColor: COLORS.blue } }
+        }}
+      />
       <PromptOverlay />
       <Footer isCancelling={!!isCancelling()} />
       <Show when={showCancelConfirm()}>

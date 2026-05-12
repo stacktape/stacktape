@@ -504,20 +504,6 @@ describe('Delete: state transitions', () => {
     expect(frame).toContain('Delete');
   });
 
-  test('log messages appear during deletion', async () => {
-    configureDeleteState();
-    tuiState.setCurrentPhase('INITIALIZE');
-    await renderDeleteDashboard({ width: 120, height: 40 });
-
-    expect(testSetup.captureCharFrame()).toContain('No log entries');
-
-    tuiState.addMessage('info', 'info', 'Deleting all deployment artifacts');
-    await flushAndRender();
-    const frame = testSetup.captureCharFrame();
-    expect(frame).toContain('Deleting all deployment artifacts');
-    expect(frame).not.toContain('No log entries');
-  });
-
   test('events appear in detail panel during initialization', async () => {
     configureDeleteState();
     tuiState.setCurrentPhase('INITIALIZE');
@@ -560,13 +546,6 @@ describe('Delete: state transitions', () => {
     expect(frame).not.toContain('cancel deletion');
   });
 
-  test('warnings appear in log panel', async () => {
-    configureDeleteState();
-    tuiState.setCurrentPhase('DEPLOY');
-    tuiState.addWarning('Termination protection was already disabled');
-    await renderDeleteDashboard({ width: 120, height: 40 });
-    expect(testSetup.captureCharFrame()).toContain('Termination protection was already disabled');
-  });
 });
 
 // ─── Delete: Layout at Different Sizes ───────────────────
@@ -580,7 +559,6 @@ describe('Delete: responsive layout', () => {
     expect(frame).toContain('Phases');
     expect(frame).toContain('Initialize');
     expect(frame).toContain('Delete');
-    expect(frame).toContain('Log');
   });
 
   test('renders at narrow width (80 cols)', async () => {
@@ -590,7 +568,6 @@ describe('Delete: responsive layout', () => {
     expect(frame).toContain('DELETING');
     expect(frame).toContain('Phases');
     expect(frame).toContain('Initialize');
-    expect(frame).toContain('Log');
   });
 
   test('renders at minimal height (20 rows)', async () => {

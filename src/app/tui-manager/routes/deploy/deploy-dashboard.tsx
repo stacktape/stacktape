@@ -1,11 +1,11 @@
 import { createSignal, onCleanup, Show, ErrorBoundary } from 'solid-js';
-import { useKeyboard } from '@opentui/solid';
+import { useKeyboard, useTerminalDimensions } from '@opentui/solid';
 import { ThemeProvider, useTheme } from '../../context/theme';
 import { DialogProvider } from '../../context/dialog';
 import { createTuiSignal } from '../../context/deploy-state';
+import { Toaster } from '@opentui-ui/toast/solid';
 import { PhaseList } from './phase-list';
 import { DetailPanel } from './detail-panel';
-import { LogPanel } from './log-panel';
 import { Footer } from './footer';
 import { PromptOverlay } from './prompt-overlay';
 import { formatDuration } from '../../utils';
@@ -164,12 +164,15 @@ const FailureBanner = () => {
 };
 
 const DashboardInner = (props: Pick<DashboardProps, 'onQuit' | 'onCancel'>) => {
+  const { theme } = useTheme();
+  const terminalDimensions = useTerminalDimensions();
   const [showCancelConfirm, setShowCancelConfirm] = createSignal(false);
   const isComplete = createTuiSignal((s) => s.isComplete);
   const cancelDeployment = createTuiSignal((s) => s.cancelDeployment);
   const activePrompt = createTuiSignal((s) => s.activePrompt);
   const showPhases = createTuiSignal((s) => s.showPhaseHeaders !== false);
   const isCancelling = () => cancelDeployment()?.isCancelling;
+  const toastMaxWidth = () => Math.max(32, Math.min(96, terminalDimensions().width - 6));
 
   const handleCancelConfirm = () => {
     setShowCancelConfirm(false);
@@ -216,9 +219,30 @@ const DashboardInner = (props: Pick<DashboardProps, 'onQuit' | 'onCancel'>) => {
         </Show>
         <DetailPanel />
       </box>
-      <Show when={showPhases()}>
-        <LogPanel />
-      </Show>
+      <Toaster
+        position="bottom-right"
+        stackingMode="stack"
+        visibleToasts={3}
+        maxWidth={toastMaxWidth()}
+        offset={{ bottom: 2, right: 2 }}
+        toastOptions={{
+          duration: 6000,
+          style: {
+            maxWidth: toastMaxWidth(),
+            backgroundColor: theme.bg,
+            foregroundColor: theme.text,
+            mutedColor: theme.muted,
+            borderColor: theme.border,
+            borderStyle: 'single',
+            paddingX: 1,
+            paddingY: 0
+          },
+          success: { duration: 4000, style: { borderColor: theme.success } },
+          error: { duration: 10000, style: { borderColor: theme.error } },
+          warning: { duration: 10000, style: { borderColor: theme.warning } },
+          info: { duration: 6000, style: { borderColor: theme.blue } }
+        }}
+      />
       <PromptOverlay />
       <FailureBanner />
       <Footer isCancelling={!!isCancelling()} />
