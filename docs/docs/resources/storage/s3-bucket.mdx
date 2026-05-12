@@ -1,0 +1,460 @@
+---
+title: 'S3 Bucket'
+order: 53
+seoTitle: 'S3 Bucket: Object Storage on AWS | Stacktape Docs'
+seoDescription: 'Store files and binary data in AWS S3 with Stacktape. Configure access control, CDN, lifecycle rules, CORS, and connect buckets to Lambda functions and containers.'
+---
+
+# S3 Bucket
+
+An S3 bucket stores files, images, backups, and any binary data as objects in AWS S3 with 99.999999999% durability. Use it for user uploads, static assets, archives, and application-generated content. Stacktape configures the bucket, predefined access modes, optional CDN attachment, and lifecycle rules. You pay only for what you store and transfer.
+
+**Pricing**: Pay only for what you store and transfer.
+
+## When to use
+
+**Use an S3 bucket when:**
+
+- You need to store files uploaded by users (avatars, documents, media)
+- Your application generates files that need persistent storage — for example, reports, exports, or logs
+- You need a backup or archive destination
+- You're storing assets served through a CDN (images, videos, downloadable files)
+- You need an event source — trigger Lambda functions when objects are created or deleted
+
+**Use something else when:**
+
+| Situation | Better option |
+|-----------|---------------|
+| Hosting a static site or SPA | [Hosting bucket](/resources/frontend/hosting-bucket) — configured for web hosting |
+| Structured data (rows, queries) | [DynamoDB table](/resources/databases/dynamo-db-table) or [relational database](/resources/databases/relational-database) |
+| Shared filesystem for containers | [EFS filesystem](/resources/storage/efs-filesystem) |
+| Key-value cache or sessions | [Redis cluster](/resources/databases/redis-cluster) |
+
+## Basic example
+
+This creates a private bucket — the simplest setup for application file storage:
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, Bucket } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const uploads = new Bucket({});
+
+  return {
+    resources: { uploads }
+  };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+The bucket is private by default. Compute resources and entities with sufficient IAM permissions can read from or write to it; Stacktape workloads receive those permissions through `connectTo`. When a workload connects to this bucket with `connectTo: ['uploads']`, Stacktape injects `STP_UPLOADS_NAME` and `STP_UPLOADS_ARN` as environment variables. Use the bucket name with the AWS SDK to read and write objects. See [Connecting to compute resources](#connecting-to-compute-resources) for a full example.
+
+## Directory upload
+
+Sync a local directory to the bucket on every deploy. The bucket mirrors the directory exactly — existing files not in the source directory are deleted from the bucket.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, Bucket } from 'stacktape';
+
+export default defineConfig(() => {
+  const assets = new Bucket({
+    // [!code focus-start]
+    directoryUpload: {
+      directoryPath: './build-output',
+      headersPreset: 'single-page-app',
+      excludeFilesPatterns: ['*.map', '.DS_Store']
+    }
+    // [!code focus-end]
+  });
+
+  return {
+    resources: { assets }
+  };
+});`
+    }
+  ]}
+/>
+
+<Warning>Directory upload replaces all existing bucket contents on every deploy. Do not use it for buckets that store user-uploaded or application-generated files.</Warning>
+
+### Headers presets
+
+The `headersPreset` sets HTTP caching headers optimized for your framework:
+
+| Preset | Behavior |
+|--------|----------|
+| `single-page-app` | HTML never cached, hashed assets cached forever. For React/Vue/Angular SPAs. |
+| `static-website` | CDN-cached, never browser-cached. For generic static sites. |
+| `astro-static-website` | Hashed build assets cached forever, HTML always fresh. For Astro. |
+| `sveltekit-static-website` | Hashed build assets cached forever, HTML always fresh. For SvelteKit. |
+| `nuxt-static-website` | Hashed build assets cached forever, HTML always fresh. For Nuxt. |
+| `gatsby-static-website` | Hashed build assets cached forever, HTML always fresh. For Gatsby. |
+
+Override individual files with `fileOptions` to set custom `Cache-Control` headers or tags on files matching specific glob patterns.
+
+Uploads use S3 Transfer Acceleration by default for faster uploads from distant regions. Disable with `disableS3TransferAcceleration: true` to save a small per-GB cost.
+
+## Access control
+
+Control who can read and write to the bucket. Three modes are available:
+
+| Mode | Behavior |
+|------|----------|
+| `private` (default) | Only compute resources and entities with sufficient IAM permissions can access the bucket. |
+| `public-read` | Anyone can read. Only entities with IAM permissions can write. |
+| `public-read-write` | Anyone can read and write. |
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, Bucket } from 'stacktape';
+
+export default defineConfig(() => {
+  const publicAssets = new Bucket({
+    // [!code focus-start]
+    accessibility: {
+      accessibilityMode: 'public-read'
+    }
+    // [!code focus-end]
+  });
+
+  return {
+    resources: { publicAssets }
+  };
+});`
+    }
+  ]}
+/>
+
+For functions, batch jobs, and container workloads, grant IAM permissions using `connectTo` or `iamRoleStatements` in their configuration.
+
+Inside `accessibility`, use `accessPolicyStatements` for fine-grained access control beyond the predefined modes. This lets you add custom IAM policy statements to the bucket policy.
+
+## CDN
+
+Add a CDN (CloudFront) in front of the bucket for faster downloads and lower bandwidth costs. The CDN caches objects at edge locations so users get content from the nearest server. No monthly base cost — you pay per request (~$0.01/10k) and per GB transferred.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, Bucket } from 'stacktape';
+
+export default defineConfig(() => {
+  const media = new Bucket({
+    // [!code focus-start]
+    cdn: {
+      enabled: true
+    }
+    // [!code focus-end]
+  });
+
+  return {
+    resources: { media }
+  };
+});`
+    }
+  ]}
+/>
+
+When CDN is enabled, additional referenceable parameters become available (`cdnUrl`, `cdnDomain`, `cdnCanonicalUrl`, `cdnCanonicalDomain`, `cdnCustomDomains`, `cdnCustomDomainUrls`). Reference these using the `$ResourceParam` directive — for example, `$ResourceParam('media', 'cdnUrl')`.
+
+### SPA routing
+
+For single-page applications served from a bucket, enable `rewriteRoutesForSinglePageApp` so that paths without file extensions (e.g., `/dashboard`, `/settings`) are routed to `index.html`, while paths with extensions (`.js`, `.css`, `.png`) serve the matching file directly:
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, Bucket } from 'stacktape';
+
+export default defineConfig(() => {
+  const spa = new Bucket({
+    directoryUpload: {
+      directoryPath: './dist',
+      headersPreset: 'single-page-app'
+    },
+    // [!code focus-start]
+    cdn: {
+      enabled: true,
+      rewriteRoutesForSinglePageApp: true
+    }
+    // [!code focus-end]
+  });
+
+  return {
+    resources: { spa }
+  };
+});`
+    }
+  ]}
+/>
+
+<Tip>For most SPA and static site hosting, use a [hosting bucket](/resources/frontend/hosting-bucket) instead — it pre-configures CDN, routing, and caching headers for you.</Tip>
+
+### CDN options
+
+The CDN also supports custom domains, edge functions, route rewrites, caching configuration, and a [web application firewall](/resources/security/web-app-firewall) via `useFirewall`. URL normalization is enabled by default for clean URLs (disable with `disableUrlNormalization: true`).
+
+The default price class is `PriceClass_All` (all regions worldwide). Narrow to `PriceClass_100` (North America + Europe) to reduce per-request cost if your users are concentrated in those regions. See the API reference below for the full CDN property set.
+
+## CORS
+
+Configure Cross-Origin Resource Sharing to allow browsers on other domains to access the bucket directly.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, Bucket } from 'stacktape';
+
+export default defineConfig(() => {
+  const uploads = new Bucket({
+    // [!code focus-start]
+    cors: {
+      enabled: true,
+      corsRules: [
+        {
+          allowedOrigins: ['https://myapp.com'],
+          allowedMethods: ['GET', 'PUT'],
+          allowedHeaders: ['*'],
+          maxAge: 3600
+        }
+      ]
+    }
+    // [!code focus-end]
+  });
+
+  return {
+    resources: { uploads }
+  };
+});`
+    }
+  ]}
+/>
+
+When `cors` is enabled with no `corsRules`, permissive defaults apply (`*` origins, all methods). The first matching rule wins for each preflight request.
+
+## Lifecycle rules
+
+Automatically delete, archive, or transition objects to cheaper storage classes over time. Use lifecycle rules to control storage costs.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, Bucket } from 'stacktape';
+
+export default defineConfig(() => {
+  const logs = new Bucket({
+    // [!code focus-start]
+    lifecycleRules: [
+      {
+        type: 'expiration',
+        properties: {
+          prefix: 'logs/',
+          daysAfterUpload: 90
+        }
+      },
+      {
+        type: 'class-transition',
+        properties: {
+          prefix: 'archives/',
+          daysAfterUpload: 30,
+          storageClass: 'GLACIER'
+        }
+      },
+      {
+        type: 'abort-incomplete-multipart-upload',
+        properties: {
+          daysAfterInitiation: 7
+        }
+      }
+    ]
+    // [!code focus-end]
+  });
+
+  return {
+    resources: { logs }
+  };
+});`
+    }
+  ]}
+/>
+
+### Rule types
+
+| Rule type | What it does |
+|-----------|-------------|
+| `expiration` | Permanently delete objects after a number of days |
+| `class-transition` | Move objects to a cheaper storage class after a number of days |
+| `non-current-version-expiration` | Delete old versions after a number of days (requires `versioning: true`) |
+| `non-current-version-class-transition` | Move old versions to cheaper storage (requires `versioning: true`) |
+| `abort-incomplete-multipart-upload` | Clean up incomplete multipart uploads to prevent storage waste |
+
+Each rule can be scoped to a `prefix` (e.g., `logs/`, `uploads/`) and/or `tags` so different object groups get different retention policies.
+
+### Storage classes
+
+| Class | Access pattern | Retrieval time |
+|-------|---------------|----------------|
+| `STANDARD_IA` | Infrequent access, instant retrieval | Instant |
+| `ONEZONE_IA` | Infrequent, single-AZ | Instant |
+| `INTELLIGENT_TIERING` | AWS auto-moves between tiers based on access patterns | Instant |
+| `GLACIER` | Archive | Minutes to hours |
+| `DEEP_ARCHIVE` | Cheapest | 12+ hours |
+
+Cheaper classes have higher retrieval costs and latency. Use `INTELLIGENT_TIERING` when you want AWS to move objects between tiers based on access patterns.
+
+## Versioning and encryption
+
+Enable `versioning` to keep previous versions of overwritten or deleted objects. This helps recover from accidental deletions and overwrites. Old versions are retained and continue to incur storage costs — pair versioning with a `non-current-version-expiration` lifecycle rule to automatically clean up old versions after a retention period and keep costs under control.
+
+Enable `encryption` to encrypt stored objects at rest using AES-256 server-side encryption.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, Bucket } from 'stacktape';
+
+export default defineConfig(() => {
+  const documents = new Bucket({
+    // [!code focus-start]
+    versioning: true,
+    encryption: true
+    // [!code focus-end]
+  });
+
+  return {
+    resources: { documents }
+  };
+});`
+    }
+  ]}
+/>
+
+## Event notifications
+
+Enable `enableEventBusNotifications` to send S3 events, such as object-created and object-deleted events, to EventBridge for event-driven workflows.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, Bucket } from 'stacktape';
+
+export default defineConfig(() => {
+  const uploads = new Bucket({
+    // [!code focus-start]
+    enableEventBusNotifications: true
+    // [!code focus-end]
+  });
+
+  return {
+    resources: { uploads }
+  };
+});`
+    }
+  ]}
+/>
+
+Lambda functions can also use the `s3` [trigger type](/configuration/triggers/) to react to S3 events directly. The trigger requires a bucket ARN and S3 event type (e.g., `s3:ObjectCreated:*`), with an optional prefix/suffix filter. See [triggers](/configuration/triggers/) for configuration details.
+
+## Connecting to compute resources
+
+For functions, batch jobs, and container workloads, use `connectTo` to grant bucket access and inject bucket parameters. Stacktape automatically grants IAM read/write/delete permissions and injects environment variables.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, Bucket, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+
+export default defineConfig(() => {
+  const files = new Bucket({});
+
+  const api = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({
+      entryfilePath: './src/handler.ts'
+    }),
+    // [!code focus-start]
+    connectTo: ['files']
+    // [!code focus-end]
+  });
+
+  return {
+    resources: { files, api }
+  };
+});`
+    }
+  ]}
+/>
+
+Connecting to a bucket injects these environment variables:
+
+| Variable | Description |
+|----------|-------------|
+| `STP_[BUCKET_NAME]_NAME` | The S3 bucket name (use with AWS SDK) |
+| `STP_[BUCKET_NAME]_ARN` | The S3 bucket ARN |
+
+For example, a bucket named `files` injects `STP_FILES_NAME` and `STP_FILES_ARN`. Use the bucket name with the AWS SDK to read and write objects in your application code.
+
+For the full list of injected variables per resource type, see [connecting resources](/configuration/connecting-resources). For permissions not covered by `connectTo` (e.g., AWS Rekognition, Bedrock, SES), use `iamRoleStatements` to add raw IAM policy statements.
+
+## FAQ
+
+### How do I make a bucket public?
+
+Set `accessibility.accessibilityMode` to `'public-read'` (anyone can read, only authorized entities can write) or `'public-read-write'` (anyone can read and write). See [Access control](#access-control).
+
+### How do I auto-delete old objects?
+
+Add a lifecycle rule with `type: 'expiration'` and set `daysAfterUpload` in its properties. Scope rules to specific prefixes or tags. See [Lifecycle rules](#lifecycle-rules).
+
+### How do I trigger a Lambda from S3 uploads?
+
+Use the `s3` [trigger type](/configuration/triggers/) on a [Lambda function](/resources/compute/lambda-function). The trigger requires the bucket ARN (available via `$ResourceParam`) and an S3 event type such as `s3:ObjectCreated:*`.
+
+### What environment variables does connectTo inject for a bucket?
+
+`STP_[BUCKET_NAME]_NAME` (the S3 bucket name) and `STP_[BUCKET_NAME]_ARN` (the bucket ARN). For a bucket named `uploads`, that's `STP_UPLOADS_NAME` and `STP_UPLOADS_ARN`.
+
+## API reference
+
+<ApiReference definitionName="BucketProps" />
+
+## Referenceable parameters
+
+<ReferenceableParams resource="bucket" />

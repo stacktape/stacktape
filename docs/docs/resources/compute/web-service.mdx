@@ -1,0 +1,544 @@
+---
+title: 'Web Service'
+order: 31
+seoTitle: 'Web Service: Always-On Containers on AWS | Stacktape Docs'
+seoDescription: 'Deploy always-on containers with HTTPS, auto-scaling, and zero-downtime deployments on AWS. Choose pay-per-request or flat-rate load balancing for your API.'
+---
+
+# Web Service
+
+A web service is an always-on container with a public HTTPS endpoint, built on AWS ECS Fargate. Use it for REST APIs, GraphQL APIs, web applications, WebSocket servers, and any workload that needs to handle HTTP traffic continuously. Stacktape manages TLS certificates, auto-scaling, health checks, and zero-downtime deployments.
+
+**Pricing**: A minimal Fargate task (0.25 vCPU, 512 MB) costs ~$9/month for compute. Load balancing adds ~$1/million requests (API Gateway, default) or ~$18/month flat (Application Load Balancer). Fargate cannot scale to zero — for pay-per-request compute, use a [Lambda function](/resources/compute/lambda-function). ARM (Graviton) tasks cost ~20% less.
+
+## When should I use a web service?
+
+**Use a web service when:**
+
+- Your app needs to respond to HTTP/HTTPS requests and stay running continuously (APIs, web apps, admin dashboards)
+- You need WebSocket support, long-lived connections, streaming responses, or gRPC
+- You want to run any language or framework in a container — Express, FastAPI, Rails, Spring Boot, Gin, etc.
+- Request processing takes more than 15 minutes (the Lambda timeout limit)
+- Your traffic is steady enough that a running container costs less than per-request pricing
+
+**Use something else when:**
+
+| Situation | Better option |
+|-----------|---------------|
+| Spiky or near-zero traffic | [Lambda function](/resources/compute/lambda-function) — scales to zero, pay per request |
+| No public URL needed | [Private service](/resources/compute/private-service) — internal traffic only |
+| Background processing, no inbound traffic | [Worker service](/resources/compute/worker-service) |
+| Next.js, Remix, Astro, or similar SSR framework | Dedicated [framework resource](/resources/frontend/) with optimized builds and routing |
+| Static site or SPA | [Hosting bucket](/resources/frontend/hosting-bucket) |
+
+## Basic example
+
+This deploys a Node.js API as an always-on container with a public HTTPS URL:
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const api = new WebService({
+    packaging: new StacktapeImageBuildpackPackaging({
+      entryfilePath: './src/server.ts'
+    }),
+    resources: {
+      cpu: 0.25,
+      memory: 512
+    }
+  });
+
+  return {
+    resources: { api }
+  };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+```typescript
+// src/server.ts
+import { serve } from '@hono/node-server';
+import { Hono } from 'hono';
+
+const app = new Hono();
+app.get('/', (c) => c.json({ status: 'ok' }));
+app.get('/health', (c) => c.text('healthy'));
+
+serve({ fetch: app.fetch, port: Number(process.env.PORT) || 3000 });
+```
+
+After deploying with `stacktape deploy`, you receive a public HTTPS URL for your service.
+
+The Stacktape image buildpack builds a container image from your source code automatically. For other packaging options (custom Dockerfile, prebuilt image, Nixpacks), see [container packaging](/packaging/containers/).
+
+## Load balancing
+
+The `loadBalancing` property determines how traffic reaches your containers. This is the most impactful architectural decision for a web service — it affects pricing, available features, and supported protocols.
+
+<FeatureComparisonTable
+  columns={["HTTP API Gateway", "Application Load Balancer", "Network Load Balancer"]}
+  features={[
+    { name: "Pricing", values: { "HTTP API Gateway": "~$1/million requests", "Application Load Balancer": "~$18/month + usage", "Network Load Balancer": "~$18/month + usage" } },
+    { name: "Best for", values: { "HTTP API Gateway": "Most HTTP APIs", "Application Load Balancer": "WebSocket, gradual deploy, firewall", "Network Load Balancer": "TCP/TLS (MQTT, game servers)" } },
+    { name: "WebSocket", values: { "HTTP API Gateway": false, "Application Load Balancer": true, "Network Load Balancer": false } },
+    { name: "CDN support", values: { "HTTP API Gateway": true, "Application Load Balancer": true, "Network Load Balancer": false } },
+    { name: "Managed CORS", values: { "HTTP API Gateway": true, "Application Load Balancer": false, "Network Load Balancer": false } },
+    { name: "Gradual deployments", values: { "HTTP API Gateway": false, "Application Load Balancer": true, "Network Load Balancer": false } },
+    { name: "Firewall (WAF)", values: { "HTTP API Gateway": false, "Application Load Balancer": true, "Network Load Balancer": false } },
+    { name: "AWS Free Tier", values: { "HTTP API Gateway": true, "Application Load Balancer": true, "Network Load Balancer": false } }
+  ]}
+/>
+
+### HTTP API Gateway (default)
+
+The default when `loadBalancing` is omitted. Pay-per-request pricing makes it the cheapest option at low-to-moderate traffic. Supports managed CORS configuration via the `cors` property.
+
+At high traffic volumes (above ~500k requests/day), per-request costs may exceed the flat-rate Application Load Balancer.
+
+### Application Load Balancer
+
+Required for WebSocket support, gradual deployments (`deployment` property), and web application firewalls (`useFirewall`). The flat monthly base cost (~$18/month) makes pricing more predictable at higher traffic volumes. AWS Free Tier eligible.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stacktape';
+
+export default defineConfig(() => {
+  const api = new WebService({
+    packaging: new StacktapeImageBuildpackPackaging({
+      entryfilePath: './src/server.ts'
+    }),
+    resources: {
+      cpu: 0.5,
+      memory: 1024
+    },
+    // [!code focus-start]
+    loadBalancing: {
+      type: 'application-load-balancer',
+      properties: {
+        healthcheckPath: '/health',
+        healthcheckInterval: 10,
+        healthcheckTimeout: 5
+      }
+    }
+    // [!code focus-end]
+  });
+
+  return {
+    resources: { api }
+  };
+});`
+    }
+  ]}
+/>
+
+Health check defaults: path `/`, interval `5` seconds, timeout `4` seconds.
+
+### Network Load Balancer
+
+For non-HTTP traffic (TCP/TLS) — MQTT brokers, game servers, custom binary protocols. You must explicitly define the `ports` your service exposes.
+
+Does not support CDN, firewall, managed CORS, or gradual deployments.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, WebService, CustomDockerfilePackaging } from 'stacktape';
+
+export default defineConfig(() => {
+  const broker = new WebService({
+    packaging: new CustomDockerfilePackaging({
+      buildContextPath: './broker'
+    }),
+    resources: {
+      cpu: 1,
+      memory: 2048
+    },
+    // [!code focus-start]
+    loadBalancing: {
+      type: 'network-load-balancer',
+      properties: {
+        ports: [{ port: 8883, protocol: 'TLS', containerPort: 1883 }],
+        healthCheckProtocol: 'TCP'
+      }
+    }
+    // [!code focus-end]
+  });
+
+  return {
+    resources: { broker }
+  };
+});`
+    }
+  ]}
+/>
+
+Port defaults: `protocol` is `TLS`, `containerPort` defaults to the public `port` value.
+
+## Resources and compute
+
+The `resources` property sets CPU, memory, and the compute engine for your containers.
+
+Two compute engines are available:
+
+- **Fargate** (default) — serverless. Specify `cpu` and `memory`. AWS manages the underlying infrastructure. No server patching or capacity planning.
+- **EC2** — specify `instanceTypes` for more control and potentially lower cost on steady workloads. Instances auto-scale and are refreshed weekly for patching.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stacktape';
+
+export default defineConfig(() => {
+  const api = new WebService({
+    packaging: new StacktapeImageBuildpackPackaging({
+      entryfilePath: './src/server.ts'
+    }),
+    // [!code focus-start]
+    resources: {
+      cpu: 0.5,
+      memory: 1024
+    }
+    // [!code focus-end]
+  });
+
+  return {
+    resources: { api }
+  };
+});`
+    }
+  ]}
+/>
+
+Fargate CPU and memory must use valid combinations. Common sizes and approximate monthly costs (us-east-1, single container):
+
+| vCPU | Memory | ~Cost/month |
+|------|--------|-------------|
+| 0.25 | 512 MB | ~$9 |
+| 0.5 | 1024 MB | ~$18 |
+| 1 | 2048 MB | ~$36 |
+| 2 | 4096 MB | ~$71 |
+| 4 | 8192 MB | ~$142 |
+
+<Tip>Set `architecture: 'arm64'` to use ARM (Graviton) tasks for ~20% lower compute cost. The default is `x86_64`.</Tip>
+
+## Scaling
+
+Auto-scaling adds or removes container instances based on CPU and memory utilization. Traffic is distributed across all running instances automatically.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stacktape';
+
+export default defineConfig(() => {
+  const api = new WebService({
+    packaging: new StacktapeImageBuildpackPackaging({
+      entryfilePath: './src/server.ts'
+    }),
+    resources: {
+      cpu: 0.5,
+      memory: 1024
+    },
+    // [!code focus-start]
+    scaling: {
+      minInstances: 2,
+      maxInstances: 10,
+      scalingPolicy: {
+        keepAvgCpuUtilizationUnder: 70
+      }
+    }
+    // [!code focus-end]
+  });
+
+  return {
+    resources: { api }
+  };
+});`
+    }
+  ]}
+/>
+
+Without scaling configured, a single container handles all traffic (`minInstances` and `maxInstances` both default to `1`). For production workloads, configure at least `minInstances: 2` so your service stays available if one container fails.
+
+Scaling policy defaults: scale out when average CPU or memory exceeds 80%, scale in when utilization drops below the target.
+
+## Custom domains
+
+Attach your own domain (e.g., `api.example.com`) to a web service. Stacktape creates the DNS record and provisions a free TLS certificate automatically.
+
+Your domain must have a Route53 hosted zone in your AWS account, with your registrar's nameservers pointing to it.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stacktape';
+
+export default defineConfig(() => {
+  const api = new WebService({
+    packaging: new StacktapeImageBuildpackPackaging({
+      entryfilePath: './src/server.ts'
+    }),
+    resources: {
+      cpu: 0.5,
+      memory: 1024
+    },
+    // [!code focus-start]
+    customDomains: [{ domainName: 'api.example.com' }]
+    // [!code focus-end]
+  });
+
+  return {
+    resources: { api }
+  };
+});`
+    }
+  ]}
+/>
+
+To use your own TLS certificate (e.g., EV/OV certs), set `customCertificateArn` to an ACM certificate ARN. To manage DNS records yourself (e.g., through Cloudflare), set `disableDnsRecordCreation: true`.
+
+## CDN
+
+Add a CDN (CloudFront) in front of your web service for edge caching and lower latency for users worldwide. The CDN has no monthly base cost — you pay per request (~$0.01/10k) and per GB transferred.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stacktape';
+
+export default defineConfig(() => {
+  const api = new WebService({
+    packaging: new StacktapeImageBuildpackPackaging({
+      entryfilePath: './src/server.ts'
+    }),
+    resources: {
+      cpu: 0.5,
+      memory: 1024
+    },
+    // [!code focus-start]
+    cdn: {
+      enabled: true
+    }
+    // [!code focus-end]
+  });
+
+  return {
+    resources: { api }
+  };
+});`
+    }
+  ]}
+/>
+
+CDN is supported with HTTP API Gateway and Application Load Balancer load balancing, but not with Network Load Balancer. Additional CDN options include route rewrites, edge functions, custom domains, caching configuration, and price class selection.
+
+## CORS
+
+The `cors` property configures Cross-Origin Resource Sharing headers at the load balancer level, overriding any CORS headers set by your application code.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stacktape';
+
+export default defineConfig(() => {
+  const api = new WebService({
+    packaging: new StacktapeImageBuildpackPackaging({
+      entryfilePath: './src/server.ts'
+    }),
+    resources: {
+      cpu: 0.25,
+      memory: 512
+    },
+    // [!code focus-start]
+    cors: {
+      enabled: true,
+      allowedOrigins: ['https://myapp.com'],
+      allowCredentials: true
+    }
+    // [!code focus-end]
+  });
+
+  return {
+    resources: { api }
+  };
+});`
+    }
+  ]}
+/>
+
+When `cors` is enabled with no other options, it uses permissive defaults (`*` origins, common headers).
+
+<Warning>Managed CORS only works with `http-api-gateway` load balancing (the default). If you use an Application Load Balancer or Network Load Balancer, handle CORS in your application code instead.</Warning>
+
+## Gradual deployments
+
+Shift traffic gradually from the old version to the new one during deployments. If health checks fail during the shift, traffic rolls back automatically.
+
+Available strategies:
+
+- **Canary** — send 10% of traffic to the new version first, then shift all traffic after a validation window (`Canary10Percent5Minutes`, `Canary10Percent15Minutes`)
+- **Linear** — increase traffic to the new version by 10% at regular intervals (`Linear10PercentEvery1Minutes`, `Linear10PercentEvery3Minutes`)
+- **AllAtOnce** — instant switch with automatic rollback on failure
+
+You can optionally run validation Lambda functions before and after the traffic shift to perform smoke tests.
+
+<Warning>Gradual deployments require `loadBalancing` type `application-load-balancer`. They are not available with the default HTTP API Gateway or Network Load Balancer.</Warning>
+
+## Connecting to other resources
+
+Use `connectTo` to grant your web service access to databases, buckets, queues, and other resources in your stack. Stacktape automatically grants IAM permissions, opens network access (security group rules for databases and Redis), and injects environment variables with connection details.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stacktape';
+
+export default defineConfig(() => {
+  const api = new WebService({
+    packaging: new StacktapeImageBuildpackPackaging({
+      entryfilePath: './src/server.ts'
+    }),
+    resources: {
+      cpu: 0.5,
+      memory: 1024
+    },
+    // [!code focus-start]
+    connectTo: ['myDatabase', 'myBucket']
+    // [!code focus-end]
+  });
+
+  return {
+    resources: { api }
+  };
+});`
+    }
+  ]}
+/>
+
+Environment variables are injected in the format `STP_[RESOURCE_NAME]_[PARAM]`. For example, connecting to a relational database named `myDatabase` injects `STP_MY_DATABASE_CONNECTION_STRING`, `STP_MY_DATABASE_HOST`, `STP_MY_DATABASE_PORT`, and more.
+
+For the full list of injected variables per resource type, see [connecting resources](/configuration/connecting-resources).
+
+For permissions not covered by `connectTo` (e.g., AWS Rekognition, Bedrock, SES), use `iamRoleStatements` to add raw IAM policy statements.
+
+## Side containers
+
+Run helper containers alongside your main container using the `sideContainers` property:
+
+- **`run-on-init`** — runs to completion before the main container starts. Must exit with code 0. Use for database migrations, cache warming, or configuration setup.
+- **`always-running`** — runs for the entire lifecycle alongside the main container. If it crashes, the whole task fails. Use for log forwarders, monitoring agents, or sidecar proxies. Reachable from the main container via `localhost`.
+
+Each side container has its own packaging, environment variables, and resource allocation.
+
+## Firewall
+
+Attach a [`web-app-firewall`](/resources/security/web-app-firewall) resource to protect your service from common web exploits (SQL injection, XSS, bot traffic). There are two attachment points:
+
+- Use top-level `useFirewall` to attach a regional firewall directly to the service load balancer. This requires `loadBalancing` type `application-load-balancer`.
+- Use `cdn.useFirewall` to attach a CDN-scoped firewall to the CloudFront distribution when `cdn.enabled` is `true`. This can be used with the default `http-api-gateway` load balancing or with `application-load-balancer`.
+
+<Warning>Top-level `useFirewall` requires `loadBalancing` type `application-load-balancer`. For CDN-protected services, put the firewall reference under `cdn.useFirewall` and configure the firewall with `scope: 'cdn'`.</Warning>
+
+## Static outbound IP
+
+By default, your container's outbound IP address changes with each deployment. To get a static outbound IP — for IP whitelisting with third-party APIs, payment gateways, or partner services — enable private subnets with NAT:
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stacktape';
+
+export default defineConfig(() => {
+  const api = new WebService({
+    packaging: new StacktapeImageBuildpackPackaging({
+      entryfilePath: './src/server.ts'
+    }),
+    resources: {
+      cpu: 0.5,
+      memory: 1024
+    },
+    // [!code focus-start]
+    usePrivateSubnetsWithNAT: true
+    // [!code focus-end]
+  });
+
+  return {
+    resources: { api },
+    stackConfig: {
+      vpc: {
+        nat: { availabilityZones: 2 }
+      }
+    }
+  };
+});`
+    }
+  ]}
+/>
+
+All outbound traffic routes through NAT Gateways, each with a static Elastic IP that persists across deployments. Configure the number of NAT Gateways (1–3) in `stackConfig.vpc.nat`. More gateways mean higher availability but higher cost.
+
+<Warning>Each NAT Gateway costs ~$32/month plus data processing fees. Only enable this when you need a static outbound IP.</Warning>
+
+## Health checks
+
+Two types of health checks protect your service:
+
+- **Load balancer health check** — configured via `loadBalancing.properties` (for ALB and NLB). The load balancer pings a path on your container and stops routing traffic to unhealthy instances. Defaults: path `/`, interval `5s`, timeout `4s`.
+- **Internal health check** — configured via `internalHealthCheck`. Runs a command inside the container (e.g., `curl -f http://localhost/health`). If a container fails, ECS terminates and replaces it automatically. Defaults: interval `30s`, timeout `5s`, `3` retries before marking unhealthy.
+
+For most web services, the load balancer health check is sufficient. Use `internalHealthCheck` when you need to verify internal state beyond HTTP reachability.
+
+## Logging
+
+Container output (`stdout`/`stderr`) is automatically sent to CloudWatch Logs and retained for 90 days by default. View logs with `stacktape logs` or in the Stacktape Console. Adjust retention with the `logging.retentionDays` property.
+
+## Remote debugging
+
+Enable `enableRemoteSessions: true` to allow SSH-like access to running containers via `stacktape container:session`. This installs a small SSM agent using minimal CPU/memory. Useful for debugging issues that only reproduce in the deployed environment.
+
+## API reference
+
+<ApiReference definitionName="WebServiceProps" />
+
+## Referenceable parameters
+
+<ReferenceableParams resource="web-service" />
