@@ -52,6 +52,15 @@ export const commandDeploy = async () => {
 
   validateGuardrails({ guardrails: configManager.guardrails, hasConfig: true });
 
+  const issueDetectionPolicy = configManager.issueDetectionPolicy;
+  if (issueDetectionPolicy.enabled) {
+    const issueHighVolumeProtection =
+      issueDetectionPolicy.eventSamplingRate < 100
+        ? `, processing ${issueDetectionPolicy.eventSamplingRate}% of matching events`
+        : ', processing all matching events';
+    tuiManager.info(`Issues: enabled (${issueDetectionPolicy.reason}${issueHighVolumeProtection}).`);
+  }
+
   await ensureMissingSecretsCreated();
   await ensureMissingSsmParamsCreated();
 

@@ -16,6 +16,7 @@ import {
   configFormat,
   configPath,
   container,
+  currentUserOnly,
   devMode,
   disableAutoRollback,
   disableDockerRemoteCache,
@@ -891,13 +892,14 @@ Use this command to verify your API key is configured correctly and to see what 
   },
 
   'info:operations': {
-    description: `Lists recent deployment operations (deploy, delete) with their status.
+    description: `Lists recent recorded Stacktape operations with their status.
 
-Shows operation history including success/failure status, timestamps, and error descriptions for failed operations. Filter by project or stage to narrow results.`,
+Shows operation history including success/failure status, timestamps, and error descriptions for failed operations. Filter by project, stage, or the current API-key user to narrow results.`,
     args: {
       logLevel: logLevel.optional(),
       projectName: projectName.optional(),
       stage: stage.optional(),
+      currentUserOnly: currentUserOnly.optional(),
       limit: limit.optional(),
       agent: agent.optional(),
       outputFormat: outputFormat.optional()

@@ -5,15 +5,16 @@ import { tuiManager } from '@application-services/tui-manager';
 export const commandInfoOperations = async () => {
   await stacktapeTrpcApiManager.init({ apiKey: globalStateManager.apiKey });
 
-  const { projectName, stage, limit } = globalStateManager.args;
+  const { currentUserOnly, projectName, stage, limit } = globalStateManager.args;
 
-  const operations = await stacktapeTrpcApiManager.apiClient.recentStackOperations({
+  const activity = await stacktapeTrpcApiManager.apiClient.organizationActivity({
+    currentUserOnly,
     projectName,
     stage,
-    limit: limit ?? 25
+    pageSize: limit ?? 25
   });
 
-  tuiManager.printOperations({ operations });
+  tuiManager.printOperations({ operations: activity.items });
 
-  return operations;
+  return activity;
 };

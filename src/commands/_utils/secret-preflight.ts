@@ -18,6 +18,19 @@ const generateSecureSecretValue = (length = 32): string => {
   return Array.from(bytes, (byte) => charset[byte % charset.length]).join('');
 };
 
+// Some consumers (e.g. self-hosted Convex's INSTANCE_SECRET) require values that
+// are pure hex. The default charset above contains non-hex characters and would
+// fail downstream parsers.
+const HEX_REQUIRED_KEY_SUFFIXES = ['instanceSecret', 'instance_secret', 'hexSecret'];
+const generateHexSecretValue = (bytes = 32): string => randomBytes(bytes).toString('hex');
+
+const generateValueForJsonKey = (key: string): string => {
+  if (HEX_REQUIRED_KEY_SUFFIXES.some((suffix) => key === suffix || key.endsWith(suffix))) {
+    return generateHexSecretValue();
+  }
+  return generateSecureSecretValue();
+};
+
 /**
  * Generates the secret value string for a given secret.
  * If jsonKeys are specified (from dot-notation references like $Secret('db.password')),
@@ -30,7 +43,7 @@ const buildSecretValue = (jsonKeys: Set<string>): string => {
   }
   const jsonObject: Record<string, string> = {};
   for (const key of jsonKeys) {
-    jsonObject[key] = generateSecureSecretValue();
+    jsonObject[key] = generateValueForJsonKey(key);
   }
   return JSON.stringify(jsonObject);
 };

@@ -190,6 +190,10 @@ export const raw = z.boolean().describe(`#### Raw
 ---
 If \`true\`, prints logs in raw JSON format instead of pretty-printing them.`);
 
+export const currentUserOnly = z.boolean().describe(`#### Current User Only
+---
+If \`true\`, only returns records created by the user that owns the active API key.`);
+
 export const command = z.string().describe(`#### Command
 ---
 This argument has different meanings depending on the command:
@@ -566,6 +570,7 @@ export const allCliArgsSchema = z.object({
   startTime: startTime.optional(),
   filter: filter.optional(),
   raw: raw.optional(),
+  currentUserOnly: currentUserOnly.optional(),
   dockerArgs: dockerArgs.optional(),
   sourcePath: sourcePath.optional(),
   bucketId: bucketId.optional(),
